@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "host": "<ORACLE-SERVER>",
+  "refresh_interval_minutes": 30,
+  "cache_ttl_seconds": 1800,
+  "presets": [
+    {
+      "label": "Last 30 Days — All Stores",
+      "date_range_days": 30
+    },
+    {
+      "label": "Last 7 Days — All Stores",
+      "date_range_days": 7
+    }
+  ]
+}

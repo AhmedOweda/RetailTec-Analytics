@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #C8A8E8; border-radius: 10px; }
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Manrope', sans-serif; background: #F5F3FB; color: #1A0D45; -webkit-font-smoothing: antialiased; }
+
+.tabnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+
+.kpi-card { transition: box-shadow .18s ease, transform .15s ease; }
+.kpi-card:hover { box-shadow: 0 8px 28px rgba(45,27,107,0.16) !important; transform: translateY(-2px); }
+
+.chart-card { background: white; border-radius: 14px; border: 1px solid #E3D9F5; box-shadow: 0 2px 12px rgba(45,27,107,0.06); padding: 20px; }
+
+.section-title { font-size: 0.65rem; font-weight: 800; color: #6B5A8E; text-transform: uppercase; letter-spacing: 1.2px; border-bottom: 2px solid #E3D9F5; padding-bottom: 8px; margin-bottom: 16px; }
+
+.sidebar-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #4E2A99 transparent; }
+
+.rt-tooltip { background: rgba(26,13,69,0.92); border: 1px solid rgba(200,168,232,0.25); border-radius: 10px; padding: 10px 14px; color: white; font-family: 'Manrope', sans-serif; font-size: 12px; backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.rt-tooltip .label { color: #C8A8E8; font-size: 11px; margin-bottom: 4px; font-weight: 600; }
+
+@keyframes countUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.count-anim { animation: countUp .5s ease-out; }
+
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th { background: #F5F3FB; color: #6B5A8E; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; padding: 8px 12px; text-align: left; border-bottom: 2px solid #E3D9F5; position: sticky; top: 0; }
+.data-table td { padding: 8px 12px; border-bottom: 1px solid #F0ECF9; color: #1A0D45; font-variant-numeric: tabular-nums; }
+.data-table tr:hover td { background: #F9F7FE; }
+
+.react-datepicker-wrapper { width: 100%; }
+.react-datepicker__input-container input { width: 100%; background: rgba(78,42,153,0.35); border: 1px solid rgba(155,101,208,0.4); border-radius: 8px; color: white; padding: 7px 10px; font-size: 12px; font-family: 'Manrope', sans-serif; outline: none; }
+.react-datepicker__input-container input:focus { border-color: #9B65D0; }
+.react-datepicker { font-family: 'Manrope', sans-serif !important; border-color: #E3D9F5 !important; }
