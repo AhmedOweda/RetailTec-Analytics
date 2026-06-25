@@ -2,15 +2,22 @@
  * AppShell — persistent sidebar + header + page outlet
  * Same dark-purple theme as the original dashboard.
  */
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Box, Tooltip, Typography, Divider, CircularProgress } from '@mui/material'
+import {
+  Box, Tooltip, Typography, Divider, CircularProgress,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  TextField, Button, InputAdornment, IconButton, Fade,
+} from '@mui/material'
 import DashboardIcon     from '@mui/icons-material/Dashboard'
 import TrendingUpIcon    from '@mui/icons-material/TrendingUp'
 import InventoryIcon     from '@mui/icons-material/Inventory2'
 import ReceiptLongIcon   from '@mui/icons-material/ReceiptLong'
 import SettingsIcon      from '@mui/icons-material/Settings'
 import SyncIcon          from '@mui/icons-material/Sync'
+import LockOutlinedIcon  from '@mui/icons-material/LockOutlined'
+import VisibilityIcon    from '@mui/icons-material/Visibility'
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
 import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
 
@@ -18,6 +25,7 @@ import axios             from 'axios'
 const SIDEBAR_BG   = '#160b33'
 const SIDEBAR_W    = 220
 const ACCENT       = '#7c3aed'
+const ACCENT2      = '#6d28d9'
 const ACCENT_LIGHT = '#ede9fe'
 const HEADER_H     = 56
 
@@ -52,6 +60,26 @@ function SyncBadge() {
 // ── AppShell ───────────────────────────────────────────────────────────────
 export default function AppShell() {
   const navigate = useNavigate()
+
+  // ── Settings password gate ────────────────────────────────────────
+  const [lockOpen,  setLockOpen ] = useState(false)
+  const [password,  setPassword ] = useState('')
+  const [showPwd,   setShowPwd  ] = useState(false)
+  const [pwdError,  setPwdError ] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const openLock = () => {
+    setPassword(''); setPwdError(false); setShowPwd(false); setLockOpen(true)
+    setTimeout(() => inputRef.current?.focus(), 120)
+  }
+  const submitLock = () => {
+    if (password === 'sysadmin') {
+      setLockOpen(false); navigate('/settings')
+    } else {
+      setPwdError(true); setPassword('')
+      setTimeout(() => inputRef.current?.focus(), 80)
+    }
+  }
 
   return (
     <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
@@ -108,24 +136,92 @@ export default function AppShell() {
 
         <Divider sx={{ borderColor:'rgba(255,255,255,0.08)' }} />
 
-        {/* Settings link */}
+        {/* Settings — password protected */}
         <Box sx={{ px:1.5, py:1.5 }}>
-          <NavLink to="/settings" style={{ textDecoration:'none' }}>
-            {({ isActive }) => (
-              <Box sx={{
-                display:'flex', alignItems:'center', gap:1.5,
-                px:1.5, py:1, borderRadius:1.5, cursor:'pointer',
-                bgcolor: isActive ? 'rgba(124,58,237,0.18)' : 'transparent',
-                color:   isActive ? ACCENT_LIGHT : 'rgba(255,255,255,0.45)',
-                '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
-                transition:'all 0.15s',
-              }}>
-                <SettingsIcon sx={{ fontSize:'18px !important' }} />
-                <Typography sx={{ fontSize:13 }}>Settings</Typography>
-              </Box>
-            )}
-          </NavLink>
+          <Box onClick={openLock} sx={{
+            display:'flex', alignItems:'center', gap:1.5,
+            px:1.5, py:1, borderRadius:1.5, cursor:'pointer',
+            color:'rgba(255,255,255,0.45)',
+            '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
+            transition:'all 0.15s',
+          }}>
+            <SettingsIcon sx={{ fontSize:'18px !important' }} />
+            <Typography sx={{ fontSize:13 }}>Settings</Typography>
+          </Box>
         </Box>
+
+        {/* ── Password dialog ── */}
+        <Dialog
+          open={lockOpen}
+          onClose={() => setLockOpen(false)}
+          TransitionComponent={Fade}
+          PaperProps={{ sx:{
+            borderRadius:3, width:360,
+            boxShadow:'0 24px 64px rgba(15,23,42,.22)',
+            border:'1px solid #e9e4ff',
+          }}}
+        >
+          <DialogTitle sx={{ pb:1 }}>
+            <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
+              <Box sx={{
+                width:38, height:38, borderRadius:2,
+                bgcolor:'#ede9fe', display:'flex', alignItems:'center', justifyContent:'center',
+              }}>
+                <LockOutlinedIcon sx={{ color:ACCENT, fontSize:20 }}/>
+              </Box>
+              <Box>
+                <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:15, lineHeight:1.2 }}>
+                  Settings Access
+                </Typography>
+                <Typography variant="caption" sx={{ color:'#94a3b8' }}>
+                  Enter admin password to continue
+                </Typography>
+              </Box>
+            </Box>
+          </DialogTitle>
+
+          <DialogContent sx={{ pt:2 }}>
+            <TextField
+              fullWidth
+              size="small"
+              inputRef={inputRef}
+              label="Password"
+              type={showPwd ? 'text' : 'password'}
+              value={password}
+              error={pwdError}
+              helperText={pwdError ? 'Incorrect password — try again' : ''}
+              onChange={e => { setPassword(e.target.value); setPwdError(false) }}
+              onKeyDown={e => { if (e.key === 'Enter') submitLock() }}
+              InputProps={{
+                endAdornment:(
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setShowPwd(s => !s)} edge="end">
+                      {showPwd
+                        ? <VisibilityOffIcon sx={{ fontSize:18 }}/>
+                        : <VisibilityIcon   sx={{ fontSize:18 }}/>
+                      }
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ '& .MuiOutlinedInput-root':{ borderRadius:2 } }}
+            />
+          </DialogContent>
+
+          <DialogActions sx={{ px:3, pb:2.5, gap:1 }}>
+            <Button onClick={() => setLockOpen(false)}
+              sx={{ textTransform:'none', fontWeight:600, color:'#94a3b8', borderRadius:2,
+                '&:hover':{ color:'#64748b', bgcolor:'#f8fafc' } }}>
+              Cancel
+            </Button>
+            <Button onClick={submitLock} variant="contained"
+              sx={{ textTransform:'none', fontWeight:700, borderRadius:2, px:3,
+                bgcolor:ACCENT, boxShadow:'0 2px 8px rgba(124,58,237,.35)',
+                '&:hover':{ bgcolor:ACCENT2 } }}>
+              Unlock
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
 
       {/* ── Main area ────────────────────────────────────────────────── */}

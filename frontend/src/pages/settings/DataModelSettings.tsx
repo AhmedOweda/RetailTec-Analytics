@@ -6,14 +6,17 @@ import {
   Box, Card, CardContent, Typography, TextField, Button,
   Alert, CircularProgress, Select, MenuItem,
   FormControl, InputLabel, LinearProgress,
+  ToggleButtonGroup, ToggleButton,
 } from '@mui/material'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
 import ErrorIcon        from '@mui/icons-material/Error'
 import SyncIcon         from '@mui/icons-material/Sync'
 import StopIcon         from '@mui/icons-material/Stop'
 import StorageIcon      from '@mui/icons-material/Storage'
+import TuneIcon         from '@mui/icons-material/Tune'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
+import { useAppSettings, type ProductCodeField } from '../../context/AppSettings'
 
 const ACCENT = '#7c3aed'
 
@@ -38,6 +41,7 @@ function SectionCard({ title, icon, children }:
 
 export default function DataModelSettings() {
   const qc = useQueryClient()
+  const { productCodeField, setProductCodeField } = useAppSettings()
 
   const { data: settings, isLoading: loadingSettings } = useQuery({
     queryKey: ['settings'],
@@ -140,6 +144,35 @@ export default function DataModelSettings() {
               </Typography>
             </Box>
           )}
+        </Box>
+      </SectionCard>
+
+      {/* ── Display Settings ────────────────────────────────────── */}
+      <SectionCard title="Display Settings" icon={<TuneIcon />}>
+        <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+          Choose which product code appears alongside the item description
+          in charts and tables throughout the dashboard.
+        </Typography>
+        <Box sx={{ display:'flex', alignItems:'center', gap:2 }}>
+          <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
+            Product Code Field
+          </Typography>
+          <ToggleButtonGroup
+            value={productCodeField}
+            exclusive
+            size="small"
+            onChange={(_, v) => { if (v) setProductCodeField(v as ProductCodeField) }}
+            sx={{ '& .MuiToggleButton-root': { px:2.5, fontWeight:700, fontSize:12, textTransform:'none' },
+                  '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important`, borderColor:`${ACCENT} !important` } }}
+          >
+            <ToggleButton value="alu">ALU</ToggleButton>
+            <ToggleButton value="upc">UPC</ToggleButton>
+          </ToggleButtonGroup>
+          <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
+            {productCodeField === 'alu'
+              ? 'Showing ALU (internal item code) · e.g. ALU001 | Blue Shirt'
+              : 'Showing UPC (barcode) · e.g. 123456789 | Blue Shirt'}
+          </Typography>
         </Box>
       </SectionCard>
 

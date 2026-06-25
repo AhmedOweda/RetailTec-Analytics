@@ -1,19 +1,24 @@
 /**
  * Overview — KPI cards with period-over-period comparisons + Sales Trend chart
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import {
   Box, Card, CardContent, Typography, Divider,
   Skeleton, Alert, Chip,
+  Dialog, DialogTitle, DialogContent, IconButton, Tooltip,
 } from '@mui/material'
-import TrendingUpIcon   from '@mui/icons-material/TrendingUp'
-import TrendingDownIcon from '@mui/icons-material/TrendingDown'
-import RemoveIcon       from '@mui/icons-material/Remove'
-import ReactECharts     from 'echarts-for-react'
+import TrendingUpIcon    from '@mui/icons-material/TrendingUp'
+import TrendingDownIcon  from '@mui/icons-material/TrendingDown'
+import RemoveIcon        from '@mui/icons-material/Remove'
+import FullscreenIcon    from '@mui/icons-material/Fullscreen'
+import FileDownloadIcon  from '@mui/icons-material/FileDownload'
+import CloseIcon         from '@mui/icons-material/Close'
+import EChart, { type EChartHandle } from '../../components/EChart'
 import { useQuery }     from '@tanstack/react-query'
 import axios            from 'axios'
-import { format, subDays, startOfMonth, startOfYear } from 'date-fns'
+import { format, subDays, startOfMonth, startOfYear, subMonths } from 'date-fns'
 import { num }          from '../../utils/formatters'
+import { useAppSettings } from '../../context/AppSettings'
 
 /* ── Theme ──────────────────────────────────────────────────────── */
 const ACCENT  = '#7c3aed'
@@ -117,6 +122,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
   const inv    = data?.sales_count  ?? 0
   const ret    = data?.return_count ?? 0
   const disc   = data?.invoice_disc ?? 0
+  const retAmt = data?.return_amt   ?? 0
   const rr     = data?.return_rate  ?? 0   // value-based, from backend
   const dr     = data?.disc_ratio   ?? 0   // discount ÷ gross, from backend
   const avgTkt = data?.avg_ticket   ?? 0
@@ -187,18 +193,23 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
                 </Box>
               </Box>
 
-              {/* Returns — count + value-based rate badge */}
+              {/* Returns — count · value · rate% */}
               <Box>
                 <Typography sx={{ fontSize:10, color:'#94a3b8', fontWeight:700,
                                   textTransform:'uppercase', letterSpacing:0.8 }}>
                   Returns
                 </Typography>
-                <Box sx={{ display:'flex', alignItems:'center', gap:0.6, mt:0.15 }}>
-                  <Typography sx={{ fontSize:13, fontWeight:700,
-                                    color: ret > 0 ? '#ef4444' : '#1e293b' }}>
-                    {fmtInt(ret)}
+                {/* Count */}
+                <Typography sx={{ fontSize:13, fontWeight:700, mt:0.15,
+                                  color: ret > 0 ? '#ef4444' : '#1e293b' }}>
+                  {fmtInt(ret)}
+                </Typography>
+                {/* Value + Rate badge on same row */}
+                <Box sx={{ display:'flex', alignItems:'center', gap:0.6, mt:0.2 }}>
+                  <Typography sx={{ fontSize:11, fontWeight:600, color:'#ef4444' }}>
+                    {num(retAmt)}
                   </Typography>
-                  {inv > 0 && (
+                  {rr > 0 && (
                     <Box sx={{
                       px:0.7, py:0.1, borderRadius:1,
                       bgcolor: rr > 5 ? '#fef2f2' : '#f1f5f9',
@@ -249,6 +260,72 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
   )
 }
 
+/* ── Mini-chart card (with fullscreen + PNG export) ──────────────── */
+function MiniChart({ title, subtitle, option, loading }: {
+  title: string; subtitle?: string; option: any; loading?: boolean
+}) {
+  const chartRef = useRef<EChartHandle>(null)
+  const [open, setOpen] = useState(false)
+
+  const exportPng = () => {
+    const inst = chartRef.current?.getEchartsInstance()
+    if (!inst) return
+    const url = inst.getDataURL({ type:'png', backgroundColor:'#fff', pixelRatio:2 })
+    const a = document.createElement('a')
+    a.href = url; a.download = `${title.replace(/\W+/g,'_')}.png`; a.click()
+  }
+
+  const toolbar = (
+    <Box sx={{ display:'flex', gap:0.25, opacity:0.45, transition:'opacity .15s', '&:hover':{ opacity:1 } }}>
+      <Tooltip title="Export PNG" placement="top">
+        <IconButton size="small" onClick={exportPng} sx={{ p:0.5 }}>
+          <FileDownloadIcon sx={{ fontSize:15, color:'#64748b' }} />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="Fullscreen" placement="top">
+        <IconButton size="small" onClick={() => setOpen(true)} sx={{ p:0.5 }}>
+          <FullscreenIcon sx={{ fontSize:15, color:'#64748b' }} />
+        </IconButton>
+      </Tooltip>
+    </Box>
+  )
+
+  return (
+    <>
+      <Card elevation={0} sx={{ border:'1px solid #e9e4ff', borderRadius:2.5, height:'100%' }}>
+        <CardContent sx={{ p:2, '&:last-child':{ pb:2 } }}>
+          <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', mb:0.5 }}>
+            <Box>
+              <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:13, lineHeight:1.2 }}>{title}</Typography>
+              {subtitle && <Typography sx={{ fontSize:11, color:'#94a3b8', mt:0.2 }}>{subtitle}</Typography>}
+            </Box>
+            {toolbar}
+          </Box>
+          {loading
+            ? <Skeleton variant="rectangular" height={200} sx={{ borderRadius:1.5, mt:1 }} />
+            : <EChart ref={chartRef} option={option} style={{ height:200 }} />
+          }
+        </CardContent>
+      </Card>
+
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xl" fullWidth
+        PaperProps={{ sx:{ borderRadius:3, m:2 } }}>
+        <DialogTitle sx={{ fontWeight:800, color:'#0f172a', fontSize:16, pr:6, pb:0.5 }}>
+          {title}
+          {subtitle && <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.3 }}>{subtitle}</Typography>}
+        </DialogTitle>
+        <IconButton onClick={() => setOpen(false)}
+          sx={{ position:'absolute', right:12, top:12, color:'#64748b' }}>
+          <CloseIcon />
+        </IconButton>
+        <DialogContent sx={{ pt:1 }}>
+          <EChart option={option} style={{ height:'72vh' }} />
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
 /* ── Trend period config ─────────────────────────────────────────── */
 const TREND_PERIODS = [
   { label:'7D',  days:7  },
@@ -262,6 +339,17 @@ type TrendPeriod = typeof TREND_PERIODS[number]['label']
 /* ── Main component ─────────────────────────────────────────────── */
 export default function Overview() {
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('30D')
+  const [trendOpen,   setTrendOpen  ] = useState(false)
+  const trendChartRef = useRef<EChartHandle>(null)
+  const { productCodeField } = useAppSettings()
+
+  const exportTrendPng = () => {
+    const inst = trendChartRef.current?.getEchartsInstance()
+    if (!inst) return
+    const url = inst.getDataURL({ type:'png', backgroundColor:'#fff', pixelRatio:2 })
+    const a = document.createElement('a')
+    a.href = url; a.download = 'Sales_Trend.png'; a.click()
+  }
 
   /* ── KPI query ─────────────────────────────────────────────── */
   const { data: kpi, isLoading: kpiLoading, error } = useQuery<OverviewData>({
@@ -284,7 +372,9 @@ export default function Overview() {
   const { data: trendData, isLoading: trendLoading } = useQuery({
     queryKey: ['trend-overview', tFrom, tTo],
     queryFn:  () => axios.get(`/api/sales/trend?date_from=${tFrom}&date_to=${tTo}`).then(r => r.data),
-    placeholderData: (prev: any) => prev,
+    refetchOnMount: 'always' as const,
+    gcTime: 0,
+    retry: false,
   })
 
   /* ── ECharts option ────────────────────────────────────────── */
@@ -434,6 +524,145 @@ export default function Overview() {
     }
   }, [trendData])
 
+  /* ── Mini-chart date ranges ────────────────────────────────── */
+  const { mini7dFrom, miniMtdFrom, miniMtdTo, miniLmtdFrom, miniLmtdTo } = useMemo(() => {
+    const today    = new Date()
+    const mtdFrom  = format(startOfMonth(today), 'yyyy-MM-dd')
+    const todayStr = format(today, 'yyyy-MM-dd')
+    const lmStart  = subMonths(startOfMonth(today), 1)
+    const lmSame   = subMonths(today, 1)
+    return {
+      mini7dFrom:   format(subDays(today, 6), 'yyyy-MM-dd'),
+      miniMtdFrom:  mtdFrom,
+      miniMtdTo:    todayStr,
+      miniLmtdFrom: format(lmStart, 'yyyy-MM-dd'),
+      miniLmtdTo:   format(lmSame,  'yyyy-MM-dd'),
+    }
+  }, [])
+
+  /* ── Top Products (7D) ─────────────────────────────────────── */
+  const { data: productsData, isLoading: productsLoading } = useQuery({
+    queryKey: ['overview-products-7d', mini7dFrom],
+    queryFn:  () => axios.get(
+      `/api/sales/products?date_from=${mini7dFrom}&date_to=${miniMtdTo}&group_by=item&limit=10`
+    ).then(r => r.data),
+    refetchOnMount: 'always' as const, gcTime: 0, retry: false,
+  })
+
+  /* ── MTD trend + LMTD trend (for cumulative line) ─────────── */
+  const { data: mtdTrend } = useQuery({
+    queryKey: ['overview-mtd-trend', miniMtdFrom, miniMtdTo],
+    queryFn:  () => axios.get(`/api/sales/trend?date_from=${miniMtdFrom}&date_to=${miniMtdTo}`).then(r => r.data),
+    refetchOnMount: 'always' as const, gcTime: 0, retry: false,
+  })
+  const { data: lmtdTrend } = useQuery({
+    queryKey: ['overview-lmtd-trend', miniLmtdFrom, miniLmtdTo],
+    queryFn:  () => axios.get(`/api/sales/trend?date_from=${miniLmtdFrom}&date_to=${miniLmtdTo}`).then(r => r.data),
+    refetchOnMount: 'always' as const, gcTime: 0, retry: false,
+  })
+
+  /* ── Top Associates (MTD) ───────────────────────────────────── */
+  const { data: assocMtd } = useQuery({
+    queryKey: ['overview-assoc-mtd', miniMtdFrom, miniMtdTo],
+    queryFn:  () => axios.get(
+      `/api/sales/employees?date_from=${miniMtdFrom}&date_to=${miniMtdTo}&limit=8`
+    ).then(r => r.data),
+    refetchOnMount: 'always' as const, gcTime: 0, retry: false,
+  })
+
+  /* ── Chart: Top Products horizontal bar ────────────────────── */
+  const productsOpt = useMemo(() => {
+    const rows = ((productsData ?? []) as any[]).slice(0, 10).reverse()
+    const names  = rows.map(r => {
+      // DuckDB returns lowercase column names; check both cases for safety
+      const code = r[productCodeField]
+                ?? r[productCodeField.toUpperCase()]
+                ?? r['alu'] ?? r['ALU'] ?? ''
+      const desc = (r.description1 ?? r.DESCRIPTION1 ?? '').slice(0, 22)
+      return code ? `${String(code)} | ${desc}` : (desc || '(no name)')
+    })
+    const revenues = rows.map(r => +(r.revenue ?? 0))
+    return {
+      grid: { top:8, right:72, bottom:8, left:12, containLabel:true },
+      tooltip: {
+        trigger:'axis',
+        formatter:(p:any[]) => {
+          const row = rows[p[0].dataIndex] ?? {}
+          const rev = (+p[0].value).toLocaleString('en-US', { maximumFractionDigits:0 })
+          return `<b>${p[0].name}</b><br/>Revenue: <b>${rev}</b><br/>GP: ${row.gp_pct ?? 0}%&nbsp;&nbsp;Qty: ${(+(row.qty ?? 0)).toLocaleString()}`
+        },
+      },
+      xAxis:{ type:'value', axisLabel:{ color:'#94a3b8', fontSize:10, formatter:(v:number)=>v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
+      yAxis:{ type:'category', data:names, axisLabel:{ color:'#374151', fontSize:9 } },
+      series:[{
+        type:'bar', data:revenues, barMaxWidth:16,
+        itemStyle:{ borderRadius:[0,4,4,0], color:{ type:'linear', x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:'rgba(16,185,129,0.35)'},{offset:1,color:'#10b981'}] } },
+        label:{ show:true, position:'right', color:'#64748b', fontSize:9, formatter:(p:any)=>`${(+p.value).toLocaleString('en-US',{maximumFractionDigits:0})}` },
+      }],
+    }
+  }, [productsData, productCodeField])
+
+  /* ── Chart: MTD Cumulative vs Last Month ───────────────────── */
+  const cumOpt = useMemo(() => {
+    const curr: any[] = mtdTrend  ?? []
+    const prev: any[] = lmtdTrend ?? []
+    let rc = 0, rp = 0
+    const currCum = curr.map(r => { rc += +(r.net_sales ?? 0); return +rc.toFixed(0) })
+    const prevCum = prev.map(r => { rp += +(r.net_sales ?? 0); return +rp.toFixed(0) })
+    const maxLen  = Math.max(currCum.length, prevCum.length)
+    const days    = Array.from({ length: maxLen }, (_, i) => i + 1)
+    return {
+      grid:{ top:36, right:16, bottom:28, left:14, containLabel:true },
+      legend:{ top:4, textStyle:{ color:'#475569', fontSize:10 }, itemWidth:12, itemHeight:8 },
+      tooltip:{
+        trigger:'axis',
+        formatter:(p:any[]) =>
+          `<b>Day ${p[0]?.axisValue}</b><br/>` +
+          p.map((s:any) => `${s.marker}${s.seriesName}: <b>${(+s.value).toLocaleString('en-US',{maximumFractionDigits:0})}</b>`).join('<br/>'),
+      },
+      xAxis:{ type:'category', data:days, axisLabel:{ color:'#94a3b8', fontSize:10 } },
+      yAxis:{ type:'value', axisLabel:{ color:'#94a3b8', fontSize:10, formatter:(v:number)=>v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
+      series:[
+        {
+          name:'This Month', type:'line', data:currCum, smooth:0.3, showSymbol:false,
+          lineStyle:{ color:ACCENT, width:2.5 },
+          areaStyle:{ color:{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'rgba(124,58,237,0.20)'},{offset:1,color:'rgba(124,58,237,0.0)'}] } },
+          itemStyle:{ color:ACCENT },
+        },
+        {
+          name:'Last Month', type:'line', data:prevCum, smooth:0.3, showSymbol:false,
+          lineStyle:{ color:'#94a3b8', width:1.5, type:'dashed' as const },
+          itemStyle:{ color:'#94a3b8' },
+        },
+      ],
+    }
+  }, [mtdTrend, lmtdTrend])
+
+  /* ── Chart: Top Associates (MTD) horizontal bar ─────────────── */
+  const assocOpt = useMemo(() => {
+    const rows = ((assocMtd ?? []) as any[]).slice(0, 8).reverse()
+    const names = rows.map(r => (r.employee_name ?? '?').slice(0, 22))
+    const sales = rows.map(r => +(r.net_sales ?? 0))
+    return {
+      grid:{ top:8, right:72, bottom:8, left:12, containLabel:true },
+      tooltip:{
+        trigger:'axis',
+        formatter:(p:any[]) => {
+          const row = rows[p[0].dataIndex] ?? {}
+          return `<b>${p[0].name}</b><br/>Net Sales: <b>${(+p[0].value).toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>Invoices: ${row.invoice_count ?? 0}`
+        },
+      },
+      xAxis:{ type:'value', axisLabel:{ color:'#94a3b8', fontSize:10, formatter:(v:number)=>v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
+      yAxis:{ type:'category', data:names, axisLabel:{ color:'#374151', fontSize:10 } },
+      series:[{
+        type:'bar', data:sales, barMaxWidth:16,
+        itemStyle:{ borderRadius:[0,4,4,0], color:{ type:'linear', x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:'rgba(124,58,237,0.30)'},{offset:1,color:ACCENT}] } },
+        label:{ show:true, position:'right', color:'#64748b', fontSize:9, formatter:(p:any)=>`${(+p.value).toLocaleString('en-US',{maximumFractionDigits:0})}` },
+        markLine:{ silent:true, lineStyle:{ color:'#f59e0b', type:'dashed' as const, width:1 }, data:[{ type:'average', name:'Avg' }] },
+      }],
+    }
+  }, [assocMtd])
+
   const todayStr = new Date().toLocaleDateString('en-GB', {
     weekday:'long', day:'numeric', month:'long', year:'numeric',
   })
@@ -465,6 +694,26 @@ export default function Overview() {
         <KpiCard label="Year to Date"   dot="#10b981"   data={kpi?.ytd}       prevData={kpi?.lytd}      prevLabel="Last Year"  loading={kpiLoading}/>
       </Box>
 
+      {/* ── Mini charts: Top Products · MTD Cumulative · Top Associates ── */}
+      <Box sx={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:2 }}>
+        <MiniChart
+          title="Top Products (7D)"
+          subtitle={`Revenue by item · ${productCodeField.toUpperCase()} | Description`}
+          option={productsOpt}
+          loading={productsLoading}
+        />
+        <MiniChart
+          title="MTD vs Last Month"
+          subtitle="Cumulative net sales · day by day"
+          option={cumOpt}
+        />
+        <MiniChart
+          title="Top Associates (MTD)"
+          subtitle="Net sales · month to date"
+          option={assocOpt}
+        />
+      </Box>
+
       {/* ── Sales Trend ── */}
       <Card elevation={0} sx={{ border:'1px solid #e9e4ff', borderRadius:2.5 }}>
         <CardContent sx={{ p:2.5, '&:last-child':{ pb:2.5 } }}>
@@ -479,37 +728,65 @@ export default function Overview() {
               </Typography>
             </Box>
 
-            {/* Period selector */}
-            <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor:'#f8f7ff', borderRadius:2 }}>
-              {TREND_PERIODS.map(tp => (
-                <Chip key={tp.label} label={tp.label} size="small"
-                  onClick={() => setTrendPeriod(tp.label)}
-                  sx={{
-                    fontWeight:700, fontSize:12, height:28, px:0.5,
-                    transition:'all .18s ease',
-                    bgcolor: trendPeriod===tp.label ? ACCENT      : 'transparent',
-                    color:   trendPeriod===tp.label ? '#fff'      : '#64748b',
-                    boxShadow: trendPeriod===tp.label ? '0 2px 8px rgba(124,58,237,.35)' : 'none',
-                    '&:hover':{ bgcolor: trendPeriod===tp.label ? ACCENT2 : '#ede9fe' },
-                  }}
-                />
-              ))}
+            {/* Right side: period selector + toolbar */}
+            <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+              <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor:'#f8f7ff', borderRadius:2 }}>
+                {TREND_PERIODS.map(tp => (
+                  <Chip key={tp.label} label={tp.label} size="small"
+                    onClick={() => setTrendPeriod(tp.label)}
+                    sx={{
+                      fontWeight:700, fontSize:12, height:28, px:0.5,
+                      transition:'all .18s ease',
+                      bgcolor: trendPeriod===tp.label ? ACCENT      : 'transparent',
+                      color:   trendPeriod===tp.label ? '#fff'      : '#64748b',
+                      boxShadow: trendPeriod===tp.label ? '0 2px 8px rgba(124,58,237,.35)' : 'none',
+                      '&:hover':{ bgcolor: trendPeriod===tp.label ? ACCENT2 : '#ede9fe' },
+                    }}
+                  />
+                ))}
+              </Box>
+              {/* Fullscreen / Export toolbar */}
+              <Box sx={{ display:'flex', gap:0.25, opacity:0.45, transition:'opacity .15s', '&:hover':{ opacity:1 } }}>
+                <Tooltip title="Export PNG" placement="top">
+                  <IconButton size="small" onClick={exportTrendPng} sx={{ p:0.5 }}>
+                    <FileDownloadIcon sx={{ fontSize:15, color:'#64748b' }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Fullscreen" placement="top">
+                  <IconButton size="small" onClick={() => setTrendOpen(true)} sx={{ p:0.5 }}>
+                    <FullscreenIcon sx={{ fontSize:15, color:'#64748b' }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Box>
           </Box>
 
           {trendLoading ? (
             <Skeleton variant="rectangular" height={300} sx={{ borderRadius:2 }}/>
           ) : (
-            <ReactECharts
-              option={chartOption}
-              style={{ height:320 }}
-              opts={{ renderer:'canvas' }}
-              notMerge={true}
-            />
+            <EChart ref={trendChartRef} option={chartOption} style={{ height:320 }} />
           )}
 
         </CardContent>
       </Card>
+
+      {/* Sales Trend fullscreen dialog */}
+      <Dialog open={trendOpen} onClose={() => setTrendOpen(false)} maxWidth="xl" fullWidth
+        PaperProps={{ sx:{ borderRadius:3, m:2 } }}>
+        <DialogTitle sx={{ fontWeight:800, color:'#0f172a', fontSize:16, pr:6, pb:0.5 }}>
+          Sales Trend
+          <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.3 }}>
+            Net sales · invoices · return rate by day
+          </Typography>
+        </DialogTitle>
+        <IconButton onClick={() => setTrendOpen(false)}
+          sx={{ position:'absolute', right:12, top:12, color:'#64748b' }}>
+          <CloseIcon />
+        </IconButton>
+        <DialogContent sx={{ pt:1 }}>
+          <EChart option={chartOption} style={{ height:'72vh' }} />
+        </DialogContent>
+      </Dialog>
 
     </Box>
   )
