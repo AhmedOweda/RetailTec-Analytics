@@ -1,34 +1,29 @@
-import React, { useState, useMemo, createContext, useContext } from 'react'
+import React, { useState, useMemo } from 'react'
 import ReactDOM from 'react-dom/client'
+import { RouterProvider } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import App from './App'
+import { router } from './router'
 import { createAppTheme } from './theme'
+import axios from 'axios'
 
-// ── Color mode context ─────────────────────────────────────────
-interface ColorModeCtx { mode: 'light' | 'dark'; toggle: () => void }
-export const ColorModeContext = createContext<ColorModeCtx>({ mode: 'light', toggle: () => {} })
-export const useColorMode = () => useContext(ColorModeContext)
+// Trigger incremental sync on every app open
+axios.get('/api/sync/trigger').catch(() => {})
 
-// ── Query client ───────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 })
 
-// ── Root ───────────────────────────────────────────────────────
 function Root() {
-  const [mode, setMode] = useState<'light' | 'dark'>('light')
-  const toggle = () => setMode(m => m === 'light' ? 'dark' : 'light')
+  const [mode] = useState<'light' | 'dark'>('light')
   const theme  = useMemo(() => createAppTheme(mode), [mode])
 
   return (
-    <ColorModeContext.Provider value={{ mode, toggle }}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <App />
-      </ThemeProvider>
-    </ColorModeContext.Provider>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <RouterProvider router={router} />
+    </ThemeProvider>
   )
 }
 

@@ -1,0 +1,55 @@
+{
+  "name": "retailtec-analytics",
+  "version": "2.0.0",
+  "description": "RetailTec Analytics Desktop Application",
+  "author": "RetailTec",
+  "main": "electron/main.js",
+  "scripts": {
+    "start":    "electron .",
+    "pack":     "electron-builder --dir",
+    "dist":     "electron-builder --win",
+    "dist:all": "electron-builder --win --x64"
+  },
+  "build": {
+    "appId": "com.retailtec.analytics",
+    "productName": "RetailTec Analytics",
+    "copyright": "Copyright © 2025 RetailTec",
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "electron/assets/icon.ico",
+      "sign": null,
+      "signingHashAlgorithms": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RetailTec Analytics",
+      "installerIcon": "electron/assets/icon.ico",
+      "uninstallerIcon": "electron/assets/icon.ico"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/dist/backend",
+        "to":   "backend",
+        "filter": ["**/*"]
+      }
+    ],
+    "directories": {
+      "output": "dist-electron"
+    },
+    "asar": true
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}
