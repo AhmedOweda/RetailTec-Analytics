@@ -1,18 +1,36 @@
-export const num = (v: unknown): number => (v == null ? 0 : Number(v))
+/**
+ * Number formatters
+ * =================
+ * num(v)         → "1,234.56"  /  "1.23K"  /  "1.23M"   (money, 2dp)
+ * num(v, 0)      → "1,235"     /  "1K"     /  "1M"       (integers)
+ * num(v, 1)      → "1,234.6"   /  "1.2K"   /  "1.2M"     (1dp)
+ * pct(v)         → "12.34%"
+ * formatDate(d)  → "23 Jun 2026"
+ */
 
-export const fmt = (v: number, decimals = 0): string =>
-  v == null ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
-
-export const sar = (v: number): string => {
-  const abs = Math.abs(v)
-  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000)     return `${(v / 1_000).toFixed(1)}K`
-  return fmt(v, 0)
+export function num(v: unknown, decimals = 2): string {
+  const n = v == null ? 0 : Number(v)
+  if (isNaN(n)) return (0).toFixed(decimals)
+  const abs  = Math.abs(n)
+  const sign = n < 0 ? '-' : ''
+  if (abs >= 1_000_000)
+    return `${sign}${(abs / 1_000_000).toFixed(decimals)}M`
+  if (abs >= 1_000)
+    return `${sign}${(abs / 1_000).toFixed(decimals)}K`
+  return n.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
 }
 
-export const pct = (v: number): string => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`
+export function pct(v: unknown): string {
+  const n = v == null ? 0 : Number(v)
+  return `${n.toFixed(2)}%`
+}
 
-export const formatDate = (d: string): string => {
+export function formatDate(d: string): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(d).toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric',
+  })
 }

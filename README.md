@@ -1,6 +1,25 @@
 # RetailTec Analytics Dashboard
 
-A real-time analytics dashboard for **Retail Pro Prism (RPS)** built on a React + TypeScript frontend and a FastAPI + Oracle backend. Designed for retail operations teams to monitor KPIs, store performance, employee sales, and daily trends — with a Power BI-style background cache warmer for instant load times.
+A self-contained, offline-capable analytics dashboard for **Retail Pro Prism (RPS)** retail management systems.  
+Built on React + TypeScript (frontend) and FastAPI + DuckDB (backend). Syncs data from Oracle once, then answers every query locally — no live Oracle connection needed at runtime.
+
+---
+
+## What's New in v2.0
+
+v2.0 is a complete architectural rebuild over v1.0:
+
+| Area | v1.0 | v2.0 |
+|---|---|---|
+| Data source at runtime | Live Oracle queries | Local DuckDB (star schema) |
+| Query latency | 2–8 s per request | < 100 ms |
+| Multi-page routing | ❌ Single page | ✅ Overview / Performance / Products / Transactions |
+| Sync engine | None | Oracle → DuckDB incremental + full load |
+| Transaction table | 200-row list | AG Grid — unlimited rows, sortable, resizable, paginated |
+| Export | ❌ | ✅ Excel + PDF (filtered rows only) |
+| KPI comparisons | ❌ | ✅ Period-over-period arrows (Today vs Yesterday, MTD vs LMTD, YTD vs LYTD) |
+| Return Rate | Count-based | Value-based (return amount ÷ gross sales) |
+| Discount tracking | Header discount only (often 0) | Item + header + loyalty discounts combined |
 
 ---
 
@@ -8,26 +27,48 @@ A real-time analytics dashboard for **Retail Pro Prism (RPS)** built on a React 
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, TypeScript, Vite, MUI v5, ECharts |
+| Frontend | React 18, TypeScript, Vite, MUI v5, ECharts, AG Grid Community |
 | Backend | Python 3.11, FastAPI, uvicorn |
-| Database | Oracle (Retail Pro Prism RPS schema) |
-| DB Driver | python-oracledb (thick mode, Instant Client) |
-| Caching | Disk-based pickle cache + background warmer |
-| Streaming | Server-Sent Events (SSE) |
+| Local DB | DuckDB (star schema — synced from Oracle) |
+| Oracle driver | python-oracledb (thick mode, Instant Client) |
+| Export | SheetJS (xlsx), jsPDF + jspdf-autotable |
+| Desktop wrapper | Electron (optional) |
 
 ---
 
 ## Features
 
-- **KPI Grid** — Net Sales, Gross Profit, GP%, Returns, Invoices, Avg Ticket, YoY comparison
-- **6 Charts** — Daily Trend, Revenue by Store, Top Employees, Top 15 Items, Monthly Summary, Revenue Breakdown (donut)
-- **Recent Transactions** — last 200 transactions with store, employee, and net amount
-- **Full-screen mode** — any chart can be expanded to full screen with richer detail
-- **Dark / Light mode** — toggle in header, persists across session
-- **Background cache warmer** — pre-loads all store data on a schedule (like Power BI scheduled refresh)
-- **Python filter layer** — dashboard filters by store in-memory from full cache; no extra DB queries
-- **Streaming progress bar** — SSE streams each query result as it completes (8 steps)
-- **Force refresh** — clears cache and re-fetches live data on demand
+### Overview Page
+- **4 KPI cards** — Today / Yesterday / Month-to-Date / Year-to-Date
+- **Period-over-period comparison badges** — green ↑ / red ↓ arrows with % change vs prior period
+- **Per-card stats**: Net Sales, Incl. Tax, Tax Amount, Invoices (with thousands separator), Returns + Rate % badge, Avg Ticket, Discount + Ratio % badge
+- **Return Rate** computed as `return amount ÷ gross sales × 100` (value-based, not count-based)
+- **Discount Ratio** computed from real totals: `item disc + invoice disc + loyalty disc`
+- **Sales Trend chart** — net sales (area) + invoices (bars) + return rate % (dashed line), with **7D / 30D / MTD / YTD** period selector
+
+### Transactions Page
+- **AG Grid** — resizable and sortable columns, drag to reorder
+- **# index column** — live row number that reorders on every sort/filter change
+- **Unlimited rows** — no cap; DuckDB returns full result set
+- **Server-side search** — ILIKE across doc_no, store, associate, customer (searches full dataset, not just current page)
+- **Advanced filters popup** — field-level filters for Doc No, Store, Associate, Customer, Type (Sale/Return/Order toggles), Net Sales range; active filters shown as chips with individual ✕ remove
+- **Export** — Excel (.xlsx) and PDF (A3 landscape) of currently visible (filtered) rows only
+
+### Performance Page
+- Per-store breakdown — net sales, invoices, returns, discount
+- Top associates — net sales, invoice count, avg basket
+- Daily trend chart by period
+
+### Products Page
+- Top items by revenue, GP, GP%
+- Group by: Item / DCS / Vendor / Department
+
+### Sync Engine
+- **Incremental sync** — last 7 days, DELETE + re-insert
+- **Full load** — configurable date range, INSERT OR IGNORE (resumable)
+- **Smart dimension loading** — DIM_CUSTOMER and DIM_ITEM loaded with Oracle-side date subquery filter (only records referenced in the sync window), avoiding loading millions of unused rows
+- **Progress streaming** — SSE stream shows live chunk progress during sync
+- Fact data in weekly chunks for memory efficiency and cancellability
 
 ---
 
@@ -36,19 +77,22 @@ A real-time analytics dashboard for **Retail Pro Prism (RPS)** built on a React 
 ```
 Browser (React + Vite)
     │
-    │  SSE stream  /api/dashboard/stream
+    │  REST + SSE
     ▼
 FastAPI Backend
     │
-    ├─ Check full-data cache (.rt_cache/*.pkl)
-    │     └─ HIT  → filter_and_aggregate() in Python → instant response
-    │     └─ MISS → run 8 Oracle queries → cache result → stream progress
-    │
-    ├─ Background Warmer (asyncio task, runs on startup + every 30 min)
-    │     └─ Fetches ALL stores, grouped by STORE_NAME, for each preset date range
+    ├─ DuckDB  (local star schema)
+    │     ├─ FACT_SALES_DAILY      — daily aggregates by store
+    │     ├─ FACT_SALES_INVOICES   — one row per transaction
+    │     ├─ FACT_SALES_ITEMS      — one row per line item
+    │     ├─ DIM_STORE / DIM_EMPLOYEE / DIM_CUSTOMER
+    │     ├─ DIM_ITEM / DIM_DCS / DIM_VENDOR / DIM_SUBSIDIARY
+    │     └─ All queries JOIN at query time (true star schema)
     │
     └─ Oracle DB (Retail Pro Prism RPS)
-          Tables: DOCUMENT, DOCUMENT_ITEM, EMPLOYEE, STORE, SUBSIDIARY
+          Connected only during sync — not at query time
+          Tables: DOCUMENT, DOCUMENT_ITEM, EMPLOYEE, STORE,
+                  SUBSIDIARY, INVN_SBS_ITEM, DCS, VENDOR, CUSTOMER
 ```
 
 ---
@@ -58,36 +102,38 @@ FastAPI Backend
 ```
 react-dashboard/
 ├── backend/
-│   ├── main.py               # FastAPI app, queries, cache warmer, filter layer
-│   ├── cache_config.json     # Warmer configuration (presets, interval, TTL)
-│   ├── requirements.txt      # Python dependencies
-│   └── .rt_cache/            # Auto-created — disk cache (excluded from Git)
+│   ├── main.py                   # FastAPI app + startup sync trigger
+│   ├── launcher.py               # PyInstaller entry point (Electron build)
+│   ├── settings.json             # Oracle connection + sync config
+│   ├── requirements.txt
+│   ├── db/
+│   │   ├── model.py              # DuckDB schema + _ensure_schema()
+│   │   └── sync.py               # Oracle → DuckDB sync engine
+│   ├── routers/
+│   │   ├── sales.py              # All sales API endpoints
+│   │   └── settings.py           # Connection settings API
+│   └── services/
+│       └── scheduler.py          # Incremental sync scheduler
 ├── frontend/
 │   ├── src/
-│   │   ├── App.tsx                        # Main layout, ChartCard, CacheBadge
-│   │   ├── components/
-│   │   │   ├── Header.tsx                 # Logo, title, dark mode toggle
-│   │   │   ├── Sidebar.tsx                # Filters: host, dates, stores, item types
-│   │   │   ├── KpiGrid.tsx / KpiCard.tsx  # KPI tiles
-│   │   │   ├── LoadingProgress.tsx        # SSE progress bar
-│   │   │   ├── TransactionsGrid.tsx       # Recent transactions table
-│   │   │   └── charts/
-│   │   │       ├── TrendChart.tsx
-│   │   │       ├── StoreChart.tsx
-│   │   │       ├── EmployeeChart.tsx
-│   │   │       ├── TopItemsChart.tsx
-│   │   │       ├── MonthlyChart.tsx
-│   │   │       └── DonutChart.tsx
-│   │   ├── hooks/
-│   │   │   └── useStreamingDashboard.ts   # SSE consumer hook
-│   │   ├── types/index.ts
-│   │   ├── utils/formatters.ts
-│   │   └── theme.ts                       # MUI dark/light theme factory
-│   ├── public/
-│   │   ├── logo-purple.png
-│   │   └── logo-white.png
+│   │   ├── layout/               # AppShell, Sidebar, Header
+│   │   ├── pages/
+│   │   │   └── sales/
+│   │   │       ├── Overview.tsx       # KPI cards + trend chart
+│   │   │       ├── Performance.tsx    # Store + employee breakdowns
+│   │   │       ├── Products.tsx       # Item / DCS / vendor / dept
+│   │   │       └── Transactions.tsx   # AG Grid table + export
+│   │   ├── router.tsx
+│   │   └── utils/formatters.ts
+│   ├── package.json
 │   └── index.html
-└── start.bat                 # Starts both backend and frontend
+├── electron/
+│   ├── main.js                   # Electron window + backend spawn
+│   └── preload.js
+├── build/
+│   ├── build-backend.bat         # PyInstaller build
+│   └── build-app.bat             # Electron packaging
+└── package.json                  # Root Electron builder config
 ```
 
 ---
@@ -116,52 +162,61 @@ npm install
 npm run dev
 ```
 
-Or run both at once with `start.bat`.
+App runs at `http://localhost:3000`.  
+Backend runs at `http://localhost:8000`.
 
 ---
 
-## Cache Warmer Configuration
+## First-Time Data Load
 
-Edit `backend/cache_config.json` to control what gets pre-warmed:
+1. Open **Settings** in the sidebar
+2. Enter your Oracle connection details and save
+3. Click **Load All Data** to run the initial full sync (progress shown live)
+4. Navigate to **Overview** — data is ready
 
-```json
-{
-  "enabled": true,
-  "host": "<ORACLE-SERVER>",
-  "refresh_interval_minutes": 30,
-  "cache_ttl_seconds": 1800,
-  "presets": [
-    {
-      "label": "Last 30 Days — All Stores",
-      "date_range_days": 30
-    },
-    {
-      "label": "Last 7 Days — All Stores",
-      "date_range_days": 7
-    }
-  ]
-}
-```
-
-- **No `stores` field needed** — the warmer fetches all stores automatically
-- Add more presets for different date ranges as needed
-- Check warmer status: `GET http://localhost:8000/api/cache/status`
-- Trigger manual warm: `POST http://localhost:8000/api/cache/warm`
-- Clear cache: `DELETE http://localhost:8000/api/cache`
+After the initial load, the backend triggers a 7-day incremental sync automatically on each startup.
 
 ---
 
 ## API Endpoints
 
+### Sales
+
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/health` | Health check + warmer status |
-| GET | `/api/stores` | List all stores (optionally filter by subsidiary) |
-| GET | `/api/subsidiaries` | List all subsidiaries |
-| GET | `/api/dashboard/stream` | SSE stream — main dashboard data |
-| GET | `/api/cache/status` | Cache entries + warmer state |
-| POST | `/api/cache/warm` | Trigger immediate cache warm |
-| DELETE | `/api/cache` | Clear all cached data |
+| GET | `/api/sales/overview` | Today / Yesterday / MTD / YTD KPIs + comparisons |
+| GET | `/api/sales/trend` | Daily trend series (net sales, invoices, returns) |
+| GET | `/api/sales/stores` | Per-store breakdown |
+| GET | `/api/sales/employees` | Top employees by net sales |
+| GET | `/api/sales/products` | Top items / DCS / vendor / department |
+| GET | `/api/sales/transactions` | Invoice list — paginated, server-side search |
+| GET | `/api/sales/stores-list` | Distinct store names for filter UI |
+
+### Sync
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/sync/trigger` | Trigger incremental sync (last 7 days) |
+| GET | `/api/sync/status` | Current sync state + progress |
+| POST | `/api/sync/full-load` | Trigger full reload (all data) |
+
+---
+
+## Star Schema
+
+```
+                    DIM_STORE
+                    DIM_EMPLOYEE
+                    DIM_CUSTOMER
+FACT_SALES_DAILY ──────────────── DIM_SUBSIDIARY
+FACT_SALES_INVOICES
+FACT_SALES_ITEMS ───────────────── DIM_ITEM
+                                       │
+                                   DIM_DCS
+                                   DIM_VENDOR
+```
+
+All dimensions are joined at query time in DuckDB — no pre-joined denormalized tables.
 
 ---
 
@@ -169,18 +224,5 @@ Edit `backend/cache_config.json` to control what gets pre-warmed:
 
 | Version | Description |
 |---|---|
-| v1.0 | Initial release — full dashboard, cache warmer, dark mode, fullscreen charts, SSE streaming |
-
----
-
-## Database
-
-Connects to **Retail Pro Prism RPS** Oracle schema. Key tables used:
-
-- `RPS.DOCUMENT` — transaction headers
-- `RPS.DOCUMENT_ITEM` — line items with pricing
-- `RPS.EMPLOYEE` — employee names
-- `RPS.STORE` — store metadata
-- `RPS.SUBSIDIARY` — subsidiary groupings
-
-Connection defaults: host `<ORACLE-SERVER>`, port `1521`, SID `rproods`, user `<db-user>`.
+| v2.0 | Complete rebuild — DuckDB star schema, multi-page SPA, AG Grid transactions, advanced search, Excel/PDF export, KPI comparisons, value-based return rate, real discount tracking, Electron wrapper |
+| v1.0 | Initial release — live Oracle queries, single-page dashboard, cache warmer, dark mode, SSE streaming |
