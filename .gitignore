@@ -19,6 +19,14 @@ backend/__pycache__/
 .env.local
 .env.*.local
 
+# ── DuckDB databases ──────────────────────────────────────────────────────────
+backend/*.db
+backend/*.db.wal
+
+# ── Sensitive config ──────────────────────────────────────────────────────────
+backend/settings.json
+backend/sql_reports/
+
 # Editor
 .vscode/
 .idea/
@@ -34,3 +42,15 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# ── Electron / packaging ──────────────────────────────────────────────────────
+# PyInstaller output & temp
+backend/dist/
+backend/build_temp/
+backend/*.spec
+
+# electron-builder output
+dist-electron/
+
+# Root node_modules (Electron deps)
+package-lock.json
