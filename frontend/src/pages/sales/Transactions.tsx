@@ -8,6 +8,7 @@ import {
   Button, CircularProgress, Dialog, DialogTitle,
   DialogContent, DialogActions, Divider, Stack,
   InputAdornment, Tooltip, IconButton, Fade, Badge,
+  Autocomplete,
 } from '@mui/material'
 import SearchIcon       from '@mui/icons-material/Search'
 import TuneIcon         from '@mui/icons-material/Tune'
@@ -47,19 +48,19 @@ const TYPE_COLOR: Record<string, { text:string; bg:string }> = {
 /* ── Advanced-filter shape ──────────────────────────────────────────── */
 interface AdvFilters {
   docNo:    string
-  store:    string
-  assoc:    string
-  customer: string
+  store:    string    // single store (dropdown)
+  assoc:    string[]  // multi-select associates
+  customer: string[]  // multi-select customers
   types:    string[]
   minSales: string
   maxSales: string
 }
 const EMPTY_ADV: AdvFilters = {
-  docNo:'', store:'', assoc:'', customer:'',
+  docNo:'', store:'', assoc:[], customer:[],
   types:['Sale','Return','Order'], minSales:'', maxSales:'',
 }
 const ADV_ACTIVE = (f: AdvFilters) =>
-  f.docNo || f.store || f.assoc || f.customer ||
+  f.docNo || f.store || f.assoc.length > 0 || f.customer.length > 0 ||
   f.types.length !== 3 || f.minSales || f.maxSales
 
 /* ── Column definitions ─────────────────────────────────────────────── */
@@ -82,7 +83,7 @@ const COL_DEFS: ColDef[] = [
     field:'type', headerName:'Type', width:95,
     cellRenderer:(p:any) => {
       const c = TYPE_COLOR[p.value] ?? { text:'#64748b', bg:'#f1f5f9' }
-      return `<span style="display:inline-block;padding:2px 10px;border-radius:99px;background:${c.bg};color:${c.text};font-weight:700;font-size:11px;">${p.value ?? ''}</span>`
+      return <span style={{ display:'inline-block', padding:'2px 10px', borderRadius:'99px', background:c.bg, color:c.text, fontWeight:700, fontSize:11 }}>{p.value ?? ''}</span>
     },
   },
   { field:'net_sales',    headerName:'Net Sales',    width:120, type:'numericColumn', valueFormatter:numFmt },
@@ -115,6 +116,23 @@ export default function Transactions() {
     ? format(startOfMonth(new Date()), 'yyyy-MM-dd')
     : format(subDays(new Date(), days - 1), 'yyyy-MM-dd')
 
+  /* ── Dimension lists for filter dropdowns ───────────────────── */
+  const { data: storesList   = [] } = useQuery<string[]>({
+    queryKey: ['stores-list'],
+    queryFn:  () => axios.get('/api/sales/stores-list').then(r => r.data),
+    staleTime: 3_600_000,
+  })
+  const { data: employeesList = [] } = useQuery<string[]>({
+    queryKey: ['employees-list'],
+    queryFn:  () => axios.get('/api/sales/employees-list').then(r => r.data),
+    staleTime: 3_600_000,
+  })
+  const { data: customersList = [] } = useQuery<string[]>({
+    queryKey: ['customers-list'],
+    queryFn:  () => axios.get('/api/sales/customers-list').then(r => r.data),
+    staleTime: 3_600_000,
+  })
+
   /* ── Data fetch ─────────────────────────────────────────────── */
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['transactions', from, today, search],
@@ -136,8 +154,8 @@ export default function Transactions() {
     const ci = (s: string) => s.toLowerCase()
     if (adv.docNo    && !String(r.doc_no        ?? '').toLowerCase().includes(ci(adv.docNo)))    return false
     if (adv.store    && !String(r.store_name     ?? '').toLowerCase().includes(ci(adv.store)))    return false
-    if (adv.assoc    && !String(r.employee_name  ?? '').toLowerCase().includes(ci(adv.assoc)))    return false
-    if (adv.customer && !String(r.customer_name  ?? '').toLowerCase().includes(ci(adv.customer))) return false
+    if (adv.assoc.length > 0    && !adv.assoc.some(a    => String(r.employee_name  ?? '').toLowerCase() === a.toLowerCase()))    return false
+    if (adv.customer.length > 0 && !adv.customer.some(c => String(r.customer_name  ?? '').toLowerCase() === c.toLowerCase())) return false
     if (adv.types.length < 3 && !adv.types.includes(r.type))                                       return false
     if (adv.minSales && (r.net_sales ?? 0) < parseFloat(adv.minSales)) return false
     if (adv.maxSales && (r.net_sales ?? 0) > parseFloat(adv.maxSales)) return false
@@ -158,16 +176,17 @@ export default function Transactions() {
   const openAdv = () => { setAdvDraft(adv); setAdvOpen(true) }
 
   const activeChips: { label:string; key:string }[] = []
-  if (adv.docNo)          activeChips.push({ label:`Doc: ${adv.docNo}`,          key:'docNo'    })
-  if (adv.store)          activeChips.push({ label:`Store: ${adv.store}`,        key:'store'    })
-  if (adv.assoc)          activeChips.push({ label:`Associate: ${adv.assoc}`,    key:'assoc'    })
-  if (adv.customer)       activeChips.push({ label:`Customer: ${adv.customer}`,  key:'customer' })
-  if (adv.types.length<3) activeChips.push({ label:`Type: ${adv.types.join('/')}`, key:'types' })
-  if (adv.minSales)       activeChips.push({ label:`Min: ${adv.minSales}`,       key:'minSales' })
-  if (adv.maxSales)       activeChips.push({ label:`Max: ${adv.maxSales}`,       key:'maxSales' })
+  if (adv.docNo)              activeChips.push({ label:`Doc: ${adv.docNo}`, key:'docNo' })
+  if (adv.store)              activeChips.push({ label:`Store: ${adv.store}`, key:'store' })
+  if (adv.assoc.length > 0)  activeChips.push({ label:`Associate: ${adv.assoc.length === 1 ? adv.assoc[0] : `${adv.assoc.length} selected`}`, key:'assoc' })
+  if (adv.customer.length > 0) activeChips.push({ label:`Customer: ${adv.customer.length === 1 ? adv.customer[0] : `${adv.customer.length} selected`}`, key:'customer' })
+  if (adv.types.length<3)    activeChips.push({ label:`Type: ${adv.types.join('/')}`, key:'types' })
+  if (adv.minSales)          activeChips.push({ label:`Min: ${adv.minSales}`, key:'minSales' })
+  if (adv.maxSales)          activeChips.push({ label:`Max: ${adv.maxSales}`, key:'maxSales' })
 
   const removeChip = (key: string) => {
-    const next = { ...adv, [key]: key === 'types' ? ['Sale','Return','Order'] : '' }
+    const emptyVal = key === 'types' ? ['Sale','Return','Order'] : key === 'assoc' || key === 'customer' ? [] : ''
+    const next = { ...adv, [key]: emptyVal }
     setAdv(next); setAdvDraft(next)
     setTimeout(() => gridRef.current?.api?.onFilterChanged(), 50)
   }
@@ -409,14 +428,62 @@ export default function Transactions() {
           <Stack spacing={2.5}>
 
             <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:2 }}>
-              <AdvField label="Doc No"    value={advDraft.docNo}    onChange={v => setAdvDraft(d => ({ ...d, docNo:v    }))}/>
-              <AdvField label="Store"     value={advDraft.store}    onChange={v => setAdvDraft(d => ({ ...d, store:v    }))}/>
+              <AdvField label="Doc No" value={advDraft.docNo} onChange={v => setAdvDraft(d => ({ ...d, docNo:v }))}/>
+              <Autocomplete
+                options={storesList}
+                value={advDraft.store || null}
+                onChange={(_, v) => setAdvDraft(d => ({ ...d, store: v ?? '' }))}
+                freeSolo size="small"
+                renderInput={p => (
+                  <TextField {...p} label="Store"
+                    sx={{ '& .MuiOutlinedInput-root':{ borderRadius:2, fontSize:13 } }}/>
+                )}
+              />
             </Box>
 
-            <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:2 }}>
-              <AdvField label="Associate" value={advDraft.assoc}    onChange={v => setAdvDraft(d => ({ ...d, assoc:v    }))}/>
-              <AdvField label="Customer"  value={advDraft.customer} onChange={v => setAdvDraft(d => ({ ...d, customer:v }))}/>
-            </Box>
+            {/* Associate — multi-select, full width */}
+            <Autocomplete
+              multiple
+              options={employeesList}
+              value={advDraft.assoc}
+              onChange={(_, v) => setAdvDraft(d => ({ ...d, assoc: v }))}
+              disableCloseOnSelect
+              size="small"
+              renderInput={p => (
+                <TextField {...p} label="Associate"
+                  placeholder={advDraft.assoc.length === 0 ? 'Search and select one or more…' : ''}
+                  sx={{ '& .MuiOutlinedInput-root':{ borderRadius:2, fontSize:13 } }}/>
+              )}
+              renderTags={(value, getTagProps) =>
+                value.map((opt, i) => (
+                  <Chip {...getTagProps({ index: i })} key={opt} label={opt} size="small"
+                    sx={{ fontSize:11, height:22, bgcolor:'#ede9fe', color:ACCENT,
+                          '& .MuiChip-deleteIcon':{ color:ACCENT } }}/>
+                ))
+              }
+            />
+
+            {/* Customer — multi-select, full width */}
+            <Autocomplete
+              multiple
+              options={customersList}
+              value={advDraft.customer}
+              onChange={(_, v) => setAdvDraft(d => ({ ...d, customer: v }))}
+              disableCloseOnSelect
+              size="small"
+              renderInput={p => (
+                <TextField {...p} label="Customer"
+                  placeholder={advDraft.customer.length === 0 ? 'Search and select one or more…' : ''}
+                  sx={{ '& .MuiOutlinedInput-root':{ borderRadius:2, fontSize:13 } }}/>
+              )}
+              renderTags={(value, getTagProps) =>
+                value.map((opt, i) => (
+                  <Chip {...getTagProps({ index: i })} key={opt} label={opt} size="small"
+                    sx={{ fontSize:11, height:22, bgcolor:'#ede9fe', color:ACCENT,
+                          '& .MuiChip-deleteIcon':{ color:ACCENT } }}/>
+                ))
+              }
+            />
 
             <Box>
               <Typography variant="caption" sx={{ fontWeight:700, color:'#64748b', letterSpacing:.4, textTransform:'uppercase', mb:.75, display:'block' }}>
