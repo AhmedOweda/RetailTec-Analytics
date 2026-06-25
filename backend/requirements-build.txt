@@ -1,0 +1,4 @@
+# Build-time only — not needed at runtime
+# Install before running build/build-backend.bat
+pyinstaller>=6.15.0
+pyinstaller-hooks-contrib>=2024.10
