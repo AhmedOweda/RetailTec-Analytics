@@ -7,6 +7,8 @@ import Transactions          from './pages/sales/Transactions'
 import DataModelSettings     from './pages/settings/DataModelSettings'
 import InventoryOverview     from './pages/inventory/Overview'
 import InventoryMovement     from './pages/inventory/Movement'
+import InventoryTransfers    from './pages/inventory/Transfers'
+import InventoryAdjustments  from './pages/inventory/Adjustments'
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +22,8 @@ export const router = createBrowserRouter([
       { path: 'sales/transactions',      element: <Transactions />       },
       { path: 'inventory/overview',      element: <InventoryOverview />  },
       { path: 'inventory/movement',      element: <InventoryMovement />  },
+      { path: 'inventory/transfers',     element: <InventoryTransfers /> },
+      { path: 'inventory/adjustments',   element: <InventoryAdjustments />},
       { path: 'settings',               element: <DataModelSettings />   },
     ],
   },

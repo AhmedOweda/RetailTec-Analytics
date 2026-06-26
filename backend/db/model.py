@@ -6,7 +6,8 @@ Dimension tables (full refresh each sync):
     DIM_ITEM, DIM_DCS, DIM_VENDOR
 
 Fact tables (SIDs + measures only, joined to dims at query time):
-    FACT_SALES_DAILY, FACT_SALES_INVOICES, FACT_SALES_ITEMS
+    FACT_SALES_DAILY, FACT_SALES_INVOICES, FACT_SALES_ITEMS,
+    FACT_INVENTORY, FACT_TRANSFERS, FACT_ADJUSTMENTS
 
 One DB file per Oracle host: retailtec_<host>.db
 """
@@ -74,9 +75,6 @@ def init_db():
 
 def _ensure_schema(con: duckdb.DuckDBPyConnection):
     # ── Migrate: drop any fact table with old schema ──────────────────────────
-    # Old denormalized schema had STORE_NAME; intermediate star schema had SBS_NO.
-    # Current schema uses SUBSIDIARY_SID instead of SBS_NO.
-    # Also drop DIM_STORE if it has old SBS_NO column
     if "SBS_NO" in _table_cols(con, "DIM_STORE"):
         con.execute("DROP TABLE IF EXISTS DIM_STORE")
 
@@ -212,6 +210,40 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
         )
     """)
     con.execute("""
+        CREATE TABLE IF NOT EXISTS FACT_TRANSFERS (
+            SLIP_SID      BIGINT,
+            SLIP_NO       VARCHAR,
+            SLIP_DATE     DATE,
+            VOU_NO        VARCHAR,
+            VOU_CLASS     INTEGER  DEFAULT 0,
+            VOU_STATUS    INTEGER  DEFAULT 3,
+            OUT_STORE_SID BIGINT,
+            IN_STORE_SID  BIGINT,
+            ITEM_SID      BIGINT,
+            SENT_QTY      DOUBLE   DEFAULT 0,
+            RECV_QTY      DOUBLE   DEFAULT 0,
+            UNIT_COST     DOUBLE   DEFAULT 0,
+            TOTAL_COST    DOUBLE   DEFAULT 0,
+            TOTAL_PRICE   DOUBLE   DEFAULT 0
+        )
+    """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS FACT_ADJUSTMENTS (
+            ADJ_SID      BIGINT,
+            ADJ_NO       VARCHAR,
+            ADJ_DATE     DATE,
+            STORE_SID    BIGINT,
+            EMPLOYEE_SID BIGINT,
+            DOC_TYPE     INTEGER  DEFAULT 0,
+            ITEM_SID     BIGINT,
+            ORIG_QTY     DOUBLE   DEFAULT 0,
+            ADJ_QTY      DOUBLE   DEFAULT 0,
+            QTY_DIFF     DOUBLE   DEFAULT 0,
+            UNIT_COST    DOUBLE   DEFAULT 0,
+            COST_DIFF    DOUBLE   DEFAULT 0
+        )
+    """)
+    con.execute("""
         CREATE TABLE IF NOT EXISTS FACT_SALES_ITEMS (
             DOC_ITEM_SID           BIGINT  PRIMARY KEY,
             DOC_SID                BIGINT,
@@ -251,4 +283,11 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     con.execute("CREATE INDEX IF NOT EXISTS idx_item_vend    ON DIM_ITEM(VEND_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_finv_item    ON FACT_INVENTORY(ITEM_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_finv_store   ON FACT_INVENTORY(STORE_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ftrans_date  ON FACT_TRANSFERS(SLIP_DATE)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ftrans_out   ON FACT_TRANSFERS(OUT_STORE_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ftrans_in    ON FACT_TRANSFERS(IN_STORE_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_ftrans_item  ON FACT_TRANSFERS(ITEM_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fadj_date    ON FACT_ADJUSTMENTS(ADJ_DATE)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fadj_store   ON FACT_ADJUSTMENTS(STORE_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fadj_item    ON FACT_ADJUSTMENTS(ITEM_SID)")
     con.commit()

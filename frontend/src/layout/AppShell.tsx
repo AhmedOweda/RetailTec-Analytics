@@ -16,6 +16,8 @@ import ReceiptLongIcon      from '@mui/icons-material/ReceiptLong'
 import SettingsIcon         from '@mui/icons-material/Settings'
 import WarehouseIcon        from '@mui/icons-material/Warehouse'
 import SwapHorizIcon        from '@mui/icons-material/SwapHoriz'
+import CompareArrowsIcon    from '@mui/icons-material/CompareArrows'
+import AdjustIcon           from '@mui/icons-material/Adjust'
 import SyncIcon          from '@mui/icons-material/Sync'
 import LockOutlinedIcon  from '@mui/icons-material/LockOutlined'
 import VisibilityIcon    from '@mui/icons-material/Visibility'
@@ -40,8 +42,10 @@ const SALES_NAV = [
 ]
 
 const INVENTORY_NAV = [
-  { to: '/inventory/overview',  icon: <WarehouseIcon  />, label: 'Stock Levels' },
-  { to: '/inventory/movement',  icon: <SwapHorizIcon  />, label: 'Movement'     },
+  { to: '/inventory/overview',    icon: <WarehouseIcon     />, label: 'Stock Levels' },
+  { to: '/inventory/movement',    icon: <SwapHorizIcon     />, label: 'Movement'     },
+  { to: '/inventory/transfers',   icon: <CompareArrowsIcon />, label: 'Transfers'    },
+  { to: '/inventory/adjustments', icon: <AdjustIcon        />, label: 'Adjustments'  },
 ]
 
 // ── Sync status badge ──────────────────────────────────────────────────────
@@ -61,6 +65,35 @@ function SyncBadge() {
         {data.step || 'Syncing'}…
       </Typography>
     </Box>
+  )
+}
+
+// ── Reusable NavLink renderer ──────────────────────────────────────────────
+function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) {
+  return (
+    <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
+      {({ isActive }) => (
+        <Box sx={{
+          display:'flex', alignItems:'center', gap:1.5,
+          px:1.5, py:1, borderRadius:1.5, mb:0.5, cursor:'pointer',
+          bgcolor: isActive ? 'rgba(124,58,237,0.18)' : 'transparent',
+          color:   isActive ? ACCENT_LIGHT : 'rgba(255,255,255,0.6)',
+          '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
+          transition:'all 0.15s',
+        }}>
+          <Box sx={{ fontSize:18, display:'flex', '& svg':{ fontSize:'18px !important' },
+                     color: isActive ? ACCENT : 'inherit' }}>
+            {icon}
+          </Box>
+          <Typography sx={{ fontSize:13, fontWeight: isActive ? 600 : 400 }}>
+            {label}
+          </Typography>
+          {isActive && (
+            <Box sx={{ ml:'auto', width:3, height:16, borderRadius:2, bgcolor:ACCENT }} />
+          )}
+        </Box>
+      )}
+    </NavLink>
   )
 }
 
@@ -112,33 +145,9 @@ export default function AppShell() {
           </Typography>
         </Box>
 
-        {/* Sales Nav links */}
+        {/* Sales Nav */}
         <Box sx={{ px:1.5, pt:0.5 }}>
-          {SALES_NAV.map(({ to, icon, label }) => (
-            <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
-              {({ isActive }) => (
-                <Box sx={{
-                  display:'flex', alignItems:'center', gap:1.5,
-                  px:1.5, py:1, borderRadius:1.5, mb:0.5, cursor:'pointer',
-                  bgcolor: isActive ? 'rgba(124,58,237,0.18)' : 'transparent',
-                  color:   isActive ? ACCENT_LIGHT : 'rgba(255,255,255,0.6)',
-                  '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
-                  transition:'all 0.15s',
-                }}>
-                  <Box sx={{ fontSize:18, display:'flex', '& svg':{ fontSize:'18px !important' },
-                             color: isActive ? ACCENT : 'inherit' }}>
-                    {icon}
-                  </Box>
-                  <Typography sx={{ fontSize:13, fontWeight: isActive ? 600 : 400 }}>
-                    {label}
-                  </Typography>
-                  {isActive && (
-                    <Box sx={{ ml:'auto', width:3, height:16, borderRadius:2, bgcolor:ACCENT }} />
-                  )}
-                </Box>
-              )}
-            </NavLink>
-          ))}
+          {SALES_NAV.map(n => <NavItem key={n.to} {...n} />)}
         </Box>
 
         <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
@@ -151,33 +160,9 @@ export default function AppShell() {
           </Typography>
         </Box>
 
-        {/* Inventory Nav links */}
-        <Box sx={{ flex:1, px:1.5, pt:0.5 }}>
-          {INVENTORY_NAV.map(({ to, icon, label }) => (
-            <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
-              {({ isActive }) => (
-                <Box sx={{
-                  display:'flex', alignItems:'center', gap:1.5,
-                  px:1.5, py:1, borderRadius:1.5, mb:0.5, cursor:'pointer',
-                  bgcolor: isActive ? 'rgba(124,58,237,0.18)' : 'transparent',
-                  color:   isActive ? ACCENT_LIGHT : 'rgba(255,255,255,0.6)',
-                  '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
-                  transition:'all 0.15s',
-                }}>
-                  <Box sx={{ fontSize:18, display:'flex', '& svg':{ fontSize:'18px !important' },
-                             color: isActive ? ACCENT : 'inherit' }}>
-                    {icon}
-                  </Box>
-                  <Typography sx={{ fontSize:13, fontWeight: isActive ? 600 : 400 }}>
-                    {label}
-                  </Typography>
-                  {isActive && (
-                    <Box sx={{ ml:'auto', width:3, height:16, borderRadius:2, bgcolor:ACCENT }} />
-                  )}
-                </Box>
-              )}
-            </NavLink>
-          ))}
+        {/* Inventory Nav */}
+        <Box sx={{ flex:1, px:1.5, pt:0.5, overflowY:'auto' }}>
+          {INVENTORY_NAV.map(n => <NavItem key={n.to} {...n} />)}
         </Box>
 
         <Divider sx={{ borderColor:'rgba(255,255,255,0.08)' }} />

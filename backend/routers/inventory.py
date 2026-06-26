@@ -2,15 +2,29 @@
 Inventory Router
 ================
 Endpoints:
-  GET /api/inventory/overview     — Stock KPIs (snapshot from FACT_INVENTORY)
-  GET /api/inventory/by-dept      — Stock by department
-  GET /api/inventory/by-dcs       — Stock DCS hierarchy (dept > class > subclass)
-  GET /api/inventory/by-vendor    — Top vendors by stock value
-  GET /api/inventory/by-store     — Per-store stock breakdown
-  GET /api/inventory/items        — Item-level stock (group_by=dept|dcs|vendor|store|item)
-  GET /api/inventory/movement     — Velocity KPIs from FACT_SALES_ITEMS (date-filtered)
-  GET /api/inventory/trend        — Daily movement trend
-  GET /api/inventory/movement-by  — Velocity grouped (group_by=dept|dcs|vendor|store|item)
+  GET /api/stores                       — Store name list (for filters)
+
+  GET /api/inventory/overview           — Stock KPIs (snapshot from FACT_INVENTORY)
+  GET /api/inventory/by-dept            — Stock by department
+  GET /api/inventory/by-dcs             — Stock DCS hierarchy (dept > class > subclass)
+  GET /api/inventory/by-vendor          — Top vendors by stock value
+  GET /api/inventory/by-store           — Per-store stock breakdown
+  GET /api/inventory/items              — Item-level stock (group_by=dept|dcs|vendor|store|item)
+  GET /api/inventory/movement           — Velocity KPIs from FACT_SALES_ITEMS (date-filtered)
+  GET /api/inventory/trend              — Daily movement trend
+  GET /api/inventory/movement-by        — Velocity grouped (group_by=dept|dcs|vendor|store|item)
+
+  GET /api/inventory/transfers/kpi      — Transfer KPIs
+  GET /api/inventory/transfers/trend    — Daily transfer trend
+  GET /api/inventory/transfers/by-store — Transfers by sending/receiving store
+  GET /api/inventory/transfers/by-dept  — Transfers by department
+  GET /api/inventory/transfers/details  — Line-level transfer details
+
+  GET /api/inventory/adjustments/kpi      — Adjustment KPIs
+  GET /api/inventory/adjustments/trend    — Daily adjustment trend
+  GET /api/inventory/adjustments/by-type  — By creation type
+  GET /api/inventory/adjustments/by-store — By store
+  GET /api/inventory/adjustments/details  — Line-level adjustment details
 """
 import threading
 from typing import Optional
@@ -42,6 +56,14 @@ def _qdf(sql: str) -> list[dict]:
 def _q(sql: str):
     with _db_lock:
         return get_db().execute(sql).fetchall()
+
+
+# ── Stores list ────────────────────────────────────────────────────────────────
+
+@router.get("/api/stores")
+def list_stores():
+    """Return all store names for filter dropdowns."""
+    return _qdf("SELECT STORE_NAME FROM DIM_STORE ORDER BY STORE_NAME")
 
 
 # ── Stock snapshot base (FACT_INVENTORY) ──────────────────────────────────────
@@ -476,5 +498,348 @@ def inv_movement_by(
         {base}
         GROUP BY D.D_NAME
         ORDER BY revenue DESC
+        LIMIT {limit}
+    """)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TRANSFERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _trans_store_filter(stores: Optional[str]) -> str:
+    """Store filter that matches either the OUT or IN store of a transfer."""
+    if not stores:
+        return ""
+    names = [f"'{s.strip().replace(chr(39), chr(39)*2)}'"
+             for s in stores.split(",") if s.strip()]
+    if not names:
+        return ""
+    n = ','.join(names)
+    return f" AND (DS_OUT.STORE_NAME IN ({n}) OR DS_IN.STORE_NAME IN ({n}))"
+
+
+def _trans_base(df: str, dt: str, stores: Optional[str]) -> str:
+    sf = _trans_store_filter(stores)
+    return f"""
+        FROM FACT_TRANSFERS FT
+        LEFT JOIN DIM_STORE  DS_OUT ON DS_OUT.SID = FT.OUT_STORE_SID
+        LEFT JOIN DIM_STORE  DS_IN  ON DS_IN.SID  = FT.IN_STORE_SID
+        LEFT JOIN DIM_ITEM   I      ON I.SID       = FT.ITEM_SID
+        LEFT JOIN DIM_DCS    DC     ON DC.SID      = I.DCS_SID
+        LEFT JOIN DIM_VENDOR V      ON V.SID       = I.VEND_SID
+        WHERE FT.SLIP_DATE BETWEEN '{df}' AND '{dt}' {sf}
+    """
+
+
+def _vou_status_label() -> str:
+    return """CASE FT.VOU_STATUS
+        WHEN 1 THEN 'Changed'
+        WHEN 2 THEN 'Cancelled'
+        WHEN 3 THEN 'Pending'
+        WHEN 4 THEN 'Received'
+        ELSE 'Unknown' END"""
+
+
+@router.get("/api/inventory/transfers/kpi")
+def transfers_kpi(
+    date_from: str = Query(...),
+    date_to:   str = Query(...),
+    stores:    Optional[str] = Query(None),
+):
+    base = _trans_base(date_from, date_to, stores)
+    rows = _q(f"""
+        SELECT
+            COUNT(DISTINCT FT.SLIP_SID)                           AS total_slips,
+            COUNT(*)                                               AS total_lines,
+            ROUND(COALESCE(SUM(FT.SENT_QTY), 0), 0)              AS total_sent_qty,
+            ROUND(COALESCE(SUM(FT.RECV_QTY), 0), 0)              AS total_recv_qty,
+            ROUND(COALESCE(SUM(FT.TOTAL_COST), 0), 2)            AS total_cost,
+            COUNT(DISTINCT CASE WHEN FT.VOU_STATUS = 3 THEN FT.SLIP_SID END) AS pending_slips,
+            COUNT(DISTINCT CASE WHEN FT.VOU_STATUS = 4 THEN FT.SLIP_SID END) AS received_slips
+        {base}
+    """)
+    r = rows[0]
+    total = float(r[0] or 0)
+    recv  = float(r[6] or 0)
+    return {
+        "total_slips":    int(r[0] or 0),
+        "total_lines":    int(r[1] or 0),
+        "total_sent_qty": float(r[2] or 0),
+        "total_recv_qty": float(r[3] or 0),
+        "total_cost":     float(r[4] or 0),
+        "pending_slips":  int(r[5] or 0),
+        "received_slips": int(r[6] or 0),
+        "recv_pct":       round(recv / total * 100, 1) if total > 0 else 0,
+    }
+
+
+@router.get("/api/inventory/transfers/trend")
+def transfers_trend(
+    date_from: str = Query(...),
+    date_to:   str = Query(...),
+    stores:    Optional[str] = Query(None),
+):
+    base = _trans_base(date_from, date_to, stores)
+    return _qdf(f"""
+        SELECT
+            FT.SLIP_DATE                                AS slip_date,
+            COUNT(DISTINCT FT.SLIP_SID)                 AS slip_count,
+            ROUND(SUM(FT.SENT_QTY), 0)                 AS sent_qty,
+            ROUND(SUM(FT.RECV_QTY), 0)                 AS recv_qty,
+            ROUND(SUM(FT.TOTAL_COST), 2)               AS total_cost
+        {base}
+        GROUP BY FT.SLIP_DATE
+        ORDER BY FT.SLIP_DATE
+    """)
+
+
+@router.get("/api/inventory/transfers/by-store")
+def transfers_by_store(
+    date_from:  str = Query(...),
+    date_to:    str = Query(...),
+    stores:     Optional[str] = Query(None),
+    direction:  str = Query("out"),
+    limit:      int = Query(15),
+):
+    base = _trans_base(date_from, date_to, stores)
+    store_col = "DS_OUT.STORE_NAME" if direction == "out" else "DS_IN.STORE_NAME"
+    return _qdf(f"""
+        SELECT
+            COALESCE({store_col}, '(Unknown)') AS store_name,
+            COUNT(DISTINCT FT.SLIP_SID)         AS slip_count,
+            ROUND(SUM(FT.SENT_QTY), 0)          AS sent_qty,
+            ROUND(SUM(FT.RECV_QTY), 0)          AS recv_qty,
+            ROUND(SUM(FT.TOTAL_COST), 2)        AS total_cost
+        {base}
+        GROUP BY {store_col}
+        ORDER BY total_cost DESC
+        LIMIT {limit}
+    """)
+
+
+@router.get("/api/inventory/transfers/by-dept")
+def transfers_by_dept(
+    date_from: str = Query(...),
+    date_to:   str = Query(...),
+    stores:    Optional[str] = Query(None),
+    limit:     int = Query(20),
+):
+    base = _trans_base(date_from, date_to, stores)
+    return _qdf(f"""
+        SELECT
+            COALESCE(DC.D_NAME, '(Unknown)') AS department,
+            COUNT(DISTINCT FT.SLIP_SID)       AS slip_count,
+            ROUND(SUM(FT.SENT_QTY), 0)        AS sent_qty,
+            ROUND(SUM(FT.RECV_QTY), 0)        AS recv_qty,
+            ROUND(SUM(FT.TOTAL_COST), 2)      AS total_cost
+        {base}
+        GROUP BY DC.D_NAME
+        ORDER BY total_cost DESC
+        LIMIT {limit}
+    """)
+
+
+@router.get("/api/inventory/transfers/details")
+def transfers_details(
+    date_from: str = Query(...),
+    date_to:   str = Query(...),
+    stores:    Optional[str] = Query(None),
+    limit:     int = Query(500),
+):
+    base = _trans_base(date_from, date_to, stores)
+    status_label = _vou_status_label()
+    return _qdf(f"""
+        SELECT
+            FT.SLIP_NO,
+            FT.SLIP_DATE,
+            COALESCE(DS_OUT.STORE_NAME, '(Unknown)') AS from_store,
+            COALESCE(DS_IN.STORE_NAME,  '(Unknown)') AS to_store,
+            FT.VOU_NO,
+            {status_label}                            AS status,
+            I.ALU,
+            I.DESCRIPTION1,
+            COALESCE(DC.D_NAME, '')                  AS department,
+            COALESCE(V.VEND_NAME, '')                AS vendor,
+            ROUND(FT.SENT_QTY, 0)                   AS sent_qty,
+            ROUND(FT.RECV_QTY, 0)                   AS recv_qty,
+            ROUND(FT.UNIT_COST, 4)                  AS unit_cost,
+            ROUND(FT.TOTAL_COST, 2)                 AS total_cost,
+            ROUND(FT.TOTAL_PRICE, 2)                AS total_price
+        {base}
+        ORDER BY FT.SLIP_DATE DESC, FT.SLIP_NO
+        LIMIT {limit}
+    """)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADJUSTMENTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _adj_store_filter(stores: Optional[str]) -> str:
+    return _store_filter(stores, alias="S")
+
+
+def _adj_base(df: str, dt: str, stores: Optional[str]) -> str:
+    sf = _adj_store_filter(stores)
+    store_join = "LEFT JOIN DIM_STORE S ON S.SID = FA.STORE_SID" if sf else \
+                 "LEFT JOIN DIM_STORE S ON S.SID = FA.STORE_SID"
+    return f"""
+        FROM FACT_ADJUSTMENTS FA
+        {store_join}
+        LEFT JOIN DIM_EMPLOYEE E  ON E.SID  = FA.EMPLOYEE_SID
+        LEFT JOIN DIM_ITEM     I  ON I.SID  = FA.ITEM_SID
+        LEFT JOIN DIM_DCS      DC ON DC.SID = I.DCS_SID
+        LEFT JOIN DIM_VENDOR   V  ON V.SID  = I.VEND_SID
+        WHERE FA.ADJ_DATE BETWEEN '{df}' AND '{dt}' {sf}
+    """
+
+
+def _doc_type_label() -> str:
+    return """CASE FA.DOC_TYPE
+        WHEN 0  THEN 'None'
+        WHEN 1  THEN 'Physical Inv.'
+        WHEN 2  THEN 'Cost Overwrite'
+        WHEN 3  THEN 'Markdown'
+        WHEN 4  THEN 'Cleanup'
+        WHEN 5  THEN 'Planned Pricing'
+        WHEN 6  THEN 'Planned Markdown'
+        WHEN 7  THEN 'Inventory'
+        WHEN 8  THEN 'Manual'
+        WHEN 9  THEN 'Reversing'
+        WHEN 10 THEN 'Cost Leave'
+        WHEN 11 THEN 'Audit'
+        WHEN 12 THEN 'Corporate'
+        WHEN 13 THEN 'Kit'
+        WHEN 14 THEN 'Unverified Slip'
+        ELSE 'Other' END"""
+
+
+@router.get("/api/inventory/adjustments/kpi")
+def adjustments_kpi(
+    date_from: str = Query(...),
+    date_to:   str = Query(...),
+    stores:    Optional[str] = Query(None),
+):
+    base = _adj_base(date_from, date_to, stores)
+    rows = _q(f"""
+        SELECT
+            COUNT(DISTINCT FA.ADJ_SID)                                     AS total_adjs,
+            COUNT(*)                                                        AS total_lines,
+            ROUND(COALESCE(SUM(FA.QTY_DIFF), 0), 0)                       AS net_qty,
+            ROUND(COALESCE(SUM(CASE WHEN FA.QTY_DIFF > 0 THEN FA.QTY_DIFF ELSE 0 END), 0), 0) AS pos_qty,
+            ROUND(COALESCE(SUM(CASE WHEN FA.QTY_DIFF < 0 THEN FA.QTY_DIFF ELSE 0 END), 0), 0) AS neg_qty,
+            ROUND(COALESCE(SUM(FA.COST_DIFF), 0), 2)                      AS net_cost,
+            ROUND(COALESCE(SUM(CASE WHEN FA.COST_DIFF > 0 THEN FA.COST_DIFF ELSE 0 END), 0), 2) AS pos_cost,
+            ROUND(COALESCE(SUM(CASE WHEN FA.COST_DIFF < 0 THEN FA.COST_DIFF ELSE 0 END), 0), 2) AS neg_cost
+        {base}
+    """)
+    r = rows[0]
+    return {
+        "total_adjs":  int(r[0] or 0),
+        "total_lines": int(r[1] or 0),
+        "net_qty":     float(r[2] or 0),
+        "pos_qty":     float(r[3] or 0),
+        "neg_qty":     float(r[4] or 0),
+        "net_cost":    float(r[5] or 0),
+        "pos_cost":    float(r[6] or 0),
+        "neg_cost":    float(r[7] or 0),
+    }
+
+
+@router.get("/api/inventory/adjustments/trend")
+def adjustments_trend(
+    date_from: str = Query(...),
+    date_to:   str = Query(...),
+    stores:    Optional[str] = Query(None),
+):
+    base = _adj_base(date_from, date_to, stores)
+    return _qdf(f"""
+        SELECT
+            FA.ADJ_DATE,
+            COUNT(DISTINCT FA.ADJ_SID)                                           AS adj_count,
+            ROUND(SUM(CASE WHEN FA.QTY_DIFF > 0 THEN FA.QTY_DIFF ELSE 0 END), 0) AS pos_qty,
+            ROUND(SUM(CASE WHEN FA.QTY_DIFF < 0 THEN FA.QTY_DIFF ELSE 0 END), 0) AS neg_qty,
+            ROUND(SUM(FA.QTY_DIFF), 0)                                           AS net_qty,
+            ROUND(SUM(FA.COST_DIFF), 2)                                          AS net_cost
+        {base}
+        GROUP BY FA.ADJ_DATE
+        ORDER BY FA.ADJ_DATE
+    """)
+
+
+@router.get("/api/inventory/adjustments/by-type")
+def adjustments_by_type(
+    date_from: str = Query(...),
+    date_to:   str = Query(...),
+    stores:    Optional[str] = Query(None),
+):
+    base = _adj_base(date_from, date_to, stores)
+    doc_lbl = _doc_type_label()
+    return _qdf(f"""
+        SELECT
+            {doc_lbl}                                   AS doc_type,
+            COUNT(DISTINCT FA.ADJ_SID)                  AS adj_count,
+            COUNT(*)                                     AS line_count,
+            ROUND(SUM(FA.QTY_DIFF), 0)                  AS net_qty,
+            ROUND(SUM(FA.COST_DIFF), 2)                 AS net_cost,
+            ROUND(SUM(CASE WHEN FA.QTY_DIFF > 0 THEN FA.QTY_DIFF ELSE 0 END), 0)   AS pos_qty,
+            ROUND(SUM(CASE WHEN FA.QTY_DIFF < 0 THEN FA.QTY_DIFF ELSE 0 END), 0)   AS neg_qty
+        {base}
+        GROUP BY FA.DOC_TYPE
+        ORDER BY ABS(SUM(FA.COST_DIFF)) DESC
+    """)
+
+
+@router.get("/api/inventory/adjustments/by-store")
+def adjustments_by_store(
+    date_from: str = Query(...),
+    date_to:   str = Query(...),
+    stores:    Optional[str] = Query(None),
+    limit:     int = Query(15),
+):
+    base = _adj_base(date_from, date_to, stores)
+    return _qdf(f"""
+        SELECT
+            COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
+            COUNT(DISTINCT FA.ADJ_SID)           AS adj_count,
+            COUNT(*)                              AS line_count,
+            ROUND(SUM(FA.QTY_DIFF), 0)           AS net_qty,
+            ROUND(SUM(FA.COST_DIFF), 2)          AS net_cost,
+            ROUND(SUM(CASE WHEN FA.QTY_DIFF > 0 THEN FA.QTY_DIFF ELSE 0 END), 0) AS pos_qty,
+            ROUND(SUM(CASE WHEN FA.QTY_DIFF < 0 THEN FA.QTY_DIFF ELSE 0 END), 0) AS neg_qty
+        {base}
+        GROUP BY S.STORE_NAME
+        ORDER BY ABS(SUM(FA.COST_DIFF)) DESC
+        LIMIT {limit}
+    """)
+
+
+@router.get("/api/inventory/adjustments/details")
+def adjustments_details(
+    date_from: str = Query(...),
+    date_to:   str = Query(...),
+    stores:    Optional[str] = Query(None),
+    limit:     int = Query(500),
+):
+    base = _adj_base(date_from, date_to, stores)
+    doc_lbl = _doc_type_label()
+    return _qdf(f"""
+        SELECT
+            FA.ADJ_NO,
+            FA.ADJ_DATE,
+            COALESCE(S.STORE_NAME, '(Unknown)')  AS store_name,
+            COALESCE(E.FULL_NAME, '(Unknown)')   AS employee,
+            {doc_lbl}                             AS doc_type,
+            I.ALU,
+            I.DESCRIPTION1,
+            COALESCE(DC.D_NAME, '')              AS department,
+            COALESCE(V.VEND_NAME, '')            AS vendor,
+            ROUND(FA.ORIG_QTY, 0)               AS orig_qty,
+            ROUND(FA.ADJ_QTY, 0)                AS adj_qty,
+            ROUND(FA.QTY_DIFF, 0)               AS qty_diff,
+            ROUND(FA.UNIT_COST, 4)              AS unit_cost,
+            ROUND(FA.COST_DIFF, 2)              AS cost_diff
+        {base}
+        ORDER BY FA.ADJ_DATE DESC, FA.ADJ_NO
         LIMIT {limit}
     """)
