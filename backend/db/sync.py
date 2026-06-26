@@ -313,6 +313,42 @@ def _sql_items(df, dt):
     """
 
 
+# ── Inventory snapshot ────────────────────────────────────────────────────────
+
+def _sync_inventory_snapshot(duck, ora):
+    """Full DELETE+INSERT snapshot of current on-hand quantities from Oracle."""
+    cur = ora.cursor()
+    cur.execute("""
+        SELECT
+            IQ.INVN_SBS_ITEM_SID   AS ITEM_SID,
+            IQ.STORE_SID,
+            NVL(IQ.QTY, 0)        AS ON_HAND_QTY,
+            NVL(I.COST, 0)        AS COST,
+            NVL(P1.PRICE, 0)      AS PRICE1
+        FROM RPS.INVN_SBS_ITEM_QTY IQ
+        LEFT JOIN RPS.INVN_SBS_ITEM I
+            ON I.SID = IQ.INVN_SBS_ITEM_SID AND I.SBS_SID = IQ.SBS_SID
+        LEFT JOIN (
+            SELECT DISTINCT PR.INVN_SBS_ITEM_SID, PR.PRICE
+            FROM RPS.INVN_SBS_PRICE PR
+            INNER JOIN RPS.PRICE_LEVEL PL ON PL.SID = PR.PRICE_LVL_SID
+            WHERE PL.PRICE_LVL = 1
+        ) P1 ON P1.INVN_SBS_ITEM_SID = IQ.INVN_SBS_ITEM_SID
+        WHERE IQ.QTY IS NOT NULL AND IQ.QTY != 0
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    duck.execute("DELETE FROM FACT_INVENTORY")
+    if rows:
+        duck.executemany(
+            "INSERT INTO FACT_INVENTORY VALUES (?,?,?,?,?,?)",
+            [(r[0], r[1], r[2], r[3], r[4], now_str) for r in rows],
+        )
+    duck.commit()
+    log.info(f"FACT_INVENTORY: {len(rows):,} rows loaded")
+
+
 # ── Per-chunk fact sync ────────────────────────────────────────────────────────
 
 def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False):
@@ -425,15 +461,26 @@ def _run_sync(mode: str, date_from: str, date_to: str,
 
     # Step 3 — large dims filtered to the sync date range
     if progress_cb:
-        progress_cb("Loading customers & items", total + 1, total + 2)
+        progress_cb("Loading customers & items", total + 1, total + 3)
     ora_large = _get_oracle_conn()
     try:
         _load_large_dims(duck, ora_large, date_from, date_to)
     finally:
         ora_large.close()
 
+    # Step 4 — inventory on-hand snapshot (current state, not date-filtered)
     if progress_cb:
-        progress_cb("Done", total + 2, total + 2)
+        progress_cb("Loading inventory snapshot", total + 2, total + 3)
+    ora_inv = _get_oracle_conn()
+    try:
+        _sync_inventory_snapshot(duck, ora_inv)
+    except Exception as e:
+        log.warning(f"Inventory snapshot skipped: {e}")
+    finally:
+        ora_inv.close()
+
+    if progress_cb:
+        progress_cb("Done", total + 3, total + 3)
 
     s = json.loads(SETTINGS_FILE.read_text())
     s["last_sync"]    = datetime.now().isoformat()

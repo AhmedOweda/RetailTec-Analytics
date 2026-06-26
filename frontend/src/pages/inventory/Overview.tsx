@@ -1,0 +1,472 @@
+/**
+ * Inventory — Stock Levels Overview
+ * Current on-hand snapshot from FACT_INVENTORY
+ * KPIs · Dept Treemap · DCS Sunburst · Vendor Bar · Store Bar · AG Grid
+ */
+import { useMemo, useRef, useState, useCallback } from 'react'
+import {
+  Box, Typography, Chip, Dialog, DialogTitle, DialogContent,
+  IconButton, Tooltip, Autocomplete, TextField,
+} from '@mui/material'
+import FullscreenIcon    from '@mui/icons-material/Fullscreen'
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit'
+import DownloadIcon      from '@mui/icons-material/Download'
+import WarningAmberIcon  from '@mui/icons-material/WarningAmber'
+import { useQuery }      from '@tanstack/react-query'
+import axios             from 'axios'
+import { AgGridReact }   from 'ag-grid-react'
+import type { ColDef }   from 'ag-grid-community'
+import 'ag-grid-community/styles/ag-grid.css'
+import 'ag-grid-community/styles/ag-theme-alpine.css'
+import EChart, { type EChartHandle } from '../../components/EChart'
+
+// ── Colours ────────────────────────────────────────────────────────────────────
+const C_PURPLE = '#7c3aed'
+const C_SLATE  = '#64748b'
+const C_GREEN  = '#059669'
+const C_AMBER  = '#d97706'
+const C_ROSE   = '#e11d48'
+const DEPT_COLORS = [
+  '#7c3aed','#0891b2','#059669','#d97706','#e11d48',
+  '#8b5cf6','#06b6d4','#10b981','#f59e0b','#f43f5e',
+]
+
+function num(v: any) {
+  const n = +(v ?? 0)
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (Math.abs(n) >= 1_000)     return `${(n / 1_000).toFixed(0)}K`
+  return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+}
+
+// ── KPI Card ───────────────────────────────────────────────────────────────────
+function KpiCard({ label, value, sub, color = C_PURPLE }: {
+  label: string; value: string; sub?: string; color?: string
+}) {
+  return (
+    <Box sx={{
+      flex: 1, minWidth: 130,
+      bgcolor: '#fff', borderRadius: 2.5,
+      border: '1px solid #e9e4ff',
+      boxShadow: '0 1px 6px rgba(124,58,237,0.06)',
+      p: 2, display: 'flex', flexDirection: 'column', gap: 0.3,
+    }}>
+      <Typography sx={{ fontSize: 11, color: C_SLATE, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {label}
+      </Typography>
+      <Typography sx={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1.1 }}>
+        {value}
+      </Typography>
+      {sub && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{sub}</Typography>}
+    </Box>
+  )
+}
+
+// ── Chart Card ────────────────────────────────────────────────────────────────
+function ChartCard({ title, subtitle, option, height = 340, children }: {
+  title: string; subtitle?: string; option?: any; height?: number; children?: React.ReactNode
+}) {
+  const ref = useRef<EChartHandle>(null)
+  const [fs, setFs] = useState(false)
+
+  const download = useCallback(() => {
+    const inst = ref.current?.getEchartsInstance()
+    if (!inst) return
+    const url  = inst.getDataURL({ type: 'png', pixelRatio: 2 })
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `${title.replace(/\s+/g, '_')}.png`
+    a.click()
+  }, [title])
+
+  return (
+    <>
+      <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
+                 boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2, display: 'flex',
+                 flexDirection: 'column', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{title}</Typography>
+            {subtitle && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{subtitle}</Typography>}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Tooltip title="Download PNG">
+              <IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize: 16 }} /></IconButton>
+            </Tooltip>
+            <Tooltip title="Fullscreen">
+              <IconButton size="small" onClick={() => setFs(true)}><FullscreenIcon sx={{ fontSize: 16 }} /></IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
+        {option ? <EChart ref={ref} option={option} style={{ height }} /> : children}
+      </Box>
+
+      <Dialog open={fs} onClose={() => setFs(false)} maxWidth="xl" fullWidth
+        PaperProps={{ sx: { borderRadius: 3, height: '90vh' } }}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          <Typography sx={{ fontWeight: 700 }}>{title}</Typography>
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Tooltip title="Download PNG">
+              <IconButton size="small" onClick={download}><DownloadIcon /></IconButton>
+            </Tooltip>
+            <Tooltip title="Close">
+              <IconButton size="small" onClick={() => setFs(false)}><FullscreenExitIcon /></IconButton>
+            </Tooltip>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 2 }}>
+          {option && <EChart ref={ref} option={option} style={{ height: '100%' }} />}
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+// ── GP% style helper ──────────────────────────────────────────────────────────
+function gmStyle(p: any) {
+  const v = +(p.value ?? 0)
+  return {
+    color: v >= 30 ? C_GREEN : v >= 10 ? C_AMBER : C_ROSE,
+    fontWeight: 700,
+    backgroundColor: v >= 30 ? 'rgba(5,150,105,0.10)' : v >= 10 ? 'rgba(217,119,6,0.10)' : 'rgba(225,29,72,0.10)',
+    display: 'flex', alignItems: 'center',
+  }
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+export default function InventoryOverview() {
+  const [stores, setStores] = useState<string[]>([])
+  const [view,   setView  ] = useState<'dept'|'dcs'|'vendor'|'store'>('dept')
+
+  // Store options from sales stores-list endpoint
+  const { data: storeList = [] } = useQuery<string[]>({
+    queryKey: ['inv-stores-list'],
+    queryFn:  () => axios.get('/api/sales/stores-list').then(r => r.data),
+    gcTime: 3_600_000, refetchOnMount: false,
+  })
+
+  const storeQS = stores.length ? `&stores=${encodeURIComponent(stores.join(','))}` : ''
+
+  // KPIs
+  const { data: kpiRaw } = useQuery({
+    queryKey: ['inv-overview', storeQS],
+    queryFn:  () => axios.get(`/api/inventory/overview?${storeQS.slice(1)}`).then(r => r.data),
+    gcTime: 1_800_000, refetchOnMount: 'always',
+  })
+  const kpi = {
+    skus:        kpiRaw?.sku_count    ?? 0,
+    totalQty:    kpiRaw?.total_qty    ?? 0,
+    stockCost:   kpiRaw?.stock_cost   ?? 0,
+    stockRetail: kpiRaw?.stock_retail ?? 0,
+    gmPct:       kpiRaw?.gm_pct       ?? 0,
+    depts:       kpiRaw?.dept_count   ?? 0,
+    stores:      kpiRaw?.store_count  ?? 0,
+    negStock:    kpiRaw?.neg_stock    ?? 0,
+  }
+
+  // Chart data
+  const { data: deptData  = [] } = useQuery({
+    queryKey: ['inv-by-dept',   storeQS],
+    queryFn:  () => axios.get(`/api/inventory/by-dept?${storeQS.slice(1)}`).then(r => r.data),
+    gcTime: 1_800_000,
+  })
+  const { data: dcsData   = [] } = useQuery({
+    queryKey: ['inv-by-dcs',    storeQS],
+    queryFn:  () => axios.get(`/api/inventory/by-dcs?limit=500${storeQS}`).then(r => r.data),
+    gcTime: 1_800_000,
+  })
+  const { data: vendorData = [] } = useQuery({
+    queryKey: ['inv-by-vendor', storeQS],
+    queryFn:  () => axios.get(`/api/inventory/by-vendor?limit=12${storeQS}`).then(r => r.data),
+    gcTime: 1_800_000,
+  })
+  const { data: storeData = [] } = useQuery({
+    queryKey: ['inv-by-store', storeQS],
+    queryFn:  () => axios.get(`/api/inventory/by-store?${storeQS.slice(1)}`).then(r => r.data),
+    gcTime: 1_800_000,
+  })
+  const { data: tableData = [] } = useQuery({
+    queryKey: ['inv-items', view, storeQS],
+    queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}&limit=50${storeQS}`).then(r => r.data),
+    gcTime: 1_800_000, refetchOnMount: 'always',
+  })
+
+  const noData = kpi.skus === 0 && kpi.stockCost === 0
+
+  // ── Department treemap option ──────────────────────────────────────────────
+  const treemapOpt = useMemo(() => {
+    const rows = (deptData as any[])
+    if (!rows.length) return {}
+    const data = rows.map((r, i) => ({
+      name:  r.department ?? '(Unknown)',
+      value: +(r.cost_value ?? 0),
+      label: { show: true },
+      itemStyle: { color: DEPT_COLORS[i % 10] },
+      gm_pct: r.gm_pct,
+    }))
+    return {
+      tooltip: {
+        formatter: (p: any) => {
+          const d = p.data
+          return `<b>${d.name}</b><br/>Cost Value: <b>${num(d.value)}</b><br/>GM: <b>${d.gm_pct ?? 0}%</b>`
+        },
+      },
+      series: [{
+        type: 'treemap',
+        data,
+        roam: false,
+        nodeClick: false,
+        breadcrumb: { show: false },
+        label: { show: true, fontSize: 11, color: '#fff', fontWeight: 700, overflow: 'truncate',
+                 formatter: (p: any) => `${p.name}\n${num(p.value)}` },
+        itemStyle: { borderWidth: 2, borderColor: '#fff', gapWidth: 2 },
+        levels: [{ itemStyle: { borderWidth: 2, borderColor: '#fff', gapWidth: 2 } }],
+      }],
+    }
+  }, [deptData])
+
+  // ── DCS Sunburst option ────────────────────────────────────────────────────
+  const sunburstOpt = useMemo(() => {
+    const rows = (dcsData as any[])
+    if (!rows.length) return {}
+    const deptMap: Record<string, { value: number; color: string; classMap: Record<string, { value: number; subMap: Record<string, number> }> }> = {}
+    rows.forEach(r => {
+      const dept = r.department ?? '(Unknown)'
+      const cls  = r.class      ?? '(Unknown)'
+      const sub  = r.subclass   ?? '(Unknown)'
+      const val  = +(r.cost_value ?? 0)
+      if (!deptMap[dept]) deptMap[dept] = { value: 0, color: DEPT_COLORS[Object.keys(deptMap).length % 10], classMap: {} }
+      deptMap[dept].value += val
+      if (!deptMap[dept].classMap[cls]) deptMap[dept].classMap[cls] = { value: 0, subMap: {} }
+      deptMap[dept].classMap[cls].value += val
+      deptMap[dept].classMap[cls].subMap[sub] = (deptMap[dept].classMap[cls].subMap[sub] || 0) + val
+    })
+    const data = Object.entries(deptMap).map(([dname, d]) => ({
+      name: dname, value: d.value, itemStyle: { color: d.color },
+      children: Object.entries(d.classMap).map(([cname, c]) => ({
+        name: cname, value: c.value,
+        children: Object.entries(c.subMap).sort((a, b) => b[1] - a[1]).map(([sname, sv]) => ({ name: sname, value: sv })),
+      })),
+    }))
+    return {
+      tooltip: {
+        formatter: (p: any) => {
+          const path = (p.treePathInfo as any[] ?? []).slice(1).map((n: any) => n.name).join(' › ')
+          return `<div style="min-width:170px"><b>${path || p.name}</b><br/>Cost Value: <b>${num(p.value)}</b><br/><span style="font-size:10px;color:#94a3b8">Click to drill · Click center to go up</span></div>`
+        },
+      },
+      series: [{
+        type: 'sunburst', data, radius: ['18%', '92%'], sort: undefined, nodeClick: 'rootToNode',
+        emphasis: { focus: 'ancestor', itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' } },
+        levels: [
+          {},
+          { r0: '18%', r: '42%', label: { rotate: 'tangential', fontSize: 10, color: '#fff', fontWeight: 700, overflow: 'truncate' }, itemStyle: { borderWidth: 2, borderColor: '#fff' } },
+          { r0: '43%', r: '68%', label: { fontSize: 9, color: '#fff', minAngle: 6 }, itemStyle: { borderWidth: 1, borderColor: '#fff' } },
+          { r0: '69%', r: '92%', label: { position: 'outside', fontSize: 8, color: '#475569', minAngle: 8 } },
+        ],
+      }],
+    }
+  }, [dcsData])
+
+  // ── Vendor bar option ──────────────────────────────────────────────────────
+  const vendorOpt = useMemo(() => {
+    const rows  = (vendorData as any[]).slice(0, 10).reverse()
+    const names = rows.map(r => r.vendor ?? '(Unknown)')
+    const vals  = rows.map(r => +(r.cost_value ?? 0))
+    return {
+      grid: { top: 8, right: 130, bottom: 8, left: 8, containLabel: true },
+      tooltip: {
+        trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (p: any[]) => {
+          const r = rows[p[0]?.dataIndex] ?? {}
+          return `<b>${p[0].name}</b><br/>Cost Value: <b>${num(r.cost_value)}</b><br/>SKUs: ${r.sku_count}<br/>GM%: <b>${r.gm_pct ?? 0}%</b>`
+        },
+      },
+      xAxis: { type: 'value', axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => num(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      yAxis: { type: 'category', data: names, axisLabel: { color: '#374151', fontSize: 11 } },
+      series: [{
+        type: 'bar', data: vals, barMaxWidth: 18,
+        itemStyle: { borderRadius: [0, 4, 4, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: 'rgba(124,58,237,0.25)' }, { offset: 1, color: C_PURPLE }] } },
+        label: {
+          show: true, position: 'right', fontSize: 10,
+          formatter: (p: any) => {
+            const r = rows[p.dataIndex] ?? {}
+            return `{val|${num(p.value)}}  {gm|GM:${r.gm_pct ?? 0}%}`
+          },
+          rich: { val: { color: '#475569', fontSize: 10 }, gm: { color: '#065f46', fontSize: 10, fontWeight: 700 } },
+        },
+      }],
+    }
+  }, [vendorData])
+
+  // ── Store bar option ──────────────────────────────────────────────────────
+  const storeOpt = useMemo(() => {
+    const rows  = (storeData as any[]).reverse()
+    const names = rows.map(r => r.store_name ?? '(Unknown)')
+    const vals  = rows.map(r => +(r.cost_value ?? 0))
+    return {
+      grid: { top: 8, right: 110, bottom: 8, left: 8, containLabel: true },
+      tooltip: {
+        trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (p: any[]) => {
+          const r = rows[p[0]?.dataIndex] ?? {}
+          return `<b>${p[0].name}</b><br/>Cost Value: <b>${num(r.cost_value)}</b><br/>SKUs: ${r.sku_count}<br/>Units: ${num(r.total_qty)}`
+        },
+      },
+      xAxis: { type: 'value', axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => num(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
+      yAxis: { type: 'category', data: names, axisLabel: { color: '#374151', fontSize: 11 } },
+      series: [{
+        type: 'bar', data: vals, barMaxWidth: 18,
+        itemStyle: { borderRadius: [0, 4, 4, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: 'rgba(8,145,178,0.25)' }, { offset: 1, color: '#0891b2' }] } },
+        label: { show: true, position: 'right', formatter: (p: any) => `{val|${num(p.value)}}`, rich: { val: { color: '#475569', fontSize: 10 } } },
+      }],
+    }
+  }, [storeData])
+
+  // ── AG Grid columns ────────────────────────────────────────────────────────
+  const tableCols = useMemo<ColDef[]>(() => {
+    const rows   = (tableData as any[])
+    const maxCost = rows.length ? Math.max(...rows.map(r => +(r.cost_value ?? 0))) : 1
+
+    const costStyle = (p: any) => {
+      const ratio = maxCost > 0 ? Math.min((+(p.value ?? 0)) / maxCost, 1) : 0
+      const alpha = (0.06 + ratio * 0.30).toFixed(2)
+      return { backgroundColor: `rgba(124,58,237,${alpha})`, display: 'flex', alignItems: 'center', fontWeight: ratio > 0.7 ? 600 : 400 }
+    }
+
+    const rankCol: ColDef = {
+      headerName: '#', width: 52, sortable: false, resizable: false, pinned: 'left',
+      valueGetter: (p: any) => (p.node?.rowIndex ?? 0) + 1,
+      cellStyle: { color: C_SLATE, fontSize: 11, display: 'flex', alignItems: 'center' },
+    }
+    const qtyCol:     ColDef = { field: 'total_qty',    headerName: 'Units',        width: 100, type: 'numericColumn', valueFormatter: (p: any) => num(p.value) }
+    const costCol:    ColDef = { field: 'cost_value',   headerName: 'Cost Value',   width: 130, type: 'numericColumn', valueFormatter: (p: any) => num(p.value), cellStyle: costStyle }
+    const retailCol:  ColDef = { field: 'retail_value', headerName: 'Retail Value', width: 130, type: 'numericColumn', valueFormatter: (p: any) => num(p.value) }
+    const gmCol:      ColDef = { field: 'gm_pct',       headerName: 'GM %',         width:  90, type: 'numericColumn', valueFormatter: (p: any) => `${p.value ?? 0}%`, cellStyle: gmStyle }
+    const skuCol:     ColDef = { field: 'sku_count',    headerName: 'SKUs',         width:  80, type: 'numericColumn' }
+
+    if (view === 'dept') return [
+      rankCol,
+      { field: 'department', headerName: 'Department', width: 220, pinned: 'left', cellStyle: { fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+      skuCol, qtyCol, costCol, retailCol, gmCol,
+    ]
+
+    if (view === 'dcs') return [
+      rankCol,
+      { field: 'DCS_CODE',   headerName: 'DCS Code',   width: 100, pinned: 'left', cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
+      { field: 'department', headerName: 'Department', width: 160, cellStyle: { fontWeight: 600, display: 'flex', alignItems: 'center' } },
+      { field: 'class',      headerName: 'Class',      width: 150 },
+      { field: 'subclass',   headerName: 'Subclass',   width: 150 },
+      skuCol, qtyCol, costCol, retailCol, gmCol,
+    ]
+
+    if (view === 'vendor') return [
+      rankCol,
+      { field: 'vendor', headerName: 'Vendor', width: 250, pinned: 'left', cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+      skuCol, qtyCol, costCol, retailCol, gmCol,
+    ]
+
+    return [  // store
+      rankCol,
+      { field: 'store_name', headerName: 'Store', width: 240, pinned: 'left', cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+      skuCol, qtyCol, costCol, retailCol,
+    ]
+  }, [tableData, view])
+
+  const gmColor = kpi.gmPct >= 30 ? C_GREEN : kpi.gmPct >= 10 ? C_AMBER : C_ROSE
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+
+      {/* ── Header ── */}
+      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
+                 borderBottom: '1px solid #e9e4ff', px: 3, pt: 3, pb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+          Stock Levels
+        </Typography>
+        <Typography sx={{ fontSize: 12, color: C_SLATE, mb: 1.5 }}>
+          Current on-hand snapshot · refreshed on each data sync
+        </Typography>
+
+        {/* Store filter */}
+        <Autocomplete
+          multiple disableCloseOnSelect size="small"
+          options={storeList} value={stores}
+          onChange={(_, v) => setStores(v)}
+          renderInput={params => <TextField {...params} placeholder="All Stores" size="small" sx={{ maxWidth: 380 }} />}
+          renderTags={(value, getTagProps) =>
+            value.map((opt, i) => <Chip label={opt} size="small" {...getTagProps({ index: i })} key={opt} />)
+          }
+        />
+      </Box>
+
+      {/* ── No data banner ── */}
+      {noData && (
+        <Box sx={{ mx: 3, p: 2.5, bgcolor: '#fffbeb', border: '1px solid #fde68a',
+                   borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <WarningAmberIcon sx={{ color: C_AMBER }} />
+          <Box>
+            <Typography sx={{ fontWeight: 700, color: '#92400e' }}>Inventory snapshot not yet available</Typography>
+            <Typography sx={{ fontSize: 12, color: '#78350f' }}>
+              Trigger a data sync to populate stock levels. The Movement page uses sales history and is available now.
+            </Typography>
+          </Box>
+        </Box>
+      )}
+
+      <Box sx={{ px: 3, display: 'flex', flexDirection: 'column', gap: 2.5, pb: 3 }}>
+
+        {/* ── KPI Strip ── */}
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <KpiCard label="Total SKUs"     value={kpi.skus.toLocaleString()}    sub={`${kpi.depts} departments`} />
+          <KpiCard label="Units On-Hand"  value={num(kpi.totalQty)}             sub={`across ${kpi.stores} stores`} />
+          <KpiCard label="Cost Value"     value={num(kpi.stockCost)}            sub="at cost price" color={C_SLATE} />
+          <KpiCard label="Retail Value"   value={num(kpi.stockRetail)}          sub="at selling price" />
+          <KpiCard label="Potential GM"   value={`${kpi.gmPct}%`}              sub="retail − cost margin" color={gmColor} />
+        </Box>
+
+        {/* ── Row 1: Treemap + Sunburst ── */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 2 }}>
+          <ChartCard title="Stock by Department" subtitle="Block size = cost value · colour = dept" option={treemapOpt} height={340} />
+          <ChartCard title="DCS Hierarchy — Drill-down Sunburst" subtitle="Dept › Class › Subclass · click to drill · click centre to go up" option={sunburstOpt} height={340} />
+        </Box>
+
+        {/* ── Row 2: Vendor Bar + Store Bar ── */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 2 }}>
+          <ChartCard title="Top Vendors by Stock Value" subtitle="Cost value · GM% annotated" option={vendorOpt} height={300} />
+          <ChartCard title="Stock by Store" subtitle="Cost value distribution" option={storeOpt} height={300} />
+        </Box>
+
+        {/* ── Row 3: Detail Grid ── */}
+        <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
+                   boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>Stock Detail</Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {(['dept','dcs','vendor','store'] as const).map(v => (
+                <Chip key={v} label={v === 'dept' ? 'By Dept' : v === 'dcs' ? 'DCS' : v === 'vendor' ? 'By Vendor' : 'By Store'}
+                  size="small" onClick={() => setView(v)}
+                  sx={{ fontWeight: 600, cursor: 'pointer',
+                        bgcolor: view === v ? C_PURPLE : 'transparent',
+                        color: view === v ? '#fff' : C_SLATE,
+                        border: `1px solid ${view === v ? C_PURPLE : '#e2e8f0'}` }} />
+              ))}
+            </Box>
+          </Box>
+
+          <div className="ag-theme-alpine" style={{ height: 440 }}>
+            <AgGridReact
+              rowData={tableData as any[]}
+              columnDefs={tableCols}
+              pagination paginationPageSize={20}
+              defaultColDef={{ sortable: true, resizable: true, filter: true, cellStyle: { display: 'flex', alignItems: 'center' } }}
+              rowHeight={36}
+              headerHeight={38}
+              suppressCellFocus
+            />
+          </div>
+        </Box>
+      </Box>
+    </Box>
+  )
+}
