@@ -320,37 +320,41 @@ def _sql_transfers(df, dt):
     """
     return f"""
         SELECT
-            S.SID                  AS SLIP_SID,
-            TO_CHAR(S.SLIP_NO)     AS SLIP_NO,
+            S.SID                     AS SLIP_SID,
+            TO_CHAR(S.SLIP_NO)        AS SLIP_NO,
             TRUNC(S.CREATED_DATETIME) AS SLIP_DATE,
             VO.VOU_NO,
-            NVL(VO.VOU_CLASS, 0)   AS VOU_CLASS,
-            NVL(VO.STATUS, 3)      AS VOU_STATUS,
+            NVL(VO.VOU_CLASS, 0)      AS VOU_CLASS,
+            NVL(VO.STATUS, 3)         AS VOU_STATUS,
             S.OUT_STORE_SID,
             S.IN_STORE_SID,
-            VI.INVN_SBS_ITEM_SID   AS ITEM_SID,
-            NVL(CASE WHEN NVL(VO.VOU_TYPE, 0) = 0
-                     THEN VI.ORIG_QTY ELSE VI.ORIG_QTY * -1 END, 0) AS SENT_QTY,
-            CASE WHEN VO.STATUS = 4
-                 THEN NVL(CASE WHEN NVL(VO.VOU_TYPE, 0) = 0
-                               THEN VI.QTY ELSE VI.QTY * -1 END, 0)
-                 ELSE 0 END        AS RECV_QTY,
-            NVL(VI.COST, 0)        AS UNIT_COST,
-            NVL(CASE WHEN NVL(VO.VOU_TYPE, 0) = 0
-                     THEN VI.ORIG_QTY ELSE VI.ORIG_QTY * -1 END, 0)
-                * NVL(VI.COST, 0)  AS TOTAL_COST,
-            NVL(CASE WHEN NVL(VO.VOU_TYPE, 0) = 0
-                     THEN VI.ORIG_QTY ELSE VI.ORIG_QTY * -1 END, 0)
-                * NVL(VI.PRICE, 0) AS TOTAL_PRICE
+            VI.ITEM_SID,
+            SUM(NVL(CASE WHEN NVL(VO.VOU_TYPE,0)=0
+                         THEN VI.ORIG_QTY ELSE VI.ORIG_QTY*-1 END, 0)) AS SENT_QTY,
+            SUM(CASE WHEN NVL(VO.STATUS,3)=4
+                     THEN NVL(CASE WHEN NVL(VO.VOU_TYPE,0)=0
+                                   THEN VI.QTY ELSE VI.QTY*-1 END, 0)
+                     ELSE 0 END)      AS RECV_QTY,
+            MAX(NVL(VI.COST, 0))      AS UNIT_COST,
+            SUM(NVL(CASE WHEN NVL(VO.VOU_TYPE,0)=0
+                         THEN VI.ORIG_QTY ELSE VI.ORIG_QTY*-1 END, 0)
+                * NVL(VI.COST, 0))    AS TOTAL_COST,
+            SUM(NVL(CASE WHEN NVL(VO.VOU_TYPE,0)=0
+                         THEN VI.ORIG_QTY ELSE VI.ORIG_QTY*-1 END, 0)
+                * NVL(VI.PRICE, 0))   AS TOTAL_PRICE
         FROM RPS.SLIP S
-        LEFT JOIN RPS.VOUCHER  VO ON VO.SID    = S.VOU_SID
-        INNER JOIN RPS.VOU_ITEM VI ON VI.VOU_SID = S.VOU_SID
+        LEFT JOIN RPS.VOUCHER   VO ON VO.SID     = S.VOU_SID
+        INNER JOIN RPS.VOU_ITEM VI ON VI.VOU_SID  = S.VOU_SID
         WHERE S.HELD = 0
           AND NVL(S.SLIP_NO, 0) <> 0
           AND NVL(S.REVERSED_FLAG, 0) = 0
           AND NVL(VO.SLIP_FLAG, 0) = 1
           AND TRUNC(S.CREATED_DATETIME) BETWEEN TO_DATE('{df}','YYYY-MM-DD')
                                              AND TO_DATE('{dt}','YYYY-MM-DD')
+        GROUP BY
+            S.SID, TO_CHAR(S.SLIP_NO), TRUNC(S.CREATED_DATETIME),
+            VO.VOU_NO, NVL(VO.VOU_CLASS,0), NVL(VO.STATUS,3),
+            S.OUT_STORE_SID, S.IN_STORE_SID, VI.ITEM_SID
     """
 
 
