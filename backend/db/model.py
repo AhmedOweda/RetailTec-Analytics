@@ -201,6 +201,17 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
         )
     """)
     con.execute("""
+        CREATE TABLE IF NOT EXISTS FACT_INVENTORY (
+            ITEM_SID      BIGINT  NOT NULL,
+            STORE_SID     BIGINT  NOT NULL,
+            ON_HAND_QTY   DOUBLE  DEFAULT 0,
+            COST          DOUBLE  DEFAULT 0,
+            PRICE1        DOUBLE  DEFAULT 0,
+            SYNCED_AT     TIMESTAMP,
+            PRIMARY KEY (ITEM_SID, STORE_SID)
+        )
+    """)
+    con.execute("""
         CREATE TABLE IF NOT EXISTS FACT_SALES_ITEMS (
             DOC_ITEM_SID           BIGINT  PRIMARY KEY,
             DOC_SID                BIGINT,
@@ -238,4 +249,6 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     con.execute("CREATE INDEX IF NOT EXISTS idx_items_item   ON FACT_SALES_ITEMS(ITEM_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_item_dcs     ON DIM_ITEM(DCS_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_item_vend    ON DIM_ITEM(VEND_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_finv_item    ON FACT_INVENTORY(ITEM_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_finv_store   ON FACT_INVENTORY(STORE_SID)")
     con.commit()

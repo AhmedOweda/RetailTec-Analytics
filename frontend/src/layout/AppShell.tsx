@@ -9,11 +9,13 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, InputAdornment, IconButton, Fade,
 } from '@mui/material'
-import DashboardIcon     from '@mui/icons-material/Dashboard'
-import TrendingUpIcon    from '@mui/icons-material/TrendingUp'
-import InventoryIcon     from '@mui/icons-material/Inventory2'
-import ReceiptLongIcon   from '@mui/icons-material/ReceiptLong'
-import SettingsIcon      from '@mui/icons-material/Settings'
+import DashboardIcon        from '@mui/icons-material/Dashboard'
+import TrendingUpIcon       from '@mui/icons-material/TrendingUp'
+import InventoryIcon        from '@mui/icons-material/Inventory2'
+import ReceiptLongIcon      from '@mui/icons-material/ReceiptLong'
+import SettingsIcon         from '@mui/icons-material/Settings'
+import WarehouseIcon        from '@mui/icons-material/Warehouse'
+import SwapHorizIcon        from '@mui/icons-material/SwapHoriz'
 import SyncIcon          from '@mui/icons-material/Sync'
 import LockOutlinedIcon  from '@mui/icons-material/LockOutlined'
 import VisibilityIcon    from '@mui/icons-material/Visibility'
@@ -30,11 +32,16 @@ const ACCENT_LIGHT = '#ede9fe'
 const HEADER_H     = 56
 
 // ── Nav items ──────────────────────────────────────────────────────────────
-const NAV = [
+const SALES_NAV = [
   { to: '/sales/overview',      icon: <DashboardIcon  />, label: 'Overview'     },
   { to: '/sales/performance',   icon: <TrendingUpIcon />, label: 'Performance'  },
   { to: '/sales/products',      icon: <InventoryIcon  />, label: 'Products'     },
   { to: '/sales/transactions',  icon: <ReceiptLongIcon/>, label: 'Transactions' },
+]
+
+const INVENTORY_NAV = [
+  { to: '/inventory/overview',  icon: <WarehouseIcon  />, label: 'Stock Levels' },
+  { to: '/inventory/movement',  icon: <SwapHorizIcon  />, label: 'Movement'     },
 ]
 
 // ── Sync status badge ──────────────────────────────────────────────────────
@@ -97,7 +104,7 @@ export default function AppShell() {
                sx={{ height:36, objectFit:'contain' }} />
         </Box>
 
-        {/* Domain label */}
+        {/* Domain label — Sales */}
         <Box sx={{ px:2.5, pt:2.5, pb:0.5 }}>
           <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
                             letterSpacing:1.2, textTransform:'uppercase' }}>
@@ -105,9 +112,48 @@ export default function AppShell() {
           </Typography>
         </Box>
 
-        {/* Nav links */}
+        {/* Sales Nav links */}
+        <Box sx={{ px:1.5, pt:0.5 }}>
+          {SALES_NAV.map(({ to, icon, label }) => (
+            <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
+              {({ isActive }) => (
+                <Box sx={{
+                  display:'flex', alignItems:'center', gap:1.5,
+                  px:1.5, py:1, borderRadius:1.5, mb:0.5, cursor:'pointer',
+                  bgcolor: isActive ? 'rgba(124,58,237,0.18)' : 'transparent',
+                  color:   isActive ? ACCENT_LIGHT : 'rgba(255,255,255,0.6)',
+                  '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
+                  transition:'all 0.15s',
+                }}>
+                  <Box sx={{ fontSize:18, display:'flex', '& svg':{ fontSize:'18px !important' },
+                             color: isActive ? ACCENT : 'inherit' }}>
+                    {icon}
+                  </Box>
+                  <Typography sx={{ fontSize:13, fontWeight: isActive ? 600 : 400 }}>
+                    {label}
+                  </Typography>
+                  {isActive && (
+                    <Box sx={{ ml:'auto', width:3, height:16, borderRadius:2, bgcolor:ACCENT }} />
+                  )}
+                </Box>
+              )}
+            </NavLink>
+          ))}
+        </Box>
+
+        <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
+
+        {/* Domain label — Inventory */}
+        <Box sx={{ px:2.5, pb:0.5 }}>
+          <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
+                            letterSpacing:1.2, textTransform:'uppercase' }}>
+            Inventory
+          </Typography>
+        </Box>
+
+        {/* Inventory Nav links */}
         <Box sx={{ flex:1, px:1.5, pt:0.5 }}>
-          {NAV.map(({ to, icon, label }) => (
+          {INVENTORY_NAV.map(({ to, icon, label }) => (
             <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
               {({ isActive }) => (
                 <Box sx={{

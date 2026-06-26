@@ -22,8 +22,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from db.model import init_db
-from routers.sales    import router as sales_router
-from routers.settings import router as settings_router
+from routers.sales      import router as sales_router
+from routers.settings   import router as settings_router
+from routers.inventory  import router as inventory_router
 from services.scheduler import background_loop
 
 logging.basicConfig(
@@ -46,6 +47,7 @@ app.add_middleware(
 
 app.include_router(sales_router)
 app.include_router(settings_router)
+app.include_router(inventory_router)
 
 
 # ── Startup ────────────────────────────────────────────────────────────────
