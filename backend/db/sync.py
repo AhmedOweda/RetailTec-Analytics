@@ -94,13 +94,13 @@ _DIMS = [
         "table": "DIM_DCS",
         "sql":   "SELECT SID, SBS_SID, DCS_CODE, D_NAME, C_NAME, S_NAME FROM RPS.DCS",
         "cols":  ["SID", "SBS_SID", "DCS_CODE", "D_NAME", "C_NAME", "S_NAME"],
-        "ph":    "(?" + ",?" * 5 + ")",
+        "ph":    "(?"+",?"*5+")",
     },
     {
         "table": "DIM_VENDOR",
         "sql":   "SELECT SID, SBS_SID, VEND_CODE, VEND_NAME FROM RPS.VENDOR",
         "cols":  ["SID", "SBS_SID", "VEND_CODE", "VEND_NAME"],
-        "ph":    "(?" + ",?" * 3 + ")",
+        "ph":    "(?"+",?"*3+")",
     },
 ]
 
@@ -313,6 +313,77 @@ def _sql_items(df, dt):
     """
 
 
+def _sql_transfers(df, dt):
+    """
+    Transfer items from Oracle (SLIP + VOUCHER + VOU_ITEM).
+    Columns map exactly to FACT_TRANSFERS column order (14 cols).
+    """
+    return f"""
+        SELECT
+            S.SID                  AS SLIP_SID,
+            TO_CHAR(S.SLIP_NO)     AS SLIP_NO,
+            TRUNC(S.CREATED_DATETIME) AS SLIP_DATE,
+            VO.VOU_NO,
+            NVL(VO.VOU_CLASS, 0)   AS VOU_CLASS,
+            NVL(VO.STATUS, 3)      AS VOU_STATUS,
+            S.OUT_STORE_SID,
+            S.IN_STORE_SID,
+            VI.INVN_SBS_ITEM_SID   AS ITEM_SID,
+            NVL(CASE WHEN NVL(VO.VOU_TYPE, 0) = 0
+                     THEN VI.ORIG_QTY ELSE VI.ORIG_QTY * -1 END, 0) AS SENT_QTY,
+            CASE WHEN VO.STATUS = 4
+                 THEN NVL(CASE WHEN NVL(VO.VOU_TYPE, 0) = 0
+                               THEN VI.QTY ELSE VI.QTY * -1 END, 0)
+                 ELSE 0 END        AS RECV_QTY,
+            NVL(VI.COST, 0)        AS UNIT_COST,
+            NVL(CASE WHEN NVL(VO.VOU_TYPE, 0) = 0
+                     THEN VI.ORIG_QTY ELSE VI.ORIG_QTY * -1 END, 0)
+                * NVL(VI.COST, 0)  AS TOTAL_COST,
+            NVL(CASE WHEN NVL(VO.VOU_TYPE, 0) = 0
+                     THEN VI.ORIG_QTY ELSE VI.ORIG_QTY * -1 END, 0)
+                * NVL(VI.PRICE, 0) AS TOTAL_PRICE
+        FROM RPS.SLIP S
+        LEFT JOIN RPS.VOUCHER  VO ON VO.SID    = S.VOU_SID
+        INNER JOIN RPS.VOU_ITEM VI ON VI.VOU_SID = S.VOU_SID
+        WHERE S.HELD = 0
+          AND NVL(S.SLIP_NO, 0) <> 0
+          AND NVL(S.REVERSED_FLAG, 0) = 0
+          AND NVL(VO.SLIP_FLAG, 0) = 1
+          AND TRUNC(S.CREATED_DATETIME) BETWEEN TO_DATE('{df}','YYYY-MM-DD')
+                                             AND TO_DATE('{dt}','YYYY-MM-DD')
+    """
+
+
+def _sql_adjustments(df, dt):
+    """
+    Quantity adjustments from Oracle (ADJUSTMENT + ADJ_ITEM).
+    Columns map exactly to FACT_ADJUSTMENTS column order (12 cols).
+    """
+    return f"""
+        SELECT
+            A.SID                       AS ADJ_SID,
+            TO_CHAR(A.ADJ_NO)           AS ADJ_NO,
+            TRUNC(A.CREATED_DATETIME)   AS ADJ_DATE,
+            A.STORE_SID,
+            A.CREATEDBY_SID             AS EMPLOYEE_SID,
+            NVL(A.CREATING_DOC_TYPE, 0) AS DOC_TYPE,
+            AI.ITEM_SID,
+            NVL(AI.ORIG_VALUE, 0)       AS ORIG_QTY,
+            NVL(AI.ADJ_VALUE, 0)        AS ADJ_QTY,
+            NVL(AI.ADJ_VALUE, 0) - NVL(AI.ORIG_VALUE, 0) AS QTY_DIFF,
+            NVL(AI.COST, 0)             AS UNIT_COST,
+            (NVL(AI.ADJ_VALUE, 0) - NVL(AI.ORIG_VALUE, 0)) * NVL(AI.COST, 0) AS COST_DIFF
+        FROM RPS.ADJUSTMENT A
+        INNER JOIN RPS.ADJ_ITEM AI ON AI.ADJ_SID = A.SID
+        WHERE A.ADJ_TYPE = 0
+          AND A.HELD = 0
+          AND A.STATUS = 4
+          AND NVL(A.ADJ_NO, 0) > 0
+          AND TRUNC(A.CREATED_DATETIME) BETWEEN TO_DATE('{df}','YYYY-MM-DD')
+                                             AND TO_DATE('{dt}','YYYY-MM-DD')
+    """
+
+
 # ── Inventory snapshot ────────────────────────────────────────────────────────
 
 def _sync_inventory_snapshot(duck, ora):
@@ -365,7 +436,7 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False):
             duck.execute(f"DELETE FROM FACT_SALES_DAILY WHERE POST_DATE::DATE BETWEEN '{df}' AND '{dt}'")
         if rows:
             duck.executemany(
-                f"{ins} FACT_SALES_DAILY VALUES " + "(?" + ",?" * 12 + ")",
+                f"{ins} FACT_SALES_DAILY VALUES " + "(?"+",?"*12+")",
                 [[r[cols.index(c)] if c in cols else None for c in
                   ["POST_DATE", "STORE_SID", "SUBSIDIARY_SID",
                    "SALES_COUNT", "RETURN_COUNT", "ORDER_COUNT",
@@ -385,7 +456,7 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False):
             duck.execute(f"DELETE FROM FACT_SALES_INVOICES WHERE INVC_POST_DATE::DATE BETWEEN '{df}' AND '{dt}'")
         if rows:
             duck.executemany(
-                f"{ins} FACT_SALES_INVOICES VALUES " + "(?" + ",?" * 24 + ")",
+                f"{ins} FACT_SALES_INVOICES VALUES " + "(?"+",?"*24+")",
                 [[r[cols.index(c)] if c in cols else None for c in
                   ["DOC_SID", "DOC_NO", "INVC_POST_DATE", "RECEIPT_TYPE",
                    "SUBSIDIARY_SID", "STORE_SID",
@@ -408,7 +479,7 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False):
             duck.execute(f"DELETE FROM FACT_SALES_ITEMS WHERE INVC_POST_DATE::DATE BETWEEN '{df}' AND '{dt}'")
         if rows:
             duck.executemany(
-                f"{ins} FACT_SALES_ITEMS VALUES " + "(?" + ",?" * 20 + ")",
+                f"{ins} FACT_SALES_ITEMS VALUES " + "(?"+",?"*20+")",
                 [[r[cols.index(c)] if c in cols else None for c in
                   ["DOC_ITEM_SID", "DOC_SID", "INVC_POST_DATE", "STORE_SID", "ITEM_SID", "ITEM_TYPE",
                    "QTY", "UNIT_COST", "UNIT_ORIG_PRICE_WOTAX", "UNIT_ORIG_PRICE_WTAX",
@@ -419,6 +490,35 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False):
                  for r in rows],
             )
         duck.commit()
+
+        # ── Transfers ─────────────────────────────────────────────────────────
+        cur = ora.cursor()
+        cur.execute(_sql_transfers(df, dt))
+        rows = cur.fetchall()
+        cur.close()
+        duck.execute(f"DELETE FROM FACT_TRANSFERS WHERE SLIP_DATE BETWEEN '{df}' AND '{dt}'")
+        if rows:
+            duck.executemany(
+                "INSERT INTO FACT_TRANSFERS VALUES (" + ",".join(["?"] * 14) + ")",
+                rows,
+            )
+        duck.commit()
+        log.info(f"FACT_TRANSFERS chunk {df}→{dt}: {len(rows):,} rows")
+
+        # ── Adjustments ───────────────────────────────────────────────────────
+        cur = ora.cursor()
+        cur.execute(_sql_adjustments(df, dt))
+        rows = cur.fetchall()
+        cur.close()
+        duck.execute(f"DELETE FROM FACT_ADJUSTMENTS WHERE ADJ_DATE BETWEEN '{df}' AND '{dt}'")
+        if rows:
+            duck.executemany(
+                "INSERT INTO FACT_ADJUSTMENTS VALUES (" + ",".join(["?"] * 12) + ")",
+                rows,
+            )
+        duck.commit()
+        log.info(f"FACT_ADJUSTMENTS chunk {df}→{dt}: {len(rows):,} rows")
+
         log.info(f"Chunk done: {df}→{dt}")
     finally:
         ora.close()
@@ -447,6 +547,8 @@ def _run_sync(mode: str, date_from: str, date_to: str,
         duck.execute(f"DELETE FROM FACT_SALES_DAILY    WHERE POST_DATE::DATE      < '{date_from}' OR POST_DATE::DATE      > '{date_to}'")
         duck.execute(f"DELETE FROM FACT_SALES_INVOICES WHERE INVC_POST_DATE::DATE < '{date_from}' OR INVC_POST_DATE::DATE > '{date_to}'")
         duck.execute(f"DELETE FROM FACT_SALES_ITEMS    WHERE INVC_POST_DATE::DATE < '{date_from}' OR INVC_POST_DATE::DATE > '{date_to}'")
+        duck.execute(f"DELETE FROM FACT_TRANSFERS      WHERE SLIP_DATE < '{date_from}' OR SLIP_DATE > '{date_to}'")
+        duck.execute(f"DELETE FROM FACT_ADJUSTMENTS    WHERE ADJ_DATE  < '{date_from}' OR ADJ_DATE  > '{date_to}'")
         duck.commit()
 
     # Step 3 — fact chunks
