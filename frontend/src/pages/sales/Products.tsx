@@ -507,22 +507,22 @@ export default function Products() {
     if (view === 'item') return [
       rankCol,
       {
-        field: productCodeField, headerName: productCodeField.toUpperCase(), width: 110, pinned: 'left',
+        field: productCodeField.toUpperCase(), headerName: productCodeField.toUpperCase(), width: 110, pinned: 'left',
         cellStyle: { fontFamily: 'monospace', fontSize: 12, color: '#6d28d9', display: 'flex', alignItems: 'center' },
       },
       {
-        field: 'description1', headerName: 'Description', width: 240, pinned: 'left',
+        field: 'DESCRIPTION1', headerName: 'Description', width: 240, pinned: 'left',
         cellStyle: { fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center' },
       },
-      { field: 'vend_name', headerName: 'Vendor',   width: 160 },
-      { field: 'dcs_code',  headerName: 'DCS Code', width: 100, cellStyle: { fontSize: 11, color: C_SLATE, display: 'flex', alignItems: 'center' } },
+      { field: 'VEND_NAME', headerName: 'Vendor',   width: 160 },
+      { field: 'DCS_CODE',  headerName: 'DCS Code', width: 100, cellStyle: { fontSize: 11, color: C_SLATE, display: 'flex', alignItems: 'center' } },
       qtyCol, revCol, gpCol, gpPctCol,
     ]
 
     if (view === 'dcs') return [
       rankCol,
       {
-        field: 'dcs_code',   headerName: 'DCS Code',   width: 110, pinned: 'left',
+        field: 'DCS_CODE',   headerName: 'DCS Code',   width: 110, pinned: 'left',
         cellStyle: { fontFamily: 'monospace', fontSize: 12, color: '#6d28d9', display: 'flex', alignItems: 'center' },
       },
       {
