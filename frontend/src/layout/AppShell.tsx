@@ -2,39 +2,72 @@
  * AppShell — persistent sidebar + header + page outlet
  * Same dark-purple theme as the original dashboard.
  */
-import { useState, useRef } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, Outlet } from 'react-router-dom'
 import {
   Box, Tooltip, Typography, Divider, CircularProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Button, InputAdornment, IconButton, Fade,
+  IconButton, Collapse,
 } from '@mui/material'
-import DashboardIcon     from '@mui/icons-material/Dashboard'
-import TrendingUpIcon    from '@mui/icons-material/TrendingUp'
-import InventoryIcon     from '@mui/icons-material/Inventory2'
-import ReceiptLongIcon   from '@mui/icons-material/ReceiptLong'
-import SettingsIcon      from '@mui/icons-material/Settings'
-import SyncIcon          from '@mui/icons-material/Sync'
-import LockOutlinedIcon  from '@mui/icons-material/LockOutlined'
-import VisibilityIcon    from '@mui/icons-material/Visibility'
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff'
+import DashboardIcon        from '@mui/icons-material/Dashboard'
+import TrendingUpIcon       from '@mui/icons-material/TrendingUp'
+import InventoryIcon        from '@mui/icons-material/Inventory2'
+import ReceiptLongIcon      from '@mui/icons-material/ReceiptLong'
+import SettingsIcon         from '@mui/icons-material/Settings'
+import WarehouseIcon        from '@mui/icons-material/Warehouse'
+import SwapHorizIcon        from '@mui/icons-material/SwapHoriz'
+import CompareArrowsIcon    from '@mui/icons-material/CompareArrows'
+import AdjustIcon           from '@mui/icons-material/Adjust'
+import AssessmentIcon       from '@mui/icons-material/Assessment'
+import CalendarViewWeekIcon from '@mui/icons-material/CalendarViewWeek'
+import ShoppingCartIcon    from '@mui/icons-material/ShoppingCart'
+import ListAltIcon         from '@mui/icons-material/ListAlt'
+import StorefrontIcon      from '@mui/icons-material/Storefront'
+import PeopleIcon          from '@mui/icons-material/People'
+import BadgeIcon           from '@mui/icons-material/Badge'
+import CategoryIcon        from '@mui/icons-material/Category'
+import LocalShippingIcon   from '@mui/icons-material/LocalShipping'
+import ExpandMoreIcon      from '@mui/icons-material/ExpandMore'
+import LogoutIcon         from '@mui/icons-material/Logout'
+import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
+import { useAuth }       from '../contexts/AuthContext'
 
 // ── Brand colours ──────────────────────────────────────────────────────────
 const SIDEBAR_BG   = '#160b33'
 const SIDEBAR_W    = 220
 const ACCENT       = '#7c3aed'
-const ACCENT2      = '#6d28d9'
 const ACCENT_LIGHT = '#ede9fe'
 const HEADER_H     = 56
 
 // ── Nav items ──────────────────────────────────────────────────────────────
-const NAV = [
+const SALES_NAV = [
   { to: '/sales/overview',      icon: <DashboardIcon  />, label: 'Overview'     },
   { to: '/sales/performance',   icon: <TrendingUpIcon />, label: 'Performance'  },
   { to: '/sales/products',      icon: <InventoryIcon  />, label: 'Products'     },
   { to: '/sales/transactions',  icon: <ReceiptLongIcon/>, label: 'Transactions' },
+]
+
+const PURCHASES_NAV = [
+  { to: '/purchases/overview',      icon: <ShoppingCartIcon />, label: 'Overview'     },
+  { to: '/purchases/transactions',  icon: <ListAltIcon      />, label: 'Transactions' },
+]
+
+const DIMENSIONS_NAV = [
+  { to: '/dimensions/stores',    icon: <StorefrontIcon    />, label: 'Stores'    },
+  { to: '/dimensions/customers', icon: <PeopleIcon        />, label: 'Customers' },
+  { to: '/dimensions/employees', icon: <BadgeIcon         />, label: 'Employees' },
+  { to: '/dimensions/items',     icon: <CategoryIcon      />, label: 'Items'     },
+  { to: '/dimensions/vendors',   icon: <LocalShippingIcon />, label: 'Vendors'   },
+]
+
+const INVENTORY_NAV = [
+  { to: '/inventory/overview',    icon: <WarehouseIcon     />, label: 'Stock Levels' },
+  { to: '/inventory/movement',    icon: <SwapHorizIcon     />, label: 'Movement'     },
+  { to: '/inventory/transfers',   icon: <CompareArrowsIcon />, label: 'Transfers'    },
+  { to: '/inventory/adjustments', icon: <AdjustIcon        />, label: 'Adjustments'  },
+  { to: '/inventory/ledger',      icon: <AssessmentIcon        />, label: 'Ledger'    },
+  { to: '/inventory/coverage',   icon: <CalendarViewWeekIcon  />, label: 'Coverage'  },
 ]
 
 // ── Sync status badge ──────────────────────────────────────────────────────
@@ -57,29 +90,44 @@ function SyncBadge() {
   )
 }
 
+// ── Reusable NavLink renderer ──────────────────────────────────────────────
+function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) {
+  return (
+    <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
+      {({ isActive }) => (
+        <Box sx={{
+          display:'flex', alignItems:'center', gap:1.5,
+          px:1.5, py:1, borderRadius:1.5, mb:0.5, cursor:'pointer',
+          bgcolor: isActive ? 'rgba(124,58,237,0.18)' : 'transparent',
+          color:   isActive ? ACCENT_LIGHT : 'rgba(255,255,255,0.6)',
+          '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
+          transition:'all 0.15s',
+        }}>
+          <Box sx={{ fontSize:18, display:'flex', '& svg':{ fontSize:'18px !important' },
+                     color: isActive ? ACCENT : 'inherit' }}>
+            {icon}
+          </Box>
+          <Typography sx={{ fontSize:13, fontWeight: isActive ? 600 : 400 }}>
+            {label}
+          </Typography>
+          {isActive && (
+            <Box sx={{ ml:'auto', width:3, height:16, borderRadius:2, bgcolor:ACCENT }} />
+          )}
+        </Box>
+      )}
+    </NavLink>
+  )
+}
+
 // ── AppShell ───────────────────────────────────────────────────────────────
 export default function AppShell() {
-  const navigate = useNavigate()
+  const { user, isAdmin, logout } = useAuth()
 
-  // ── Settings password gate ────────────────────────────────────────
-  const [lockOpen,  setLockOpen ] = useState(false)
-  const [password,  setPassword ] = useState('')
-  const [showPwd,   setShowPwd  ] = useState(false)
-  const [pwdError,  setPwdError ] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const openLock = () => {
-    setPassword(''); setPwdError(false); setShowPwd(false); setLockOpen(true)
-    setTimeout(() => inputRef.current?.focus(), 120)
-  }
-  const submitLock = () => {
-    if (password === 'sysadmin') {
-      setLockOpen(false); navigate('/settings')
-    } else {
-      setPwdError(true); setPassword('')
-      setTimeout(() => inputRef.current?.focus(), 80)
-    }
-  }
+  // ── Sidebar section collapse state (all expanded by default) ─────
+  const [salesOpen,      setSalesOpen     ] = useState(true)
+  const [inventoryOpen,  setInventoryOpen ] = useState(true)
+  const [purchasesOpen,  setPurchasesOpen ] = useState(true)
+  const [dimensionsOpen, setDimensionsOpen] = useState(true)
 
   return (
     <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
@@ -97,131 +145,136 @@ export default function AppShell() {
                sx={{ height:36, objectFit:'contain' }} />
         </Box>
 
-        {/* Domain label */}
-        <Box sx={{ px:2.5, pt:2.5, pb:0.5 }}>
-          <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
-                            letterSpacing:1.2, textTransform:'uppercase' }}>
-            Sales
-          </Typography>
-        </Box>
+        {/* ── Scrollable nav area ─────────────────────────────────────── */}
+        <Box sx={{ flex:1, overflowY:'auto', overflowX:'hidden',
+                   '&::-webkit-scrollbar':{ width:4 },
+                   '&::-webkit-scrollbar-thumb':{ bgcolor:'rgba(255,255,255,0.12)', borderRadius:2 } }}>
 
-        {/* Nav links */}
-        <Box sx={{ flex:1, px:1.5, pt:0.5 }}>
-          {NAV.map(({ to, icon, label }) => (
-            <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
-              {({ isActive }) => (
-                <Box sx={{
-                  display:'flex', alignItems:'center', gap:1.5,
-                  px:1.5, py:1, borderRadius:1.5, mb:0.5, cursor:'pointer',
-                  bgcolor: isActive ? 'rgba(124,58,237,0.18)' : 'transparent',
-                  color:   isActive ? ACCENT_LIGHT : 'rgba(255,255,255,0.6)',
-                  '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
-                  transition:'all 0.15s',
-                }}>
-                  <Box sx={{ fontSize:18, display:'flex', '& svg':{ fontSize:'18px !important' },
-                             color: isActive ? ACCENT : 'inherit' }}>
-                    {icon}
-                  </Box>
-                  <Typography sx={{ fontSize:13, fontWeight: isActive ? 600 : 400 }}>
-                    {label}
-                  </Typography>
-                  {isActive && (
-                    <Box sx={{ ml:'auto', width:3, height:16, borderRadius:2, bgcolor:ACCENT }} />
-                  )}
-                </Box>
-              )}
-            </NavLink>
-          ))}
+          {/* Sales section */}
+          <Box onClick={() => setSalesOpen(o => !o)} sx={{
+            px:2.5, pt:2.5, pb:0.5, display:'flex', alignItems:'center',
+            justifyContent:'space-between', cursor:'pointer',
+            '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
+          }}>
+            <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
+                              letterSpacing:1.2, textTransform:'uppercase' }}>Sales</Typography>
+            <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
+              transform: salesOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+              transition:'transform 0.2s' }} />
+          </Box>
+          <Collapse in={salesOpen}>
+            <Box sx={{ px:1.5, pt:0.5 }}>
+              {SALES_NAV.map(n => <NavItem key={n.to} {...n} />)}
+            </Box>
+          </Collapse>
+
+          <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
+
+          {/* Inventory section */}
+          <Box onClick={() => setInventoryOpen(o => !o)} sx={{
+            px:2.5, pb:0.5, display:'flex', alignItems:'center',
+            justifyContent:'space-between', cursor:'pointer',
+            '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
+          }}>
+            <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
+                              letterSpacing:1.2, textTransform:'uppercase' }}>Inventory</Typography>
+            <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
+              transform: inventoryOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+              transition:'transform 0.2s' }} />
+          </Box>
+          <Collapse in={inventoryOpen}>
+            <Box sx={{ px:1.5, pt:0.5 }}>
+              {INVENTORY_NAV.map(n => <NavItem key={n.to} {...n} />)}
+            </Box>
+          </Collapse>
+
+          <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
+
+          {/* Purchasing section */}
+          <Box onClick={() => setPurchasesOpen(o => !o)} sx={{
+            px:2.5, pb:0.5, display:'flex', alignItems:'center',
+            justifyContent:'space-between', cursor:'pointer',
+            '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
+          }}>
+            <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
+                              letterSpacing:1.2, textTransform:'uppercase' }}>Purchasing</Typography>
+            <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
+              transform: purchasesOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+              transition:'transform 0.2s' }} />
+          </Box>
+          <Collapse in={purchasesOpen}>
+            <Box sx={{ px:1.5, pt:0.5 }}>
+              {PURCHASES_NAV.map(n => <NavItem key={n.to} {...n} />)}
+            </Box>
+          </Collapse>
+
+          <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
+
+          {/* Dimensions section */}
+          <Box onClick={() => setDimensionsOpen(o => !o)} sx={{
+            px:2.5, pb:0.5, display:'flex', alignItems:'center',
+            justifyContent:'space-between', cursor:'pointer',
+            '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
+          }}>
+            <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
+                              letterSpacing:1.2, textTransform:'uppercase' }}>Dimensions</Typography>
+            <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
+              transform: dimensionsOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+              transition:'transform 0.2s' }} />
+          </Box>
+          <Collapse in={dimensionsOpen}>
+            <Box sx={{ px:1.5, pt:0.5 }}>
+              {DIMENSIONS_NAV.map(n => <NavItem key={n.to} {...n} />)}
+            </Box>
+          </Collapse>
+
+          <Box sx={{ pb:1 }} />
         </Box>
 
         <Divider sx={{ borderColor:'rgba(255,255,255,0.08)' }} />
 
-        {/* Settings — password protected */}
+        {/* Settings + Users (admin only) + User info + Logout */}
         <Box sx={{ px:1.5, py:1.5 }}>
-          <Box onClick={openLock} sx={{
-            display:'flex', alignItems:'center', gap:1.5,
-            px:1.5, py:1, borderRadius:1.5, cursor:'pointer',
-            color:'rgba(255,255,255,0.45)',
-            '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
-            transition:'all 0.15s',
+          {isAdmin && (
+            <>
+              <NavItem to="/settings"       icon={<SettingsIcon />}       label="Settings"  />
+              <NavItem to="/settings/users" icon={<ManageAccountsIcon />} label="Users"     />
+            </>
+          )}
+
+          {/* Logged-in user chip */}
+          <Box sx={{
+            display:'flex', alignItems:'center', gap:1, px:1.5, py:1,
+            borderRadius:1.5, mt:0.5,
+            bgcolor:'rgba(255,255,255,0.05)',
           }}>
-            <SettingsIcon sx={{ fontSize:'18px !important' }} />
-            <Typography sx={{ fontSize:13 }}>Settings</Typography>
+            <Box sx={{
+              width:28, height:28, borderRadius:'50%',
+              bgcolor: ACCENT, display:'flex', alignItems:'center', justifyContent:'center',
+              flexShrink:0,
+            }}>
+              <Typography sx={{ color:'#fff', fontWeight:700, fontSize:12 }}>
+                {(user?.full_name || user?.username || '?')[0].toUpperCase()}
+              </Typography>
+            </Box>
+            <Box sx={{ flex:1, minWidth:0 }}>
+              <Typography sx={{ fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.85)',
+                                whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                {user?.full_name || user?.username}
+              </Typography>
+              <Typography sx={{ fontSize:10, color:'rgba(255,255,255,0.35)', textTransform:'capitalize' }}>
+                {user?.role}
+              </Typography>
+            </Box>
+            <Tooltip title="Sign out">
+              <IconButton size="small" onClick={logout}
+                sx={{ color:'rgba(255,255,255,0.35)', '&:hover':{ color:'#fff' } }}>
+                <LogoutIcon sx={{ fontSize:16 }} />
+              </IconButton>
+            </Tooltip>
           </Box>
         </Box>
 
-        {/* ── Password dialog ── */}
-        <Dialog
-          open={lockOpen}
-          onClose={() => setLockOpen(false)}
-          TransitionComponent={Fade}
-          PaperProps={{ sx:{
-            borderRadius:3, width:360,
-            boxShadow:'0 24px 64px rgba(15,23,42,.22)',
-            border:'1px solid #e9e4ff',
-          }}}
-        >
-          <DialogTitle sx={{ pb:1 }}>
-            <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
-              <Box sx={{
-                width:38, height:38, borderRadius:2,
-                bgcolor:'#ede9fe', display:'flex', alignItems:'center', justifyContent:'center',
-              }}>
-                <LockOutlinedIcon sx={{ color:ACCENT, fontSize:20 }}/>
-              </Box>
-              <Box>
-                <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:15, lineHeight:1.2 }}>
-                  Settings Access
-                </Typography>
-                <Typography variant="caption" sx={{ color:'#94a3b8' }}>
-                  Enter admin password to continue
-                </Typography>
-              </Box>
-            </Box>
-          </DialogTitle>
-
-          <DialogContent sx={{ pt:2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              inputRef={inputRef}
-              label="Password"
-              type={showPwd ? 'text' : 'password'}
-              value={password}
-              error={pwdError}
-              helperText={pwdError ? 'Incorrect password — try again' : ''}
-              onChange={e => { setPassword(e.target.value); setPwdError(false) }}
-              onKeyDown={e => { if (e.key === 'Enter') submitLock() }}
-              InputProps={{
-                endAdornment:(
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setShowPwd(s => !s)} edge="end">
-                      {showPwd
-                        ? <VisibilityOffIcon sx={{ fontSize:18 }}/>
-                        : <VisibilityIcon   sx={{ fontSize:18 }}/>
-                      }
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ '& .MuiOutlinedInput-root':{ borderRadius:2 } }}
-            />
-          </DialogContent>
-
-          <DialogActions sx={{ px:3, pb:2.5, gap:1 }}>
-            <Button onClick={() => setLockOpen(false)}
-              sx={{ textTransform:'none', fontWeight:600, color:'#94a3b8', borderRadius:2,
-                '&:hover':{ color:'#64748b', bgcolor:'#f8fafc' } }}>
-              Cancel
-            </Button>
-            <Button onClick={submitLock} variant="contained"
-              sx={{ textTransform:'none', fontWeight:700, borderRadius:2, px:3,
-                bgcolor:ACCENT, boxShadow:'0 2px 8px rgba(124,58,237,.35)',
-                '&:hover':{ bgcolor:ACCENT2 } }}>
-              Unlock
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Box>
 
       {/* ── Main area ────────────────────────────────────────────────── */}
