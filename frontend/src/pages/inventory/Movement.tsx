@@ -4,6 +4,7 @@
  * KPIs · Daily Trend · Dept Velocity · ABC Pareto · AG Grid
  */
 import { useMemo, useRef, useState, useCallback } from 'react'
+import { useAppSettings } from '../../context/AppSettings'
 import {
   Box, Typography, Chip, Dialog, DialogTitle, DialogContent,
   IconButton, Tooltip, Autocomplete, TextField,
@@ -19,6 +20,9 @@ import type { ColDef }    from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { type EChartHandle } from '../../components/EChart'
+import KpiCard                        from '../../components/KpiCard'
+import GridExportBar                  from '../../components/GridExportBar'
+import { useGridColumnState }         from '../../hooks/useGridColumnState'
 
 // ── Colours ──────────────────────────────────────────────────────────────────
 const C_PURPLE = '#7c3aed'
@@ -44,29 +48,6 @@ function num(v: any) {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (Math.abs(n) >= 1_000)     return `${(n / 1_000).toFixed(0)}K`
   return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-}
-
-// ── KPI Card ─────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, color = C_PURPLE }: {
-  label: string; value: string; sub?: string; color?: string
-}) {
-  return (
-    <Box sx={{
-      flex: 1, minWidth: 130,
-      bgcolor: '#fff', borderRadius: 2.5,
-      border: '1px solid #e9e4ff',
-      boxShadow: '0 1px 6px rgba(124,58,237,0.06)',
-      p: 2, display: 'flex', flexDirection: 'column', gap: 0.3,
-    }}>
-      <Typography sx={{ fontSize: 11, color: C_SLATE, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </Typography>
-      <Typography sx={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1.1 }}>
-        {value}
-      </Typography>
-      {sub && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{sub}</Typography>}
-    </Box>
-  )
 }
 
 // ── Chart Card ───────────────────────────────────────────────────────────────
@@ -134,12 +115,17 @@ function gpStyle(p: any) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function InventoryMovement() {
+  const { productCodeField } = useAppSettings()
+  const codeField  = productCodeField.toUpperCase()   // 'ALU' or 'UPC'
   const today    = new Date()
   const [period, setPeriod] = useState(30)
   const [from,   setFrom  ] = useState(format(subDays(today, 29), 'yyyy-MM-dd'))
   const [to,     setTo    ] = useState(format(today, 'yyyy-MM-dd'))
   const [stores, setStores] = useState<string[]>([])
   const [view,   setView  ] = useState<'dept'|'dcs'|'vendor'|'store'|'item'>('dept')
+
+  const gridRef = useRef<AgGridReact>(null)
+  const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('inv-movement')
 
   const { data: storeList = [] } = useQuery<string[]>({
     queryKey: ['inv-stores-list'],
@@ -306,7 +292,7 @@ export default function InventoryMovement() {
 
     if (view === 'item') return [
       rankCol,
-      { field: 'ALU',          headerName: 'ALU',         width: 110, pinned: 'left', cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
+      { field: codeField,      headerName: codeField,     width: 110, pinned: 'left', cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
       { field: 'DESCRIPTION1', headerName: 'Description', width: 240, pinned: 'left', cellStyle: { fontWeight: 600, display: 'flex', alignItems: 'center' } },
       { field: 'VEND_NAME',    headerName: 'Vendor',      width: 150 },
       { field: 'DCS_CODE',     headerName: 'DCS Code',    width: 100 },
@@ -340,7 +326,7 @@ export default function InventoryMovement() {
       { field: 'department', headerName: 'Department', width: 220, pinned: 'left', cellStyle: { fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center' } },
       skuCol, soldCol, retCol, revCol, gpCol,
     ]
-  }, [tableData, view])
+  }, [tableData, view, codeField])
 
   const gmColor = kpi.gmPct >= 30 ? C_GREEN : kpi.gmPct >= 10 ? C_AMBER : C_ROSE
 
@@ -392,11 +378,11 @@ export default function InventoryMovement() {
 
         {/* ── KPI Strip ── */}
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <KpiCard label="Active SKUs"    value={kpi.skus.toLocaleString()}      sub="distinct items moved" />
-          <KpiCard label="Units Sold"     value={num(kpi.soldQty)}               sub={`${num(kpi.returnQty)} returned`} />
-          <KpiCard label="Daily Velocity" value={`${kpi.velocity.toLocaleString()} u/d`} sub="units per day" color={C_CYAN} />
-          <KpiCard label="Revenue"        value={num(kpi.revenue)}               sub="excl. tax" />
-          <KpiCard label="Gross Margin"   value={`${kpi.gmPct}%`}               sub={num(kpi.revenue - kpi.cogs)} color={gmColor} />
+          <KpiCard label="Active SKUs"    value={kpi.skus.toLocaleString()}      sub="distinct items moved" icon="ti-barcode" />
+          <KpiCard label="Units Sold"     value={num(kpi.soldQty)}               sub={`${num(kpi.returnQty)} returned`} icon="ti-shopping-cart" />
+          <KpiCard label="Daily Velocity" value={`${kpi.velocity.toLocaleString()} u/d`} sub="units per day" color={C_CYAN} icon="ti-rocket" />
+          <KpiCard label="Revenue"        value={num(kpi.revenue)}               sub="excl. tax" icon="ti-cash" />
+          <KpiCard label="Gross Margin"   value={`${kpi.gmPct}%`}               sub={num(kpi.revenue - kpi.cogs)} color={gmColor} icon="ti-trending-up" />
         </Box>
 
         {/* ── Row 1: Trend + Pareto ── */}
@@ -411,9 +397,9 @@ export default function InventoryMovement() {
         {/* ── Row 3: Detail Grid ── */}
         <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
                    boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
             <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>Movement Detail</Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               {(['dept','dcs','vendor','store','item'] as const).map(v => (
                 <Chip key={v} label={v === 'dept' ? 'By Dept' : v === 'dcs' ? 'DCS' : v === 'vendor' ? 'By Vendor' : v === 'store' ? 'By Store' : 'By Item'}
                   size="small" onClick={() => setView(v)}
@@ -422,11 +408,14 @@ export default function InventoryMovement() {
                         color: view === v ? '#fff' : C_SLATE,
                         border: `1px solid ${view === v ? C_PURPLE : '#e2e8f0'}` }} />
               ))}
+              <GridExportBar gridRef={gridRef} filename="inventory_movement" title="Stock Movement Detail"
+                colDefs={tableCols} onResetColumns={resetColumns} />
             </Box>
           </Box>
 
           <div className="ag-theme-alpine" style={{ height: 460 }}>
             <AgGridReact
+              ref={gridRef}
               rowData={tableData as any[]}
               columnDefs={tableCols}
               pagination paginationPageSize={25}
@@ -434,6 +423,10 @@ export default function InventoryMovement() {
               rowHeight={36}
               headerHeight={38}
               suppressCellFocus
+              onGridReady={onColGridReady}
+              onColumnMoved={onColumnChanged}
+              onColumnResized={onColumnChanged}
+              onColumnVisible={onColumnChanged}
             />
           </div>
         </Box>

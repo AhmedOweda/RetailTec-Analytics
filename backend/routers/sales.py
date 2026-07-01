@@ -71,8 +71,12 @@ def _ensure_dims() -> None:
 
 def _cached_store_names() -> list[str]:
     _ensure_dims()
-    return [r["STORE_NAME"] for r in _dim_cache.get("stores", []) if r["STORE_NAME"]]
-
+    # Check both uppercase and lowercase variations safely
+    return [
+        (r.get("STORE_NAME") or r.get("store_name")) 
+        for r in _dim_cache.get("stores", []) 
+        if (r.get("STORE_NAME") or r.get("store_name"))
+    ]
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -112,15 +116,21 @@ def stores_list():
 def employees_list():
     """Return employee full names from dimension cache."""
     _ensure_dims()
-    return [r["FULL_NAME"] for r in _dim_cache.get("employees", []) if r["FULL_NAME"]]
-
+    return [
+        (r.get("FULL_NAME") or r.get("full_name")) 
+        for r in _dim_cache.get("employees", []) 
+        if (r.get("FULL_NAME") or r.get("full_name"))
+    ]
 
 @router.get("/api/sales/customers-list")
 def customers_list():
     """Return customer full names from dimension cache."""
     _ensure_dims()
-    return [r["FULL_NAME"] for r in _dim_cache.get("customers", []) if r["FULL_NAME"]]
-
+    return [
+        (r.get("FULL_NAME") or r.get("full_name")) 
+        for r in _dim_cache.get("customers", []) 
+        if (r.get("FULL_NAME") or r.get("full_name"))
+    ]
 
 # ── Overview KPIs ──────────────────────────────────────────────────────────────
 
@@ -441,27 +451,50 @@ def perf_stores(
     date_to:   str = Query(...),
     stores:    Optional[str] = Query(None),
 ):
-    sf   = _store_filter(stores)
-    join = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID"
+    sf = _store_filter(stores)
     return _qdf(f"""
+        WITH first_sale AS (
+            SELECT COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
+                   MIN(F.INVC_POST_DATE::DATE)::VARCHAR AS first_sale_date
+            FROM FACT_SALES_INVOICES F
+            LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
+            WHERE F.RECEIPT_TYPE = 0
+            GROUP BY COALESCE(S.STORE_NAME, '(Unknown)')
+        ),
+        store_ltv AS (
+            SELECT COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
+                   ROUND(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),2) AS lifetime_revenue
+            FROM FACT_SALES_INVOICES F
+            LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
+            GROUP BY COALESCE(S.STORE_NAME, '(Unknown)')
+        )
         SELECT
-            COALESCE(S.STORE_NAME, '(Unknown)')                                   AS store_name,
-            ROUND(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),2)  AS net_sales,
-            COUNT(CASE WHEN F.RECEIPT_TYPE=0 THEN 1 END)                          AS invoice_count,
+            COALESCE(S.STORE_NAME, '(Unknown)')                                    AS store_name,
+            ROUND(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),2) AS net_sales,
+            COUNT(CASE WHEN F.RECEIPT_TYPE=0 THEN 1 END)                           AS invoice_count,
             ABS(ROUND(SUM(CASE WHEN F.RECEIPT_TYPE=1 THEN F.NET_SALES_WOTAX ELSE 0 END),2)) AS return_amt,
             ROUND(
                 ABS(SUM(CASE WHEN F.RECEIPT_TYPE=1 THEN F.NET_SALES_WOTAX ELSE 0 END))
                 / NULLIF(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),0)
-                * 100, 1)                                                          AS return_rate,
+                * 100, 1)                                                           AS return_rate,
             ROUND(SUM(COALESCE(F.INVOICE_DISC,0)+COALESCE(F.ITEM_DISC,0)+COALESCE(F.LOYALTY_DISC,0)),2) AS disc_amt,
             ROUND(
                 SUM(COALESCE(F.INVOICE_DISC,0)+COALESCE(F.ITEM_DISC,0)+COALESCE(F.LOYALTY_DISC,0))
                 / NULLIF(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),0)
-                * 100, 1)                                                          AS disc_rate
+                * 100, 1)                                                           AS disc_rate,
+            FS.first_sale_date,
+            LTV.lifetime_revenue,
+            CASE
+                WHEN DATEDIFF('day', FS.first_sale_date::DATE, CURRENT_DATE) < 90  THEN 'New'
+                WHEN DATEDIFF('day', FS.first_sale_date::DATE, CURRENT_DATE) < 365 THEN 'Growing'
+                ELSE 'Mature'
+            END AS lifecycle
         FROM FACT_SALES_INVOICES F
-        LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
+        LEFT JOIN DIM_STORE S   ON S.SID = F.STORE_SID
+        LEFT JOIN first_sale FS ON FS.store_name = COALESCE(S.STORE_NAME, '(Unknown)')
+        LEFT JOIN store_ltv LTV ON LTV.store_name = COALESCE(S.STORE_NAME, '(Unknown)')
         WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}' {sf}
-        GROUP BY COALESCE(S.STORE_NAME, '(Unknown)')
+        GROUP BY COALESCE(S.STORE_NAME, '(Unknown)'), FS.first_sale_date, LTV.lifetime_revenue
         ORDER BY net_sales DESC
     """)
 
@@ -664,15 +697,39 @@ def perf_customers(
 ):
     sf = _store_filter(stores)
     return _qdf(f"""
+        WITH cust_ltv AS (
+            SELECT F.BT_CUID,
+                   MIN(F.INVC_POST_DATE::DATE)::VARCHAR                           AS first_visit,
+                   ROUND(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),2) AS lifetime_value
+            FROM FACT_SALES_INVOICES F
+            WHERE F.BT_CUID IS NOT NULL
+            GROUP BY F.BT_CUID
+        ),
+        primary_store AS (
+            SELECT BT_CUID, STORE_NAME AS primary_store
+            FROM (
+                SELECT F.BT_CUID, COALESCE(S.STORE_NAME, '(Unknown)') AS STORE_NAME,
+                       ROW_NUMBER() OVER (PARTITION BY F.BT_CUID ORDER BY COUNT(*) DESC) AS rn
+                FROM FACT_SALES_INVOICES F
+                LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
+                WHERE F.BT_CUID IS NOT NULL AND F.RECEIPT_TYPE = 0
+                GROUP BY F.BT_CUID, COALESCE(S.STORE_NAME, '(Unknown)')
+            ) sub WHERE rn = 1
+        )
         SELECT
-            COALESCE(C.FULL_NAME, '(Unknown)')                                AS customer_name,
-            COUNT(*)                                                           AS invoice_count,
-            ROUND(SUM(F.NET_SALES_WOTAX),2)                                   AS net_sales,
-            ROUND(SUM(F.NET_SALES_WOTAX)/NULLIF(COUNT(*),0),2)               AS avg_basket,
-            MAX(F.INVC_POST_DATE::DATE)::VARCHAR                              AS last_visit
+            COALESCE(C.FULL_NAME, '(Unknown)')                                    AS customer_name,
+            COUNT(*)                                                               AS invoice_count,
+            ROUND(SUM(F.NET_SALES_WOTAX),2)                                       AS net_sales,
+            ROUND(SUM(F.NET_SALES_WOTAX)/NULLIF(COUNT(*),0),2)                   AS avg_basket,
+            MAX(F.INVC_POST_DATE::DATE)::VARCHAR                                  AS last_visit,
+            MIN(LTV.first_visit)                                                   AS first_visit,
+            MAX(LTV.lifetime_value)                                                AS lifetime_value,
+            MAX(PS.primary_store)                                                  AS primary_store
         FROM FACT_SALES_INVOICES F
-        LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
-        LEFT JOIN DIM_CUSTOMER C ON C.SID = F.BT_CUID
+        LEFT JOIN DIM_STORE    S   ON S.SID   = F.STORE_SID
+        LEFT JOIN DIM_CUSTOMER C   ON C.SID   = F.BT_CUID
+        LEFT JOIN cust_ltv     LTV ON LTV.BT_CUID = F.BT_CUID
+        LEFT JOIN primary_store PS ON PS.BT_CUID  = F.BT_CUID
         WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
           AND F.RECEIPT_TYPE = 0
           AND F.BT_CUID IS NOT NULL {sf}
@@ -694,8 +751,12 @@ def sync_status():
     return get_sync_state()
 
 @router.post("/api/sync/full-load")
-async def sync_full_load():
-    return await trigger_full_load()
+async def sync_full_load(
+    tables: Optional[str] = Query(None,
+        description="Comma-separated domains: sales,transfers,adjustments,inventory. Omit for all.")
+):
+    tbl_set = {t.strip() for t in tables.split(",") if t.strip()} if tables else None
+    return await trigger_full_load(tables=tbl_set)
 
 
 # ── Warm dim cache at import time (non-fatal if DB not ready yet) ──────────────

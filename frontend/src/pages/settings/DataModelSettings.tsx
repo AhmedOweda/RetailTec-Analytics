@@ -7,6 +7,7 @@ import {
   Alert, CircularProgress, Select, MenuItem,
   FormControl, InputLabel, LinearProgress,
   ToggleButtonGroup, ToggleButton,
+  Checkbox, FormGroup, FormControlLabel, Tooltip,
 } from '@mui/material'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
 import ErrorIcon        from '@mui/icons-material/Error'
@@ -19,6 +20,27 @@ import axios from 'axios'
 import { useAppSettings, type ProductCodeField } from '../../context/AppSettings'
 
 const ACCENT = '#7c3aed'
+
+const KIND_LABEL: Record<string, string> = {
+  full: 'Full load', range: 'Range load', scheduled: 'Scheduled sync', incremental: 'Incremental refresh',
+}
+function etaText(s: any): string {
+  if (!s?.started_at || !s?.done || !s?.total) return ''
+  const pct = s.done / s.total
+  if (pct <= 0.02) return 'estimating…'
+  const remain = (Date.now() / 1000 - s.started_at) * (1 - pct) / pct
+  if (remain < 1) return ''
+  const m = Math.floor(remain / 60), sec = Math.round(remain % 60)
+  return m > 0 ? `~${m}m ${sec}s left` : `~${sec}s left`
+}
+
+const DOMAINS = [
+  { key: 'sales',       label: 'Sales',       desc: 'Daily totals, invoices & line items' },
+  { key: 'transfers',   label: 'Transfers',   desc: 'Store-to-store transfer slips' },
+  { key: 'adjustments', label: 'Adjustments', desc: 'Inventory adjustment documents' },
+  { key: 'inventory',   label: 'Inventory',   desc: 'On-hand quantity snapshot' },
+  { key: 'purchases',   label: 'Purchases',   desc: 'Purchase orders & received lines' },
+] as const
 
 const LOAD_OPTIONS = [30, 90, 180, 365, 730]
 const INCR_OPTIONS = [1, 3, 7, 14, 30]
@@ -54,13 +76,27 @@ export default function DataModelSettings() {
     refetchInterval: 2000,
   })
 
+  const { data: coverage } = useQuery({
+    queryKey: ['sync-coverage'],
+    queryFn:  () => axios.get('/api/sync/coverage').then(r => r.data.coverage as any[]),
+    refetchInterval: 5000,
+  })
+
+  const { data: history, refetch: refetchHistory, isFetching: histFetching } = useQuery({
+    queryKey: ['sync-history'],
+    queryFn:  () => axios.get('/api/sync/history?limit=15').then(r => r.data.runs as any[]),
+  })
+
   const [conn, setConn] = useState({ host:'', port:1521, sid:'', username:'', password:'' })
   const [dm, setDm]     = useState({ initial_load_days:365, incremental_window_days:7, background_refresh_minutes:30 })
-  const [saveMsg, setSaveMsg] = useState('')
+  const [saveMsg, setSaveMsg]         = useState('')
+  const [selDomains, setSelDomains]   = useState<Set<string>>(new Set())  // empty = all
+  const [rangeFrom, setRangeFrom]     = useState('')
+  const [rangeTo,   setRangeTo]       = useState('')
 
   useEffect(() => {
     if (settings) {
-      setConn({ ...settings.connection, password:'' })
+      setConn({ ...settings.connection })   // keep masked password so it persists
       setDm(settings.data_model)
     }
   }, [settings])
@@ -84,7 +120,19 @@ export default function DataModelSettings() {
   })
 
   const fullLoad = useMutation({
-    mutationFn: () => axios.post('/api/sync/full-load'),
+    mutationFn: () => {
+      const tables = selDomains.size > 0 ? [...selDomains].join(',') : undefined
+      return axios.post('/api/sync/full-load', null, { params: tables ? { tables } : {} })
+    },
+    onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
+  })
+
+  const rangeLoad = useMutation({
+    mutationFn: () => axios.post('/api/sync/range', {
+      date_from: rangeFrom,
+      date_to:   rangeTo,
+      domains:   selDomains.size > 0 ? [...selDomains] : null,
+    }),
     onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
   })
 
@@ -111,7 +159,8 @@ export default function DataModelSettings() {
             value={conn.host} onChange={e => setConn({ ...conn, host:e.target.value })} />
           <TextField label="Port" size="small" type="number" fullWidth
             value={conn.port} onChange={e => setConn({ ...conn, port:+e.target.value })} />
-          <TextField label="SID / Service Name" size="small" fullWidth
+          <TextField label="Service Name" size="small" fullWidth
+            placeholder="e.g. rproods"
             value={conn.sid} onChange={e => setConn({ ...conn, sid:e.target.value })} />
           <TextField label="Username" size="small" fullWidth
             value={conn.username} onChange={e => setConn({ ...conn, username:e.target.value })} />
@@ -205,13 +254,20 @@ export default function DataModelSettings() {
         {/* Sync progress */}
         {isRunning && (
           <Box sx={{ mb:2, p:1.5, bgcolor:'rgba(124,58,237,0.06)', borderRadius:1.5 }}>
+            <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:0.5 }}>
+              <Typography sx={{ fontSize:11, fontWeight:700, color:ACCENT, textTransform:'uppercase', letterSpacing:0.4 }}>
+                {KIND_LABEL[syncState.kind] || 'Sync'}
+              </Typography>
+              <Box sx={{ flex:1 }} />
+              <Typography sx={{ fontSize:11, color:'#94a3b8' }}>{etaText(syncState)}</Typography>
+            </Box>
             <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:0.8 }}>
               <CircularProgress size={14} sx={{ color:ACCENT }} />
               <Typography sx={{ fontSize:13, fontWeight:600, color:ACCENT, flex:1 }}>
                 {syncState.step}…
               </Typography>
               <Typography sx={{ fontSize:11, color:'#94a3b8' }}>
-                {syncState.done}/{syncState.total} weeks
+                {syncState.total ? Math.round((syncState.done / syncState.total) * 100) : 0}%
               </Typography>
             </Box>
             <LinearProgress variant="determinate"
@@ -227,6 +283,42 @@ export default function DataModelSettings() {
             Last sync: {new Date(syncState.last_sync).toLocaleString()}
           </Typography>
         )}
+
+        {/* Domain selector */}
+        <Box sx={{ mb:2 }}>
+          <Typography sx={{ fontSize:12, fontWeight:600, color:'#475569', mb:1 }}>
+            Domains to load
+            <Typography component="span" sx={{ fontSize:11, color:'#94a3b8', ml:1, fontWeight:400 }}>
+              (leave all unchecked to load everything)
+            </Typography>
+          </Typography>
+          <FormGroup row sx={{ gap:1 }}>
+            {DOMAINS.map(d => (
+              <Tooltip key={d.key} title={d.desc} placement="top" arrow>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={selDomains.has(d.key)}
+                      onChange={e => {
+                        const next = new Set(selDomains)
+                        e.target.checked ? next.add(d.key) : next.delete(d.key)
+                        setSelDomains(next)
+                      }}
+                      sx={{ color: ACCENT, '&.Mui-checked': { color: ACCENT }, p:'4px' }}
+                    />
+                  }
+                  label={
+                    <Typography sx={{ fontSize:13, fontWeight: selDomains.has(d.key) ? 700 : 400,
+                                      color: selDomains.has(d.key) ? ACCENT : '#374151' }}>
+                      {d.label}
+                    </Typography>
+                  }
+                />
+              </Tooltip>
+            ))}
+          </FormGroup>
+        </Box>
 
         {/* Action buttons */}
         <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
@@ -244,7 +336,9 @@ export default function DataModelSettings() {
               disabled={fullLoad.isPending}
               sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
                     '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
-              Load All Data (last {dm.initial_load_days} days)
+              {selDomains.size > 0
+                ? `Load ${[...selDomains].join(' + ')} (last ${dm.initial_load_days} days)`
+                : `Load All Data (last ${dm.initial_load_days} days)`}
             </Button>
           ) : (
             <Button variant="outlined" size="small"
@@ -264,6 +358,87 @@ export default function DataModelSettings() {
             {saveMsg.includes('Host') ? '⚠ ' : '✓ '}{saveMsg}
           </Typography>
         )}
+      </SectionCard>
+
+      {/* ── Load a specific date range ──────────────────────────── */}
+      <SectionCard title="Load a Date Range" icon={<SyncIcon />}>
+        <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+          Load an explicit period (e.g. backfill older history). This <b>appends</b> to
+          existing data — nothing is deleted. Respects the domain selection above.
+        </Typography>
+        <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap' }}>
+          <TextField label="From" type="date" size="small"
+            InputLabelProps={{ shrink:true }}
+            value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
+          <TextField label="To" type="date" size="small"
+            InputLabelProps={{ shrink:true }}
+            value={rangeTo} onChange={e => setRangeTo(e.target.value)} />
+          <Button variant="outlined" size="small"
+            onClick={() => rangeLoad.mutate()}
+            disabled={isRunning || rangeLoad.isPending || !rangeFrom || !rangeTo}
+            sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
+                  '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
+            Load Range
+          </Button>
+        </Box>
+      </SectionCard>
+
+      {/* ── Loaded data coverage ────────────────────────────────── */}
+      <SectionCard title="Loaded Data" icon={<StorageIcon />}>
+        <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+          The date span actually present in the warehouse, per domain.
+        </Typography>
+        <Box sx={{ display:'grid', gridTemplateColumns:'1.2fr 1fr 1fr 0.8fr',
+                   rowGap:0.8, columnGap:2, fontSize:12.5 }}>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>Domain</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>From</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>To</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right' }}>Rows</Typography>
+          {(coverage ?? []).map((c:any) => (
+            <Box key={c.domain} sx={{ display:'contents' }}>
+              <Typography sx={{ color:'#0f172a', fontWeight:600 }}>{c.domain}</Typography>
+              <Typography sx={{ color:'#475569' }}>{c.from ?? '-'}</Typography>
+              <Typography sx={{ color:'#475569' }}>{c.to ?? (c.synced_at ? 'snapshot' : '-')}</Typography>
+              <Typography sx={{ color:'#475569', textAlign:'right' }}>
+                {(c.rows ?? 0).toLocaleString()}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      </SectionCard>
+
+      {/* ── Sync history ─────────────────────────────────────────── */}
+      <SectionCard title="Sync History" icon={<SyncIcon />}>
+        <Box sx={{ display:'flex', justifyContent:'flex-end', mb:1 }}>
+          <Button size="small" onClick={() => refetchHistory()} disabled={histFetching}
+            sx={{ textTransform:'none', color:ACCENT, fontWeight:600 }}>
+            {histFetching ? 'Refreshing…' : 'Refresh'}
+          </Button>
+        </Box>
+        <Box sx={{ display:'grid', gridTemplateColumns:'0.7fr 0.9fr 1.5fr 0.9fr 0.6fr',
+                   rowGap:0.6, columnGap:1.5, fontSize:12 }}>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>Type</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>By</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>Range</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>Status</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right' }}>Secs</Typography>
+          {(history ?? []).map((r:any) => (
+            <Box key={r.run_id} sx={{ display:'contents' }}>
+              <Typography sx={{ color:'#0f172a', fontWeight:600 }}>{r.run_type}</Typography>
+              <Typography sx={{ color:'#475569' }}>{r.triggered_by}</Typography>
+              <Typography sx={{ color:'#64748b' }}>{(r.date_from ?? '-')} → {(r.date_to ?? '-')}</Typography>
+              <Typography sx={{ color: r.status==='completed' ? '#16a34a'
+                                     : r.status==='error' ? '#ef4444'
+                                     : r.status==='cancelled' ? '#f59e0b' : '#94a3b8', fontWeight:600 }}>
+                {r.status}
+              </Typography>
+              <Typography sx={{ color:'#475569', textAlign:'right' }}>{r.duration_sec ?? '-'}</Typography>
+            </Box>
+          ))}
+          {(!history || history.length === 0) && (
+            <Typography sx={{ gridColumn:'1 / -1', color:'#94a3b8', py:1 }}>No sync runs yet.</Typography>
+          )}
+        </Box>
       </SectionCard>
     </Box>
   )

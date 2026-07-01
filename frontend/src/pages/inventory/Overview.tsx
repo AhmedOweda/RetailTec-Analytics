@@ -19,6 +19,9 @@ import type { ColDef }   from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { type EChartHandle } from '../../components/EChart'
+import KpiCard                        from '../../components/KpiCard'
+import GridExportBar                  from '../../components/GridExportBar'
+import { useGridColumnState }         from '../../hooks/useGridColumnState'
 
 // ── Colours ────────────────────────────────────────────────────────────────────
 const C_PURPLE = '#7c3aed'
@@ -36,29 +39,6 @@ function num(v: any) {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (Math.abs(n) >= 1_000)     return `${(n / 1_000).toFixed(0)}K`
   return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-}
-
-// ── KPI Card ───────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, color = C_PURPLE }: {
-  label: string; value: string; sub?: string; color?: string
-}) {
-  return (
-    <Box sx={{
-      flex: 1, minWidth: 130,
-      bgcolor: '#fff', borderRadius: 2.5,
-      border: '1px solid #e9e4ff',
-      boxShadow: '0 1px 6px rgba(124,58,237,0.06)',
-      p: 2, display: 'flex', flexDirection: 'column', gap: 0.3,
-    }}>
-      <Typography sx={{ fontSize: 11, color: C_SLATE, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </Typography>
-      <Typography sx={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1.1 }}>
-        {value}
-      </Typography>
-      {sub && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{sub}</Typography>}
-    </Box>
-  )
 }
 
 // ── Chart Card ────────────────────────────────────────────────────────────────
@@ -135,7 +115,10 @@ function gmStyle(p: any) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function InventoryOverview() {
   const [stores, setStores] = useState<string[]>([])
-  const [view,   setView  ] = useState<'dept'|'dcs'|'vendor'|'store'>('dept')
+  const [view,   setView  ] = useState<'dept'|'dcs'|'vendor'|'store'|'item'|'item_store'>('dept')
+
+  const gridRef = useRef<AgGridReact>(null)
+  const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('inv-overview')
 
   // Store options from sales stores-list endpoint
   const { data: storeList = [] } = useQuery<string[]>({
@@ -186,9 +169,22 @@ export default function InventoryOverview() {
   })
   const { data: tableData = [] } = useQuery({
     queryKey: ['inv-items', view, storeQS],
-    queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}&limit=50${storeQS}`).then(r => r.data),
+    queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}&limit=${view.startsWith('item') ? 500 : 50}${storeQS}`).then(r => r.data),
     gcTime: 1_800_000, refetchOnMount: 'always',
   })
+
+  // Turnover KPIs
+  const { data: turnoverRaw } = useQuery({
+    queryKey: ['inv-turnover', storeQS],
+    queryFn:  () => axios.get(`/api/inventory/turnover-kpi?${storeQS.slice(1)}`).then(r => r.data),
+    gcTime: 1_800_000, refetchOnMount: 'always',
+  })
+  const turnover = {
+    rate:    turnoverRaw?.turnover_rate ?? 0,
+    doh:     turnoverRaw?.days_on_hand  ?? 0,
+    months:  turnoverRaw?.months_supply ?? 0,
+    cogs12m: turnoverRaw?.cogs_12m      ?? 0,
+  }
 
   const noData = kpi.skus === 0 && kpi.stockCost === 0
 
@@ -365,6 +361,30 @@ export default function InventoryOverview() {
       skuCol, qtyCol, costCol, retailCol, gmCol,
     ]
 
+    if (view === 'item') return [
+      rankCol,
+      { field: 'ALU',          headerName: 'ALU',         width: 110, pinned: 'left', cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
+      { field: 'DESCRIPTION1', headerName: 'Description', flex: 1, minWidth: 200 },
+      { field: 'department',   headerName: 'Dept',        width: 140 },
+      { field: 'vendor',       headerName: 'Vendor',      width: 180 },
+      { field: 'store_count',  headerName: 'Stores', width: 75, type: 'numericColumn' as const },
+      qtyCol, costCol, retailCol, gmCol,
+      { field: 'avg_cost',  headerName: 'Avg Cost',  width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `$${(+(p.value ?? 0)).toFixed(2)}` },
+      { field: 'avg_price', headerName: 'Avg Price', width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `$${(+(p.value ?? 0)).toFixed(2)}` },
+    ]
+
+    if (view === 'item_store') return [
+      rankCol,
+      { field: 'store_name',   headerName: 'Store',       width: 180, pinned: 'left', cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+      { field: 'ALU',          headerName: 'ALU',         width: 110, cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
+      { field: 'DESCRIPTION1', headerName: 'Description', flex: 1, minWidth: 180 },
+      { field: 'department',   headerName: 'Dept',        width: 130 },
+      { field: 'qty',          headerName: 'Units',  width: 90,  type: 'numericColumn' as const, valueFormatter: (p: any) => num(p.value) },
+      { field: 'unit_cost',    headerName: 'Unit Cost',  width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `$${(+(p.value ?? 0)).toFixed(2)}` },
+      { field: 'unit_price',   headerName: 'Unit Price', width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `$${(+(p.value ?? 0)).toFixed(2)}` },
+      costCol, retailCol, gmCol,
+    ]
+
     return [  // store
       rankCol,
       { field: 'store_name', headerName: 'Store', width: 240, pinned: 'left', cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
@@ -418,11 +438,24 @@ export default function InventoryOverview() {
 
         {/* ── KPI Strip ── */}
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <KpiCard label="Total SKUs"     value={kpi.skus.toLocaleString()}    sub={`${kpi.depts} departments`} />
-          <KpiCard label="Units On-Hand"  value={num(kpi.totalQty)}             sub={`across ${kpi.stores} stores`} />
-          <KpiCard label="Cost Value"     value={num(kpi.stockCost)}            sub="at cost price" color={C_SLATE} />
-          <KpiCard label="Retail Value"   value={num(kpi.stockRetail)}          sub="at selling price" />
-          <KpiCard label="Potential GM"   value={`${kpi.gmPct}%`}              sub="retail − cost margin" color={gmColor} />
+          <KpiCard label="Total SKUs"       value={kpi.skus.toLocaleString()}    sub={`${kpi.depts} departments`} icon="ti-barcode" />
+          <KpiCard label="Units On-Hand"    value={num(kpi.totalQty)}             sub={`across ${kpi.stores} stores`} icon="ti-package" />
+          <KpiCard label="Cost Value"       value={num(kpi.stockCost)}            sub="at cost price" color={C_SLATE} icon="ti-coin" />
+          <KpiCard label="Retail Value"     value={num(kpi.stockRetail)}          sub="at selling price" icon="ti-tag" />
+          <KpiCard label="Potential GM"     value={`${kpi.gmPct}%`}              sub="retail − cost margin" color={gmColor} icon="ti-chart-pie-2" />
+        </Box>
+
+        {/* ── Turnover KPI Strip ── */}
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <KpiCard label="Inventory Turnover" value={`${turnover.rate}×`}
+            sub="COGS ÷ stock cost (12m)" color="#0891b2" icon="ti-refresh" />
+          <KpiCard label="Days on Hand"       value={`${turnover.doh}`}
+            sub="365 ÷ turnover rate" icon="ti-calendar-stats"
+            color={turnover.doh > 180 ? C_ROSE : turnover.doh > 90 ? C_AMBER : C_GREEN} />
+          <KpiCard label="Months Supply"      value={`${turnover.months}m`}
+            sub="stock cost ÷ monthly COGS" color={C_SLATE} icon="ti-clock" />
+          <KpiCard label="COGS (12m)"         value={num(turnover.cogs12m)}
+            sub="cost of goods sold (last yr)" color={C_SLATE} icon="ti-receipt" />
         </Box>
 
         {/* ── Row 1: Treemap + Sunburst ── */}
@@ -440,22 +473,32 @@ export default function InventoryOverview() {
         {/* ── Row 3: Detail Grid ── */}
         <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
                    boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
             <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>Stock Detail</Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              {(['dept','dcs','vendor','store'] as const).map(v => (
-                <Chip key={v} label={v === 'dept' ? 'By Dept' : v === 'dcs' ? 'DCS' : v === 'vendor' ? 'By Vendor' : 'By Store'}
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+              {([
+                { v: 'dept',       label: 'By Dept'     },
+                { v: 'dcs',        label: 'DCS'         },
+                { v: 'vendor',     label: 'By Vendor'   },
+                { v: 'store',      label: 'By Store'    },
+                { v: 'item',       label: 'By Item'     },
+                { v: 'item_store', label: 'Item × Store'},
+              ] as const).map(({ v, label }) => (
+                <Chip key={v} label={label}
                   size="small" onClick={() => setView(v)}
                   sx={{ fontWeight: 600, cursor: 'pointer',
                         bgcolor: view === v ? C_PURPLE : 'transparent',
                         color: view === v ? '#fff' : C_SLATE,
                         border: `1px solid ${view === v ? C_PURPLE : '#e2e8f0'}` }} />
               ))}
+              <GridExportBar gridRef={gridRef} filename="inventory_overview" title="Inventory Stock Detail"
+                colDefs={tableCols} onResetColumns={resetColumns} />
             </Box>
           </Box>
 
           <div className="ag-theme-alpine" style={{ height: 440 }}>
             <AgGridReact
+              ref={gridRef}
               rowData={tableData as any[]}
               columnDefs={tableCols}
               pagination paginationPageSize={20}
@@ -463,6 +506,10 @@ export default function InventoryOverview() {
               rowHeight={36}
               headerHeight={38}
               suppressCellFocus
+              onGridReady={onColGridReady}
+              onColumnMoved={onColumnChanged}
+              onColumnResized={onColumnChanged}
+              onColumnVisible={onColumnChanged}
             />
           </div>
         </Box>

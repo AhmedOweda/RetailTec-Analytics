@@ -7,6 +7,7 @@
  * AG Grid tabs: By Store (Out) | By Store (In) | By Dept | Details
  */
 import { useState, useRef, useMemo } from 'react'
+import { useAppSettings } from '../../context/AppSettings'
 import {
   Box, Paper, Typography, Chip, Autocomplete, TextField, Divider,
   IconButton, Tooltip, Dialog, DialogContent, Tab, Tabs,
@@ -21,6 +22,8 @@ import type { ColDef } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { EChartHandle } from '../../components/EChart'
+import KpiCard                  from '../../components/KpiCard'
+import GridExportBar            from '../../components/GridExportBar'
 
 // ── Colours ────────────────────────────────────────────────────────────────
 const ACCENT   = '#7c3aed'
@@ -41,26 +44,6 @@ const PERIODS = [
   { label: 'MTD', df: mtdStart,           dt: today },
   { label: 'YTD', df: ytdStart,           dt: today },
 ] as const
-
-// ── KPI card ──────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, color }: {
-  label: string; value: string; sub?: string; color?: string
-}) {
-  return (
-    <Paper elevation={0} sx={{
-      flex:1, p:2, borderRadius:2, border:'1px solid #e2e8f0', minWidth:130,
-    }}>
-      <Typography sx={{ fontSize:11, color:'#94a3b8', fontWeight:600,
-                        textTransform:'uppercase', letterSpacing:.6, mb:.5 }}>
-        {label}
-      </Typography>
-      <Typography sx={{ fontSize:22, fontWeight:800, color: color || '#0f172a', lineHeight:1.1 }}>
-        {value}
-      </Typography>
-      {sub && <Typography sx={{ fontSize:11, color:'#64748b', mt:.3 }}>{sub}</Typography>}
-    </Paper>
-  )
-}
 
 // ── Chart card with fullscreen ─────────────────────────────────────────────
 function ChartCard({ title, children, chartRef, height = 260 }: {
@@ -107,12 +90,15 @@ const fmtC = (v: number) => v == null ? '—' : v.toLocaleString('en-US', { styl
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Transfers() {
+  const { productCodeField } = useAppSettings()
+  const codeField  = productCodeField.toUpperCase()   // 'ALU' or 'UPC'
   const [period,   setPeriod  ] = useState(1)  // default 30D
   const [dateFrom, setDateFrom] = useState(() => daysAgo(30))
   const [dateTo,   setDateTo  ] = useState(today)
   const [selStores, setSelStores] = useState<string[]>([])
   const [tab, setTab] = useState(0)
 
+  const gridRef     = useRef<AgGridReact>(null)
   const trendRef    = useRef<EChartHandle>(null)
   const statusRef   = useRef<EChartHandle>(null)
   const outStoreRef = useRef<EChartHandle>(null)
@@ -161,7 +147,7 @@ export default function Transfers() {
 
   const { data: details = [] } = useQuery<any[]>({
     queryKey: ['trans-details', dateFrom, dateTo, storesParam],
-    queryFn:  () => axios.get('/api/inventory/transfers/details', { params: { ...qParams, limit:1000 } }).then(r => r.data),
+    queryFn:  () => axios.get('/api/inventory/transfers/details', { params: qParams }).then(r => r.data),
     gcTime: 0, refetchOnMount: 'always',
   })
 
@@ -245,25 +231,27 @@ export default function Transfers() {
         fontWeight:600,
       })
     },
-    { field:'ALU',         headerName:'ALU',         width:100 },
+    { field:codeField,     headerName:codeField,     width:100 },
     { field:'DESCRIPTION1',headerName:'Description', flex:1.5, minWidth:140 },
     { field:'department',  headerName:'Dept',        width:100 },
     { field:'vendor',      headerName:'Vendor',      flex:1, minWidth:110 },
     { field:'sent_qty',    headerName:'Sent',        width:80,  type:'numericColumn', valueFormatter:p => fmtN(p.value) },
     { field:'recv_qty',    headerName:'Recv',        width:80,  type:'numericColumn', valueFormatter:p => fmtN(p.value) },
-    { field:'unit_cost',   headerName:'Unit Cost',   width:95,  type:'numericColumn', valueFormatter:p => fmtN(p.value,2) },
-    { field:'total_cost',  headerName:'Total Cost',  width:110, type:'numericColumn', valueFormatter:p => fmtC(p.value) },
-  ], [])
+    { field:'unit_cost',   headerName:'Unit Cost',   width:95,  type:'numericColumn', valueFormatter:(p:any) => fmtN(p.value, 2) },
+    { field:'total_cost',  headerName:'Total Cost',  width:110, type:'numericColumn', valueFormatter:(p:any) => fmtC(p.value) },
+  ], [codeField])
 
   // ── Tab grid data ─────────────────────────────────────────────────────────
   const tabData   = [byStoreOut, byStoreIn, byDept, details]
   const tabCols   = [outStoreCols, outStoreCols, deptCols, detailCols]
 
   return (
-    <Box sx={{ p:3, display:'flex', flexDirection:'column', gap:2.5, minHeight:'100%' }}>
+    <Box sx={{ pt:0, px:3, pb:3, display:'flex', flexDirection:'column', gap:2.5, minHeight:'100%' }}>
 
       {/* ── Filter bar ── */}
-      <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
+      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
+                 mx:-3, px:3, pt:2.5, pb:1.5, borderBottom:'1px solid #e9e4ff',
+                 display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
         <Typography sx={{ fontWeight:800, fontSize:18, color:'#0f172a', mr:1 }}>
           Transfers
         </Typography>
@@ -292,13 +280,13 @@ export default function Transfers() {
 
       {/* ── KPI strip ── */}
       <Box sx={{ display:'flex', gap:1.5, flexWrap:'wrap' }}>
-        <KpiCard label="Total Transfers"  value={fmtN(kpi?.total_slips  || 0)} sub={`${fmtN(kpi?.total_lines || 0)} lines`} />
-        <KpiCard label="Sent Qty"         value={fmtN(kpi?.total_sent_qty || 0)} />
-        <KpiCard label="Received Qty"     value={fmtN(kpi?.total_recv_qty || 0)} />
-        <KpiCard label="Cost Value"       value={fmtC(kpi?.total_cost  || 0)} color={ACCENT} />
+        <KpiCard label="Total Transfers"  value={fmtN(kpi?.total_slips  || 0)} sub={`${fmtN(kpi?.total_lines || 0)} lines`} icon="ti-transfer" />
+        <KpiCard label="Sent Qty"         value={fmtN(kpi?.total_sent_qty || 0)} icon="ti-send" />
+        <KpiCard label="Received Qty"     value={fmtN(kpi?.total_recv_qty || 0)} icon="ti-inbox" />
+        <KpiCard label="Cost Value"       value={fmtC(kpi?.total_cost  || 0)} color={ACCENT} icon="ti-coin" />
         <KpiCard label="Received"         value={fmtN(kpi?.received_slips || 0)}
-          sub={`${kpi?.recv_pct ?? 0}% of total`} color={RECEIVED_C} />
-        <KpiCard label="Pending"          value={fmtN(kpi?.pending_slips  || 0)} color={PENDING_C} />
+          sub={`${kpi?.recv_pct ?? 0}% of total`} color={RECEIVED_C} icon="ti-circle-check" />
+        <KpiCard label="Pending"          value={fmtN(kpi?.pending_slips  || 0)} color={PENDING_C} icon="ti-clock" />
       </Box>
 
       {/* ── Charts row 1 ── */}
@@ -331,6 +319,9 @@ export default function Transfers() {
 
       {/* ── AG Grid ── */}
       <Paper elevation={0} sx={{ borderRadius:2, border:'1px solid #e2e8f0', overflow:'hidden', flex:1, minHeight:340 }}>
+        <Box sx={{ display:'flex', justifyContent:'flex-end', px:1.5, pt:1 }}>
+          <GridExportBar gridRef={gridRef} filename="transfers" title="Transfers" />
+        </Box>
         <Tabs value={tab} onChange={(_, v) => setTab(v)}
           sx={{ borderBottom:'1px solid #e2e8f0', minHeight:40,
                 '& .MuiTab-root':{ fontSize:12, fontWeight:600, minHeight:40, textTransform:'none' } }}>
@@ -341,6 +332,7 @@ export default function Transfers() {
         </Tabs>
         <Box className="ag-theme-alpine" sx={{ height:360 }}>
           <AgGridReact
+            ref={gridRef}
             rowData={tabData[tab]}
             columnDefs={tabCols[tab]}
             defaultColDef={{ resizable:true, sortable:true, filter:true }}
