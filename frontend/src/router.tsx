@@ -1,22 +1,56 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
-import AppShell          from './layout/AppShell'
-import Overview          from './pages/sales/Overview'
-import Performance       from './pages/sales/Performance'
-import Products          from './pages/sales/Products'
-import Transactions      from './pages/sales/Transactions'
-import DataModelSettings from './pages/settings/DataModelSettings'
+import AppShell              from './layout/AppShell'
+import ProtectedRoute        from './components/ProtectedRoute'
+import Login                 from './pages/auth/Login'
+import Overview              from './pages/sales/Overview'
+import Performance           from './pages/sales/Performance'
+import Products              from './pages/sales/Products'
+import Transactions          from './pages/sales/Transactions'
+import DataModelSettings     from './pages/settings/DataModelSettings'
+import UsersManagement       from './pages/settings/UsersManagement'
+import InventoryOverview     from './pages/inventory/Overview'
+import InventoryMovement     from './pages/inventory/Movement'
+import InventoryTransfers    from './pages/inventory/Transfers'
+import InventoryAdjustments  from './pages/inventory/Adjustments'
+import InventoryLedger       from './pages/inventory/Ledger'
+import InventoryCoverage     from './pages/inventory/Coverage'
+import PurchasesOverview     from './pages/purchases/Overview'
+import PurchasesTransactions from './pages/purchases/Transactions'
+import DimStores             from './pages/dimensions/Stores'
+import DimCustomers          from './pages/dimensions/Customers'
+import DimEmployees          from './pages/dimensions/Employees'
+import DimItems              from './pages/dimensions/Items'
+import DimVendors            from './pages/dimensions/Vendors'
 
 export const router = createBrowserRouter([
+  // Public route
+  { path: '/login', element: <Login /> },
+
+  // All app routes are protected
   {
     path: '/',
-    element: <AppShell />,
+    element: <ProtectedRoute><AppShell /></ProtectedRoute>,
     children: [
       { index: true, element: <Navigate to="/sales/overview" replace /> },
-      { path: 'sales/overview',     element: <Overview />     },
-      { path: 'sales/performance',  element: <Performance />  },
-      { path: 'sales/products',     element: <Products />     },
-      { path: 'sales/transactions', element: <Transactions /> },
-      { path: 'settings',           element: <DataModelSettings /> },
+      { path: 'sales/overview',          element: <Overview />              },
+      { path: 'sales/performance',       element: <Performance />           },
+      { path: 'sales/products',          element: <Products />              },
+      { path: 'sales/transactions',      element: <Transactions />          },
+      { path: 'inventory/overview',      element: <InventoryOverview />     },
+      { path: 'inventory/movement',      element: <InventoryMovement />     },
+      { path: 'inventory/transfers',     element: <InventoryTransfers />    },
+      { path: 'inventory/adjustments',   element: <InventoryAdjustments />  },
+      { path: 'inventory/ledger',        element: <InventoryLedger />       },
+      { path: 'inventory/coverage',      element: <InventoryCoverage />     },
+      { path: 'purchases/overview',      element: <PurchasesOverview />     },
+      { path: 'purchases/transactions',  element: <PurchasesTransactions /> },
+      { path: 'dimensions/stores',       element: <DimStores />             },
+      { path: 'dimensions/customers',    element: <DimCustomers />          },
+      { path: 'dimensions/employees',    element: <DimEmployees />          },
+      { path: 'dimensions/items',        element: <DimItems />              },
+      { path: 'dimensions/vendors',      element: <DimVendors />            },
+      { path: 'settings',               element: <DataModelSettings />      },
+      { path: 'settings/users',         element: <UsersManagement />        },
     ],
   },
 ])
