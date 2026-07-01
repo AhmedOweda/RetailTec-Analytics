@@ -1,151 +1,83 @@
-import { Card, CardContent, Box, Typography, Tooltip } from '@mui/material'
-import TrendingUpIcon  from '@mui/icons-material/TrendingUp'
-import TrendingDownIcon from '@mui/icons-material/TrendingDown'
-import { useTheme } from '@mui/material/styles'
-
-export type KpiVariant = 'purple' | 'teal' | 'green' | 'orange' | 'red' | 'violet' | 'default'
-
-const VARIANTS: Record<KpiVariant, {
-  accent1: string; accent2: string
-  bg: string; bgDark: string; shadow: string
-}> = {
-  purple:  { accent1: '#7040B8', accent2: '#9B65D0', bg: '#F7F3FF', bgDark: 'rgba(112,64,184,0.15)', shadow: 'rgba(112,64,184,0.14)' },
-  violet:  { accent1: '#4E2A99', accent2: '#7040B8', bg: '#F3EEFF', bgDark: 'rgba(78,42,153,0.18)',  shadow: 'rgba(78,42,153,0.14)'  },
-  teal:    { accent1: '#0E7490', accent2: '#06B6D4', bg: '#F0FAFF', bgDark: 'rgba(14,116,144,0.15)', shadow: 'rgba(14,116,144,0.14)' },
-  green:   { accent1: '#1B7A3E', accent2: '#22C55E', bg: '#F0FFF6', bgDark: 'rgba(27,122,62,0.15)',  shadow: 'rgba(27,122,62,0.14)'  },
-  orange:  { accent1: '#D4820A', accent2: '#F59E0B', bg: '#FFFBF0', bgDark: 'rgba(212,130,10,0.15)', shadow: 'rgba(212,130,10,0.14)' },
-  red:     { accent1: '#C0392B', accent2: '#E05B5B', bg: '#FFF5F5', bgDark: 'rgba(224,91,91,0.15)',  shadow: 'rgba(224,91,91,0.14)'  },
-  default: { accent1: '#9B65D0', accent2: '#C8A8E8', bg: '#F7F3FF', bgDark: 'rgba(155,101,208,0.15)', shadow: 'rgba(155,101,208,0.14)'},
-}
+/**
+ * Shared KPI card — Style C (tinted header band)
+ *
+ * Props:
+ *   label   — short uppercase label
+ *   value   — formatted value string
+ *   sub     — optional second line (e.g. "123 transactions")
+ *   color   — accent color applied to header bg tint, header text, and value
+ *   trend   — optional % change number (+4.2 or -1.5); renders a coloured badge
+ *   icon    — optional Tabler icon class suffix (e.g. 'ti-cash', 'ti-box')
+ */
+import { Box, Typography } from '@mui/material'
 
 interface KpiCardProps {
-  icon:     React.ReactNode
-  label:    string
-  value:    string
-  sub?:     string
-  trend?:   number | null
-  variant?: KpiVariant
-  tooltip?: string
+  label:  string
+  value:  string
+  sub?:   string
+  color?: string
+  trend?: number
+  icon?:  string
 }
 
-export default function KpiCard({ icon, label, value, sub, trend, variant = 'default', tooltip }: KpiCardProps) {
-  const v    = VARIANTS[variant]
-  const theme = useTheme()
-  const dark  = theme.palette.mode === 'dark'
+const DEFAULT_COLOR = '#7c3aed'
+const C_SLATE       = '#64748b'
 
-  const cardBg     = dark ? theme.palette.background.paper : '#fff'
-  const borderClr  = dark ? 'rgba(155,101,208,0.18)' : 'rgba(0,0,0,0.06)'
-  const valueFg    = dark ? theme.palette.text.primary   : '#12082E'
-  const labelFg    = dark ? theme.palette.text.secondary : '#7B6FA0'
-  const subFg      = dark ? 'rgba(200,168,232,0.7)'      : '#9A8FBA'
-  const subBorder  = dark ? 'rgba(155,101,208,0.15)'     : 'rgba(0,0,0,0.05)'
-  const trendUpBg  = dark ? 'rgba(34,197,94,0.15)'       : '#DCFCE7'
-  const trendDnBg  = dark ? 'rgba(220,38,38,0.15)'       : '#FEE2E2'
-  const trendUpFg  = dark ? '#4ADE80'                     : '#15803D'
-  const trendDnFg  = dark ? '#F87171'                     : '#DC2626'
-
-  const card = (
-    <Card
-      elevation={0}
-      sx={{
-        height: '100%',
-        borderRadius: '14px',
-        background: cardBg,
-        border: `1px solid ${borderClr}`,
-        boxShadow: `0 2px 16px ${v.shadow}`,
-        position: 'relative',
-        overflow: 'hidden',
-        cursor: tooltip ? 'help' : 'default',
-        transition: 'transform 0.18s ease, box-shadow 0.18s ease',
-        '&:hover': {
-          transform: 'translateY(-3px)',
-          boxShadow: `0 10px 28px ${v.shadow}`,
-        },
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: 0, left: 0, right: 0,
-          height: '3px',
-          background: `linear-gradient(90deg, ${v.accent1}, ${v.accent2})`,
-        },
-      }}
-    >
-      <CardContent sx={{ p: '16px 18px 14px !important' }}>
-
-        {/* Icon + trend row */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-          <Box sx={{
-            width: 40, height: 40,
-            borderRadius: '10px',
-            background: `linear-gradient(135deg, ${v.accent1}, ${v.accent2})`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 4px 12px ${v.shadow}`,
-            flexShrink: 0,
-            '& svg': { fontSize: 20, color: '#fff' },
-          }}>
-            {icon}
-          </Box>
-
-          {trend != null && (
-            <Box sx={{
-              display: 'flex', alignItems: 'center', gap: 0.3,
-              px: 0.9, py: 0.35,
-              borderRadius: '20px',
-              background: trend >= 0 ? trendUpBg : trendDnBg,
-              fontSize: '0.63rem', fontWeight: 700,
-              color: trend >= 0 ? trendUpFg : trendDnFg,
-              lineHeight: 1,
-            }}>
-              {trend >= 0
-                ? <TrendingUpIcon sx={{ fontSize: 11 }} />
-                : <TrendingDownIcon sx={{ fontSize: 11 }} />}
-              {Math.abs(trend).toFixed(1)}%
-            </Box>
-          )}
-        </Box>
-
-        {/* Value */}
+export default function KpiCard({
+  label,
+  value,
+  sub,
+  color = DEFAULT_COLOR,
+  trend,
+  icon,
+}: KpiCardProps) {
+  return (
+    <Box sx={{
+      flex: 1, minWidth: 140,
+      bgcolor: '#fff',
+      borderRadius: 2,
+      border: '0.5px solid #e2e8f0',
+      overflow: 'hidden',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+    }}>
+      {/* ── Tinted header band ── */}
+      <Box sx={{
+        bgcolor: `${color}18`,
+        px: 2, py: 1.2,
+        display: 'flex', alignItems: 'center', gap: 1,
+      }}>
+        {icon && (
+          <i className={`ti ${icon}`}
+             style={{ fontSize: 14, color, lineHeight: 1 }}
+             aria-hidden="true" />
+        )}
         <Typography sx={{
-          fontSize: '1.5rem',
-          fontWeight: 600,
-          color: valueFg,
-          fontVariantNumeric: 'tabular-nums',
-          letterSpacing: '-0.025em',
-          lineHeight: 1.15,
-          mb: 0.5,
-          fontFamily: '"Inter", sans-serif',
-        }}>
-          {value}
-        </Typography>
-
-        {/* Label */}
-        <Typography sx={{
-          fontSize: '0.67rem',
-          fontWeight: 700,
-          color: labelFg,
-          textTransform: 'uppercase',
-          letterSpacing: '0.07em',
-          lineHeight: 1.4,
+          fontSize: 10, fontWeight: 700, color,
+          textTransform: 'uppercase', letterSpacing: 0.8, lineHeight: 1,
         }}>
           {label}
         </Typography>
+      </Box>
 
-        {/* Sub */}
-        {sub && (
-          <Box sx={{
-            mt: 0.8,
-            pt: 0.8,
-            borderTop: `1px solid ${subBorder}`,
-          }}>
-            <Typography sx={{ fontSize: '0.65rem', color: subFg, fontWeight: 500 }}>
-              {sub}
+      {/* ── Body ── */}
+      <Box sx={{ px: 2, pt: 1.4, pb: 1.6 }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+          <Typography sx={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1.1 }}>
+            {value}
+          </Typography>
+          {trend != null && (
+            <Typography sx={{
+              fontSize: 11, fontWeight: 700,
+              color: trend >= 0 ? '#059669' : '#e11d48',
+            }}>
+              {trend >= 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
             </Typography>
-          </Box>
+          )}
+        </Box>
+        {sub && (
+          <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.4 }}>{sub}</Typography>
         )}
-
-      </CardContent>
-    </Card>
+      </Box>
+    </Box>
   )
-
-  return tooltip ? <Tooltip title={tooltip} arrow placement="top">{card}</Tooltip> : card
 }

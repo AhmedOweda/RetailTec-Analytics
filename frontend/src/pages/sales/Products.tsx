@@ -13,6 +13,7 @@ import FileDownloadIcon  from '@mui/icons-material/FileDownload'
 import CloseIcon         from '@mui/icons-material/Close'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import EChart, { type EChartHandle } from '../../components/EChart'
+import KpiCard                        from '../../components/KpiCard'
 import { AgGridReact }   from 'ag-grid-react'
 import type { ColDef }   from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
@@ -63,7 +64,7 @@ const GRID_SX = {
   '& .ag-row:hover':        { bgcolor: '#f3f0ff !important' },
 }
 const DEF_COL: ColDef = {
-  sortable: true, resizable: true,
+  sortable: true, resizable: true, filter: true,
   cellStyle: { display: 'flex', alignItems: 'center' },
 }
 
@@ -134,26 +135,7 @@ function ChartCard({
   )
 }
 
-/* ── KPI card ───────────────────────────────────────────────────────── */
-function KpiCard({ label, value, sub, color }: {
-  label: string; value: string; sub?: string; color?: string
-}) {
-  return (
-    <Card elevation={0} sx={{ border: '1px solid #e9e4ff', borderRadius: 2.5, flex: 1, minWidth: 0 }}>
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-        <Typography sx={{ fontSize: 10, fontWeight: 700, color: C_SLATE, textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.5 }}>
-          {label}
-        </Typography>
-        <Typography sx={{ fontSize: 20, fontWeight: 800, color: color ?? '#0f172a', letterSpacing: '-0.4px', lineHeight: 1.1 }}>
-          {value}
-        </Typography>
-        {sub && (
-          <Typography sx={{ fontSize: 10, color: C_SLATE, mt: 0.4 }}>{sub}</Typography>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
+
 
 /* ── GP% cell style helpers ─────────────────────────────────────────── */
 const gpPctStyle = (p: any) => {
@@ -629,14 +611,14 @@ export default function Products() {
 
       {/* ── KPI strip ──────────────────────────────────────────── */}
       <Box sx={{ display: 'flex', gap: 2, px: 3 }}>
-        <KpiCard label="Total Revenue"  value={num(kpi.totalRev)} />
+        <KpiCard label="Total Revenue"  value={num(kpi.totalRev)} icon="ti-cash" />
         <KpiCard label="Total GP"       value={num(kpi.totalGP)}
-          color={kpi.totalGP >= 0 ? '#065f46' : '#991b1b'} />
+          color={kpi.totalGP >= 0 ? '#065f46' : '#991b1b'} icon="ti-trending-up" />
         <KpiCard label="Blended GP %"   value={`${kpi.gpPct.toFixed(1)}%`}
-          color={gpColor} sub={gpLabel} />
-        <KpiCard label="Qty Sold"       value={kpi.totalQty.toLocaleString('en-US', { maximumFractionDigits: 0 })} />
+          color={gpColor} sub={gpLabel} icon="ti-chart-pie-2" />
+        <KpiCard label="Qty Sold"       value={kpi.totalQty.toLocaleString('en-US', { maximumFractionDigits: 0 })} icon="ti-shopping-cart" />
         <KpiCard label="Departments"    value={String(kpi.deptCount)}
-          sub="active in period" color={ACCENT} />
+          sub="active in period" color={ACCENT} icon="ti-category" />
       </Box>
 
       {/* ── Row 1: Treemap (left) + Sunburst (centre, wider) ───── */}

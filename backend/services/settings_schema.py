@@ -1,0 +1,117 @@
+"""
+Settings schema + backward-compatible migration.
+=================================================
+Upgrades the legacy flat `data_model` block into the new per-domain shape
+(schedules, retention, detail toggle) without losing existing values.
+Idempotent: running it on an already-migrated dict returns it unchanged.
+
+Pure logic — unit-testable without Oracle/DuckDB/FastAPI.
+"""
+from __future__ import annotations
+
+from copy import deepcopy
+
+DOMAINS = ["sales", "inventory", "purchases", "transfers", "adjustments"]
+
+# Per-domain defaults used only when a field is absent.
+_DOMAIN_DEFAULTS = {
+    "sales":       {"load_days": 365, "detail": True,  "retain_detail_months": 24},
+    "inventory":   {"load_days": 90,  "detail": False, "retain_detail_months": None},
+    "purchases":   {"load_days": 365, "detail": True,  "retain_detail_months": None},
+    "transfers":   {"load_days": 365, "detail": True,  "retain_detail_months": None},
+    "adjustments": {"load_days": 365, "detail": True,  "retain_detail_months": None},
+}
+
+SCHEMA_VERSION = 2
+
+
+def _is_migrated(dm: dict) -> bool:
+    doms = dm.get("domains")
+    return (
+        dm.get("schema_version") == SCHEMA_VERSION
+        and isinstance(doms, dict)
+        and all(isinstance(d, dict) and "schedule" in d for d in doms.values())
+    )
+
+
+def migrate_data_model(settings: dict) -> dict:
+    """Return a settings dict whose `data_model` is in the current shape.
+    Non-destructive: preserves `connection`, `last_sync`, and any extra keys.
+    """
+    s = deepcopy(settings) if settings else {}
+    dm = s.get("data_model") or {}
+
+    if _is_migrated(dm):
+        return s
+
+    # Legacy fields (may be absent) become the migration defaults.
+    legacy_initial   = int(dm.get("initial_load_days", 365))
+    legacy_incr      = int(dm.get("incremental_window_days", 7))
+    legacy_bg_min    = int(dm.get("background_refresh_minutes", 30))
+
+    # Preserve any domains block the user already had (partial), else start fresh.
+    prior_domains = dm.get("domains") if isinstance(dm.get("domains"), dict) else {}
+
+    new_domains = {}
+    for name in DOMAINS:
+        d = deepcopy(_DOMAIN_DEFAULTS[name])
+        prior = prior_domains.get(name, {}) if isinstance(prior_domains.get(name), dict) else {}
+        # keep any explicit prior values
+        d.update({k: v for k, v in prior.items() if k != "schedule"})
+        # sales inherits the legacy full-load window if it was larger
+        if name == "sales":
+            d["load_days"] = max(d["load_days"], legacy_initial)
+        # schedule: reuse prior schedule if present, else an interval from legacy cadence
+        if isinstance(prior.get("schedule"), dict):
+            d["schedule"] = prior["schedule"]
+        else:
+            d["schedule"] = {"mode": "interval", "every_minutes": legacy_bg_min}
+        d.setdefault("enabled", True)
+        new_domains[name] = d
+
+    new_dm = {
+        "schema_version": SCHEMA_VERSION,
+        "background_enabled": bool(dm.get("background_enabled", True)),
+        "timezone": dm.get("timezone") or "UTC",
+        "quiet_hours": dm.get("quiet_hours"),
+        "default_incremental_days": legacy_incr,   # kept as the overlap-lookback default
+        "domains": new_domains,
+    }
+    s["data_model"] = new_dm
+    return s
+
+
+# ── Self-test ──────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # 1) legacy flat shape migrates
+    legacy = {
+        "connection": {"host": "h", "password": "p"},
+        "data_model": {"initial_load_days": 1095,
+                       "incremental_window_days": 7,
+                       "background_refresh_minutes": 30},
+        "last_sync": "2026-06-30T12:00:00",
+    }
+    m = migrate_data_model(legacy)
+    dm = m["data_model"]
+    assert dm["schema_version"] == 2
+    assert set(dm["domains"]) == set(DOMAINS)
+    assert dm["domains"]["sales"]["load_days"] == 1095      # inherited legacy window
+    assert dm["domains"]["sales"]["retain_detail_months"] == 24
+    assert dm["domains"]["inventory"]["schedule"] == {"mode": "interval", "every_minutes": 30}
+    assert m["connection"]["password"] == "p"               # preserved
+    assert m["last_sync"] == "2026-06-30T12:00:00"          # preserved
+
+    # 2) idempotent — migrating again changes nothing
+    assert migrate_data_model(m) == m
+
+    # 3) partial prior domains preserved (custom schedule kept)
+    partial = {"data_model": {"domains": {"inventory": {
+        "load_days": 45, "schedule": {"mode": "interval", "every_minutes": 15}}}}}
+    m3 = migrate_data_model(partial)
+    assert m3["data_model"]["domains"]["inventory"]["load_days"] == 45
+    assert m3["data_model"]["domains"]["inventory"]["schedule"]["every_minutes"] == 15
+
+    # 4) empty / missing settings doesn't crash
+    assert migrate_data_model({})["data_model"]["schema_version"] == 2
+
+    print("settings_schema.py self-test: ALL PASSED")

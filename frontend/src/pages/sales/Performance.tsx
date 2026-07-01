@@ -56,7 +56,7 @@ const GRID_SX = {
   '& .ag-row:hover':        { bgcolor: '#f3f0ff !important' },
   '& .ag-paging-panel':     { borderTop: '1px solid #e9e4ff', color: '#475569' },
 }
-const DEF_COL: ColDef = { sortable: true, resizable: true, cellStyle: { display:'flex', alignItems:'center' } }
+const DEF_COL: ColDef = { sortable: true, resizable: true, filter: true, cellStyle: { display:'flex', alignItems:'center' } }
 
 /* ── ChartPanel — ECharts wrapper with fullscreen + PNG export ───── */
 function ChartPanel({

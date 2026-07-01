@@ -7,6 +7,7 @@
  * AG Grid tabs: By Type | By Store | Details
  */
 import { useState, useRef, useMemo } from 'react'
+import { useAppSettings } from '../../context/AppSettings'
 import {
   Box, Paper, Typography, Chip, Autocomplete, TextField, Divider,
   IconButton, Tooltip, Dialog, DialogContent, Tab, Tabs,
@@ -21,6 +22,8 @@ import type { ColDef } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { EChartHandle } from '../../components/EChart'
+import KpiCard                  from '../../components/KpiCard'
+import GridExportBar            from '../../components/GridExportBar'
 
 // ── Colours ────────────────────────────────────────────────────────────────
 const ACCENT   = '#7c3aed'
@@ -41,26 +44,6 @@ const PERIODS = [
   { label: 'MTD', df: mtdStart,           dt: today },
   { label: 'YTD', df: ytdStart,           dt: today },
 ] as const
-
-// ── KPI card ──────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, color }: {
-  label: string; value: string; sub?: string; color?: string
-}) {
-  return (
-    <Paper elevation={0} sx={{
-      flex:1, p:2, borderRadius:2, border:'1px solid #e2e8f0', minWidth:130,
-    }}>
-      <Typography sx={{ fontSize:11, color:'#94a3b8', fontWeight:600,
-                        textTransform:'uppercase', letterSpacing:.6, mb:.5 }}>
-        {label}
-      </Typography>
-      <Typography sx={{ fontSize:22, fontWeight:800, color: color || '#0f172a', lineHeight:1.1 }}>
-        {value}
-      </Typography>
-      {sub && <Typography sx={{ fontSize:11, color:'#64748b', mt:.3 }}>{sub}</Typography>}
-    </Paper>
-  )
-}
 
 // ── Chart card with fullscreen ─────────────────────────────────────────────
 function ChartCard({ title, children, chartRef, height = 260 }: {
@@ -114,12 +97,15 @@ const costStyle = (p: any) => ({
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Adjustments() {
+  const { productCodeField } = useAppSettings()
+  const codeField  = productCodeField.toUpperCase()   // 'ALU' or 'UPC'
   const [period,   setPeriod  ] = useState(1)  // default 30D
   const [dateFrom, setDateFrom] = useState(() => daysAgo(30))
   const [dateTo,   setDateTo  ] = useState(today)
   const [selStores, setSelStores] = useState<string[]>([])
   const [tab, setTab] = useState(0)
 
+  const gridRef  = useRef<AgGridReact>(null)
   const trendRef = useRef<EChartHandle>(null)
   const typeRef  = useRef<EChartHandle>(null)
   const storeRef = useRef<EChartHandle>(null)
@@ -161,7 +147,7 @@ export default function Adjustments() {
 
   const { data: details = [] } = useQuery<any[]>({
     queryKey: ['adj-details', dateFrom, dateTo, storesParam],
-    queryFn:  () => axios.get('/api/inventory/adjustments/details', { params: { ...qParams, limit:1000 } }).then(r => r.data),
+    queryFn:  () => axios.get('/api/inventory/adjustments/details', { params: qParams }).then(r => r.data),
     gcTime: 0, refetchOnMount: 'always',
   })
 
@@ -174,22 +160,31 @@ export default function Adjustments() {
 
   // ── Charts ───────────────────────────────────────────────────────────────
   const trendOption = useMemo(() => ({
-    tooltip: { trigger:'axis', axisPointer:{ type:'cross' } },
+    tooltip: {
+      trigger:'axis', axisPointer:{ type:'cross' },
+      formatter:(p:any[]) => {
+        const r = trend[p[0]?.dataIndex] ?? {}
+        return `<b>${p[0]?.axisValue}</b><br/>
+          + Cost: <b style="color:${POS_C}">${fmtC(r.pos_cost || 0)}</b><br/>
+          − Cost: <b style="color:${NEG_C}">${fmtC(r.neg_cost || 0)}</b><br/>
+          Net: <b>${fmtC(r.net_cost || 0)}</b>`
+      },
+    },
     legend:  { bottom:0, textStyle:{ fontSize:11 } },
-    grid:    { top:10, right:12, bottom:36, left:52 },
+    grid:    { top:10, right:12, bottom:36, left:68 },
     xAxis:   { type:'category', data: trend.map(r => r.ADJ_DATE?.toString().slice(0,10) || ''), axisLabel:{ fontSize:10 } },
-    yAxis:   { type:'value', axisLabel:{ fontSize:10 } },
+    yAxis:   { type:'value', axisLabel:{ fontSize:10, formatter:(v:number) => v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` } },
     series: [
       {
-        name:'Positive Adj', type:'bar',
-        data: trend.map(r => r.pos_qty),
-        stack:'qty',
+        name:'+ Cost', type:'bar',
+        data: trend.map(r => r.pos_cost),
+        stack:'cost',
         itemStyle:{ color:POS_C, borderRadius:[2,2,0,0] }, barMaxWidth:16,
       },
       {
-        name:'Negative Adj', type:'bar',
-        data: trend.map(r => r.neg_qty),
-        stack:'qty',
+        name:'− Cost', type:'bar',
+        data: trend.map(r => r.neg_cost),
+        stack:'cost',
         itemStyle:{ color:NEG_C, borderRadius:[0,0,2,2] }, barMaxWidth:16,
       },
     ],
@@ -204,28 +199,28 @@ export default function Adjustments() {
       yAxis:   { type:'category', data: sorted.map(r => r.doc_type || '(Unknown)').reverse(), axisLabel:{ fontSize:10, width:110, overflow:'truncate' } },
       series:[{
         type:'bar',
-        data: sorted.map(r => r.net_qty).reverse(),
+        data: sorted.map(r => r.net_cost).reverse(),
         itemStyle:{ color:(p:any) => p.value >= 0 ? POS_C : NEG_C, borderRadius:[0,3,3,0] },
         barMaxWidth:20,
-        label:{ show:true, position:'right', formatter:(p:any) => fmtSign(p.value), fontSize:10,
+        label:{ show:true, position:'right', formatter:(p:any) => fmtC(p.value), fontSize:10,
                 color:(p:any) => p.value >= 0 ? POS_C : NEG_C },
       }],
     }
   }, [byType])
 
   const storeOption = useMemo(() => {
-    const sorted = [...byStore].slice(0, 10)
+    const sorted = [...byStore].sort((a,b) => Math.abs(b.net_cost) - Math.abs(a.net_cost)).slice(0, 10)
     return {
       tooltip: { trigger:'axis', axisPointer:{ type:'shadow' } },
-      grid:    { top:6, right:80, bottom:4, left:4, containLabel:true },
-      xAxis:   { type:'value', axisLabel:{ fontSize:10 } },
+      grid:    { top:6, right:90, bottom:4, left:4, containLabel:true },
+      xAxis:   { type:'value', axisLabel:{ fontSize:10, formatter:(v:number) => v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` } },
       yAxis:   { type:'category', data: sorted.map(r => r.store_name || '(Unknown)').reverse(), axisLabel:{ fontSize:10, width:110, overflow:'truncate' } },
       series:[{
         type:'bar',
-        data: sorted.map(r => r.net_qty).reverse(),
+        data: sorted.map(r => r.net_cost).reverse(),
         itemStyle:{ color:(p:any) => p.value >= 0 ? POS_C : NEG_C, borderRadius:[0,3,3,0] },
         barMaxWidth:20,
-        label:{ show:true, position:'right', formatter:(p:any) => fmtSign(p.value), fontSize:10,
+        label:{ show:true, position:'right', formatter:(p:any) => fmtC(p.value), fontSize:10,
                 color:(p:any) => p.value >= 0 ? POS_C : NEG_C },
       }],
     }
@@ -236,26 +231,26 @@ export default function Adjustments() {
     { field:'doc_type',   headerName:'Type',         flex:1.5, minWidth:130 },
     { field:'adj_count',  headerName:'Adjustments',  flex:1,   minWidth:100, type:'numericColumn' },
     { field:'line_count', headerName:'Lines',        flex:1,   minWidth:80,  type:'numericColumn' },
+    { field:'net_cost',   headerName:'Net Cost Δ',   flex:1,   minWidth:120, type:'numericColumn',
+      valueFormatter:p => fmtC(p.value), cellStyle:costStyle },
     { field:'net_qty',    headerName:'Net Qty',      flex:1,   minWidth:90,  type:'numericColumn',
       valueFormatter:p => fmtSign(p.value),
       cellStyle:(p:any) => ({ color: p.value > 0 ? POS_C : p.value < 0 ? NEG_C : '#64748b', fontWeight:600 }) },
     { field:'pos_qty',    headerName:'+ Qty',        flex:1,   minWidth:80,  type:'numericColumn', valueFormatter:p => fmtN(p.value), cellStyle:() => ({ color:POS_C }) },
     { field:'neg_qty',    headerName:'− Qty',        flex:1,   minWidth:80,  type:'numericColumn', valueFormatter:p => fmtN(p.value), cellStyle:() => ({ color:NEG_C }) },
-    { field:'net_cost',   headerName:'Net Cost Δ',   flex:1,   minWidth:110, type:'numericColumn',
-      valueFormatter:p => fmtC(p.value), cellStyle:costStyle },
   ], [])
 
   const storeCols: ColDef[] = useMemo(() => [
     { field:'store_name', headerName:'Store',        flex:1.5, minWidth:130 },
     { field:'adj_count',  headerName:'Adjustments',  flex:1,   minWidth:100, type:'numericColumn' },
     { field:'line_count', headerName:'Lines',        flex:1,   minWidth:80,  type:'numericColumn' },
+    { field:'net_cost',   headerName:'Net Cost Δ',   flex:1,   minWidth:120, type:'numericColumn',
+      valueFormatter:p => fmtC(p.value), cellStyle:costStyle },
     { field:'net_qty',    headerName:'Net Qty',      flex:1,   minWidth:90,  type:'numericColumn',
       valueFormatter:p => fmtSign(p.value),
       cellStyle:(p:any) => ({ color: p.value > 0 ? POS_C : p.value < 0 ? NEG_C : '#64748b', fontWeight:600 }) },
     { field:'pos_qty',    headerName:'+ Qty',        flex:1,   minWidth:80,  type:'numericColumn', valueFormatter:p => fmtN(p.value), cellStyle:() => ({ color:POS_C }) },
     { field:'neg_qty',    headerName:'− Qty',        flex:1,   minWidth:80,  type:'numericColumn', valueFormatter:p => fmtN(p.value), cellStyle:() => ({ color:NEG_C }) },
-    { field:'net_cost',   headerName:'Net Cost Δ',   flex:1,   minWidth:110, type:'numericColumn',
-      valueFormatter:p => fmtC(p.value), cellStyle:costStyle },
   ], [])
 
   const detailCols: ColDef[] = useMemo(() => [
@@ -264,7 +259,7 @@ export default function Adjustments() {
     { field:'store_name',  headerName:'Store',       flex:1,   minWidth:120 },
     { field:'employee',    headerName:'Employee',    flex:1,   minWidth:110 },
     { field:'doc_type',    headerName:'Type',        flex:1,   minWidth:110 },
-    { field:'ALU',         headerName:'ALU',         width:100 },
+    { field:codeField,     headerName:codeField,     width:100 },
     { field:'DESCRIPTION1',headerName:'Description', flex:1.5, minWidth:140 },
     { field:'department',  headerName:'Dept',        width:100 },
     { field:'vendor',      headerName:'Vendor',      flex:1,   minWidth:110 },
@@ -276,16 +271,18 @@ export default function Adjustments() {
     { field:'unit_cost',   headerName:'Unit Cost',   width:90,  type:'numericColumn', valueFormatter:p => fmtN(p.value,2) },
     { field:'cost_diff',   headerName:'Cost Δ',      width:100, type:'numericColumn',
       valueFormatter:p => fmtC(p.value), cellStyle:costStyle },
-  ], [])
+  ], [codeField])
 
   const tabData = [byType, byStore, details]
   const tabCols = [typeCols, storeCols, detailCols]
 
   return (
-    <Box sx={{ p:3, display:'flex', flexDirection:'column', gap:2.5, minHeight:'100%' }}>
+    <Box sx={{ pt:0, px:3, pb:3, display:'flex', flexDirection:'column', gap:2.5, minHeight:'100%' }}>
 
       {/* ── Filter bar ── */}
-      <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
+      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
+                 mx:-3, px:3, pt:2.5, pb:1.5, borderBottom:'1px solid #e9e4ff',
+                 display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
         <Typography sx={{ fontWeight:800, fontSize:18, color:'#0f172a', mr:1 }}>
           Adjustments
         </Typography>
@@ -314,30 +311,31 @@ export default function Adjustments() {
 
       {/* ── KPI strip ── */}
       <Box sx={{ display:'flex', gap:1.5, flexWrap:'wrap' }}>
-        <KpiCard label="Adjustments"     value={fmtN(kpi?.total_adjs  || 0)} sub={`${fmtN(kpi?.total_lines || 0)} lines`} />
-        <KpiCard label="Net Qty Change"  value={fmtSign(kpi?.net_qty  || 0)}
-          color={(kpi?.net_qty || 0) >= 0 ? POS_C : NEG_C} />
-        <KpiCard label="+ Positive Qty"  value={fmtN(kpi?.pos_qty     || 0)} color={POS_C} />
-        <KpiCard label="− Negative Qty"  value={fmtN(Math.abs(kpi?.neg_qty || 0))} color={NEG_C} />
         <KpiCard label="Net Cost Impact" value={fmtC(kpi?.net_cost    || 0)}
           sub={`+${fmtC(kpi?.pos_cost || 0)} / ${fmtC(kpi?.neg_cost || 0)}`}
-          color={(kpi?.net_cost || 0) >= 0 ? POS_C : NEG_C} />
+          color={(kpi?.net_cost || 0) >= 0 ? POS_C : NEG_C} icon="ti-scale" />
+        <KpiCard label="+ Positive Cost" value={fmtC(kpi?.pos_cost    || 0)} color={POS_C} icon="ti-trending-up" />
+        <KpiCard label="− Negative Cost" value={fmtC(Math.abs(kpi?.neg_cost || 0))} color={NEG_C} icon="ti-trending-down" />
+        <KpiCard label="Adjustments"     value={fmtN(kpi?.total_adjs  || 0)} sub={`${fmtN(kpi?.total_lines || 0)} lines`} icon="ti-edit" />
+        <KpiCard label="Net Qty Change"  value={fmtSign(kpi?.net_qty  || 0)}
+          sub={`+${fmtN(kpi?.pos_qty || 0)} / ${fmtN(kpi?.neg_qty || 0)}`}
+          color={(kpi?.net_qty || 0) >= 0 ? POS_C : NEG_C} icon="ti-arrows-diff" />
       </Box>
 
       {/* ── Charts row ── */}
       <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
         <Box sx={{ flex:2, minWidth:300 }}>
-          <ChartCard title="Daily Adjustment Trend (Qty)" chartRef={trendRef} height={240}>
+          <ChartCard title="Daily Adjustment Trend (Cost $)" chartRef={trendRef} height={240}>
             <EChart ref={trendRef} option={trendOption} style={{ height:'100%' }} />
           </ChartCard>
         </Box>
         <Box sx={{ flex:1, minWidth:240 }}>
-          <ChartCard title="By Adjustment Type (Net Qty)" chartRef={typeRef} height={240}>
+          <ChartCard title="By Adjustment Type (Net Cost $)" chartRef={typeRef} height={240}>
             <EChart ref={typeRef} option={typeOption} style={{ height:'100%' }} />
           </ChartCard>
         </Box>
         <Box sx={{ flex:1, minWidth:240 }}>
-          <ChartCard title="By Store (Net Qty)" chartRef={storeRef} height={240}>
+          <ChartCard title="By Store (Net Cost $)" chartRef={storeRef} height={240}>
             <EChart ref={storeRef} option={storeOption} style={{ height:'100%' }} />
           </ChartCard>
         </Box>
@@ -345,6 +343,9 @@ export default function Adjustments() {
 
       {/* ── AG Grid ── */}
       <Paper elevation={0} sx={{ borderRadius:2, border:'1px solid #e2e8f0', overflow:'hidden', flex:1, minHeight:340 }}>
+        <Box sx={{ display:'flex', justifyContent:'flex-end', px:1.5, pt:1 }}>
+          <GridExportBar gridRef={gridRef} filename="adjustments" title="Adjustments" />
+        </Box>
         <Tabs value={tab} onChange={(_, v) => setTab(v)}
           sx={{ borderBottom:'1px solid #e2e8f0', minHeight:40,
                 '& .MuiTab-root':{ fontSize:12, fontWeight:600, minHeight:40, textTransform:'none' } }}>
@@ -354,6 +355,7 @@ export default function Adjustments() {
         </Tabs>
         <Box className="ag-theme-alpine" sx={{ height:360 }}>
           <AgGridReact
+            ref={gridRef}
             rowData={tabData[tab]}
             columnDefs={tabCols[tab]}
             defaultColDef={{ resizable:true, sortable:true, filter:true }}

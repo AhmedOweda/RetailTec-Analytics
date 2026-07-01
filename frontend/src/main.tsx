@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { router } from './router'
 import { createAppTheme } from './theme'
 import { AppSettingsProvider } from './context/AppSettings'
+import { AuthProvider } from './contexts/AuthContext'
 import axios from 'axios'
 
 // Trigger incremental sync on every app open
@@ -30,8 +31,10 @@ function Root() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
-    <AppSettingsProvider>
-      <Root />
-    </AppSettingsProvider>
+    <AuthProvider>
+      <AppSettingsProvider>
+        <Root />
+      </AppSettingsProvider>
+    </AuthProvider>
   </QueryClientProvider>
 )
