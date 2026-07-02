@@ -61,6 +61,8 @@ const PRESETS: Record<string, [string, string]> = {
 
 const fmt  = (n: number) => (n ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })
 const fmtC = (n: number) => moneyPrefix() + (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// KPI cards: whole numbers only (no decimals)
+const fmtC0 = (n: number) => moneyPrefix() + Math.round(n ?? 0).toLocaleString('en-US')
 
 // ── Dropdown data ─────────────────────────────────────────────────────────────
 
@@ -276,23 +278,21 @@ export default function PurchasesOverview() {
         </Box>
       </Box>
 
-      {/* ── KPI cards ─────────────────────────────────────────────────── */}
-      <Grid container spacing={2} sx={{ mt: 1.5 }}>
+      {/* ── KPI strip (flex row — equal heights, like Stock Movement) ─── */}
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
         {([
           { label: 'Total Vouchers',    value: fmt(kpi?.vou_count      ?? 0),                                  color: C.blue,   icon: 'ti-file-invoice' },
-          { label: 'Total Cost',   value: fmtC(kpi?.total_cost    ?? 0),                                  color: C.purple, icon: 'ti-coin'          },
+          { label: 'Total Cost',   value: fmtC0(kpi?.total_cost   ?? 0),                                  color: C.purple, icon: 'ti-coin'          },
           { label: 'Received Vouchers', value: fmt(kpi?.received_count ?? 0), sub: `${kpi?.recv_pct ?? 0}% of total`, color: C.green,  icon: 'ti-circle-check'  },
           { label: 'Pending Vouchers',  value: fmt(kpi?.pending_count  ?? 0),                                  color: C.amber,  icon: 'ti-clock'         },
           { label: 'Vendors',      value: fmt(kpi?.vendor_count   ?? 0),                                  color: C.sky,    icon: 'ti-building-store'},
           { label: 'Line Items',   value: fmt(kpi?.line_count     ?? 0),                                  color: C.rose,   icon: 'ti-list'          },
           { label: 'Ordered Qty',  value: fmt(kpi?.ord_qty        ?? 0),                                  color: '#64748b', icon: 'ti-package' },
-          { label: 'Received Qty', value: fmt(kpi?.recv_qty       ?? 0), sub: `Disc: ${fmtC(kpi?.total_disc ?? 0)}`, color: '#64748b', icon: 'ti-inbox' },
+          { label: 'Received Qty', value: fmt(kpi?.recv_qty       ?? 0), sub: `Disc: ${fmtC0(kpi?.total_disc ?? 0)}`, color: '#64748b', icon: 'ti-inbox' },
         ] as const).map(k => (
-          <Grid key={k.label} item xs={6} sm={4} md={3} lg={1.5}>
-            <KpiCard {...k} />
-          </Grid>
+          <KpiCard key={k.label} {...k} />
         ))}
-      </Grid>
+      </Box>
 
       {/* ── Daily Trend ───────────────────────────────────────────────── */}
       <Paper elevation={0} sx={{ mt: 3, p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
