@@ -439,19 +439,35 @@ def _load_dimensions(duck, ora, progress_cb=None):
     cur.close()
 
 
-def _bulk_upsert_dim(duck, table: str, pk: str, rows) -> int:
-    """DELETE matching keys + ONE bulk INSERT via a registered DataFrame —
-    replaces per-row executemany OR REPLACE (same ~55 rows/s ART-index problem
-    as the fact loader had)."""
+def _bulk_upsert_dim(duck, table: str, pk: str, rows, full_refresh: bool = False) -> int:
+    """Rebuild-style dim load: clone schema -> bulk INSERT -> swap tables.
+
+    NEVER row-DELETEs through the ART PK index — that's the recurring
+    'Failed to delete all rows from index' FATAL that invalidates the whole DB
+    (struck again on DELETE FROM DIM_ITEM during the 2020-2026 backfill).
+    DROP TABLE removes the index wholesale, which is safe (HANDOFF §5 pattern).
+    The rebuilt table is PK-less by design (DB_SYNC_REDESIGN §5 — dedup is
+    set-based, analytics never needs the ART index)."""
     import pandas as pd
     if not rows:
         return 0
     cols = [r[1] for r in duck.execute(f"PRAGMA table_info('{table}')").fetchall()]
     stage_df = pd.DataFrame(rows, columns=cols)
+    tmp = f"{table}__rebuild"
     duck.register("_dim_stage", stage_df)
     try:
-        duck.execute(f"DELETE FROM {table} WHERE {pk} IN (SELECT {pk} FROM _dim_stage)")
-        duck.execute(f"INSERT INTO {table} SELECT * FROM _dim_stage")
+        duck.execute(f"DROP TABLE IF EXISTS {tmp}")
+        # clone schema (types) without rows — new table has no PK/ART index
+        duck.execute(f"CREATE TABLE {tmp} AS SELECT * FROM {table} WHERE 1=0")
+        duck.execute(f"INSERT INTO {tmp} SELECT * FROM _dim_stage")
+        if not full_refresh:
+            duck.execute(f"""
+                INSERT INTO {tmp}
+                SELECT t.* FROM {table} t
+                WHERE t.{pk} NOT IN (SELECT s.{pk} FROM _dim_stage s)
+            """)
+        duck.execute(f"DROP TABLE {table}")
+        duck.execute(f"ALTER TABLE {tmp} RENAME TO {table}")
     finally:
         duck.unregister("_dim_stage")
     duck.commit()
@@ -490,12 +506,7 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
                NVL(I.ACTIVE, 1)
         FROM RPS.INVN_SBS_ITEM I
     """)
-    rows = cur.fetchall()
-    if rows:
-        duck.execute("DELETE FROM DIM_ITEM")
-        n = _bulk_upsert_dim(duck, "DIM_ITEM", "SID", rows)
-    else:
-        n = 0
+    n = _bulk_upsert_dim(duck, "DIM_ITEM", "SID", cur.fetchall(), full_refresh=True)
     log.info(f"DIM_ITEM: {n} rows (full refresh)")
 
     cur.close()
