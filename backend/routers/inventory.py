@@ -703,11 +703,11 @@ def transfers_details(
     status_label = _vou_status_label()
     return _qdf(f"""
         SELECT
-            FT.SLIP_NO,
-            FT.SLIP_DATE,
+            FT.SLIP_NO                               AS slip_no,
+            FT.SLIP_DATE::DATE::VARCHAR             AS slip_date,
             COALESCE(DS_OUT.STORE_NAME, '(Unknown)') AS from_store,
             COALESCE(DS_IN.STORE_NAME,  '(Unknown)') AS to_store,
-            FT.VOU_NO,
+            FT.VOU_NO                                AS vou_no,
             {status_label}                            AS status,
             I.ALU,
             I.DESCRIPTION1,

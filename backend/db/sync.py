@@ -272,13 +272,16 @@ def _sql_adjustments(df, dt):
     # ADJ_DATE->POST_DATE, EMPLOYEE_SID->CLERK_SID, DOC_TYPE->ADJ_TYPE
     # ORIG_QTY->ORIG_VALUE, ADJ_QTY->ADJ_VALUE, UNIT_COST->COST
     hint = "/*+ INDEX(A IDXADJUSTMENT) */" if _use_index(df, dt) else "/*+ FULL(A) */"
+    # STORE_SID is NULL on ~85% of ADJUSTMENT headers (system-generated docs).
+    # Fall back to the creating controller's store (RPS.CONTROLLER.STORE_SID) —
+    # verified to resolve 5,464/5,464 null-store adjustments — then ORIG_STORE_SID.
     return f"""
         SELECT {hint}
             AI.SID                     AS ADJ_ITEM_SID,
             A.SID                      AS ADJ_SID,
             A.ADJ_NO,
             CAST(A.POST_DATE AS DATE)  AS ADJ_DATE,
-            A.STORE_SID,
+            COALESCE(A.STORE_SID, C.STORE_SID, A.ORIG_STORE_SID) AS STORE_SID,
             A.CLERK_SID                AS EMPLOYEE_SID,
             NVL(A.ADJ_TYPE, 0)        AS DOC_TYPE,
             AI.ITEM_SID,
@@ -289,6 +292,7 @@ def _sql_adjustments(df, dt):
             (NVL(AI.ADJ_VALUE, 0) - NVL(AI.ORIG_VALUE, 0)) * NVL(AI.COST, 0) AS COST_DIFF
         FROM RPS.ADJUSTMENT A
         INNER JOIN RPS.ADJ_ITEM AI ON AI.ADJ_SID = A.SID
+        LEFT JOIN RPS.CONTROLLER C ON C.SID = A.CONTROLLER_SID
         WHERE SYS_EXTRACT_UTC(A.CREATED_DATETIME) >= CAST(TO_DATE('{df}','YYYY-MM-DD') - 1 AS TIMESTAMP)
           AND SYS_EXTRACT_UTC(A.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
           AND A.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')

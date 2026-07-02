@@ -294,7 +294,8 @@ export default function InventoryMovement() {
       rankCol,
       { field: codeField,      headerName: codeField,     width: 110, pinned: 'left', cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
       { field: 'DESCRIPTION1', headerName: 'Description', width: 240, pinned: 'left', cellStyle: { fontWeight: 600, display: 'flex', alignItems: 'center' } },
-      { field: 'VEND_NAME',    headerName: 'Vendor',      width: 150 },
+      { field: 'VEND_NAME',    headerName: 'Item Vendor', width: 150,
+        headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
       { field: 'DCS_CODE',     headerName: 'DCS Code',    width: 100 },
       soldCol, retCol, revCol, gpCol,
     ]
@@ -310,7 +311,9 @@ export default function InventoryMovement() {
 
     if (view === 'vendor') return [
       rankCol,
-      { field: 'vendor', headerName: 'Vendor', width: 250, pinned: 'left', cellStyle: { fontWeight: 600, display: 'flex', alignItems: 'center' } },
+      { field: 'vendor', headerName: 'Item Vendor', width: 250, pinned: 'left',
+        headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from',
+        cellStyle: { fontWeight: 600, display: 'flex', alignItems: 'center' } },
       skuCol, soldCol, retCol, revCol, gpCol,
     ]
 
@@ -401,7 +404,7 @@ export default function InventoryMovement() {
             <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>Movement Detail</Typography>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               {(['dept','dcs','vendor','store','item'] as const).map(v => (
-                <Chip key={v} label={v === 'dept' ? 'By Dept' : v === 'dcs' ? 'DCS' : v === 'vendor' ? 'By Vendor' : v === 'store' ? 'By Store' : 'By Item'}
+                <Chip key={v} label={v === 'dept' ? 'By Dept' : v === 'dcs' ? 'DCS' : v === 'vendor' ? 'By Item Vendor' : v === 'store' ? 'By Store' : 'By Item'}
                   size="small" onClick={() => setView(v)}
                   sx={{ fontWeight: 600, cursor: 'pointer',
                         bgcolor: view === v ? C_PURPLE : 'transparent',

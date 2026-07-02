@@ -58,7 +58,7 @@ const DIMENSIONS_NAV = [
   { to: '/dimensions/customers', icon: <PeopleIcon        />, label: 'Customers' },
   { to: '/dimensions/employees', icon: <BadgeIcon         />, label: 'Employees' },
   { to: '/dimensions/items',     icon: <CategoryIcon      />, label: 'Items'     },
-  { to: '/dimensions/vendors',   icon: <LocalShippingIcon />, label: 'Vendors'   },
+  { to: '/dimensions/vendors',   icon: <LocalShippingIcon />, label: 'Suppliers' },
 ]
 
 const INVENTORY_NAV = [

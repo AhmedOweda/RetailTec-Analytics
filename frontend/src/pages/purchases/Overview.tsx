@@ -249,10 +249,10 @@ export default function PurchasesOverview() {
 
           {/* Vendor */}
           <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Vendor</InputLabel>
+            <InputLabel>Supplier</InputLabel>
             <Select multiple value={vendors}
               onChange={e => setVendors(e.target.value as string[])}
-              input={<OutlinedInput label="Vendor" />}
+              input={<OutlinedInput label="Supplier" />}
               renderValue={v => v.length === 1 ? v[0] : `${v.length} vendors`}
               MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}>
               {allVendors.map(v => (
@@ -285,7 +285,7 @@ export default function PurchasesOverview() {
           { label: 'Total Cost',   value: fmtC0(kpi?.total_cost   ?? 0), sub: 'sum of voucher totals',          color: C.purple, icon: 'ti-coin'          },
           { label: 'Received Vouchers', value: fmt(kpi?.received_count ?? 0), sub: `${kpi?.recv_pct ?? 0}% of total`, color: C.green,  icon: 'ti-circle-check'  },
           { label: 'Pending Vouchers',  value: fmt(kpi?.pending_count  ?? 0), sub: 'awaiting receipt',               color: C.amber,  icon: 'ti-clock'         },
-          { label: 'Vendors',      value: fmt(kpi?.vendor_count   ?? 0), sub: 'distinct suppliers',             color: C.sky,    icon: 'ti-building-store'},
+          { label: 'Suppliers',    value: fmt(kpi?.vendor_count   ?? 0), sub: 'purchased from in period',       color: C.sky,    icon: 'ti-building-store'},
           { label: 'Line Items',   value: fmt(kpi?.line_count     ?? 0), sub: 'voucher detail rows',            color: C.rose,   icon: 'ti-list'          },
           { label: 'Ordered Qty',  value: fmt(kpi?.ord_qty        ?? 0), sub: 'units on order',                 color: '#64748b', icon: 'ti-package' },
           { label: 'Received Qty', value: fmt(kpi?.recv_qty       ?? 0), sub: `Disc: ${fmtC0(kpi?.total_disc ?? 0)}`, color: '#64748b', icon: 'ti-inbox' },
@@ -307,7 +307,8 @@ export default function PurchasesOverview() {
       <Grid container spacing={2} sx={{ mt: 0 }}>
         <Grid item xs={12} md={6}>
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>Top Vendors by Cost</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Top Suppliers by Cost</Typography>
+            <Typography sx={{ fontSize: 11, color: '#94a3b8', mb: 1.5 }}>Supplier on the purchase voucher</Typography>
             {vendQ.isLoading
               ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
               : <ReactECharts option={vendorOpt} style={{ height: 300 }} />

@@ -152,7 +152,8 @@ export default function DimItems() {
         return <span style={{background:`${c}18`,color:c,border:`1px solid ${c}55`,borderRadius:'12px',padding:'2px 9px',fontSize:'11px',fontWeight:700}}>{p.value ?? '—'}</span>
       }},
     { field: 'DESCRIPTION1', headerName: 'Description', flex: 2, minWidth: 160 },
-    { field: 'VEND_NAME',    headerName: 'Vendor',      width: 150 },
+    { field: 'VEND_NAME',    headerName: 'Item Vendor', width: 150,
+      headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
     { field: 'revenue',      headerName: 'Revenue',     width: 115, type: 'numericColumn', valueFormatter: (p: any) => num(p.value),
       cellStyle: { fontWeight: 600 } },
     { field: 'rev_share',    headerName: 'Share %',     width: 85,  type: 'numericColumn', valueFormatter: (p: any) => pct(p.value) },
