@@ -54,6 +54,11 @@ def _load_settings() -> dict:
     return load_settings()   # decrypts the DPAPI-protected password in memory
 
 
+def _oracle_configured(cfg: dict) -> bool:
+    """True when a host is set — avoids error-spam on fresh installs."""
+    return bool((cfg.get("connection") or {}).get("host", "").strip())
+
+
 # ── On-open incremental sync ───────────────────────────────────────────────
 
 async def on_open_sync():
@@ -69,8 +74,13 @@ async def on_open_sync():
         async with _sync_lock:
             _mark_start("incremental")
             try:
-                cfg  = _load_settings()
-                days = cfg["data_model"]["incremental_window_days"]
+                cfg = _load_settings()
+                if not _oracle_configured(cfg):
+                    log.info("Oracle connection not configured — skipping on-open sync")
+                    _sync_state.update(running=False, step="Not configured")
+                    return
+                dm   = migrate_data_model(cfg)["data_model"]
+                days = int(dm.get("default_incremental_days", 7))
                 await db_sync.incremental(days, progress_cb=_progress)
                 _sync_state.update(
                     running=False, step="Done", done=3,
@@ -99,7 +109,8 @@ async def trigger_full_load(tables: set | None = None):
             _mark_start("full")
             try:
                 cfg  = _load_settings()
-                days = cfg["data_model"]["initial_load_days"]
+                dm   = migrate_data_model(cfg)["data_model"]
+                days = int(dm.get("domains", {}).get("sales", {}).get("load_days", 365))
                 await db_sync.full_load(days, progress_cb=_progress, tables=tables)
                 _sync_state.update(
                     running=False, step=f"Done ({label})", done=3,
@@ -150,9 +161,19 @@ async def background_loop():
     A legacy flat data_model is migrated on the fly (interval from the old
     background_refresh_minutes), so existing installs keep working."""
     await asyncio.sleep(60)
+    warned_unconfigured = False
     while True:
         try:
-            dm  = migrate_data_model(_load_settings())["data_model"]
+            cfg = _load_settings()
+            if not _oracle_configured(cfg):
+                if not warned_unconfigured:
+                    log.info("Oracle connection not configured — background sync idle "
+                             "until Settings are saved")
+                    warned_unconfigured = True
+                await asyncio.sleep(60)
+                continue
+            warned_unconfigured = False
+            dm  = migrate_data_model(cfg)["data_model"]
             due = due_domains(dm, datetime.utcnow(), _domain_last_run)
             if due and not _sync_state["running"]:
                 all_doms = set(dm.get("domains", {}).keys())

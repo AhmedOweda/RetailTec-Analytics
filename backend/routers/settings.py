@@ -9,18 +9,22 @@ GET     /api/sync/table-stats
 """
 import json
 import asyncio
-from typing import Optional, List
+import re
+from typing import Dict, List, Literal, Optional, Union
 
 import oracledb
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from routers.auth import require_admin
 from services.config import SETTINGS_FILE, load_settings, save_settings
+from services.settings_schema import DOMAINS, migrate_data_model
 
 router = APIRouter(tags=["settings"])
 
 _PASSWORD_MASK = "••••••••"
+_HHMM = re.compile(r"^([01]?\d|2[0-3]):[0-5]\d$")
+_WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 # ── Schema ─────────────────────────────────────────────────────────────────
@@ -33,13 +37,116 @@ class ConnectionSettings(BaseModel):
     password: str
 
 class DataModelSettings(BaseModel):
+    """Legacy flat shape — still accepted; migrated on read by the scheduler."""
     initial_load_days:          int = 365
     incremental_window_days:    int = 7
     background_refresh_minutes: int = 30
 
+
+# ── v2 shape: per-domain schedules + retention (DB_SYNC_REDESIGN.md §7/§8) ──
+
+class ScheduleCfg(BaseModel):
+    mode: Literal["times", "interval", "manual"] = "manual"
+    times: Optional[List[str]] = None          # ["06:00", "18:00"]
+    days:  Optional[List[str]] = None          # ["Mon", ...]; None = every day
+    timezone: Optional[str] = None             # None = inherit data_model.timezone
+    every_minutes: Optional[int] = Field(None, ge=1, le=1440)
+
+    @field_validator("times")
+    @classmethod
+    def _times_valid(cls, v):
+        if v is None:
+            return v
+        for t in v:
+            if not _HHMM.match(t):
+                raise ValueError(f"Invalid time '{t}' — expected HH:MM")
+        return v
+
+    @field_validator("days")
+    @classmethod
+    def _days_valid(cls, v):
+        if v is None:
+            return v
+        bad = [d for d in v if d not in _WEEKDAYS]
+        if bad:
+            raise ValueError(f"Invalid day(s): {bad} — expected {_WEEKDAYS}")
+        return v
+
+    @field_validator("timezone")
+    @classmethod
+    def _tz_valid(cls, v):
+        if v:
+            from zoneinfo import ZoneInfo
+            try:
+                ZoneInfo(v)
+            except Exception:
+                raise ValueError(f"Unknown timezone '{v}'")
+        return v
+
+
+class QuietHours(BaseModel):
+    model_config = {"populate_by_name": True}
+    from_: str = Field(alias="from")
+    to:    str
+
+    @field_validator("from_", "to")
+    @classmethod
+    def _hhmm(cls, v):
+        if not _HHMM.match(v):
+            raise ValueError(f"Invalid time '{v}' — expected HH:MM")
+        return v
+
+
+class DomainCfg(BaseModel):
+    enabled: bool = True
+    load_days: int = Field(365, ge=1, le=3650)
+    detail: bool = True
+    retain_detail_months: Optional[int] = Field(None, ge=1, le=120)  # None = unlimited
+    schedule: ScheduleCfg = ScheduleCfg()
+
+
+class DataModelV2(BaseModel):
+    schema_version: Literal[2] = 2
+    background_enabled: bool = True
+    timezone: str = "UTC"
+    quiet_hours: Optional[QuietHours] = None
+    default_incremental_days: int = Field(7, ge=1, le=60)
+    domains: Dict[str, DomainCfg]
+
+    @field_validator("timezone")
+    @classmethod
+    def _tz_valid(cls, v):
+        from zoneinfo import ZoneInfo
+        try:
+            ZoneInfo(v)
+        except Exception:
+            raise ValueError(f"Unknown timezone '{v}'")
+        return v
+
+    @field_validator("domains")
+    @classmethod
+    def _known_domains(cls, v):
+        unknown = set(v) - set(DOMAINS)
+        if unknown:
+            raise ValueError(f"Unknown domain(s): {sorted(unknown)} — expected {DOMAINS}")
+        return v
+
+
 class SettingsPayload(BaseModel):
     connection:  ConnectionSettings
-    data_model:  DataModelSettings
+    # Validated explicitly in update_settings: a dict with `domains`/`schema_version`
+    # MUST be valid v2 (no silent fallback to the lenient legacy model).
+    data_model:  dict
+
+
+def _validate_data_model(raw: dict) -> Union["DataModelV2", "DataModelSettings"]:
+    from pydantic import ValidationError
+    try:
+        if "domains" in raw or "schema_version" in raw:
+            return DataModelV2(**raw)
+        return DataModelSettings(**raw)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=json.loads(e.json()))
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -62,7 +169,9 @@ def cleanup_stale_runs(duck) -> int:
 
 @router.get("/api/settings")
 def get_settings():
-    s = json.loads(json.dumps(load_settings()))
+    """Settings in the CURRENT (v2) shape — legacy files are migrated on read,
+    so the UI always sees per-domain schedules/retention."""
+    s = json.loads(json.dumps(migrate_data_model(load_settings())))
     if s.get("connection", {}).get("password"):
         s["connection"]["password"] = _PASSWORD_MASK
     return s
@@ -85,7 +194,13 @@ def update_settings(payload: SettingsPayload, _admin: dict = Depends(require_adm
     new_host = conn["host"]
 
     current["connection"] = conn
-    current["data_model"]  = payload.data_model.model_dump()
+    dm_obj = _validate_data_model(payload.data_model)
+    if isinstance(dm_obj, DataModelV2):
+        # v2: persist as-is (by_alias so quiet_hours serializes as {"from","to"})
+        current["data_model"] = dm_obj.model_dump(by_alias=True)
+    else:
+        # legacy flat shape: keep old behaviour (scheduler migrates on read)
+        current["data_model"] = dm_obj.model_dump()
     save_settings(current)
 
     # If host changed: cancel running sync + switch DB file
