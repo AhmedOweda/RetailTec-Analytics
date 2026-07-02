@@ -35,17 +35,11 @@ _dim_loaded_at: datetime | None = None
 def _load_dims() -> None:
     """Cache all dimension tables in memory to avoid repeated DuckDB scans."""
     global _dim_cache, _dim_loaded_at
-    with DB_LOCK:
-        con = get_db()
-        def _fetch(sql: str) -> list[dict]:
-            rel  = con.execute(sql)
-            cols = [d[0] for d in rel.description]
-            return [dict(zip(cols, row)) for row in rel.fetchall()]
-        _dim_cache = {
-            "stores":    _fetch("SELECT SID, STORE_NAME FROM DIM_STORE ORDER BY STORE_NAME"),
-            "employees": _fetch("SELECT SID, FULL_NAME   FROM DIM_EMPLOYEE ORDER BY FULL_NAME"),
-            "customers": _fetch("SELECT SID, FULL_NAME   FROM DIM_CUSTOMER ORDER BY FULL_NAME"),
-        }
+    _dim_cache = {
+        "stores":    _qdf("SELECT SID, STORE_NAME FROM DIM_STORE ORDER BY STORE_NAME"),
+        "employees": _qdf("SELECT SID, FULL_NAME   FROM DIM_EMPLOYEE ORDER BY FULL_NAME"),
+        "customers": _qdf("SELECT SID, FULL_NAME   FROM DIM_CUSTOMER ORDER BY FULL_NAME"),
+    }
     _dim_loaded_at = datetime.utcnow()
 
 _dim_sid_checked_at: datetime | None = None   # throttle the SID staleness check
@@ -64,9 +58,7 @@ def _ensure_dims() -> None:
             _dim_sid_checked_at = now
             try:
                 cached_sids = {r["SID"] for r in _dim_cache.get("stores", [])}
-                with DB_LOCK:
-                    live_max = get_db().execute(
-                        "SELECT MAX(STORE_SID) FROM FACT_SALES_DAILY").fetchone()[0]
+                live_max = _q("SELECT MAX(STORE_SID) FROM FACT_SALES_DAILY")[0][0]
                 if live_max and live_max not in cached_sids:
                     stale = True
             except Exception:
