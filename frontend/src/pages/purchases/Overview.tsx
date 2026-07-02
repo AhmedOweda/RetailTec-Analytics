@@ -197,12 +197,18 @@ export default function PurchasesOverview() {
   return (
     <Box sx={{ p: 3, minHeight: '100%' }}>
 
-      {/* ── Sticky filter bar ─────────────────────────────────────────── */}
+      {/* ── Header (standard page pattern — matches Stock Movement) ──── */}
       <Box sx={{
         position: 'sticky', top: 0, zIndex: 10,
-        bgcolor: '#f8fafc', mx: -3, px: 3, pb: 1.5, pt: 1,
-        borderBottom: '1px solid #e2e8f0',
+        bgcolor: '#ffffff', mx: -3, px: 3, pt: 3, pb: 2,
+        borderBottom: '1px solid #e9e4ff',
       }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+          Purchases Overview
+        </Typography>
+        <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
+          {dateFrom} — {dateTo}
+        </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
 
           <Stack direction="row" spacing={0.5}>

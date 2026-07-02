@@ -249,34 +249,38 @@ export default function Transfers() {
   return (
     <Box sx={{ pt:0, px:3, pb:3, display:'flex', flexDirection:'column', gap:2.5, minHeight:'100%' }}>
 
-      {/* ── Filter bar ── */}
-      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
-                 mx:-3, px:3, pt:2.5, pb:1.5, borderBottom:'1px solid #e9e4ff',
-                 display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
-        <Typography sx={{ fontWeight:800, fontSize:18, color:'#0f172a', mr:1 }}>
+      {/* ── Header (standard page pattern — matches Stock Movement) ── */}
+      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#ffffff',
+                 mx:-3, px:3, pt:3, pb:2, borderBottom:'1px solid #e9e4ff' }}>
+        <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
           Transfers
         </Typography>
-        {PERIODS.map((p, i) => (
-          <Chip key={p.label} label={p.label} size="small" onClick={() => selectPeriod(i)}
-            sx={{ fontWeight:period===i?700:500,
-                  bgcolor: period===i ? ACCENT : 'transparent',
-                  color:   period===i ? '#fff' : '#475569',
-                  border: `1px solid ${period===i ? ACCENT : '#cbd5e1'}` }} />
-        ))}
-        <TextField type="date" size="small" value={dateFrom}
-          onChange={e => { setDateFrom(e.target.value); setPeriod(-1) }}
-          sx={{ width:140, '& input':{ fontSize:12 } }} />
-        <Typography sx={{ color:'#94a3b8', fontSize:12 }}>→</Typography>
-        <TextField type="date" size="small" value={dateTo}
-          onChange={e => { setDateTo(e.target.value); setPeriod(-1) }}
-          sx={{ width:140, '& input':{ fontSize:12 } }} />
-        <Autocomplete
-          multiple disableCloseOnSelect size="small"
-          options={storeNames} value={selStores}
-          onChange={(_, v) => setSelStores(v)}
-          renderInput={p => <TextField {...p} label="Stores" sx={{ minWidth:200 }} />}
-          sx={{ minWidth:200 }}
-        />
+        <Typography sx={{ fontSize:12, color:'#64748b', mb:1.5 }}>
+          {dateFrom} — {dateTo}
+        </Typography>
+        <Box sx={{ display:'flex', gap:1, flexWrap:'wrap', alignItems:'center' }}>
+          {PERIODS.map((p, i) => (
+            <Chip key={p.label} label={p.label} size="small" onClick={() => selectPeriod(i)}
+              sx={{ fontWeight:700, cursor:'pointer',
+                    bgcolor: period===i ? ACCENT : 'transparent',
+                    color:   period===i ? '#fff' : '#64748b',
+                    border: `1px solid ${period===i ? ACCENT : '#e2e8f0'}` }} />
+          ))}
+          <TextField type="date" size="small" value={dateFrom}
+            onChange={e => { setDateFrom(e.target.value); setPeriod(-1) }}
+            sx={{ width:130 }} />
+          <Typography sx={{ color:'#64748b' }}>→</Typography>
+          <TextField type="date" size="small" value={dateTo}
+            onChange={e => { setDateTo(e.target.value); setPeriod(-1) }}
+            sx={{ width:130 }} />
+          <Autocomplete
+            multiple disableCloseOnSelect size="small"
+            options={storeNames} value={selStores}
+            onChange={(_, v) => setSelStores(v)}
+            renderInput={p => <TextField {...p} placeholder="All Stores" size="small" sx={{ minWidth:200 }} />}
+            sx={{ minWidth:200 }}
+          />
+        </Box>
       </Box>
 
       {/* ── KPI strip ── */}
