@@ -1,6 +1,6 @@
-/**
- * Transactions — AG Grid  •  server-side search  •  Excel / PDF export above grid
- *                          •  custom column show/hide picker
+﻿/**
+ * Transactions - AG Grid  *  server-side search  *  Excel / PDF export above grid
+ *                          *  custom column show/hide picker
  */
 import { useState, useRef, useCallback, useMemo } from 'react'
 import {
@@ -26,7 +26,7 @@ import * as XLSX         from 'xlsx'
 import jsPDF             from 'jspdf'
 import autoTable         from 'jspdf-autotable'
 
-/* ── Theme ──────────────────────────────────────────────────────────── */
+/* -- Theme ------------------------------------------------------------ */
 const ACCENT  = '#7c3aed'
 const ACCENT2 = '#6d28d9'
 const SURFACE = '#faf9ff'
@@ -44,18 +44,20 @@ const TYPE_COLOR: Record<string, { text:string; bg:string }> = {
   Order:  { text:'#d97706', bg:'#fef3c7' },
 }
 
-/* ── Column definitions ─────────────────────────────────────────────── */
+/* -- Column definitions ----------------------------------------------- */
 const numFmt = (p: any) => num(p.value ?? 0)
 
 const COL_DEFS: ColDef[] = [
   {
     headerName: '#', colId: '_seq', width: 60, pinned: 'left',
     sortable: false, resizable: false, suppressMovable: true,
-    valueGetter: (p: any) => (p.node?.rowIndex ?? 0) + 1,
+    valueGetter: (p: any) => p.node?.rowPinned ? '' : (p.node?.rowIndex ?? 0) + 1,
     cellStyle: { color:'#94a3b8', fontSize:11, fontWeight:500, display:'flex', alignItems:'center' },
   },
   { field:'doc_no',        headerName:'Doc No',      width:130, pinned:'left',
-    cellStyle:{ fontWeight:600, color:'#1e293b', display:'flex', alignItems:'center' } },
+    cellStyle:(p:any) => p.node?.rowPinned
+      ? { fontWeight:800, color:ACCENT, display:'flex', alignItems:'center' }
+      : { fontWeight:600, color:'#1e293b', display:'flex', alignItems:'center' } },
   { field:'post_date',     headerName:'Date',         width:170 },
   { field:'store_name',    headerName:'Store',        width:170 },
   { field:'employee_name', headerName:'Associate',    width:155 },
@@ -63,6 +65,7 @@ const COL_DEFS: ColDef[] = [
   {
     field:'type', headerName:'Type', width:95,
     cellRenderer:(p:any) => {
+      if (p.node?.rowPinned || !p.value) return ''
       const c = TYPE_COLOR[p.value] ?? { text:'#64748b', bg:'#f1f5f9' }
       return <span style={{ display:'inline-block', padding:'2px 10px', borderRadius:'99px', background:c.bg, color:c.text, fontWeight:700, fontSize:11 }}>{p.value ?? ''}</span>
     },
@@ -77,7 +80,7 @@ const COL_DEFS: ColDef[] = [
   { field:'other',        headerName:'Other',        width:90,  type:'numericColumn', valueFormatter:numFmt },
 ]
 
-// Toggleable columns — exclude # row-number column
+// Toggleable columns - exclude # row-number column
 const TOGGLE_COLS = COL_DEFS.filter(c => c.headerName !== '#')
 
 const DEFAULT_COL: ColDef = {
@@ -85,29 +88,35 @@ const DEFAULT_COL: ColDef = {
   cellStyle: { display:'flex', alignItems:'center' },
 }
 
-/* ── Component ──────────────────────────────────────────────────────── */
+/* -- Component -------------------------------------------------------- */
 export default function Transactions() {
   const [days,      setDays     ] = useState(7)
   const [search,    setSearch   ] = useState('')
   const [exporting, setExporting] = useState<'excel'|'pdf'|null>(null)
+  // Custom date range (overrides the quick presets when set)
+  const [custom,     setCustom    ] = useState<{ from:string; to:string } | null>(null)
+  const [draftFrom,  setDraftFrom ] = useState('')
+  const [draftTo,    setDraftTo   ] = useState('')
 
-  // Column visibility state — all visible by default
+  // Column visibility state - all visible by default
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
   const [colAnchor,  setColAnchor ] = useState<HTMLElement | null>(null)
 
   const gridRef   = useRef<AgGridReact>(null)
   const gridApi   = useRef<any>(null)
 
-  const today = format(new Date(), 'yyyy-MM-dd')
-  const from  = days === -1
+  const today  = format(new Date(), 'yyyy-MM-dd')
+  const presetFrom = days === -1
     ? format(startOfMonth(new Date()), 'yyyy-MM-dd')
     : format(subDays(new Date(), days - 1), 'yyyy-MM-dd')
+  const from = custom?.from ?? presetFrom
+  const to   = custom?.to   ?? today
 
-  /* ── Data fetch ─────────────────────────────────────────────── */
+  /* -- Data fetch ----------------------------------------------- */
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['transactions', from, today, search],
+    queryKey: ['transactions', from, to, search],
     queryFn:  () => axios
-      .get(`/api/sales/transactions?date_from=${from}&date_to=${today}&search=${encodeURIComponent(search)}&limit=0&offset=0`)
+      .get(`/api/sales/transactions?date_from=${from}&date_to=${to}&search=${encodeURIComponent(search)}&limit=0&offset=0`)
       .then(r => r.data),
     placeholderData: (prev: any) => prev,
   })
@@ -115,12 +124,29 @@ export default function Transactions() {
   const rows: any[]   = useMemo(() => data?.rows ?? [], [data])
   const total: number = data?.total ?? 0
 
+  /* -- Totals row (summable measures only) ----------------------- */
+  const totalsRow = useMemo(() => {
+    if (!rows.length) return []
+    const sum = (f: string) => rows.reduce((a, r) => a + (+r[f] || 0), 0)
+    return [{
+      doc_no: 'TOTAL',
+      net_sales:    sum('net_sales'),
+      total_tax:    sum('total_tax'),
+      total_wtax:   sum('total_wtax'),
+      invoice_disc: sum('invoice_disc'),
+      cash:         sum('cash'),
+      card:         sum('card'),
+      deposit:      sum('deposit'),
+      other:        sum('other'),
+    }]
+  }, [rows])
+
   const onGridReady = useCallback((e: GridReadyEvent) => {
     gridApi.current = e.api
     e.api.sizeColumnsToFit()
   }, [])
 
-  /* ── Column toggle ──────────────────────────────────────────── */
+  /* -- Column toggle -------------------------------------------- */
   const toggleCol = (field: string, visible: boolean) => {
     gridApi.current?.setColumnVisible(field, visible)
     setHiddenCols(prev => {
@@ -138,7 +164,7 @@ export default function Transactions() {
     setHiddenCols(new Set())
   }
 
-  /* ── Export helpers ─────────────────────────────────────────── */
+  /* -- Export helpers ------------------------------------------- */
   const getVisibleRows = (): any[] => {
     const api = gridRef.current?.api
     if (!api) return rows
@@ -162,7 +188,7 @@ export default function Transactions() {
       ws['!cols'] = EXPORT_COLS.map(() => ({ wch: 14 }))
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Transactions')
-      XLSX.writeFile(wb, `transactions_${from}_${today}.xlsx`)
+      XLSX.writeFile(wb, `transactions_${from}_${to}.xlsx`)
     } finally { setExporting(null) }
   }
 
@@ -174,7 +200,7 @@ export default function Transactions() {
       doc.setFontSize(14); doc.setTextColor(15,23,42)
       doc.text('Transactions Report', 30, 38)
       doc.setFontSize(9); doc.setTextColor(100,116,139)
-      doc.text(`Period: ${from}  →  ${today}     Records: ${vis.length.toLocaleString()}`, 30, 54)
+      doc.text(`Period: ${from}  ->  ${today}     Records: ${vis.length.toLocaleString()}`, 30, 54)
       autoTable(doc, {
         head: [EXPORT_COLS.map(c => c.label)],
         body: vis.map((r:any) => EXPORT_COLS.map(c => r[c.key] ?? '')),
@@ -183,17 +209,17 @@ export default function Transactions() {
         headStyles:        { fillColor:[124,58,237], textColor:255, fontStyle:'bold', fontSize:7 },
         alternateRowStyles:{ fillColor:[250,249,255] },
       })
-      doc.save(`transactions_${from}_${today}.pdf`)
+      doc.save(`transactions_${from}_${to}.pdf`)
     } finally { setExporting(null) }
   }
 
   const busy = isLoading || isFetching
 
-  /* ── Render ─────────────────────────────────────────────────── */
+  /* -- Render --------------------------------------------------- */
   return (
     <Box sx={{ display:'flex', flexDirection:'column', height:'100%', bgcolor:SURFACE, pt:0, px:2.5, pb:2.5, gap:1.5 }}>
 
-      {/* ══ Toolbar ══ */}
+      {/* == Toolbar == */}
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:SURFACE,
                  mx:-2.5, px:2.5, pt:2.5, pb:1.5, borderBottom:'1px solid #e9e4ff',
                  display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
@@ -204,21 +230,41 @@ export default function Transactions() {
         {/* Period selector */}
         <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor:'#f1f5f9', borderRadius:2 }}>
           {QUICK.map(q => (
-            <Chip key={q.label} label={q.label} size="small" onClick={() => setDays(q.days)}
+            <Chip key={q.label} label={q.label} size="small"
+              onClick={() => { setCustom(null); setDays(q.days) }}
               sx={{
                 fontWeight:700, fontSize:12, height:28, px:0.5,
                 transition:'all .18s ease',
-                bgcolor: days===q.days ? ACCENT : 'transparent',
-                color:   days===q.days ? '#fff' : '#64748b',
-                boxShadow: days===q.days ? '0 2px 8px rgba(124,58,237,.35)' : 'none',
-                '&:hover':{ bgcolor: days===q.days ? ACCENT2 : '#e2e8f0' },
+                bgcolor: !custom && days===q.days ? ACCENT : 'transparent',
+                color:   !custom && days===q.days ? '#fff' : '#64748b',
+                boxShadow: !custom && days===q.days ? '0 2px 8px rgba(124,58,237,.35)' : 'none',
+                '&:hover':{ bgcolor: !custom && days===q.days ? ACCENT2 : '#e2e8f0' },
               }}
             />
           ))}
         </Box>
 
+        {/* Custom date range */}
+        <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+          <TextField label="From" type="date" size="small" sx={{ width:150, bgcolor:'#fff', borderRadius:2 }}
+            InputLabelProps={{ shrink:true }}
+            value={draftFrom} onChange={e => setDraftFrom(e.target.value)} />
+          <TextField label="To" type="date" size="small" sx={{ width:150, bgcolor:'#fff', borderRadius:2 }}
+            InputLabelProps={{ shrink:true }}
+            value={draftTo} onChange={e => setDraftTo(e.target.value)} />
+          <Button size="small" variant={custom ? 'contained' : 'outlined'}
+            disabled={!draftFrom || !draftTo || draftFrom > draftTo}
+            onClick={() => setCustom({ from:draftFrom, to:draftTo })}
+            sx={{ textTransform:'none', fontWeight:700, borderRadius:2, height:34,
+                  ...(custom
+                    ? { bgcolor:ACCENT, '&:hover':{ bgcolor:ACCENT2 } }
+                    : { borderColor:ACCENT, color:ACCENT }) }}>
+            Apply
+          </Button>
+        </Box>
+
         {/* Quick search */}
-        <TextField size="small" placeholder="Quick search…" value={search}
+        <TextField size="small" placeholder="Quick search..." value={search}
           onChange={e => setSearch(e.target.value)}
           InputProps={{
             startAdornment:(
@@ -245,10 +291,10 @@ export default function Transactions() {
         />
       </Box>
 
-      {/* ══ Status bar ══ */}
+      {/* == Status bar == */}
       <Box sx={{ display:'flex', alignItems:'center', gap:1.5, minHeight:20 }}>
         <Typography variant="caption" sx={{ color:'#64748b', fontWeight:500 }}>
-          {busy ? 'Loading…' : `${total.toLocaleString()} transaction${total!==1?'s':''}  ·  ${from}  →  ${today}`}
+          {busy ? 'Loading...' : `${total.toLocaleString()} transaction${total!==1?'s':''}  Â·  ${from}  ->  ${today}`}
         </Typography>
         {busy && (
           <LinearProgress sx={{ flex:1, height:3, borderRadius:2, bgcolor:'#ede9fe',
@@ -256,7 +302,7 @@ export default function Transactions() {
         )}
       </Box>
 
-      {/* ══ Action bar — above the grid (right-aligned like the other tables) ══ */}
+      {/* == Action bar - above the grid (right-aligned like the other tables) == */}
       <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
 
         {/* Columns toggle */}
@@ -294,7 +340,7 @@ export default function Transactions() {
         >PDF</Button>
       </Stack>
 
-      {/* ══ Column picker popover ══ */}
+      {/* == Column picker popover == */}
       <Popover
         open={Boolean(colAnchor)}
         anchorEl={colAnchor}
@@ -330,7 +376,7 @@ export default function Transactions() {
         </Box>
       </Popover>
 
-      {/* ══ AG Grid ══ */}
+      {/* == AG Grid == */}
       <Box className="ag-theme-alpine" sx={{
         flex:1, width:'100%', minHeight:0,
         borderRadius:2, overflow:'hidden',
@@ -347,6 +393,7 @@ export default function Transactions() {
         <AgGridReact
           ref={gridRef}
           rowData={rows}
+          pinnedBottomRowData={totalsRow}
           columnDefs={COL_DEFS}
           defaultColDef={DEFAULT_COL}
           onGridReady={onGridReady}

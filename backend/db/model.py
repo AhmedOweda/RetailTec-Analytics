@@ -172,10 +172,13 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     # FACT_SALES_DAILY: DOUBLE → DECIMAL + PK fix
     _drop_if_wrong_type(con, "FACT_SALES_DAILY", "NET_SALES_WOTAX", "DECIMAL")
 
-    # FACT_SALES_INVOICES: DOUBLE → DECIMAL + DATE fix
+    # FACT_SALES_INVOICES: DOUBLE → DECIMAL + timestamp fix
     _drop_if_wrong_type(con, "FACT_SALES_INVOICES", "NET_SALES_WOTAX", "DECIMAL")
-    # If INVC_POST_DATE is TIMESTAMP, also drop
-    if "TIMESTAMP" in _col_type(con, "FACT_SALES_INVOICES", "INVC_POST_DATE").upper():
+    # INVC_POST_DATE must be TIMESTAMP: storing it as DATE truncated the
+    # time-of-day and flattened the hourly heatmap onto 00:00. Recreate + reload
+    # if an old DATE-typed table is found.
+    _t = _col_type(con, "FACT_SALES_INVOICES", "INVC_POST_DATE")
+    if _t and "TIMESTAMP" not in _t.upper():
         con.execute("DROP TABLE IF EXISTS FACT_SALES_INVOICES")
 
     # FACT_SALES_ITEMS: DOUBLE → DECIMAL + DATE fix
@@ -292,7 +295,7 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
         CREATE TABLE IF NOT EXISTS FACT_SALES_INVOICES (
             DOC_SID         BIGINT          PRIMARY KEY,
             DOC_NO          VARCHAR,
-            INVC_POST_DATE  DATE,
+            INVC_POST_DATE  TIMESTAMP,
             RECEIPT_TYPE    INTEGER,
             SUBSIDIARY_SID  BIGINT,
             STORE_SID       BIGINT,
