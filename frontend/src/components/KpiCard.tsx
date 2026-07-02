@@ -63,8 +63,12 @@ export default function KpiCard({
   tag,
 }: KpiCardProps) {
 
+  // NOTE: no explicit height here — an explicit cross-size (height:'100%')
+  // disables flex-stretch, which made cards in the same row render at
+  // different heights. With height unset, the flex container stretches every
+  // card to the tallest one in its row automatically.
   const base = {
-    flex: 1, minWidth: 140, height: '100%',
+    flex: 1, minWidth: 140,
     display: 'flex', flexDirection: 'column',
     position: 'relative',
   } as const

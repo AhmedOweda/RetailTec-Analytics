@@ -268,7 +268,7 @@ export default function InventoryLedger() {
 
       {/* ── KPI strip ── */}
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-        <KpiCard label="Active SKUs"    value={fmtN(kpi?.sku_count  || 0)} color={ACCENT}  icon="ti-barcode" />
+        <KpiCard label="Active SKUs"    value={fmtN(kpi?.sku_count  || 0)} sub="items with movement" color={ACCENT}  icon="ti-barcode" />
         <KpiCard label="Sold Cost (COGS)" value={fmtC(kpi?.sold_cost  || 0)}
           sub={`${fmtN(kpi?.sold_qty || 0)} units sold`}    color={C_SALES} icon="ti-receipt" />
         <KpiCard label="Transfers In"   value={fmtN(kpi?.recv_qty   || 0)}

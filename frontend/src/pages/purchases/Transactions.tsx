@@ -273,11 +273,11 @@ export default function PurchasesTransactions() {
       {/* ── KPI strip (shared KpiCard — consistent with other pages) ──── */}
       {!isLoading && rows.length > 0 && (
         <Box sx={{ display: 'flex', gap: 2, mt: 2, mb: 1.5, flexWrap: 'wrap' }}>
-          <KpiCard label="Total Cost"   value={fmtC0(totals.total_cost)}   color="#7c3aed" icon="ti-coin" />
-          <KpiCard label="Total Retail" value={fmtC0(totals.total_retail)} color="#0284c7" icon="ti-tag" />
-          <KpiCard label="Ordered Qty"  value={fmtN(totals.ord_qty)}      color="#64748b" icon="ti-package" />
-          <KpiCard label="Received Qty" value={fmtN(totals.recv_qty)}     color="#059669" icon="ti-inbox" />
-          <KpiCard label="Line Items"   value={fmtN(rows.length)}         color="#e11d48" icon="ti-list" />
+          <KpiCard label="Total Cost"   value={fmtC0(totals.total_cost)}   sub="sum of line costs"    color="#7c3aed" icon="ti-coin" />
+          <KpiCard label="Total Retail" value={fmtC0(totals.total_retail)} sub="at selling price"     color="#0284c7" icon="ti-tag" />
+          <KpiCard label="Ordered Qty"  value={fmtN(totals.ord_qty)}       sub="units on order"       color="#64748b" icon="ti-package" />
+          <KpiCard label="Received Qty" value={fmtN(totals.recv_qty)}      sub="units received"       color="#059669" icon="ti-inbox" />
+          <KpiCard label="Line Items"   value={fmtN(rows.length)}          sub="rows in current filter" color="#e11d48" icon="ti-list" />
         </Box>
       )}
 
