@@ -18,7 +18,7 @@ import TuneIcon         from '@mui/icons-material/Tune'
 import ScheduleIcon     from '@mui/icons-material/Schedule'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { useAppSettings, type ProductCodeField } from '../../context/AppSettings'
+import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
 
 const ACCENT = '#7c3aed'
 
@@ -109,7 +109,7 @@ function SectionCard({ title, icon, children }:
 
 export default function DataModelSettings() {
   const qc = useQueryClient()
-  const { productCodeField, setProductCodeField } = useAppSettings()
+  const { productCodeField, setProductCodeField, currency, setCurrency } = useAppSettings()
 
   const { data: settings, isLoading: loadingSettings } = useQuery({
     queryKey: ['settings'],
@@ -290,6 +290,28 @@ export default function DataModelSettings() {
               : 'Showing UPC (barcode) · e.g. 123456789 | Blue Shirt'}
           </Typography>
         </Box>
+
+        <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5 }}>
+          <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
+            Currency
+          </Typography>
+          <FormControl size="small" sx={{ minWidth:230 }}>
+            <Select value={currency.code}
+              onChange={e => setCurrency(String(e.target.value))}>
+              {CURRENCIES.map(c => (
+                <MenuItem key={c.code} value={c.code}>
+                  <Box component="span" sx={{ display:'inline-flex', alignItems:'center', gap:1 }}>
+                    <Box component="span" sx={{ fontWeight:700, minWidth:28, textAlign:'center' }}>{c.symbol}</Box>
+                    {c.name} ({c.code})
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
+            Shown next to money values · e.g. {currency.symbol} 17.2M
+          </Typography>
+        </Box>
       </SectionCard>
 
       {/* ── Data Model ──────────────────────────────────────────── */}
@@ -459,7 +481,7 @@ export default function DataModelSettings() {
       {/* ── Refresh Schedules & Retention (per domain) ───────────── */}
       <SectionCard title="Refresh Schedules & Retention" icon={<ScheduleIcon />}>
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-          Each domain refreshes on its own schedule (like Power BI): specific times on
+          Each domain refreshes on its own schedule: specific times on
           selected days, a fixed interval, or manual only. Retention prunes old
           line-item detail while keeping daily summaries forever.
           Times use the timezone selected above. Remember to <b>Save Settings</b>.

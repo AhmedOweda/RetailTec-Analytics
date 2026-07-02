@@ -294,10 +294,9 @@ export default function AppShell() {
             opacity:0.85,
           },
         }}>
+          {/* Brand logo lives in the sidebar — the header carries the product
+              wordmark only (duplicate logo overlapped the title). */}
           <Box sx={{ display:'flex', alignItems:'center', gap:1.5, minWidth:0, overflow:'hidden' }}>
-            <Box component="img" src="/logo-purple.png" alt="RetailTec"
-                 sx={{ height:28, objectFit:'contain', flexShrink:0 }} />
-            <Box sx={{ width:'1px', height:24, bgcolor:'rgba(100,116,139,0.18)', flexShrink:0 }} />
             <Box sx={{ minWidth:0 }}>
               <Typography component="div" noWrap
                 sx={{ fontSize:15, fontWeight:800, letterSpacing:0.2, lineHeight:'18px' }}>
