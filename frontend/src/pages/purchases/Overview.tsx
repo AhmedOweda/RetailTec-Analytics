@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import ReactECharts from 'echarts-for-react'
 import KpiCard      from '../../components/KpiCard'
+import { moneyPrefix } from '../../utils/formatters'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ const PRESETS: Record<string, [string, string]> = {
 }
 
 const fmt  = (n: number) => (n ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })
-const fmtC = (n: number) => '$' + (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtC = (n: number) => moneyPrefix() + (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 // ── Dropdown data ─────────────────────────────────────────────────────────────
 
@@ -132,7 +133,7 @@ export default function PurchasesOverview() {
       grid:    { left: 70, right: 60, top: 40, bottom: 30 },
       xAxis:   { type: 'category', data: rows.map(r => r.vou_date), axisLabel: { fontSize: 10 } },
       yAxis: [
-        { type: 'value', name: 'Cost',  axisLabel: { fontSize: 10, formatter: (v: number) => `$${(v/1000).toFixed(0)}k` } },
+        { type: 'value', name: 'Cost',  axisLabel: { fontSize: 10, formatter: (v: number) => `${moneyPrefix()}${(v/1000).toFixed(0)}k` } },
         { type: 'value', name: 'POs',   axisLabel: { fontSize: 10 }, splitLine: { show: false } },
       ],
       series: [
@@ -149,12 +150,12 @@ export default function PurchasesOverview() {
     return {
       tooltip: { trigger: 'axis', formatter: (p: any[]) => `${p[0].name}<br/>${fmtC(p[0].value)}` },
       grid:    { left: 150, right: 80, top: 10, bottom: 10 },
-      xAxis:   { type: 'value', axisLabel: { fontSize: 10, formatter: (v: number) => `$${(v/1000).toFixed(0)}k` } },
+      xAxis:   { type: 'value', axisLabel: { fontSize: 10, formatter: (v: number) => `${moneyPrefix()}${(v/1000).toFixed(0)}k` } },
       yAxis:   { type: 'category', data: rows.map(r => r.vendor_name), axisLabel: { fontSize: 10 } },
       series: [{ type: 'bar', data: rows.map(r => r.total_cost),
         itemStyle: { color: C.purple, borderRadius: [0,3,3,0] },
         label: { show: true, position: 'right', fontSize: 10,
-          formatter: (p: any) => `$${(p.value/1000).toFixed(0)}k` },
+          formatter: (p: any) => `${moneyPrefix()}${(p.value/1000).toFixed(0)}k` },
       }],
     }
   }, [vendQ.data])
@@ -164,12 +165,12 @@ export default function PurchasesOverview() {
     return {
       tooltip: { trigger: 'axis' },
       grid:    { left: 130, right: 80, top: 10, bottom: 10 },
-      xAxis:   { type: 'value', axisLabel: { fontSize: 10, formatter: (v: number) => `$${(v/1000).toFixed(0)}k` } },
+      xAxis:   { type: 'value', axisLabel: { fontSize: 10, formatter: (v: number) => `${moneyPrefix()}${(v/1000).toFixed(0)}k` } },
       yAxis:   { type: 'category', data: rows.map(r => r.department), axisLabel: { fontSize: 10 } },
       series: [{ type: 'bar', data: rows.map(r => r.total_cost),
         itemStyle: { color: C.sky, borderRadius: [0,3,3,0] },
         label: { show: true, position: 'right', fontSize: 10,
-          formatter: (p: any) => `$${(p.value/1000).toFixed(0)}k` },
+          formatter: (p: any) => `${moneyPrefix()}${(p.value/1000).toFixed(0)}k` },
       }],
     }
   }, [deptQ.data])

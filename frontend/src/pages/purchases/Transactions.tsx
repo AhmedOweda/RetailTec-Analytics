@@ -16,6 +16,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar from '../../components/GridExportBar'
+import { moneyPrefix } from '../../utils/formatters'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ const PRESETS: Record<string, [string, string]> = {
   '90D': [daysAgo(89), today],
 }
 
-const fmtC = (v: number) => v == null ? '' : '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtC = (v: number) => v == null ? '' : moneyPrefix() + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtN = (v: number) => v == null ? '' : v.toLocaleString('en-US', { maximumFractionDigits: 0 })
 const fmtQ = (v: number) => v == null ? '' : v.toLocaleString('en-US', { maximumFractionDigits: 1 })
 

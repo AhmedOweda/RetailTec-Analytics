@@ -4,7 +4,8 @@
  * - currency (display currency for money values; default Saudi Riyal with the
  *   new ⃀ symbol — the software targets the Gulf market)
  */
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { setMoneyPrefixGlobal } from '../utils/formatters'
 
 export type ProductCodeField = 'alu' | 'upc'
 
@@ -78,6 +79,9 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   }
 
   const moneyPrefix = showCurrency ? currency.symbol + ' ' : ''
+
+  // keep the module-level helper (used by page formatters) in sync
+  useEffect(() => { setMoneyPrefixGlobal(moneyPrefix) }, [moneyPrefix])
 
   return (
     <AppSettingsContext.Provider value={{ productCodeField, setProductCodeField,

@@ -10,6 +10,7 @@ import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import axios from 'axios'
 import { useRef } from 'react'
+import { moneyPrefix } from '../../utils/formatters'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
@@ -23,9 +24,9 @@ const C_CYAN   = '#0891b2'
 
 function num(v: any) {
   const n = +(v ?? 0)
-  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (Math.abs(n) >= 1_000)     return `$${(n / 1_000).toFixed(0)}K`
-  return `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  if (Math.abs(n) >= 1_000_000) return `${moneyPrefix()}${(n / 1_000_000).toFixed(1)}M`
+  if (Math.abs(n) >= 1_000)     return `${moneyPrefix()}${(n / 1_000).toFixed(0)}K`
+  return `${moneyPrefix()}${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
 }
 function fmtN(v: any) { return (+(v ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 }) }
 function pct(v: any)  { return `${(+(v ?? 0)).toFixed(1)}%` }

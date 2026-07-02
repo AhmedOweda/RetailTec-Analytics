@@ -10,6 +10,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
+import { moneyPrefix } from '../../utils/formatters'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
@@ -45,7 +46,7 @@ export default function InventoryHistory() {
   })
 
   const fmt    = (n?: number) => n == null ? '—' : n.toLocaleString()
-  const fmtCur = (n?: number) => n == null ? '—' : `$${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  const fmtCur = (n?: number) => n == null ? '—' : `${moneyPrefix()}${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
   const trendOpt = {
     tooltip: { trigger: 'axis' },

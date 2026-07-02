@@ -17,6 +17,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
+import { moneyPrefix } from '../../utils/formatters'
 
 // ── Colours ─────────────────────────────────────────────────────────────────
 const ACCENT    = '#7c3aed'
@@ -47,7 +48,7 @@ const PERIODS = [
 const fmtN = (v: number, dec = 0) =>
   v == null ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
 const fmtC = (v: number) =>
-  v == null ? '—' : v.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+  v == null ? '—' : moneyPrefix() + v.toLocaleString('en-US', { maximumFractionDigits: 0 })
 const fmtSign = (v: number) => v > 0 ? `+${fmtN(v)}` : fmtN(v)
 
 // ── Column header with colour dot ─────────────────────────────────────────────
@@ -219,16 +220,6 @@ export default function InventoryLedger() {
         <Typography sx={{ fontWeight: 800, fontSize: 18, color: '#0f172a', mr: 1 }}>
           Inventory Ledger
         </Typography>
-
-        {PERIODS.map((p, i) => (
-          <Chip key={p.label} label={p.label} size="small" onClick={() => selectPeriod(i)}
-            sx={{
-              fontWeight: period === i ? 700 : 500,
-              bgcolor:    period === i ? ACCENT : 'transparent',
-              color:      period === i ? '#fff' : '#475569',
-              border: `1px solid ${period === i ? ACCENT : '#cbd5e1'}`,
-            }} />
-        ))}
 
         <TextField type="date" size="small" value={dateFrom}
           onChange={e => { setDateFrom(e.target.value); setPeriod(-1) }}
