@@ -437,26 +437,26 @@ export default function InventoryOverview() {
 
       <Box sx={{ px: 3, display: 'flex', flexDirection: 'column', gap: 2.5, pb: 3 }}>
 
-        {/* ── KPI Strip ── */}
+        {/* ── KPI Strip — style F (top accent bar) ── */}
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <KpiCard label="Total SKUs"       value={kpi.skus.toLocaleString()}    sub={`${kpi.depts} departments`} icon="ti-barcode" />
-          <KpiCard label="Units On-Hand"    value={num(kpi.totalQty)}             sub={`across ${kpi.stores} stores`} icon="ti-package" />
-          <KpiCard label="Cost Value"       value={num(kpi.stockCost)}            sub="at cost price" color={C_SLATE} icon="ti-coin" />
-          <KpiCard label="Retail Value"     value={num(kpi.stockRetail)}          sub="at selling price" icon="ti-tag" />
-          <KpiCard label="Potential GM"     value={`${kpi.gmPct}%`}              sub="retail − cost margin" color={gmColor} icon="ti-chart-pie-2" />
+          <KpiCard variant="F" label="Total SKUs"       value={kpi.skus.toLocaleString()}    sub={`${kpi.depts} departments`} icon="ti-barcode" />
+          <KpiCard variant="F" label="Units On-Hand"    value={num(kpi.totalQty)}             sub={`across ${kpi.stores} stores`} icon="ti-package" />
+          <KpiCard variant="F" label="Cost Value"       value={num(kpi.stockCost)}            sub="at cost price" icon="ti-coin" />
+          <KpiCard variant="F" label="Retail Value"     value={num(kpi.stockRetail)}          sub="at selling price" icon="ti-tag" />
+          <KpiCard variant="F" label="Potential GM"     value={`${kpi.gmPct}%`}              sub="retail − cost margin" color={gmColor} icon="ti-chart-pie-2" />
         </Box>
 
         {/* ── Turnover KPI Strip ── */}
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <KpiCard label="Inventory Turnover" value={`${turnover.rate}×`}
+          <KpiCard variant="F" label="Inventory Turnover" value={`${turnover.rate}×`}
             sub="COGS ÷ stock cost (12m)" color="#0891b2" icon="ti-refresh" />
-          <KpiCard label="Days on Hand"       value={`${turnover.doh}`}
+          <KpiCard variant="F" label="Days on Hand"       value={`${turnover.doh}`}
             sub="365 ÷ turnover rate" icon="ti-calendar-stats"
             color={turnover.doh > 180 ? C_ROSE : turnover.doh > 90 ? C_AMBER : C_GREEN} />
-          <KpiCard label="Months Supply"      value={`${turnover.months}m`}
-            sub="stock cost ÷ monthly COGS" color={C_SLATE} icon="ti-clock" />
-          <KpiCard label="COGS (12m)"         value={num(turnover.cogs12m)}
-            sub="cost of goods sold (last yr)" color={C_SLATE} icon="ti-receipt" />
+          <KpiCard variant="F" label="Months Supply"      value={`${turnover.months}m`}
+            sub="stock cost ÷ monthly COGS" color="#0891b2" icon="ti-clock" />
+          <KpiCard variant="F" label="COGS (12m)"         value={num(turnover.cogs12m)}
+            sub="cost of goods sold (last yr)" color="#7c3aed" icon="ti-receipt" />
         </Box>
 
         {/* ── Row 1: Treemap + Sunburst ── */}
