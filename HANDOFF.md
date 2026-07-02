@@ -81,10 +81,20 @@ All in `backend/db/sync.py` unless noted.
 
 ## 6. Remaining TODO (prioritized)
 
-1. **Recommend to the Oracle DBA: add an index on `RPS.DOCUMENT(POST_DATE)`** (and the item/voucher/slip date columns). Single highest-leverage perf win — turns full scans into range scans, cutting a full load to minutes and making incrementals near-instant. App-side is already optimized; this is the remaining bottleneck.
-2. **Settings UI to edit** per-domain schedules + retention config (the engine works on migrated defaults; there's no editor yet, and the new settings shape isn't persisted by the Save endpoint).
-3. **Security sprint** (from `EXPERT_REVIEW.md`, all still open): data API endpoints are unauthenticated; SQL built via f-string interpolation (injection); hardcoded JWT secret; plaintext Oracle creds in `settings.json`; CORS `*`.
-4. **Optional:** Arrow/columnar bulk insert (currently `executemany` streaming — fine, but Arrow is faster); delete the ~19 root `patch_*.py` scripts; drop the unused ~30 `CREATE INDEX` statements in `model.py`.
+**Update 2 Jul 2026 — items 1–4 below are DONE** (commits b6ac37d…52f2dce on the new laptop):
+
+1. ~~Oracle date index~~ **RESOLVED WITHOUT DBA**: RPS already has function-based indexes (`IDX_DOCUMENT7 = CAST(INVC_POST_DATE AS DATE)`, `SYS_EXTRACT_UTC(CREATED_DATETIME)` on VOUCHER/SLIP/ADJUSTMENT, `SYS_EXTRACT_UTC(ACTION_DATE)` on INVENTORY_HISTORY). Sync predicates now match those expressions; adaptive hints use the index for windows ≤ 21 days and one FULL scan for backfills.
+2. ~~Settings UI~~ **DONE**: per-domain schedules + retention editor in `DataModelSettings.tsx`; `GET/PUT /api/settings` speak the v2 shape with strict validation (`test_settings_roundtrip.py`, 18/18).
+3. ~~Security sprint~~ **DONE**: all data routers require JWT (+ server-side store scoping via `routers/common.py:scoped_stores`); all SQL parameterized/typed; JWT secret from env or generated `.jwt_secret`; Oracle password DPAPI-encrypted at rest (`services/config.py`); CORS locked to localhost:3000/3001; debug route removed; change-password endpoint + `must_change_password` flag.
+4. ~~Bulk insert~~ **DONE**: staged DataFrame + `INSERT..SELECT` anti-join (the old per-row `executemany` ran at ~55 rows/s through the ART index). Full 2020→2026 backfill (~15.5M fact rows, 2.06 GB warehouse) completes in ~30 min; API sweep `test_endpoints.py` 79/79.
+
+**Still open:**
+- Push local commits to GitHub (needs auth on this laptop).
+- Frontend cleanup (EXPERT_REVIEW M2): orphaned `src/App.tsx` (~25 pre-existing tsc errors), duplicate context dirs, chart wrapper unification.
+- Drop the unused ~30 `CREATE INDEX` statements in `model.py`; periodic compaction + CHECKPOINT step after large backfills.
+- Change the default admin password; consider forcing the change server-side.
+
+**New gotchas learned (2 Jul):** never row-DELETE through an ART PK (dim loads now rebuild via clone/insert/DROP/RENAME — the 'Failed to delete all rows from index' FATAL struck again and is now structurally impossible); never use `duckdb.executemany` for bulk; `DOCUMENT_ITEM.ITEM_TYPE` is numeric in RP9 (sync maps 1→'Sale', 2→'Return'); Vite proxy targets must use `127.0.0.1`, not `localhost` (Node resolves ::1, uvicorn is IPv4-only); `vite.config.js` shadowed `vite.config.ts` (deleted).
 
 ---
 
