@@ -170,7 +170,7 @@ export default function InventoryOverview() {
   })
   const { data: tableData = [] } = useQuery({
     queryKey: ['inv-items', view, storeQS],
-    queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}&limit=${view.startsWith('item') ? 500 : 50}${storeQS}`).then(r => r.data),
+    queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}${storeQS}`).then(r => r.data),  // no limit — full dataset, grid paginates
     gcTime: 1_800_000, refetchOnMount: 'always',
   })
 

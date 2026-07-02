@@ -527,16 +527,49 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
     # referenced by facts but not touched in the window missing -> '(unknown item)'
     # in product analytics. The whole table is small enough to pull every sync.
     _r("Items")
+    # RP9 has TWO vendor link spaces (confirmed with schema owner):
+    #   * item-vendor link:    RPS.INVN_SBS_VENDOR (INVN_SBS_ITEM_SID -> VEND_SID -> RPS.VENDOR)
+    #   * voucher vendor link: VOUCHER.VEND_SID -> RPS.VENDOR (purchases only)
+    # INVN_SBS_ITEM.VEND_SID is a DIFFERENT (orphaned) SID space — 0 of its values
+    # resolve against RPS.VENDOR or INVN_SBS_VENDOR.SID, which collapsed vendor
+    # analytics into '(Unknown)'. Resolve the item's vendor through the link table
+    # instead (latest link wins when an item has several).
     cur.execute("""
         SELECT I.SID, I.SBS_SID, I.ALU, I.UPC,
                I.DESCRIPTION1, I.DESCRIPTION2,
                I.ATTRIBUTE, I.ITEM_SIZE,
-               I.DCS_SID, I.VEND_SID,
+               I.DCS_SID, ISV.VEND_SID,
                NVL(I.ACTIVE, 1)
         FROM RPS.INVN_SBS_ITEM I
+        LEFT JOIN (
+            SELECT INVN_SBS_ITEM_SID, VEND_SID,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY INVN_SBS_ITEM_SID
+                       ORDER BY MODIFIED_DATETIME DESC NULLS LAST, SID DESC
+                   ) AS RN
+            FROM RPS.INVN_SBS_VENDOR
+        ) ISV ON ISV.INVN_SBS_ITEM_SID = I.SID AND ISV.RN = 1
     """)
     n = _bulk_upsert_dim(duck, "DIM_ITEM", "SID", cur.fetchall(), full_refresh=True)
-    log.info(f"DIM_ITEM: {n} rows (full refresh)")
+    log.info(f"DIM_ITEM: {n} rows (full refresh, vendor via INVN_SBS_VENDOR)")
+
+    # Fallback for items with no item-vendor link: infer from the item's most
+    # recent purchase voucher (the second vendor link space).
+    try:
+        duck.execute("""
+            UPDATE DIM_ITEM SET VEND_SID = pv.VEND_SID
+            FROM (
+                SELECT ITEM_SID, ARG_MAX(VEND_SID, VOU_DATE) AS VEND_SID
+                FROM FACT_PURCHASE_ITEMS
+                WHERE VEND_SID IS NOT NULL
+                GROUP BY ITEM_SID
+            ) pv
+            WHERE DIM_ITEM.SID = pv.ITEM_SID AND DIM_ITEM.VEND_SID IS NULL
+        """)
+        duck.commit()
+        log.info("DIM_ITEM: vendor inferred from latest purchase where missing")
+    except Exception as e:
+        log.warning(f"Vendor inference skipped: {e}")
 
     cur.close()
 

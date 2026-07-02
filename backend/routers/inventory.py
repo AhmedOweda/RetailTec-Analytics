@@ -249,10 +249,13 @@ def inv_by_store(stores: Optional[str] = Depends(scoped_stores)):
 def inv_items(
     stores: Optional[str] = Depends(scoped_stores),
     group_by: str = Query("dept", pattern="^(dept|dcs|vendor|store|item|item_store)$"),
-    limit: int = Query(50, ge=1, le=100000),
+    limit: Optional[int] = Query(None, ge=1),
 ):
     sf, sp = store_filter(stores)
     base = _inv_base_join(sf)
+    # No hardcoded cap: LIMIT applies only when the caller asks for one.
+    # `limit` is validated as int by FastAPI, safe to interpolate.
+    lim = f"LIMIT {int(limit)}" if limit else ""
 
     if group_by == "item":
         return _qdf(f"""
@@ -276,7 +279,7 @@ def inv_items(
             {base}
             GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE, D.D_NAME
             ORDER BY cost_value DESC
-            LIMIT {limit}
+            {lim}
         """, sp)
 
     if group_by == "item_store":
@@ -297,7 +300,7 @@ def inv_items(
                 1) AS gm_pct
             {base}
             ORDER BY cost_value DESC
-            LIMIT {limit}
+            {lim}
         """, sp)
 
     if group_by == "dcs":
@@ -318,7 +321,7 @@ def inv_items(
             {base}
             GROUP BY D.DCS_CODE, D.D_NAME, D.C_NAME, D.S_NAME
             ORDER BY cost_value DESC
-            LIMIT {limit}
+            {lim}
         """, sp)
 
     if group_by == "vendor":
@@ -336,7 +339,7 @@ def inv_items(
             {base}
             GROUP BY V.VEND_NAME
             ORDER BY cost_value DESC
-            LIMIT {limit}
+            {lim}
         """, sp)
 
     if group_by == "store":
@@ -350,7 +353,7 @@ def inv_items(
             {base}
             GROUP BY S.STORE_NAME
             ORDER BY cost_value DESC
-            LIMIT {limit}
+            {lim}
         """, sp)
 
     # default: by department
@@ -368,7 +371,7 @@ def inv_items(
         {base}
         GROUP BY D.D_NAME
         ORDER BY cost_value DESC
-        LIMIT {limit}
+        {lim}
     """, sp)
 
 

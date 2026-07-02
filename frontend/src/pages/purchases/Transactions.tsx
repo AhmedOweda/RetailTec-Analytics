@@ -16,6 +16,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar from '../../components/GridExportBar'
+import KpiCard from '../../components/KpiCard'
 import { moneyPrefix } from '../../utils/formatters'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -186,12 +187,18 @@ export default function PurchasesTransactions() {
   return (
     <Box sx={{ p: 3, minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Sticky filter bar ─────────────────────────────────────────── */}
+      {/* ── Header (standard page pattern — matches Stock Movement) ──── */}
       <Box sx={{
         position: 'sticky', top: 0, zIndex: 10,
-        bgcolor: '#f8fafc', mx: -3, px: 3, pb: 1.5, pt: 1,
-        borderBottom: '1px solid #e2e8f0',
+        bgcolor: '#ffffff', mx: -3, px: 3, pt: 3, pb: 2,
+        borderBottom: '1px solid #e9e4ff',
       }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+          Purchase Transactions
+        </Typography>
+        <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
+          {dateFrom} — {dateTo}
+        </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
 
           <Stack direction="row" spacing={0.5}>
@@ -261,22 +268,14 @@ export default function PurchasesTransactions() {
         </Box>
       </Box>
 
-      {/* ── Summary strip ─────────────────────────────────────────────── */}
+      {/* ── KPI strip (shared KpiCard — consistent with other pages) ──── */}
       {!isLoading && rows.length > 0 && (
-        <Box sx={{ display: 'flex', gap: 4, mt: 2, mb: 1.5, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Total Cost',   value: fmtC(totals.total_cost),   color: '#7c3aed' },
-            { label: 'Total Retail', value: fmtC(totals.total_retail), color: '#0284c7' },
-            { label: 'Ordered Qty',  value: fmtN(totals.ord_qty),      color: '#64748b' },
-            { label: 'Received Qty', value: fmtN(totals.recv_qty),     color: '#059669' },
-          ].map(s => (
-            <Box key={s.label}>
-              <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                {s.label}
-              </Typography>
-              <Typography sx={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</Typography>
-            </Box>
-          ))}
+        <Box sx={{ display: 'flex', gap: 2, mt: 2, mb: 1.5, flexWrap: 'wrap' }}>
+          <KpiCard label="Total Cost"   value={fmtC(totals.total_cost)}   color="#7c3aed" icon="ti-coin" />
+          <KpiCard label="Total Retail" value={fmtC(totals.total_retail)} color="#0284c7" icon="ti-tag" />
+          <KpiCard label="Ordered Qty"  value={fmtN(totals.ord_qty)}      color="#64748b" icon="ti-package" />
+          <KpiCard label="Received Qty" value={fmtN(totals.recv_qty)}     color="#059669" icon="ti-inbox" />
+          <KpiCard label="Line Items"   value={fmtN(rows.length)}         color="#e11d48" icon="ti-list" />
         </Box>
       )}
 

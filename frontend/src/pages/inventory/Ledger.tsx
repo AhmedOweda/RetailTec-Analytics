@@ -211,56 +211,59 @@ export default function InventoryLedger() {
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3, display: 'flex', flexDirection: 'column', gap: 2.5, minHeight: '100%' }}>
 
-      {/* ── Sticky filter bar ── */}
+      {/* ── Header (standard page pattern — matches Stock Movement) ── */}
       <Box sx={{
-        position: 'sticky', top: 0, zIndex: 10, bgcolor: '#f8fafc',
-        mx: -3, px: 3, pt: 2.5, pb: 1.5, borderBottom: '1px solid #e9e4ff',
-        display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
+        position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
+        mx: -3, px: 3, pt: 3, pb: 2, borderBottom: '1px solid #e9e4ff',
       }}>
-        <Typography sx={{ fontWeight: 800, fontSize: 18, color: '#0f172a', mr: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
           Inventory Ledger
         </Typography>
+        <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
+          {dateFrom} — {dateTo}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField type="date" size="small" value={dateFrom}
+            onChange={e => { setDateFrom(e.target.value); setPeriod(-1) }}
+            sx={{ width: 130 }} />
+          <Typography sx={{ color: '#64748b' }}>→</Typography>
+          <TextField type="date" size="small" value={dateTo}
+            onChange={e => { setDateTo(e.target.value); setPeriod(-1) }}
+            sx={{ width: 130 }} />
 
-        <TextField type="date" size="small" value={dateFrom}
-          onChange={e => { setDateFrom(e.target.value); setPeriod(-1) }}
-          sx={{ width: 140, '& input': { fontSize: 12 } }} />
-        <Typography sx={{ color: '#94a3b8', fontSize: 12 }}>→</Typography>
-        <TextField type="date" size="small" value={dateTo}
-          onChange={e => { setDateTo(e.target.value); setPeriod(-1) }}
-          sx={{ width: 140, '& input': { fontSize: 12 } }} />
+          <Autocomplete
+            multiple disableCloseOnSelect size="small"
+            options={storeNames} value={selStores}
+            onChange={(_, v) => setSelStores(v)}
+            renderInput={p => <TextField {...p} placeholder="All Stores" size="small" sx={{ minWidth: 200 }} />}
+            sx={{ minWidth: 200 }}
+          />
 
-        <Autocomplete
-          multiple disableCloseOnSelect size="small"
-          options={storeNames} value={selStores}
-          onChange={(_, v) => setSelStores(v)}
-          renderInput={p => <TextField {...p} label="Stores" sx={{ minWidth: 200 }} />}
-          sx={{ minWidth: 200 }}
-        />
+          {/* ── Item search ── */}
+          <Autocomplete
+            size="small"
+            options={itemOptions}
+            getOptionLabel={opt =>
+              `${productCodeField === 'upc' ? opt.UPC : opt.ALU} | ${opt.DESCRIPTION1}`
+            }
+            isOptionEqualToValue={(a, b) => a.item_sid === b.item_sid}
+            value={selItem}
+            inputValue={itemQ}
+            onInputChange={(_, v) => setItemQ(v)}
+            onChange={(_, v) => setSelItem(v)}
+            filterOptions={x => x}
+            noOptionsText={itemQ.length < 2 ? 'Type 2+ chars…' : 'No match'}
+            renderInput={p => (
+              <TextField {...p} placeholder={`Search ${codeField} / Desc`}
+                sx={{ minWidth: 280 }} size="small" />
+            )}
+            sx={{ minWidth: 280 }}
+          />
 
-        {/* ── Item search ── */}
-        <Autocomplete
-          size="small"
-          options={itemOptions}
-          getOptionLabel={opt =>
-            `${productCodeField === 'upc' ? opt.UPC : opt.ALU} | ${opt.DESCRIPTION1}`
-          }
-          isOptionEqualToValue={(a, b) => a.item_sid === b.item_sid}
-          value={selItem}
-          inputValue={itemQ}
-          onInputChange={(_, v) => setItemQ(v)}
-          onChange={(_, v) => setSelItem(v)}
-          filterOptions={x => x}
-          noOptionsText={itemQ.length < 2 ? 'Type 2+ chars…' : 'No match'}
-          renderInput={p => (
-            <TextField {...p} label={`Search ${codeField} / Desc`}
-              sx={{ minWidth: 280 }} size="small" />
+          {isFetching && (
+            <Typography sx={{ fontSize: 11, color: C_SLATE, ml: 1 }}>Loading…</Typography>
           )}
-          sx={{ minWidth: 280 }}
-        />
-
-        {isFetching && (
-          <Typography sx={{ fontSize: 11, color: C_SLATE, ml: 1 }}>Loading…</Typography>
-        )}
+        </Box>
       </Box>
 
       {/* ── KPI strip ── */}
