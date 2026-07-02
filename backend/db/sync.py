@@ -451,12 +451,12 @@ def _load_dimensions(duck, ora, progress_cb=None):
     duck.commit()
     log.info(f"DIM_DCS: {len(rows)} rows")
 
-    # RPS.VENDOR uses ACTIVE column (not INACTIVE) — confirmed via schema inspection
+    # ALL vendors, including inactive: filtering ACTIVE=1 dropped historical
+    # vendors and dumped their sales into '(Unknown)' (Krunch loads all vendors)
     _r("Vendors")
     cur.execute("""
         SELECT SID, SBS_SID, VEND_CODE, VEND_NAME
         FROM RPS.VENDOR
-        WHERE NVL(ACTIVE, 1) = 1
     """)
     rows = cur.fetchall()
     duck.execute("DELETE FROM DIM_VENDOR")
@@ -665,7 +665,7 @@ def _derive_daily(duck, df: str, dt: str):
     scan. Equivalent to the old Oracle DAILY aggregate (same STATUS=4 source rows)."""
     duck.execute("""
         CREATE OR REPLACE TABLE FACT_SALES_DAILY AS
-        SELECT INVC_POST_DATE AS POST_DATE, STORE_SID,
+        SELECT CAST(INVC_POST_DATE AS DATE) AS POST_DATE, STORE_SID,
                COALESCE(SUBSIDIARY_SID, 0) AS SUBSIDIARY_SID,
                SUM(CASE WHEN RECEIPT_TYPE=0 THEN 1 ELSE 0 END) AS SALES_COUNT,
                SUM(CASE WHEN RECEIPT_TYPE=1 THEN 1 ELSE 0 END) AS RETURN_COUNT,
@@ -678,7 +678,7 @@ def _derive_daily(duck, df: str, dt: str):
                SUM(SHIPPING_AMT)    AS SHIPPING_AMT,
                SUM(TOTAL_WTAX)      AS TOTAL_WTAX
         FROM FACT_SALES_INVOICES
-        GROUP BY INVC_POST_DATE, STORE_SID, COALESCE(SUBSIDIARY_SID, 0)
+        GROUP BY CAST(INVC_POST_DATE AS DATE), STORE_SID, COALESCE(SUBSIDIARY_SID, 0)
     """)
     duck.commit()
     log.info("FACT_SALES_DAILY rebuilt from invoices (no PK index)")
@@ -711,7 +711,7 @@ def _trim_range(duck, tables, date_from: str, date_to: str):
     """REBUILD mode only (destructive): delete facts inside [from,to] before reload."""
     ALL = tables is None
     if ALL or "sales" in tables:
-        duck.execute("DELETE FROM FACT_SALES_INVOICES WHERE INVC_POST_DATE BETWEEN ? AND ?", [date_from, date_to])
+        duck.execute("DELETE FROM FACT_SALES_INVOICES WHERE CAST(INVC_POST_DATE AS DATE) BETWEEN ? AND ?", [date_from, date_to])
         duck.execute("DELETE FROM FACT_SALES_ITEMS    WHERE INVC_POST_DATE BETWEEN ? AND ?", [date_from, date_to])
         duck.execute("DELETE FROM FACT_SALES_DAILY    WHERE POST_DATE      BETWEEN ? AND ?", [date_from, date_to])
     if ALL or "transfers" in tables:
