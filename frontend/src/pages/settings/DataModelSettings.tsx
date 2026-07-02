@@ -6,7 +6,7 @@ import {
   Box, Card, CardContent, Typography, TextField, Button,
   Alert, CircularProgress, Select, MenuItem,
   FormControl, InputLabel, LinearProgress,
-  ToggleButtonGroup, ToggleButton,
+  ToggleButtonGroup, ToggleButton, Switch,
   Checkbox, FormGroup, FormControlLabel, Tooltip,
 } from '@mui/material'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
@@ -15,6 +15,7 @@ import SyncIcon         from '@mui/icons-material/Sync'
 import StopIcon         from '@mui/icons-material/Stop'
 import StorageIcon      from '@mui/icons-material/Storage'
 import TuneIcon         from '@mui/icons-material/Tune'
+import ScheduleIcon     from '@mui/icons-material/Schedule'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAppSettings, type ProductCodeField } from '../../context/AppSettings'
@@ -42,9 +43,54 @@ const DOMAINS = [
   { key: 'purchases',   label: 'Purchases',   desc: 'Purchase orders & received lines' },
 ] as const
 
-const LOAD_OPTIONS = [30, 90, 180, 365, 730]
+const LOAD_OPTIONS = [30, 90, 180, 365, 730, 1095]
 const INCR_OPTIONS = [1, 3, 7, 14, 30]
 const REFR_OPTIONS = [5, 10, 15, 30, 60, 120]
+
+// ── v2 settings shape (per-domain schedules + retention) ──────────────────────
+export interface ScheduleCfg {
+  mode: 'times' | 'interval' | 'manual'
+  times?: string[] | null
+  days?: string[] | null
+  timezone?: string | null
+  every_minutes?: number | null
+}
+export interface DomainCfg {
+  enabled: boolean
+  load_days: number
+  detail: boolean
+  retain_detail_months: number | null
+  schedule: ScheduleCfg
+}
+export interface DataModelV2 {
+  schema_version: 2
+  background_enabled: boolean
+  timezone: string
+  quiet_hours: { from: string; to: string } | null
+  default_incremental_days: number
+  domains: Record<string, DomainCfg>
+}
+
+const WEEKDAYS  = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const TIMEZONES = ['UTC', 'Asia/Amman', 'Asia/Riyadh', 'Asia/Dubai', 'Africa/Cairo',
+                   'Europe/London', 'Europe/Istanbul', 'America/New_York']
+const RETAIN_OPTIONS: { v: number | null; l: string }[] = [
+  { v: 6, l: '6 months' }, { v: 12, l: '12 months' }, { v: 24, l: '24 months' },
+  { v: 36, l: '36 months' }, { v: null, l: 'Keep everything' },
+]
+
+const DEFAULT_SCHEDULE: ScheduleCfg = { mode: 'manual' }
+const DEFAULT_DM: DataModelV2 = {
+  schema_version: 2,
+  background_enabled: true,
+  timezone: 'UTC',
+  quiet_hours: null,
+  default_incremental_days: 7,
+  domains: Object.fromEntries(DOMAINS.map(d => [d.key, {
+    enabled: true, load_days: 365, detail: true, retain_detail_months: null,
+    schedule: { ...DEFAULT_SCHEDULE },
+  }])) as Record<string, DomainCfg>,
+}
 
 function SectionCard({ title, icon, children }:
   { title: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -88,8 +134,9 @@ export default function DataModelSettings() {
   })
 
   const [conn, setConn] = useState({ host:'', port:1521, sid:'', username:'', password:'' })
-  const [dm, setDm]     = useState({ initial_load_days:365, incremental_window_days:7, background_refresh_minutes:30 })
+  const [dm, setDm]     = useState<DataModelV2>(DEFAULT_DM)
   const [saveMsg, setSaveMsg]         = useState('')
+  const [saveErr, setSaveErr]         = useState('')
   const [selDomains, setSelDomains]   = useState<Set<string>>(new Set())  // empty = all
   const [rangeFrom, setRangeFrom]     = useState('')
   const [rangeTo,   setRangeTo]       = useState('')
@@ -97,9 +144,21 @@ export default function DataModelSettings() {
   useEffect(() => {
     if (settings) {
       setConn({ ...settings.connection })   // keep masked password so it persists
-      setDm(settings.data_model)
+      // Backend GET always returns the migrated v2 shape; fall back defensively
+      if (settings.data_model?.domains) setDm(settings.data_model)
     }
   }, [settings])
+
+  // ── v2 update helpers ────────────────────────────────────────────────────
+  const setDomain = (key: string, patch: Partial<DomainCfg>) =>
+    setDm(prev => ({ ...prev,
+      domains: { ...prev.domains, [key]: { ...prev.domains[key], ...patch } } }))
+
+  const setSchedule = (key: string, patch: Partial<ScheduleCfg>) =>
+    setDm(prev => ({ ...prev,
+      domains: { ...prev.domains,
+        [key]: { ...prev.domains[key],
+          schedule: { ...prev.domains[key].schedule, ...patch } } } }))
 
   const testConn = useMutation({
     mutationFn: () => axios.post('/api/settings/test-connection', conn),
@@ -108,6 +167,7 @@ export default function DataModelSettings() {
   const saveSettings = useMutation({
     mutationFn: () => axios.put('/api/settings', { connection: conn, data_model: dm }),
     onSuccess: (res) => {
+      setSaveErr('')
       qc.invalidateQueries({ queryKey:['settings'] })
       qc.invalidateQueries({ queryKey:['sync-status'] })
       if (res.data?.host_changed) {
@@ -116,6 +176,13 @@ export default function DataModelSettings() {
         setSaveMsg('Settings saved')
       }
       setTimeout(() => setSaveMsg(''), 5000)
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail
+      const msg = Array.isArray(detail)
+        ? detail.map((d: any) => d.msg ?? JSON.stringify(d)).join(' · ')
+        : (detail ?? 'Save failed')
+      setSaveErr(String(msg))
     },
   })
 
@@ -227,28 +294,54 @@ export default function DataModelSettings() {
 
       {/* ── Data Model ──────────────────────────────────────────── */}
       <SectionCard title="Data Model" icon={<SyncIcon />}>
-        <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:2, mb:2.5 }}>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Initial Load Period</InputLabel>
-            <Select value={dm.initial_load_days} label="Initial Load Period"
-              onChange={e => setDm({ ...dm, initial_load_days:+e.target.value })}>
-              {LOAD_OPTIONS.map(d => <MenuItem key={d} value={d}>Last {d} days</MenuItem>)}
+        <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap', mb:2.5 }}>
+          <FormControlLabel
+            control={
+              <Switch size="small" checked={dm.background_enabled}
+                onChange={e => setDm({ ...dm, background_enabled: e.target.checked })}
+                sx={{ '& .Mui-checked': { color: ACCENT },
+                      '& .Mui-checked + .MuiSwitch-track': { bgcolor: `${ACCENT} !important` } }} />
+            }
+            label={<Typography sx={{ fontSize:13, fontWeight:600 }}>Background sync</Typography>}
+          />
+          <FormControl size="small" sx={{ minWidth:190 }}>
+            <InputLabel>Timezone</InputLabel>
+            <Select value={dm.timezone} label="Timezone"
+              onChange={e => setDm({ ...dm, timezone: String(e.target.value) })}>
+              {[...new Set([dm.timezone, ...TIMEZONES])].map(tz =>
+                <MenuItem key={tz} value={tz}>{tz}</MenuItem>)}
             </Select>
           </FormControl>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Incremental Window</InputLabel>
-            <Select value={dm.incremental_window_days} label="Incremental Window"
-              onChange={e => setDm({ ...dm, incremental_window_days:+e.target.value })}>
+          <FormControl size="small" sx={{ minWidth:170 }}>
+            <InputLabel>Incremental Overlap</InputLabel>
+            <Select value={dm.default_incremental_days} label="Incremental Overlap"
+              onChange={e => setDm({ ...dm, default_incremental_days:+e.target.value })}>
               {INCR_OPTIONS.map(d => <MenuItem key={d} value={d}>Last {d} day{d>1?'s':''}</MenuItem>)}
             </Select>
           </FormControl>
-          <FormControl size="small" fullWidth>
-            <InputLabel>Background Refresh</InputLabel>
-            <Select value={dm.background_refresh_minutes} label="Background Refresh"
-              onChange={e => setDm({ ...dm, background_refresh_minutes:+e.target.value })}>
-              {REFR_OPTIONS.map(m => <MenuItem key={m} value={m}>Every {m} min</MenuItem>)}
-            </Select>
-          </FormControl>
+        </Box>
+        <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap', mb:2.5 }}>
+          <FormControlLabel
+            control={
+              <Checkbox size="small" checked={!!dm.quiet_hours}
+                onChange={e => setDm({ ...dm,
+                  quiet_hours: e.target.checked ? { from:'08:00', to:'18:00' } : null })}
+                sx={{ color: ACCENT, '&.Mui-checked': { color: ACCENT } }} />
+            }
+            label={<Typography sx={{ fontSize:13 }}>Quiet hours (no background sync)</Typography>}
+          />
+          {dm.quiet_hours && (
+            <>
+              <TextField label="From" type="time" size="small" sx={{ width:130 }}
+                InputLabelProps={{ shrink:true }}
+                value={dm.quiet_hours.from}
+                onChange={e => setDm({ ...dm, quiet_hours: { ...dm.quiet_hours!, from: e.target.value } })} />
+              <TextField label="To" type="time" size="small" sx={{ width:130 }}
+                InputLabelProps={{ shrink:true }}
+                value={dm.quiet_hours.to}
+                onChange={e => setDm({ ...dm, quiet_hours: { ...dm.quiet_hours!, to: e.target.value } })} />
+            </>
+          )}
         </Box>
 
         {/* Sync progress */}
@@ -337,8 +430,8 @@ export default function DataModelSettings() {
               sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
                     '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
               {selDomains.size > 0
-                ? `Load ${[...selDomains].join(' + ')} (last ${dm.initial_load_days} days)`
-                : `Load All Data (last ${dm.initial_load_days} days)`}
+                ? `Load ${[...selDomains].join(' + ')} (last ${dm.domains.sales?.load_days ?? 365} days)`
+                : `Load All Data (last ${dm.domains.sales?.load_days ?? 365} days)`}
             </Button>
           ) : (
             <Button variant="outlined" size="small"
@@ -358,6 +451,111 @@ export default function DataModelSettings() {
             {saveMsg.includes('Host') ? '⚠ ' : '✓ '}{saveMsg}
           </Typography>
         )}
+        {saveErr && (
+          <Alert severity="error" sx={{ mt:1, fontSize:12 }}>{saveErr}</Alert>
+        )}
+      </SectionCard>
+
+      {/* ── Refresh Schedules & Retention (per domain) ───────────── */}
+      <SectionCard title="Refresh Schedules & Retention" icon={<ScheduleIcon />}>
+        <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+          Each domain refreshes on its own schedule (like Power BI): specific times on
+          selected days, a fixed interval, or manual only. Retention prunes old
+          line-item detail while keeping daily summaries forever.
+          Times use the timezone selected above. Remember to <b>Save Settings</b>.
+        </Typography>
+
+        {DOMAINS.map(d => {
+          const cfg = dm.domains[d.key]
+          if (!cfg) return null
+          const sch = cfg.schedule ?? { mode: 'manual' as const }
+          return (
+            <Box key={d.key}
+              sx={{ border:'1px solid #e2e8f0', borderRadius:1.5, p:1.5, mb:1.5,
+                    opacity: cfg.enabled ? 1 : 0.55 }}>
+              <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap', mb:1 }}>
+                <FormControlLabel sx={{ mr:0, minWidth:150 }}
+                  control={
+                    <Switch size="small" checked={cfg.enabled}
+                      onChange={e => setDomain(d.key, { enabled: e.target.checked })} />
+                  }
+                  label={
+                    <Tooltip title={d.desc} placement="top" arrow>
+                      <Typography sx={{ fontSize:13.5, fontWeight:700, color:'#0f172a' }}>
+                        {d.label}
+                      </Typography>
+                    </Tooltip>
+                  }
+                />
+                <FormControl size="small" sx={{ minWidth:150 }}>
+                  <InputLabel>Load window</InputLabel>
+                  <Select value={cfg.load_days} label="Load window"
+                    onChange={e => setDomain(d.key, { load_days: +e.target.value })}>
+                    {[...new Set([cfg.load_days, ...LOAD_OPTIONS])].sort((a, b) => a - b)
+                      .map(v => <MenuItem key={v} value={v}>Last {v} days</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth:165 }}>
+                  <InputLabel>Detail retention</InputLabel>
+                  <Select
+                    value={cfg.retain_detail_months === null ? 'null' : cfg.retain_detail_months}
+                    label="Detail retention"
+                    onChange={e => setDomain(d.key, {
+                      retain_detail_months: e.target.value === 'null' ? null : +e.target.value })}>
+                    {RETAIN_OPTIONS.map(o =>
+                      <MenuItem key={String(o.v)} value={o.v === null ? 'null' : o.v}>{o.l}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
+                <ToggleButtonGroup exclusive size="small" value={sch.mode}
+                  onChange={(_, v) => { if (v) setSchedule(d.key, { mode: v }) }}
+                  sx={{ '& .MuiToggleButton-root': { px:1.5, py:0.4, fontWeight:700, fontSize:11.5, textTransform:'none' },
+                        '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important` } }}>
+                  <ToggleButton value="manual">Manual</ToggleButton>
+                  <ToggleButton value="interval">Interval</ToggleButton>
+                  <ToggleButton value="times">Times</ToggleButton>
+                </ToggleButtonGroup>
+
+                {sch.mode === 'interval' && (
+                  <FormControl size="small" sx={{ minWidth:130 }}>
+                    <InputLabel>Every</InputLabel>
+                    <Select value={sch.every_minutes ?? 30} label="Every"
+                      onChange={e => setSchedule(d.key, { every_minutes: +e.target.value })}>
+                      {[...new Set([sch.every_minutes ?? 30, ...REFR_OPTIONS])].sort((a, b) => a - b)
+                        .map(m => <MenuItem key={m} value={m}>{m} min</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                )}
+
+                {sch.mode === 'times' && (
+                  <>
+                    <TextField label="Times (HH:MM, comma-separated)" size="small" sx={{ minWidth:230 }}
+                      placeholder="06:00, 12:00, 18:00"
+                      value={(sch.times ?? []).join(', ')}
+                      onChange={e => setSchedule(d.key, {
+                        times: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })} />
+                    <ToggleButtonGroup size="small" value={sch.days ?? [...WEEKDAYS]}
+                      onChange={(_, v: string[]) => setSchedule(d.key, {
+                        days: v.length === 0 || v.length === 7 ? null : v })}
+                      sx={{ flexWrap:'wrap',
+                            '& .MuiToggleButton-root': { px:1, py:0.3, fontSize:11, fontWeight:700, textTransform:'none' },
+                            '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important` } }}>
+                      {WEEKDAYS.map(w => <ToggleButton key={w} value={w}>{w}</ToggleButton>)}
+                    </ToggleButtonGroup>
+                  </>
+                )}
+
+                {sch.mode === 'manual' && (
+                  <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
+                    No automatic refresh — use Sync buttons or a range load.
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )
+        })}
       </SectionCard>
 
       {/* ── Load a specific date range ──────────────────────────── */}
