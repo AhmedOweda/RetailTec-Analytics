@@ -45,7 +45,8 @@ def _check_cancel():
 
 
 def _get_oracle_conn():
-    s = json.loads(SETTINGS_FILE.read_text())
+    from services.config import load_settings
+    s = load_settings()   # decrypts the DPAPI-protected password in memory
     c = s.get("connection", {})
     host     = c.get("host", "localhost")
     port     = c.get("port", 1521)

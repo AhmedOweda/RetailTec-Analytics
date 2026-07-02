@@ -1,0 +1,122 @@
+"""
+Central settings loader/saver for backend/settings.json
+========================================================
+Single source of truth for reading/writing settings — used by
+routers/settings.py, db/sync.py and services/scheduler.py.
+
+The Oracle password is encrypted at rest with Windows DPAPI
+(current-user scope), stored as "dpapi:<base64>" (EXPERT_REVIEW.md C3).
+On non-Windows dev machines it falls back to plaintext with a log warning.
+Existing plaintext settings files are migrated transparently on first load.
+"""
+import base64
+import json
+import logging
+import sys
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+SETTINGS_FILE = Path(__file__).parent.parent / "settings.json"
+_DPAPI_PREFIX = "dpapi:"
+
+_DEFAULTS = {
+    "connection":   {"host": "", "port": 1521, "sid": "", "username": "", "password": ""},
+    "data_model":   {"initial_load_days": 365, "incremental_window_days": 7,
+                     "background_refresh_minutes": 30},
+    "last_sync":    None,
+    "model_status": "empty",
+}
+
+
+# ── Windows DPAPI via ctypes (no extra dependency) ────────────────────────────
+
+def _dpapi_available() -> bool:
+    return sys.platform == "win32"
+
+
+if _dpapi_available():
+    import ctypes
+    import ctypes.wintypes
+
+    class _DATA_BLOB(ctypes.Structure):
+        _fields_ = [("cbData", ctypes.wintypes.DWORD),
+                    ("pbData", ctypes.POINTER(ctypes.c_char))]
+
+    def _blob_out(blob: "_DATA_BLOB") -> bytes:
+        data = ctypes.string_at(blob.pbData, blob.cbData)
+        ctypes.windll.kernel32.LocalFree(blob.pbData)
+        return data
+
+    def _dpapi_protect(plain: str) -> str:
+        blob_in  = _DATA_BLOB(len(plain.encode()), ctypes.cast(
+            ctypes.create_string_buffer(plain.encode()), ctypes.POINTER(ctypes.c_char)))
+        blob_out = _DATA_BLOB()
+        if not ctypes.windll.crypt32.CryptProtectData(
+                ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)):
+            raise OSError("CryptProtectData failed")
+        return _DPAPI_PREFIX + base64.b64encode(_blob_out(blob_out)).decode()
+
+    def _dpapi_unprotect(token: str) -> str:
+        raw = base64.b64decode(token[len(_DPAPI_PREFIX):])
+        blob_in  = _DATA_BLOB(len(raw), ctypes.cast(
+            ctypes.create_string_buffer(raw), ctypes.POINTER(ctypes.c_char)))
+        blob_out = _DATA_BLOB()
+        if not ctypes.windll.crypt32.CryptUnprotectData(
+                ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)):
+            raise OSError("CryptUnprotectData failed")
+        return _blob_out(blob_out).decode()
+else:
+    def _dpapi_protect(plain: str) -> str:      # pragma: no cover — dev fallback
+        return plain
+
+    def _dpapi_unprotect(token: str) -> str:    # pragma: no cover
+        return token
+
+
+def _encrypt_password(pw: str) -> str:
+    if not pw or pw.startswith(_DPAPI_PREFIX):
+        return pw
+    if not _dpapi_available():
+        log.warning("DPAPI unavailable on this platform — Oracle password stored in plaintext")
+        return pw
+    return _dpapi_protect(pw)
+
+
+def _decrypt_password(pw: str) -> str:
+    if pw and pw.startswith(_DPAPI_PREFIX):
+        try:
+            return _dpapi_unprotect(pw)
+        except Exception as e:
+            log.error(f"Failed to decrypt stored Oracle password: {e}")
+            return ""
+    return pw
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def load_settings() -> dict:
+    """Read settings.json; the returned dict always has a PLAINTEXT password
+    (decrypted in memory only)."""
+    if not SETTINGS_FILE.exists():
+        return json.loads(json.dumps(_DEFAULTS))
+    data = json.loads(SETTINGS_FILE.read_text())
+    conn = data.get("connection", {})
+    stored = conn.get("password", "")
+    conn["password"] = _decrypt_password(stored)
+    # Transparent migration: re-save plaintext files encrypted
+    if stored and not stored.startswith(_DPAPI_PREFIX) and _dpapi_available():
+        try:
+            save_settings(data)
+        except OSError:
+            pass
+    return data
+
+
+def save_settings(data: dict) -> None:
+    """Write settings.json, encrypting the password at rest."""
+    out = json.loads(json.dumps(data, default=str))
+    conn = out.get("connection", {})
+    if conn.get("password"):
+        conn["password"] = _encrypt_password(conn["password"])
+    SETTINGS_FILE.write_text(json.dumps(out, indent=2, default=str))

@@ -50,7 +50,8 @@ def _progress(step: str, done: int, total: int):
 
 
 def _load_settings() -> dict:
-    return json.loads(SETTINGS_FILE.read_text())
+    from services.config import load_settings
+    return load_settings()   # decrypts the DPAPI-protected password in memory
 
 
 # ── On-open incremental sync ───────────────────────────────────────────────

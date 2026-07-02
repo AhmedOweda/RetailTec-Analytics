@@ -9,36 +9,23 @@ Endpoints:
   GET /api/purchases/by-store   — Grouped by store
   GET /api/purchases/by-status  — Breakdown by PO status
   GET /api/purchases/details    — Line-level detail rows (FACT_PURCHASE_ITEMS)
+
+Security: all SQL uses bound parameters or type-safe values (EXPERT_REVIEW.md C2);
+store access is scoped to the JWT `stores` claim via `scoped_stores` (C1).
 """
-import threading
+from datetime import date
 from typing import Optional
-from fastapi import APIRouter, Query
-from db.model import get_db
+from fastapi import APIRouter, Depends, Query
+
+from routers.common import csv_in, q as _q, qdf as _qdf, scoped_stores, store_filter
 
 router = APIRouter(tags=["purchases"])
-_db_lock = threading.Lock()
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _store_filter(stores: Optional[str], alias: str = "S") -> str:
-    if not stores:
-        return ""
-    names = [f"'{s.strip().replace(chr(39), chr(39)*2)}'"
-             for s in stores.split(",") if s.strip()]
-    return f" AND {alias}.STORE_NAME IN ({','.join(names)})" if names else ""
-
-
-def _vendor_filter(vendors: Optional[str], alias: str = "V") -> str:
-    if not vendors:
-        return ""
-    names = [f"'{s.strip().replace(chr(39), chr(39)*2)}'"
-             for s in vendors.split(",") if s.strip()]
-    return f" AND {alias}.VEND_NAME IN ({','.join(names)})" if names else ""
-
-
 def _status_filter(status: Optional[str]) -> str:
-    """status param: 'received'|'pending'|None"""
+    """status param: 'received'|'pending'|None — whitelisted literals only."""
     if status == "received":
         return " AND FP.STATUS = 4"
     if status == "pending":
@@ -46,44 +33,34 @@ def _status_filter(status: Optional[str]) -> str:
     return ""
 
 
-def _qdf(sql: str) -> list[dict]:
-    with _db_lock:
-        con  = get_db()
-        rel  = con.execute(sql)
-        cols = [d[0] for d in rel.description]
-        return [dict(zip(cols, row)) for row in rel.fetchall()]
-
-
-def _q(sql: str):
-    with _db_lock:
-        return get_db().execute(sql).fetchall()
-
-
-def _pur_base(df: str, dt: str, stores: Optional[str],
-              vendors: Optional[str] = None, status: Optional[str] = None) -> str:
-    sf  = _store_filter(stores, alias="S")
-    vf  = _vendor_filter(vendors, alias="V")
-    stf = _status_filter(status)
-    return f"""
+def _pur_base(df: date, dt: date, stores: Optional[str],
+              vendors: Optional[str] = None, status: Optional[str] = None
+              ) -> tuple[str, list]:
+    sf, sp   = store_filter(stores, alias="S")
+    vf, vp   = csv_in("V.VEND_NAME", vendors)
+    stf      = _status_filter(status)
+    frag = f"""
         FROM FACT_PURCHASES FP
         LEFT JOIN DIM_STORE  S ON S.SID  = FP.STORE_SID
         LEFT JOIN DIM_VENDOR V ON V.SID  = FP.VEND_SID
-        WHERE FP.VOU_DATE BETWEEN '{df}' AND '{dt}' {sf} {vf} {stf}
+        WHERE FP.VOU_DATE BETWEEN ? AND ? {sf} {vf} {stf}
     """
+    return frag, [df, dt] + sp + vp
 
 
-def _pur_items_base(df: str, dt: str, stores: Optional[str],
-                    vendors: Optional[str] = None) -> str:
-    sf = _store_filter(stores, alias="S")
-    vf = _vendor_filter(vendors, alias="V")
-    return f"""
+def _pur_items_base(df: date, dt: date, stores: Optional[str],
+                    vendors: Optional[str] = None) -> tuple[str, list]:
+    sf, sp = store_filter(stores, alias="S")
+    vf, vp = csv_in("V.VEND_NAME", vendors)
+    frag = f"""
         FROM FACT_PURCHASE_ITEMS FPI
         LEFT JOIN DIM_STORE  S  ON S.SID  = FPI.STORE_SID
         LEFT JOIN DIM_VENDOR V  ON V.SID  = FPI.VEND_SID
         LEFT JOIN DIM_ITEM   I  ON I.SID  = FPI.ITEM_SID
         LEFT JOIN DIM_DCS    DC ON DC.SID = I.DCS_SID
-        WHERE FPI.VOU_DATE BETWEEN '{df}' AND '{dt}' {sf} {vf}
+        WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {vf}
     """
+    return frag, [df, dt] + sp + vp
 
 
 # ── Status label ───────────────────────────────────────────────────────────────
@@ -99,13 +76,13 @@ def _status_label(alias: str = "FP") -> str:
 
 @router.get("/api/purchases/kpi")
 def purchases_kpi(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
 ):
-    base = _pur_base(date_from, date_to, stores, vendors, status)
+    base, params = _pur_base(date_from, date_to, stores, vendors, status)
     rows = _q(f"""
         SELECT
             COUNT(DISTINCT FP.VOU_SID)                          AS vou_count,
@@ -120,7 +97,7 @@ def purchases_kpi(
             COUNT(CASE WHEN FP.STATUS = 4 THEN 1 END)           AS received_count,
             COUNT(CASE WHEN FP.STATUS = 3 THEN 1 END)           AS pending_count
         {base}
-    """)
+    """, params)
     r = rows[0]
     total = float(r[0] or 0)
     recv  = float(r[9] or 0)
@@ -144,13 +121,13 @@ def purchases_kpi(
 
 @router.get("/api/purchases/trend")
 def purchases_trend(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
 ):
-    base = _pur_base(date_from, date_to, stores, vendors, status)
+    base, params = _pur_base(date_from, date_to, stores, vendors, status)
     return _qdf(f"""
         SELECT
             FP.VOU_DATE                          AS vou_date,
@@ -161,21 +138,21 @@ def purchases_trend(
         {base}
         GROUP BY FP.VOU_DATE
         ORDER BY FP.VOU_DATE
-    """)
+    """, params)
 
 
 # ── By Vendor ──────────────────────────────────────────────────────────────────
 
 @router.get("/api/purchases/by-vendor")
 def purchases_by_vendor(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
-    limit:     int = Query(15),
+    limit:     int = Query(15, ge=1, le=1000),
 ):
-    base = _pur_base(date_from, date_to, stores, vendors, status)
+    base, params = _pur_base(date_from, date_to, stores, vendors, status)
     return _qdf(f"""
         SELECT
             COALESCE(V.VEND_NAME, '(Unknown)')   AS vendor_name,
@@ -188,20 +165,20 @@ def purchases_by_vendor(
         GROUP BY V.VEND_NAME
         ORDER BY total_cost DESC
         LIMIT {limit}
-    """)
+    """, params)
 
 
 # ── By Department ──────────────────────────────────────────────────────────────
 
 @router.get("/api/purchases/by-dept")
 def purchases_by_dept(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
     vendors:   Optional[str] = Query(None),
-    limit:     int = Query(15),
+    limit:     int = Query(15, ge=1, le=1000),
 ):
-    base = _pur_items_base(date_from, date_to, stores, vendors)
+    base, params = _pur_items_base(date_from, date_to, stores, vendors)
     return _qdf(f"""
         SELECT
             COALESCE(DC.D_NAME, '(Unknown)')     AS department,
@@ -214,20 +191,20 @@ def purchases_by_dept(
         GROUP BY DC.D_NAME
         ORDER BY total_cost DESC
         LIMIT {limit}
-    """)
+    """, params)
 
 
 # ── By Store ───────────────────────────────────────────────────────────────────
 
 @router.get("/api/purchases/by-store")
 def purchases_by_store(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
 ):
-    base = _pur_base(date_from, date_to, stores, vendors, status)
+    base, params = _pur_base(date_from, date_to, stores, vendors, status)
     return _qdf(f"""
         SELECT
             COALESCE(S.STORE_NAME, '(Unknown)')  AS store_name,
@@ -238,20 +215,20 @@ def purchases_by_store(
         {base}
         GROUP BY S.STORE_NAME
         ORDER BY total_cost DESC
-    """)
+    """, params)
 
 
 # ── By Status ──────────────────────────────────────────────────────────────────
 
 @router.get("/api/purchases/by-status")
 def purchases_by_status(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
     vendors:   Optional[str] = Query(None),
 ):
-    sf = _store_filter(stores, alias="S")
-    vf = _vendor_filter(vendors, alias="V")
+    sf, sp = store_filter(stores, alias="S")
+    vf, vp = csv_in("V.VEND_NAME", vendors)
     status_lbl = _status_label()
     return _qdf(f"""
         SELECT
@@ -263,30 +240,26 @@ def purchases_by_status(
         FROM FACT_PURCHASES FP
         LEFT JOIN DIM_STORE  S ON S.SID = FP.STORE_SID
         LEFT JOIN DIM_VENDOR V ON V.SID = FP.VEND_SID
-        WHERE FP.VOU_DATE BETWEEN '{date_from}' AND '{date_to}' {sf} {vf}
+        WHERE FP.VOU_DATE BETWEEN ? AND ? {sf} {vf}
         GROUP BY FP.STATUS
         ORDER BY FP.STATUS
-    """)
+    """, [date_from, date_to] + sp + vp)
 
 
 # ── Detail lines ───────────────────────────────────────────────────────────────
 
 @router.get("/api/purchases/details")
 def purchases_details(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
-    limit:     int = Query(2000),
+    limit:     int = Query(2000, ge=1, le=100000),
 ):
-    sf  = _store_filter(stores, alias="S")
-    vf  = _vendor_filter(vendors, alias="V")
-    stf = ""
-    if status == "received":
-        stf = " AND FP.STATUS = 4"
-    elif status == "pending":
-        stf = " AND FP.STATUS = 3"
+    sf, sp = store_filter(stores, alias="S")
+    vf, vp = csv_in("V.VEND_NAME", vendors)
+    stf    = _status_filter(status)
 
     status_lbl = _status_label(alias="FP")
     return _qdf(f"""
@@ -312,10 +285,10 @@ def purchases_details(
         LEFT JOIN DIM_VENDOR     V  ON V.SID        = FPI.VEND_SID
         LEFT JOIN DIM_ITEM       I  ON I.SID        = FPI.ITEM_SID
         LEFT JOIN DIM_DCS        DC ON DC.SID       = I.DCS_SID
-        WHERE FPI.VOU_DATE BETWEEN '{date_from}' AND '{date_to}' {sf} {vf} {stf}
+        WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {vf} {stf}
         ORDER BY FPI.VOU_DATE DESC, FP.VOU_NO
         LIMIT {limit}
-    """)
+    """, [date_from, date_to] + sp + vp)
 
 
 # ── Vendor list (for filter dropdown) ─────────────────────────────────────────

@@ -49,8 +49,8 @@ export const router = createBrowserRouter([
       { path: 'dimensions/employees',    element: <DimEmployees />          },
       { path: 'dimensions/items',        element: <DimItems />              },
       { path: 'dimensions/vendors',      element: <DimVendors />            },
-      { path: 'settings',               element: <DataModelSettings />      },
-      { path: 'settings/users',         element: <UsersManagement />        },
+      { path: 'settings',               element: <ProtectedRoute adminOnly><DataModelSettings /></ProtectedRoute> },
+      { path: 'settings/users',         element: <ProtectedRoute adminOnly><UsersManagement /></ProtectedRoute>   },
     ],
   },
 ])

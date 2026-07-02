@@ -40,6 +40,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('rt_user',  JSON.stringify(data.user))
     setToken(data.access_token)
     setUser(data.user)
+    // Fire the on-open incremental sync now that we have a token
+    api.get('/api/sync/trigger').catch(() => {})
+    if (data.must_change_password) {
+      // Backend flags accounts still on the seeded default password
+      alert('You are using the default password — please change it from the Users screen.')
+    }
   }, [])
 
   const logout = useCallback(() => {

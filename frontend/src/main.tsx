@@ -8,10 +8,13 @@ import { router } from './router'
 import { createAppTheme } from './theme'
 import { AppSettingsProvider } from './context/AppSettings'
 import { AuthProvider } from './contexts/AuthContext'
-import axios from 'axios'
+import api from './api/client'   // installs global axios auth interceptors
 
-// Trigger incremental sync on every app open
-axios.get('/api/sync/trigger').catch(() => {})
+// Trigger incremental sync on app open — only when already logged in
+// (the endpoint now requires a valid token)
+if (localStorage.getItem('rt_token')) {
+  api.get('/api/sync/trigger').catch(() => {})
+}
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },

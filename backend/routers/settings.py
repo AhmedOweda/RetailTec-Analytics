@@ -9,16 +9,17 @@ GET     /api/sync/table-stats
 """
 import json
 import asyncio
-from pathlib import Path
 from typing import Optional, List
 
 import oracledb
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from routers.auth import require_admin
+from services.config import SETTINGS_FILE, load_settings, save_settings
 
 router = APIRouter(tags=["settings"])
 
-SETTINGS_FILE = Path(__file__).parent.parent / "settings.json"
 _PASSWORD_MASK = "••••••••"
 
 
@@ -42,19 +43,8 @@ class SettingsPayload(BaseModel):
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
-
-def load_settings() -> dict:
-    if SETTINGS_FILE.exists():
-        return json.loads(SETTINGS_FILE.read_text())
-    return {
-        "connection":   {"host": "", "port": 1521, "sid": "", "username": "", "password": ""},
-        "data_model":   {"initial_load_days": 365, "incremental_window_days": 7, "background_refresh_minutes": 30},
-        "last_sync":    None,
-        "model_status": "empty",
-    }
-
-def save_settings(data: dict):
-    SETTINGS_FILE.write_text(json.dumps(data, indent=2, default=str))
+# load_settings/save_settings now live in services.config (single source of
+# truth, DPAPI-encrypted password at rest — EXPERT_REVIEW.md C3).
 
 def cleanup_stale_runs(duck) -> int:
     """Mark any 'running' SYNC_RUN rows as 'aborted' (called on startup + on demand)."""
@@ -79,7 +69,7 @@ def get_settings():
 
 
 @router.put("/api/settings")
-def update_settings(payload: SettingsPayload):
+def update_settings(payload: SettingsPayload, _admin: dict = Depends(require_admin)):
     from db.sync  import cancel_sync
     from db.model import switch_db
 
@@ -110,7 +100,7 @@ def update_settings(payload: SettingsPayload):
 
 
 @router.post("/api/settings/test-connection")
-async def test_connection(conn: ConnectionSettings):
+async def test_connection(conn: ConnectionSettings, _admin: dict = Depends(require_admin)):
     password = conn.password
     if password == _PASSWORD_MASK:
         password = load_settings().get("connection", {}).get("password", "")
@@ -136,14 +126,14 @@ def get_model_status():
 
 
 @router.post("/api/sync/cancel")
-def cancel_sync():
+def cancel_sync(_admin: dict = Depends(require_admin)):
     from db.sync import cancel_sync
     cancel_sync()
     return {"ok": True, "message": "Cancel requested"}
 
 
 @router.post("/api/sync/cleanup")
-def sync_cleanup():
+def sync_cleanup(_admin: dict = Depends(require_admin)):
     """Mark stuck 'running' sync runs as aborted. Safe to call anytime."""
     from db.model import get_db
     duck = get_db()
@@ -277,7 +267,7 @@ class RangeLoadReq(BaseModel):
 
 
 @router.post("/api/sync/range")
-async def sync_range(req: RangeLoadReq):
+async def sync_range(req: RangeLoadReq, _admin: dict = Depends(require_admin)):
     """Trigger a load of an explicit date range. Append (non-destructive) by default."""
     from services.scheduler import trigger_range_load
     tables = set(req.domains) if req.domains else None
@@ -328,7 +318,7 @@ class RetentionReq(BaseModel):
 
 
 @router.post("/api/maintenance/retention")
-def run_retention(req: RetentionReq):
+def run_retention(req: RetentionReq, _admin: dict = Depends(require_admin)):
     """Prune line-item detail older than retain_months (keeps daily aggregate + invoice
     headers forever). dry_run=True previews the row counts without deleting."""
     from db.sync import apply_retention

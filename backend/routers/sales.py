@@ -13,17 +13,20 @@ Endpoints:
   GET  /api/sync/trigger         — Fire on-open incremental sync
   GET  /api/sync/status          — Current sync state
   POST /api/sync/full-load       — Trigger full reload (admin panel)
+
+Security: all SQL uses bound parameters or type-safe values (EXPERT_REVIEW.md C2);
+store access is scoped to the JWT `stores` claim via `scoped_stores` (C1).
 """
 from datetime import date, timedelta, datetime
-import threading
 from typing import Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from db.model import get_db
+from routers.auth import get_current_user, require_admin
+from routers.common import (DB_LOCK, allowed_store_set, q as _q, qdf as _qdf,
+                            scoped_stores, store_filter)
 from services.scheduler import on_open_sync, trigger_full_load, get_sync_state
 
 router = APIRouter(tags=["sales"])
-
-_db_lock = threading.Lock()  # DuckDB single-connection is not thread-safe
 
 # ── Dimension cache (refreshed daily or on new SID) ───────────────────────────
 _dim_cache: dict = {}
@@ -32,16 +35,17 @@ _dim_loaded_at: datetime | None = None
 def _load_dims() -> None:
     """Cache all dimension tables in memory to avoid repeated DuckDB scans."""
     global _dim_cache, _dim_loaded_at
-    con = get_db()
-    def _fetch(sql: str) -> list[dict]:
-        rel  = con.execute(sql)
-        cols = [d[0] for d in rel.description]
-        return [dict(zip(cols, row)) for row in rel.fetchall()]
-    _dim_cache = {
-        "stores":    _fetch("SELECT SID, STORE_NAME FROM DIM_STORE ORDER BY STORE_NAME"),
-        "employees": _fetch("SELECT SID, FULL_NAME   FROM DIM_EMPLOYEE ORDER BY FULL_NAME"),
-        "customers": _fetch("SELECT SID, FULL_NAME   FROM DIM_CUSTOMER ORDER BY FULL_NAME"),
-    }
+    with DB_LOCK:
+        con = get_db()
+        def _fetch(sql: str) -> list[dict]:
+            rel  = con.execute(sql)
+            cols = [d[0] for d in rel.description]
+            return [dict(zip(cols, row)) for row in rel.fetchall()]
+        _dim_cache = {
+            "stores":    _fetch("SELECT SID, STORE_NAME FROM DIM_STORE ORDER BY STORE_NAME"),
+            "employees": _fetch("SELECT SID, FULL_NAME   FROM DIM_EMPLOYEE ORDER BY FULL_NAME"),
+            "customers": _fetch("SELECT SID, FULL_NAME   FROM DIM_CUSTOMER ORDER BY FULL_NAME"),
+        }
     _dim_loaded_at = datetime.utcnow()
 
 _dim_sid_checked_at: datetime | None = None   # throttle the SID staleness check
@@ -60,7 +64,9 @@ def _ensure_dims() -> None:
             _dim_sid_checked_at = now
             try:
                 cached_sids = {r["SID"] for r in _dim_cache.get("stores", [])}
-                live_max    = get_db().execute("SELECT MAX(STORE_SID) FROM FACT_SALES_DAILY").fetchone()[0]
+                with DB_LOCK:
+                    live_max = get_db().execute(
+                        "SELECT MAX(STORE_SID) FROM FACT_SALES_DAILY").fetchone()[0]
                 if live_max and live_max not in cached_sids:
                     stale = True
             except Exception:
@@ -73,41 +79,22 @@ def _cached_store_names() -> list[str]:
     _ensure_dims()
     # Check both uppercase and lowercase variations safely
     return [
-        (r.get("STORE_NAME") or r.get("store_name")) 
-        for r in _dim_cache.get("stores", []) 
+        (r.get("STORE_NAME") or r.get("store_name"))
+        for r in _dim_cache.get("stores", [])
         if (r.get("STORE_NAME") or r.get("store_name"))
     ]
-
-# ── Helpers ────────────────────────────────────────────────────────────────────
-
-def _store_filter(stores: Optional[str], alias: str = "S") -> str:
-    """AND S.STORE_NAME IN ('a','b') — empty string when no filter."""
-    if not stores:
-        return ""
-    names = [f"'{s.strip().replace(chr(39), chr(39)*2)}'"
-             for s in stores.split(",") if s.strip()]
-    return f" AND {alias}.STORE_NAME IN ({','.join(names)})" if names else ""
-
-
-def _q(sql: str):
-    with _db_lock:
-        return get_db().execute(sql).fetchall()
-
-
-def _qdf(sql: str) -> list[dict]:
-    with _db_lock:
-        con  = get_db()
-        rel  = con.execute(sql)
-        cols = [d[0] for d in rel.description]
-        return [dict(zip(cols, row)) for row in rel.fetchall()]
 
 
 # ── Stores list ────────────────────────────────────────────────────────────────
 
 @router.get("/api/sales/stores-list")
-def stores_list():
-    """Return store names from the dimension cache (refreshed daily or on new SID)."""
-    return _cached_store_names()
+def stores_list(current: dict = Depends(get_current_user)):
+    """Store names from the dimension cache, filtered to the user's store scope."""
+    names = _cached_store_names()
+    allowed = allowed_store_set(current)
+    if allowed is None:
+        return names
+    return [n for n in names if n in allowed]
 
 
 # ── Employees / Customers lists ────────────────────────────────────────────────
@@ -117,8 +104,8 @@ def employees_list():
     """Return employee full names from dimension cache."""
     _ensure_dims()
     return [
-        (r.get("FULL_NAME") or r.get("full_name")) 
-        for r in _dim_cache.get("employees", []) 
+        (r.get("FULL_NAME") or r.get("full_name"))
+        for r in _dim_cache.get("employees", [])
         if (r.get("FULL_NAME") or r.get("full_name"))
     ]
 
@@ -127,22 +114,22 @@ def customers_list():
     """Return customer full names from dimension cache."""
     _ensure_dims()
     return [
-        (r.get("FULL_NAME") or r.get("full_name")) 
-        for r in _dim_cache.get("customers", []) 
+        (r.get("FULL_NAME") or r.get("full_name"))
+        for r in _dim_cache.get("customers", [])
         if (r.get("FULL_NAME") or r.get("full_name"))
     ]
 
 # ── Overview KPIs ──────────────────────────────────────────────────────────────
 
 @router.get("/api/sales/overview")
-def overview(stores: Optional[str] = Query(None)):
-    sf    = _store_filter(stores)
-    today = date.today().isoformat()
-    yest  = (date.today() - timedelta(days=1)).isoformat()
-    mtd_s = date.today().replace(day=1).isoformat()
-    ytd_s = date.today().replace(month=1, day=1).isoformat()
+def overview(stores: Optional[str] = Depends(scoped_stores)):
+    sf, sp = store_filter(stores)
+    today = date.today()
+    yest  = today - timedelta(days=1)
+    mtd_s = today.replace(day=1)
+    ytd_s = today.replace(month=1, day=1)
 
-    def kpi(date_from, date_to):
+    def kpi(date_from: date, date_to: date):
         # ── Daily aggregate (counts + tax + net) ─────────────────────────────
         join = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
         r = _q(f"""
@@ -152,8 +139,8 @@ def overview(stores: Optional[str] = Query(None)):
                    COALESCE(SUM(F.RETURN_COUNT),0),
                    COALESCE(SUM(F.TOTAL_TAX),0)
             FROM FACT_SALES_DAILY F {join}
-            WHERE F.POST_DATE BETWEEN '{date_from}' AND '{date_to}' {sf}
-        """)[0]
+            WHERE F.POST_DATE BETWEEN ? AND ? {sf}
+        """, [date_from, date_to] + sp)[0]
         net_sales   = round(r[0] or 0, 2)
         total_wtax  = round(r[1] or 0, 2)
         sales_count = int(r[2] or 0)
@@ -161,8 +148,7 @@ def overview(stores: Optional[str] = Query(None)):
         total_tax   = round(r[4] or 0, 2)
 
         # ── Invoice detail (real discounts + split gross/return amounts) ──────
-        sf_inv  = _store_filter(stores)
-        join2   = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf_inv else ""
+        join2 = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
         r2 = _q(f"""
             SELECT
                 COALESCE(SUM(
@@ -177,8 +163,8 @@ def overview(stores: Optional[str] = Query(None)):
                     CASE WHEN F.RECEIPT_TYPE = 1 THEN F.NET_SALES_WOTAX ELSE 0 END
                 ), 0))                                                        AS return_amt
             FROM FACT_SALES_INVOICES F {join2}
-            WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}' {sf_inv}
-        """)[0]
+            WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf}
+        """, [date_from, date_to] + sp)[0]
         total_disc  = round(r2[0] or 0, 2)
         gross_sales = round(r2[1] or 0, 2)
         return_amt  = round(r2[2] or 0, 2)
@@ -202,25 +188,25 @@ def overview(stores: Optional[str] = Query(None)):
         }
 
     import calendar as _cal
-    today_obj   = date.today()
+    today_obj = today
 
     # yesterday-comparison for Yesterday card
-    prev_day = (today_obj - timedelta(days=2)).isoformat()
+    prev_day = today_obj - timedelta(days=2)
 
     # LMTD — last month, same number of days elapsed
     lm_month  = today_obj.month - 1 if today_obj.month > 1 else 12
     lm_year   = today_obj.year      if today_obj.month > 1 else today_obj.year - 1
     lm_last   = _cal.monthrange(lm_year, lm_month)[1]
-    lmtd_from = date(lm_year, lm_month, 1).isoformat()
-    lmtd_to   = date(lm_year, lm_month, min(today_obj.day, lm_last)).isoformat()
+    lmtd_from = date(lm_year, lm_month, 1)
+    lmtd_to   = date(lm_year, lm_month, min(today_obj.day, lm_last))
 
     # LYTD — last year, same day
-    lytd_from = date(today_obj.year - 1, 1, 1).isoformat()
+    lytd_from = date(today_obj.year - 1, 1, 1)
     try:
-        lytd_to = date(today_obj.year - 1, today_obj.month, today_obj.day).isoformat()
+        lytd_to = date(today_obj.year - 1, today_obj.month, today_obj.day)
     except ValueError:
         lytd_to = date(today_obj.year - 1, today_obj.month,
-                       _cal.monthrange(today_obj.year - 1, today_obj.month)[1]).isoformat()
+                       _cal.monthrange(today_obj.year - 1, today_obj.month)[1])
 
     return {
         "today":     kpi(today, today),
@@ -237,11 +223,11 @@ def overview(stores: Optional[str] = Query(None)):
 
 @router.get("/api/sales/trend")
 def trend(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
 ):
-    sf   = _store_filter(stores)
+    sf, sp = store_filter(stores)
     join = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
     return _qdf(f"""
         SELECT F.POST_DATE::VARCHAR            AS day,
@@ -250,21 +236,21 @@ def trend(
                SUM(F.SALES_COUNT)               AS sales_count,
                SUM(F.RETURN_COUNT)              AS return_count
         FROM FACT_SALES_DAILY F {join}
-        WHERE F.POST_DATE BETWEEN '{date_from}' AND '{date_to}' {sf}
+        WHERE F.POST_DATE BETWEEN ? AND ? {sf}
         GROUP BY F.POST_DATE
         ORDER BY F.POST_DATE
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Per-store breakdown ────────────────────────────────────────────────────────
 
 @router.get("/api/sales/stores")
 def stores_breakdown(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
 ):
-    sf = _store_filter(stores)
+    sf, sp = store_filter(stores)
     return _qdf(f"""
         SELECT S.STORE_NAME AS store_name,
                ROUND(SUM(F.NET_SALES_WOTAX),2) AS net_sales,
@@ -274,22 +260,22 @@ def stores_breakdown(
                ROUND(SUM(F.INVOICE_DISC),2)     AS invoice_disc
         FROM FACT_SALES_DAILY F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
-        WHERE F.POST_DATE BETWEEN '{date_from}' AND '{date_to}' {sf}
+        WHERE F.POST_DATE BETWEEN ? AND ? {sf}
         GROUP BY S.STORE_NAME
         ORDER BY net_sales DESC
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Top employees ──────────────────────────────────────────────────────────────
 
 @router.get("/api/sales/employees")
 def employees(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
-    limit:     int = Query(15),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
+    limit:     int = Query(15, ge=1, le=1000),
 ):
-    sf = _store_filter(stores)
+    sf, sp = store_filter(stores)
     return _qdf(f"""
         SELECT COALESCE(E.FULL_NAME, '(Unknown)')                    AS employee_name,
                ROUND(SUM(F.NET_SALES_WOTAX),2)                       AS net_sales,
@@ -298,34 +284,35 @@ def employees(
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
         LEFT JOIN DIM_EMPLOYEE E ON E.SID = F.EMPLOYEE1_SID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
           AND F.RECEIPT_TYPE = 0 {sf}
         GROUP BY COALESCE(E.FULL_NAME, '(Unknown)')
         ORDER BY net_sales DESC
         LIMIT {limit}
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Top products ───────────────────────────────────────────────────────────────
 
 @router.get("/api/sales/products")
 def products(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
     group_by:  str = Query("item", pattern="^(item|dcs|vendor|department)$"),
-    limit:     int = Query(20),
+    limit:     int = Query(20, ge=1, le=10000),
 ):
-    sf      = _store_filter(stores)
+    sf, sp  = store_filter(stores)
     base    = f"""
         FROM FACT_SALES_ITEMS F
         LEFT JOIN DIM_STORE  S ON S.SID = F.STORE_SID
         LEFT JOIN DIM_ITEM   I ON I.SID = F.ITEM_SID
         LEFT JOIN DIM_DCS    D ON D.SID = I.DCS_SID  AND D.SBS_SID = I.SBS_SID
         LEFT JOIN DIM_VENDOR V ON V.SID = I.VEND_SID AND V.SBS_SID = I.SBS_SID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
           AND F.ITEM_TYPE = 'Sale' {sf}
     """
+    params = [date_from, date_to] + sp
     measures = """
                ROUND(SUM(F.QTY),2)                                                       AS qty,
                ROUND(SUM(F.TOTAL_PRICE_WOTAX),2)                                         AS revenue,
@@ -344,7 +331,7 @@ def products(
                 {base}
                 GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE
                 ORDER BY revenue DESC LIMIT {limit}
-            """)
+            """, params)
         except Exception:
             return _qdf(f"""
                 SELECT I.ALU, NULL AS upc, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE,
@@ -352,7 +339,7 @@ def products(
                 {base}
                 GROUP BY I.ALU, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE
                 ORDER BY revenue DESC LIMIT {limit}
-            """)
+            """, params)
 
     if group_by == "dcs":
         return _qdf(f"""
@@ -362,7 +349,7 @@ def products(
             {base}
             GROUP BY D.DCS_CODE, D.D_NAME, D.C_NAME, D.S_NAME
             ORDER BY revenue DESC LIMIT {limit}
-        """)
+        """, params)
 
     if group_by == "vendor":
         return _qdf(f"""
@@ -371,7 +358,7 @@ def products(
             {base}
             GROUP BY V.VEND_NAME
             ORDER BY revenue DESC LIMIT {limit}
-        """)
+        """, params)
 
     # department
     return _qdf(f"""
@@ -380,39 +367,41 @@ def products(
         {base}
         GROUP BY D.D_NAME
         ORDER BY revenue DESC LIMIT {limit}
-    """)
+    """, params)
 
 
 # ── Transactions ───────────────────────────────────────────────────────────────
 
 @router.get("/api/sales/transactions")
 def transactions(
-    date_from: str  = Query(...),
-    date_to:   str  = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
     search:    str  = Query(""),
-    limit:     int  = Query(100),
-    offset:    int  = Query(0),
+    limit:     int  = Query(100, ge=0, le=100000),
+    offset:    int  = Query(0, ge=0),
 ):
-    sf  = _store_filter(stores)
-    # Server-side search across doc_no, store, associate, customer
-    sf2 = ""
+    sf, sp = store_filter(stores)
+    # Server-side search across doc_no, store, associate, customer (bound param)
+    sf2, search_params = "", []
     if search.strip():
-        q   = search.strip().replace("'", "''")   # escape single quotes
+        pat = f"%{search.strip()}%"
         sf2 = (
-            f" AND (F.DOC_NO::VARCHAR ILIKE '%{q}%'"
-            f" OR COALESCE(S.STORE_NAME,'') ILIKE '%{q}%'"
-            f" OR COALESCE(E.FULL_NAME,'')  ILIKE '%{q}%'"
-            f" OR COALESCE(C.FULL_NAME,'')  ILIKE '%{q}%')"
+            " AND (F.DOC_NO::VARCHAR ILIKE ?"
+            " OR COALESCE(S.STORE_NAME,'') ILIKE ?"
+            " OR COALESCE(E.FULL_NAME,'')  ILIKE ?"
+            " OR COALESCE(C.FULL_NAME,'')  ILIKE ?)"
         )
+        search_params = [pat, pat, pat, pat]
+    params = [date_from, date_to] + sp + search_params
     total = _q(f"""
         SELECT COUNT(*)
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
         LEFT JOIN DIM_EMPLOYEE E ON E.SID = F.EMPLOYEE1_SID
         LEFT JOIN DIM_CUSTOMER C ON C.SID = F.BT_CUID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}' {sf} {sf2}
-    """)[0][0]
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {sf2}
+    """, params)[0][0]
     rows = _qdf(f"""
         SELECT F.DOC_NO                       AS doc_no,
                F.INVC_POST_DATE::VARCHAR      AS post_date,
@@ -434,10 +423,10 @@ def transactions(
         LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
         LEFT JOIN DIM_EMPLOYEE E ON E.SID = F.EMPLOYEE1_SID
         LEFT JOIN DIM_CUSTOMER C ON C.SID = F.BT_CUID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}' {sf} {sf2}
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {sf2}
         ORDER BY F.INVC_POST_DATE DESC
         {"" if limit == 0 else f"LIMIT {limit} OFFSET {offset}"}
-    """)
+    """, params)
     return {"total": int(total), "rows": rows}
 
 
@@ -447,11 +436,11 @@ def transactions(
 
 @router.get("/api/sales/perf/stores")
 def perf_stores(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
 ):
-    sf = _store_filter(stores)
+    sf, sp = store_filter(stores)
     return _qdf(f"""
         WITH first_sale AS (
             SELECT COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
@@ -493,21 +482,21 @@ def perf_stores(
         LEFT JOIN DIM_STORE S   ON S.SID = F.STORE_SID
         LEFT JOIN first_sale FS ON FS.store_name = COALESCE(S.STORE_NAME, '(Unknown)')
         LEFT JOIN store_ltv LTV ON LTV.store_name = COALESCE(S.STORE_NAME, '(Unknown)')
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}' {sf}
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf}
         GROUP BY COALESCE(S.STORE_NAME, '(Unknown)'), FS.first_sale_date, LTV.lifetime_revenue
         ORDER BY net_sales DESC
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Performance: Payment mix ────────────────────────────────────────────────────
 
 @router.get("/api/sales/perf/payment")
 def perf_payment(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
 ):
-    sf = _store_filter(stores)
+    sf, sp = store_filter(stores)
     return _qdf(f"""
         SELECT
             ROUND(SUM(COALESCE(F.CASH_AMT,0)),2)    AS cash,
@@ -516,20 +505,20 @@ def perf_payment(
             ROUND(SUM(COALESCE(F.OTHER_AMT,0)),2)   AS other
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
           AND F.RECEIPT_TYPE = 0 {sf}
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Performance: Hourly heatmap (hour x day-of-week) ───────────────────────────
 
 @router.get("/api/sales/perf/hourly")
 def perf_hourly(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
 ):
-    sf = _store_filter(stores)
+    sf, sp = store_filter(stores)
     return _qdf(f"""
         SELECT
             EXTRACT(HOUR FROM F.INVC_POST_DATE::TIMESTAMP)       AS hour,
@@ -538,23 +527,23 @@ def perf_hourly(
             COUNT(*)                                              AS tx_count
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
           AND F.RECEIPT_TYPE = 0 {sf}
         GROUP BY hour, dow
         ORDER BY dow, hour
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Performance: Associates (enhanced with disc% + return rate%) ────────────────
 
 @router.get("/api/sales/perf/associates")
 def perf_associates(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
-    limit:     int = Query(25),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
+    limit:     int = Query(25, ge=1, le=1000),
 ):
-    sf = _store_filter(stores)
+    sf, sp = store_filter(stores)
     return _qdf(f"""
         SELECT
             COALESCE(E.FULL_NAME, '(Unknown)')                                        AS employee_name,
@@ -578,22 +567,22 @@ def perf_associates(
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
         LEFT JOIN DIM_EMPLOYEE E ON E.SID = F.EMPLOYEE1_SID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}' {sf}
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf}
         GROUP BY COALESCE(E.FULL_NAME,'(Unknown)'), COALESCE(S.STORE_NAME,'(Unknown)')
         ORDER BY net_sales DESC
         LIMIT {limit}
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Performance: Day-of-week pattern ───────────────────────────────────────────
 
 @router.get("/api/sales/perf/dow")
 def perf_dow(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
 ):
-    sf   = _store_filter(stores)
+    sf, sp = store_filter(stores)
     join = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
     return _qdf(f"""
         SELECT
@@ -601,21 +590,21 @@ def perf_dow(
             ROUND(SUM(F.NET_SALES_WOTAX),2)                  AS total_net_sales,
             SUM(F.SALES_COUNT)                               AS total_invoices
         FROM FACT_SALES_DAILY F {join}
-        WHERE F.POST_DATE BETWEEN '{date_from}' AND '{date_to}' {sf}
+        WHERE F.POST_DATE BETWEEN ? AND ? {sf}
         GROUP BY dow
         ORDER BY dow
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Performance: Basket size distribution ──────────────────────────────────────
 
 @router.get("/api/sales/perf/basket")
 def perf_basket(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
 ):
-    sf = _store_filter(stores)
+    sf, sp = store_filter(stores)
     return _qdf(f"""
         SELECT
             CASE
@@ -636,66 +625,67 @@ def perf_basket(
             ROUND(SUM(F.NET_SALES_WOTAX),2)      AS total_sales
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
           AND F.RECEIPT_TYPE = 0 {sf}
         GROUP BY bucket, sort_order
         ORDER BY sort_order
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Performance: Year-over-Year per store ──────────────────────────────────────
 
 @router.get("/api/sales/perf/yoy_stores")
 def perf_yoy_stores(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    py_from:   str = Query(...),
-    py_to:     str = Query(...),
-    stores:    Optional[str] = Query(None),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    py_from:   date = Query(...),
+    py_to:     date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
 ):
     """Compare current period vs same window last year, per store."""
-    sf = _store_filter(stores)
+    sf, sp = store_filter(stores)
+    df, dt, pf, pt = date_from, date_to, py_from, py_to
     return _qdf(f"""
         SELECT
             COALESCE(S.STORE_NAME, '(Unknown)')                               AS store_name,
             ROUND(SUM(CASE
-                WHEN F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
+                WHEN F.INVC_POST_DATE::DATE BETWEEN ? AND ?
                      AND F.RECEIPT_TYPE = 0
                 THEN F.NET_SALES_WOTAX ELSE 0 END), 2)                        AS current_sales,
             ROUND(SUM(CASE
-                WHEN F.INVC_POST_DATE::DATE BETWEEN '{py_from}' AND '{py_to}'
+                WHEN F.INVC_POST_DATE::DATE BETWEEN ? AND ?
                      AND F.RECEIPT_TYPE = 0
                 THEN F.NET_SALES_WOTAX ELSE 0 END), 2)                        AS prev_year_sales,
             COUNT(CASE
-                WHEN F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
+                WHEN F.INVC_POST_DATE::DATE BETWEEN ? AND ?
                      AND F.RECEIPT_TYPE = 0
                 THEN 1 END)                                                    AS current_invoices,
             COUNT(CASE
-                WHEN F.INVC_POST_DATE::DATE BETWEEN '{py_from}' AND '{py_to}'
+                WHEN F.INVC_POST_DATE::DATE BETWEEN ? AND ?
                      AND F.RECEIPT_TYPE = 0
                 THEN 1 END)                                                    AS prev_invoices
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
         WHERE (
-            F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
-         OR F.INVC_POST_DATE::DATE BETWEEN '{py_from}'   AND '{py_to}'
+            F.INVC_POST_DATE::DATE BETWEEN ? AND ?
+         OR F.INVC_POST_DATE::DATE BETWEEN ? AND ?
         ) {sf}
         GROUP BY COALESCE(S.STORE_NAME, '(Unknown)')
         ORDER BY current_sales DESC
         LIMIT 15
-    """)
+    """, [df, dt, pf, pt, df, dt, pf, pt, df, dt, pf, pt] + sp)
 
 
 # ── Performance: Top customers ─────────────────────────────────────────────────
 
 @router.get("/api/sales/perf/customers")
 def perf_customers(
-    date_from: str = Query(...),
-    date_to:   str = Query(...),
-    stores:    Optional[str] = Query(None),
-    limit:     int = Query(20),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:    Optional[str] = Depends(scoped_stores),
+    limit:     int = Query(20, ge=1, le=1000),
 ):
-    sf = _store_filter(stores)
+    sf, sp = store_filter(stores)
     return _qdf(f"""
         WITH cust_ltv AS (
             SELECT F.BT_CUID,
@@ -730,13 +720,13 @@ def perf_customers(
         LEFT JOIN DIM_CUSTOMER C   ON C.SID   = F.BT_CUID
         LEFT JOIN cust_ltv     LTV ON LTV.BT_CUID = F.BT_CUID
         LEFT JOIN primary_store PS ON PS.BT_CUID  = F.BT_CUID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN '{date_from}' AND '{date_to}'
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
           AND F.RECEIPT_TYPE = 0
           AND F.BT_CUID IS NOT NULL {sf}
         GROUP BY COALESCE(C.FULL_NAME, '(Unknown)')
         ORDER BY net_sales DESC
         LIMIT {limit}
-    """)
+    """, [date_from, date_to] + sp)
 
 
 # ── Sync endpoints ─────────────────────────────────────────────────────────────
@@ -753,7 +743,8 @@ def sync_status():
 @router.post("/api/sync/full-load")
 async def sync_full_load(
     tables: Optional[str] = Query(None,
-        description="Comma-separated domains: sales,transfers,adjustments,inventory. Omit for all.")
+        description="Comma-separated domains: sales,transfers,adjustments,inventory. Omit for all."),
+    _admin: dict = Depends(require_admin),
 ):
     tbl_set = {t.strip() for t in tables.split(",") if t.strip()} if tables else None
     return await trigger_full_load(tables=tbl_set)
