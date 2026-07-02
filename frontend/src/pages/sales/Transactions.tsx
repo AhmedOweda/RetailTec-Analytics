@@ -256,8 +256,8 @@ export default function Transactions() {
         )}
       </Box>
 
-      {/* ══ Action bar — above the grid ══ */}
-      <Stack direction="row" spacing={1} alignItems="center">
+      {/* ══ Action bar — above the grid (right-aligned like the other tables) ══ */}
+      <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
 
         {/* Columns toggle */}
         <Button size="small" variant="outlined"
