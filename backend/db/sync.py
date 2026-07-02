@@ -235,7 +235,7 @@ def _sql_items(df, dt):
 
 def _sql_transfers(df, dt):
     # RP9 Cloud: SLIP.SID is PK (not SLIP_SID); POST_DATE replaces SLIP_DATE
-    # VOU_NO/VOU_CLASS don't exist on SLIP — hardcoded NULL/0
+    # SLIP has no VOU_NO, but SLIP.VOU_SID links the receiving voucher -> VOUCHER.VOU_NO
     # SLIP_ITEM: QTY replaces SENT_QTY/RECV_QTY; COST/PRICE replace UNIT_COST/TOTAL_COST/TOTAL_PRICE
     hint = "/*+ INDEX(S IDX_CREATEDDATE_SLIP) */" if _use_index(df, dt) else "/*+ FULL(S) */"
     return f"""
@@ -244,7 +244,7 @@ def _sql_transfers(df, dt):
             S.SID                             AS SLIP_SID,
             S.SLIP_NO,
             S.POST_DATE                       AS SLIP_DATE,
-            NULL                              AS VOU_NO,
+            RV.VOU_NO                         AS VOU_NO,
             0                                 AS VOU_CLASS,
             NVL(S.STATUS, 3)                  AS VOU_STATUS,
             S.OUT_STORE_SID,
@@ -257,6 +257,7 @@ def _sql_transfers(df, dt):
             NVL(SI.QTY,0) * NVL(SI.PRICE,0) AS TOTAL_PRICE
         FROM RPS.SLIP S
         INNER JOIN RPS.SLIP_ITEM SI ON SI.SLIP_SID = S.SID
+        LEFT JOIN RPS.VOUCHER RV ON RV.SID = S.VOU_SID
         WHERE SYS_EXTRACT_UTC(S.CREATED_DATETIME) >= CAST(TO_DATE('{df}','YYYY-MM-DD') - 1 AS TIMESTAMP)
           AND SYS_EXTRACT_UTC(S.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
           AND S.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')
