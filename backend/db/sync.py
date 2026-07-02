@@ -845,7 +845,10 @@ def _run_sync(mode: str, date_from: str, date_to: str,
     """
     ALL = tables is None
     _clear_cancel()
-    duck = get_db()
+    # The sync WRITER runs on its own cursor (isolated connection). Using the
+    # root connection while API reader cursors run concurrently deadlocked
+    # inside DuckDB (writer stuck in unregister, all readers timing out).
+    duck = get_db().cursor()
     _domains_str = "all" if tables is None else str(sorted(tables))
     _run_id = _log_start(duck, mode, triggered_by, _domains_str, date_from, date_to, 100)
 
@@ -948,7 +951,7 @@ def apply_retention(retain_months=24, dry_run: bool = False, duck=None) -> dict:
     """Prune line-item DETAIL older than retain_months (keeps FACT_SALES_DAILY and
     invoice headers forever). retain_months None/0 = keep everything. dry_run counts
     without deleting. Returns {table: rows_pruned}."""
-    duck = duck or get_db()
+    duck = duck or get_db().cursor()   # isolated writer cursor (see _run_sync)
     if not retain_months:
         return {"retain_months": None, "pruned": {}}
     m = int(retain_months)

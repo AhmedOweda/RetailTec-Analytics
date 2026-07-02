@@ -116,6 +116,7 @@ interface KpiCardProps {
 }
 
 function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProps) {
+  const { currency } = useAppSettings()
   const net    = data?.net_sales    ?? 0
   const wtax   = data?.total_wtax   ?? 0
   const tax    = data?.total_tax    ?? 0
@@ -161,6 +162,9 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
             {/* Primary metric */}
             <Typography sx={{ fontSize:30, fontWeight:800, color:'#0f172a',
                               lineHeight:1.05, letterSpacing:'-0.5px', fontVariantNumeric:'tabular-nums' }}>
+              <Box component="span" sx={{ fontSize:15, fontWeight:700, color:'#7c3aed', mr:0.7 }}>
+                {currency.symbol}
+              </Box>
               {num(net)}
             </Typography>
             <Typography sx={{ fontSize:11, color:'#94a3b8', mt:0.3, mb:1.2 }}>
