@@ -175,7 +175,8 @@ def _sql_items(df, dt):
             H.INVC_POST_DATE                                    AS INVC_POST_DATE,
             H.STORE_SID,
             DI.INVN_SBS_ITEM_SID                               AS ITEM_SID,
-            DI.ITEM_TYPE,
+            CASE DI.ITEM_TYPE WHEN 1 THEN 'Sale' WHEN 2 THEN 'Return'
+                 ELSE TO_CHAR(DI.ITEM_TYPE) END                AS ITEM_TYPE,
             NVL(DI.QTY, 0)                                     AS QTY,
             NVL(DI.COST, 0)                                    AS UNIT_COST,
             NVL(DI.ORIG_PRICE, 0)                              AS UNIT_ORIG_PRICE_WOTAX,
@@ -438,6 +439,25 @@ def _load_dimensions(duck, ora, progress_cb=None):
     cur.close()
 
 
+def _bulk_upsert_dim(duck, table: str, pk: str, rows) -> int:
+    """DELETE matching keys + ONE bulk INSERT via a registered DataFrame —
+    replaces per-row executemany OR REPLACE (same ~55 rows/s ART-index problem
+    as the fact loader had)."""
+    import pandas as pd
+    if not rows:
+        return 0
+    cols = [r[1] for r in duck.execute(f"PRAGMA table_info('{table}')").fetchall()]
+    stage_df = pd.DataFrame(rows, columns=cols)
+    duck.register("_dim_stage", stage_df)
+    try:
+        duck.execute(f"DELETE FROM {table} WHERE {pk} IN (SELECT {pk} FROM _dim_stage)")
+        duck.execute(f"INSERT INTO {table} SELECT * FROM _dim_stage")
+    finally:
+        duck.unregister("_dim_stage")
+    duck.commit()
+    return len(rows)
+
+
 def _load_large_dims(duck, ora, df, dt, progress_cb=None):
     def _r(name):
         if progress_cb:
@@ -446,37 +466,37 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
 
     _r("Customers")
     cur.execute(f"""
-        SELECT DISTINCT H.BT_CUID AS SID,
+        SELECT DISTINCT {_doc_hint(df, dt)} H.BT_CUID AS SID,
                TRIM(NVL(C.FIRST_NAME,'')||' '||NVL(C.LAST_NAME,'')) AS FULL_NAME
         FROM RPS.DOCUMENT H
         INNER JOIN RPS.CUSTOMER C ON C.SID = H.BT_CUID
-        WHERE H.POST_DATE >= TO_DATE('{df}','YYYY-MM-DD')
-                AND H.POST_DATE <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+        WHERE CAST(H.INVC_POST_DATE AS DATE) >= TO_DATE('{df}','YYYY-MM-DD')
+          AND CAST(H.INVC_POST_DATE AS DATE) <  TO_DATE('{dt}','YYYY-MM-DD') + 1
           AND H.BT_CUID IS NOT NULL
           AND H.STATUS = 4
     """)
-    rows = cur.fetchall()
-    if rows:
-        duck.executemany("INSERT OR REPLACE INTO DIM_CUSTOMER VALUES (?,?)", rows)
-        duck.commit()
-    log.info(f"DIM_CUSTOMER: {len(rows)} rows")
+    n = _bulk_upsert_dim(duck, "DIM_CUSTOMER", "SID", cur.fetchall())
+    log.info(f"DIM_CUSTOMER: {n} rows")
 
+    # FULL refresh of DIM_ITEM (DB_SYNC_REDESIGN §6): windowed loading left items
+    # referenced by facts but not touched in the window missing -> '(unknown item)'
+    # in product analytics. The whole table is small enough to pull every sync.
     _r("Items")
-    cur.execute(f"""
+    cur.execute("""
         SELECT I.SID, I.SBS_SID, I.ALU, I.UPC,
                I.DESCRIPTION1, I.DESCRIPTION2,
                I.ATTRIBUTE, I.ITEM_SIZE,
                I.DCS_SID, I.VEND_SID,
                NVL(I.ACTIVE, 1)
         FROM RPS.INVN_SBS_ITEM I
-        WHERE (I.CREATED_DATETIME  >= TO_DATE('{df}','YYYY-MM-DD') AND I.CREATED_DATETIME  < TO_DATE('{dt}','YYYY-MM-DD') + 1)
-           OR (I.MODIFIED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD') AND I.MODIFIED_DATETIME < TO_DATE('{dt}','YYYY-MM-DD') + 1)
     """)
     rows = cur.fetchall()
     if rows:
-        duck.executemany("INSERT OR REPLACE INTO DIM_ITEM VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
-        duck.commit()
-    log.info(f"DIM_ITEM: {len(rows)} rows")
+        duck.execute("DELETE FROM DIM_ITEM")
+        n = _bulk_upsert_dim(duck, "DIM_ITEM", "SID", rows)
+    else:
+        n = 0
+    log.info(f"DIM_ITEM: {n} rows (full refresh)")
 
     cur.close()
 
@@ -512,10 +532,15 @@ def _sync_inventory_snapshot(duck, ora):
         ITEM_SID BIGINT, STORE_SID BIGINT, ON_HAND_QTY DECIMAL(12,3),
         COST DECIMAL(18,4), PRICE1 DECIMAL(18,4), SYNCED_AT TIMESTAMP)""")
     if rows:
-        duck.executemany(
-            "INSERT INTO FACT_INVENTORY VALUES (?,?,?,?,?,?)",
+        import pandas as pd
+        stage_df = pd.DataFrame(
             [(r[0], r[1], r[2], r[3], r[4], now_str) for r in rows],
-        )
+            columns=["ITEM_SID", "STORE_SID", "ON_HAND_QTY", "COST", "PRICE1", "SYNCED_AT"])
+        duck.register("_snap_stage", stage_df)
+        try:
+            duck.execute("INSERT INTO FACT_INVENTORY SELECT * FROM _snap_stage")
+        finally:
+            duck.unregister("_snap_stage")
     duck.commit()
     log.info(f"FACT_INVENTORY: {len(rows):,} rows loaded")
 

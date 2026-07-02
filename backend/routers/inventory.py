@@ -51,14 +51,15 @@ def list_stores(stores: Optional[str] = Depends(scoped_stores)):
 # ── Stock snapshot base (FACT_INVENTORY) ──────────────────────────────────────
 
 def _inv_base_join(sf: str) -> str:
-    """FROM + JOINs for inventory snapshot queries, with optional store filter."""
-    store_join = "LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID" if sf else ""
+    """FROM + JOINs for inventory snapshot queries, with optional store filter.
+    DIM_STORE is ALWAYS joined: group_by=store/item_store SELECT S.STORE_NAME
+    regardless of filter (conditional join caused 500s without ?stores=)."""
     return f"""
         FROM FACT_INVENTORY FI
         LEFT JOIN DIM_ITEM    I  ON I.SID   = FI.ITEM_SID
         LEFT JOIN DIM_DCS     D  ON D.SID   = I.DCS_SID
         LEFT JOIN DIM_VENDOR  V  ON V.SID   = I.VEND_SID
-        {store_join}
+        LEFT JOIN DIM_STORE   S  ON S.SID   = FI.STORE_SID
         WHERE FI.ON_HAND_QTY > 0 {sf}
     """
 
