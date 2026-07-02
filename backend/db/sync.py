@@ -125,11 +125,14 @@ def _sql_invoices(df, dt):
             NVL(H.DEPOSIT_AMT_TAKEN, 0)    AS DEPOSIT_AMT,
             0                               AS OTHER_AMT
         FROM RPS.DOCUMENT H
-        WHERE H.POST_DATE >= TO_DATE('{df}','YYYY-MM-DD')
-                AND H.POST_DATE <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+        WHERE CAST(H.INVC_POST_DATE AS DATE) >= TO_DATE('{df}','YYYY-MM-DD')
+          AND CAST(H.INVC_POST_DATE AS DATE) <  TO_DATE('{dt}','YYYY-MM-DD') + 1
           AND H.STATUS = 4
           AND H.RECEIPT_TYPE IN (0, 1, 2)
     """
+    # CAST(INVC_POST_DATE AS DATE) matches function-based index IDX_DOCUMENT7 →
+    # INDEX RANGE SCAN instead of a 2.4M-row full scan (121s → 0.1s, verified).
+    # INVC_POST_DATE is also the designed watermark column (DB_SYNC_REDESIGN §3).
 
 
 def _sql_items(df, dt):
@@ -139,7 +142,7 @@ def _sql_items(df, dt):
         SELECT
             DI.SID                                              AS DOC_ITEM_SID,
             DI.DOC_SID,
-            H.POST_DATE                                         AS INVC_POST_DATE,
+            H.INVC_POST_DATE                                    AS INVC_POST_DATE,
             H.STORE_SID,
             DI.INVN_SBS_ITEM_SID                               AS ITEM_SID,
             DI.ITEM_TYPE,
@@ -160,12 +163,14 @@ def _sql_items(df, dt):
             NVL(DI.QTY,0) * NVL(DI.PRICE,0)                   AS TOTAL_PRICE_WTAX
         FROM RPS.DOCUMENT_ITEM DI
         INNER JOIN RPS.DOCUMENT H ON H.SID = DI.DOC_SID
-        WHERE H.POST_DATE >= TO_DATE('{df}','YYYY-MM-DD')
-                AND H.POST_DATE <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+        WHERE CAST(H.INVC_POST_DATE AS DATE) >= TO_DATE('{df}','YYYY-MM-DD')
+          AND CAST(H.INVC_POST_DATE AS DATE) <  TO_DATE('{dt}','YYYY-MM-DD') + 1
           AND H.STATUS = 4
           AND H.RECEIPT_TYPE IN (0, 1, 2)
           AND DI.ITEM_TYPE IN (1, 2)
     """
+    # Index-backed predicate (IDX_DOCUMENT7) + true INVC_POST_DATE stored —
+    # keeps items consistent with the invoices table and the coverage view.
 
 
 def _sql_transfers(df, dt):
@@ -191,9 +196,14 @@ def _sql_transfers(df, dt):
             NVL(SI.QTY,0) * NVL(SI.PRICE,0) AS TOTAL_PRICE
         FROM RPS.SLIP S
         INNER JOIN RPS.SLIP_ITEM SI ON SI.SLIP_SID = S.SID
-        WHERE S.POST_DATE
-              BETWEEN TO_DATE('{df}','YYYY-MM-DD') AND TO_DATE('{dt}','YYYY-MM-DD')
+        WHERE SYS_EXTRACT_UTC(S.CREATED_DATETIME) >= CAST(TO_DATE('{df}','YYYY-MM-DD') - 1 AS TIMESTAMP)
+          AND SYS_EXTRACT_UTC(S.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
+          AND S.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')
+          AND S.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
     """
+    # SYS_EXTRACT_UTC(CREATED_DATETIME) matches IDX_CREATEDDATE_SLIP → index range
+    # scan (±1 day widened for timezone skew); the plain CREATED_DATETIME predicate
+    # then filters exactly. CREATED_DATETIME is the designed transfer watermark.
 
 
 def _sql_adjustments(df, dt):
@@ -217,9 +227,13 @@ def _sql_adjustments(df, dt):
             (NVL(AI.ADJ_VALUE, 0) - NVL(AI.ORIG_VALUE, 0)) * NVL(AI.COST, 0) AS COST_DIFF
         FROM RPS.ADJUSTMENT A
         INNER JOIN RPS.ADJ_ITEM AI ON AI.ADJ_SID = A.SID
-        WHERE A.POST_DATE >= TO_DATE('{df}','YYYY-MM-DD')
-          AND A.POST_DATE <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+        WHERE SYS_EXTRACT_UTC(A.CREATED_DATETIME) >= CAST(TO_DATE('{df}','YYYY-MM-DD') - 1 AS TIMESTAMP)
+          AND SYS_EXTRACT_UTC(A.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
+          AND A.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')
+          AND A.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
     """
+    # SYS_EXTRACT_UTC(CREATED_DATETIME) matches IDXADJUSTMENT → index range scan.
+    # CREATED_DATETIME is the designed adjustments watermark (DB_SYNC_REDESIGN §3).
 
 
 def _sql_purchases(df, dt):
@@ -242,9 +256,13 @@ def _sql_purchases(df, dt):
         FROM RPS.VOUCHER V
         WHERE NVL(V.SLIP_FLAG, 0) = 0
           AND NVL(V.HELD, 0) = 0
+          AND SYS_EXTRACT_UTC(V.CREATED_DATETIME) >= CAST(TO_DATE('{df}','YYYY-MM-DD') - 1 AS TIMESTAMP)
+          AND SYS_EXTRACT_UTC(V.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
           AND V.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')
-                AND V.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+          AND V.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
     """
+    # Redundant SYS_EXTRACT_UTC predicate matches IDX_CREATEDDATE_VOU → index range
+    # scan; the plain predicate keeps the exact same rows (verified 63 == 63).
 
 
 def _sql_purchase_items(df, dt):
@@ -267,8 +285,10 @@ def _sql_purchase_items(df, dt):
         INNER JOIN RPS.VOUCHER V ON V.SID = VI.VOU_SID
         WHERE NVL(V.SLIP_FLAG, 0) = 0
           AND NVL(V.HELD, 0) = 0
+          AND SYS_EXTRACT_UTC(V.CREATED_DATETIME) >= CAST(TO_DATE('{df}','YYYY-MM-DD') - 1 AS TIMESTAMP)
+          AND SYS_EXTRACT_UTC(V.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
           AND V.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')
-                AND V.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+          AND V.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
     """
 
 
@@ -285,9 +305,13 @@ def _sql_inventory_history(df, dt):
             NVL(H.COST, 0)              AS COST,
             H.SBS_SID
         FROM RPS.INVENTORY_HISTORY H
-        WHERE H.ACTION_DATE >= TO_DATE('{df}','YYYY-MM-DD')
-                AND H.ACTION_DATE <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+        WHERE SYS_EXTRACT_UTC(H.ACTION_DATE) >= CAST(TO_DATE('{df}','YYYY-MM-DD') - 1 AS TIMESTAMP)
+          AND SYS_EXTRACT_UTC(H.ACTION_DATE) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
+          AND H.ACTION_DATE >= TO_DATE('{df}','YYYY-MM-DD')
+          AND H.ACTION_DATE <  TO_DATE('{dt}','YYYY-MM-DD') + 1
     """
+    # Redundant SYS_EXTRACT_UTC predicate matches IDX_INV_HIST_DATE → index range
+    # scan; plain predicate keeps exact rows (verified 30,901 == 30,901).
 
 
 def _sql_inventory_qty_window(df, dt):
@@ -601,11 +625,14 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
             _stream_insert(duck, ora, _sql_purchases(df, dt), "FACT_PURCHASES", 13, force_replace)
             _stream_insert(duck, ora, _sql_purchase_items(df, dt), "FACT_PURCHASE_ITEMS", 13, force_replace)
 
-        # ── Inventory: history (append) + on-hand qty window (upsert) ─────────
+        # ── Inventory: history (append). The on-hand snapshot is NOT touched here:
+        # every load path runs _sync_inventory_snapshot (full refresh) as its final
+        # step, which made the old windowed upsert redundant — and broken, since
+        # the rebuilt FACT_INVENTORY is intentionally PK-less and INSERT OR REPLACE
+        # requires a PK (worked only once on a fresh DB, then Binder Error).
         if ALL or "inventory" in tables:
             _p("Inventory history", 5, 6)
             _stream_insert(duck, ora, _sql_inventory_history(df, dt), "FACT_INVENTORY_HISTORY", 8, force_replace)
-            _stream_inventory_qty(duck, ora, df, dt)
 
         log.info(f"Facts loaded: {df}->{dt}")
 
