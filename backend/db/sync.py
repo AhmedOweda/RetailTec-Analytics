@@ -515,11 +515,21 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
     cur = ora.cursor()
 
     _r("Customers")
+    # Phone from RPS.CUSTOMER_PHONE: primary number first, else lowest SEQ_NO.
     cur.execute(f"""
         SELECT DISTINCT {_doc_hint(df, dt)} H.BT_CUID AS SID,
-               TRIM(NVL(C.FIRST_NAME,'')||' '||NVL(C.LAST_NAME,'')) AS FULL_NAME
+               TRIM(NVL(C.FIRST_NAME,'')||' '||NVL(C.LAST_NAME,'')) AS FULL_NAME,
+               CP.PHONE_NO AS PHONE
         FROM RPS.DOCUMENT H
         INNER JOIN RPS.CUSTOMER C ON C.SID = H.BT_CUID
+        LEFT JOIN (
+            SELECT CUST_SID, PHONE_NO,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY CUST_SID
+                       ORDER BY NVL(PRIMARY_FLAG,0) DESC, NVL(SEQ_NO,999), SID
+                   ) AS RN
+            FROM RPS.CUSTOMER_PHONE
+        ) CP ON CP.CUST_SID = C.SID AND CP.RN = 1
         WHERE CAST(H.INVC_POST_DATE AS DATE) >= TO_DATE('{df}','YYYY-MM-DD')
           AND CAST(H.INVC_POST_DATE AS DATE) <  TO_DATE('{dt}','YYYY-MM-DD') + 1
           AND H.BT_CUID IS NOT NULL
@@ -745,20 +755,40 @@ def _stream_inventory_qty(duck, ora, df: str, dt: str):
     log.info(f"FACT_INVENTORY upsert {df}->{dt}: {total:,} rows")
 
 
+def _trim_table(duck, table: str, predicate: str, params: list):
+    """Remove rows matching `predicate` WITHOUT row-DELETE.
+
+    DuckDB's ART PK index intermittently hits FATAL 'Failed to delete all rows
+    from index' on large DELETEs, which invalidates the whole database
+    ('Connection Error: Connection already closed!' on every later call).
+    Clone-keep-swap avoids the ART delete path entirely, then _ensure_schema
+    recreates the canonical DDL (incl. PKs) before re-inserting kept rows.
+    """
+    from db.model import _ensure_schema
+    keep = f"{table}__keep"
+    duck.execute(f"DROP TABLE IF EXISTS {keep}")
+    duck.execute(f"CREATE TABLE {keep} AS SELECT * FROM {table} WHERE NOT ({predicate})", params)
+    duck.execute(f"DROP TABLE {table}")
+    _ensure_schema(duck)                      # recreate with canonical DDL + PK
+    duck.execute(f"INSERT INTO {table} SELECT * FROM {keep}")
+    duck.execute(f"DROP TABLE {keep}")
+
+
 def _trim_range(duck, tables, date_from: str, date_to: str):
-    """REBUILD mode only (destructive): delete facts inside [from,to] before reload."""
+    """REBUILD mode only (destructive): clear facts inside [from,to] before reload."""
     ALL = tables is None
+    p = [date_from, date_to]
     if ALL or "sales" in tables:
-        duck.execute("DELETE FROM FACT_SALES_INVOICES WHERE CAST(INVC_POST_DATE AS DATE) BETWEEN ? AND ?", [date_from, date_to])
-        duck.execute("DELETE FROM FACT_SALES_ITEMS    WHERE INVC_POST_DATE BETWEEN ? AND ?", [date_from, date_to])
-        duck.execute("DELETE FROM FACT_SALES_DAILY    WHERE POST_DATE      BETWEEN ? AND ?", [date_from, date_to])
+        _trim_table(duck, "FACT_SALES_INVOICES", "CAST(INVC_POST_DATE AS DATE) BETWEEN ? AND ?", p)
+        _trim_table(duck, "FACT_SALES_ITEMS",    "INVC_POST_DATE BETWEEN ? AND ?", p)
+        _trim_table(duck, "FACT_SALES_DAILY",    "POST_DATE      BETWEEN ? AND ?", p)
     if ALL or "transfers" in tables:
-        duck.execute("DELETE FROM FACT_TRANSFERS      WHERE SLIP_DATE BETWEEN ? AND ?", [date_from, date_to])
+        _trim_table(duck, "FACT_TRANSFERS",      "SLIP_DATE BETWEEN ? AND ?", p)
     if ALL or "adjustments" in tables:
-        duck.execute("DELETE FROM FACT_ADJUSTMENTS    WHERE ADJ_DATE  BETWEEN ? AND ?", [date_from, date_to])
+        _trim_table(duck, "FACT_ADJUSTMENTS",    "ADJ_DATE  BETWEEN ? AND ?", p)
     if ALL or "purchases" in tables:
-        duck.execute("DELETE FROM FACT_PURCHASES      WHERE VOU_DATE  BETWEEN ? AND ?", [date_from, date_to])
-        duck.execute("DELETE FROM FACT_PURCHASE_ITEMS WHERE VOU_DATE  BETWEEN ? AND ?", [date_from, date_to])
+        _trim_table(duck, "FACT_PURCHASES",      "VOU_DATE  BETWEEN ? AND ?", p)
+        _trim_table(duck, "FACT_PURCHASE_ITEMS", "VOU_DATE  BETWEEN ? AND ?", p)
     duck.commit()
 
 

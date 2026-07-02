@@ -235,9 +235,12 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     con.execute("""
         CREATE TABLE IF NOT EXISTS DIM_CUSTOMER (
             SID       BIGINT  PRIMARY KEY,
-            FULL_NAME VARCHAR
+            FULL_NAME VARCHAR,
+            PHONE     VARCHAR
         )
     """)
+    # Migration: PHONE added 2026-07 (customer phone in CRM grid)
+    con.execute("ALTER TABLE DIM_CUSTOMER ADD COLUMN IF NOT EXISTS PHONE VARCHAR")
     con.execute("""
         CREATE TABLE IF NOT EXISTS DIM_ITEM (
             SID          BIGINT  PRIMARY KEY,

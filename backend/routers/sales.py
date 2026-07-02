@@ -677,8 +677,9 @@ def perf_customers(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
-    limit:     int = Query(20, ge=1, le=1000),
+    limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
+    lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores)
     return _qdf(f"""
         WITH cust_ltv AS (
@@ -702,6 +703,7 @@ def perf_customers(
         )
         SELECT
             C.FULL_NAME                                                            AS customer_name,
+            MAX(C.PHONE)                                                           AS phone,
             COUNT(*)                                                               AS invoice_count,
             ROUND(SUM(F.NET_SALES_WOTAX),2)                                       AS net_sales,
             ROUND(SUM(F.NET_SALES_WOTAX)/NULLIF(COUNT(*),0),2)                   AS avg_basket,
@@ -722,7 +724,7 @@ def perf_customers(
           AND C.FULL_NAME IS NOT NULL AND TRIM(C.FULL_NAME) <> '' {sf}
         GROUP BY C.FULL_NAME
         ORDER BY net_sales DESC
-        LIMIT {limit}
+        {lim}
     """, [date_from, date_to] + sp)
 
 
