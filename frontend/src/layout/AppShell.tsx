@@ -280,25 +280,52 @@ export default function AppShell() {
       {/* ── Main area ────────────────────────────────────────────────── */}
       <Box sx={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
-        {/* Header */}
+        {/* Header — analytics identity bar */}
         <Box sx={{
-          height: HEADER_H, flexShrink:0,
+          height: HEADER_H, flexShrink:0, position:'relative',
           display:'flex', alignItems:'center', justifyContent:'space-between',
-          px:3, borderBottom:'1px solid rgba(0,0,0,0.08)',
-          bgcolor:'#fff',
+          px:3,
+          background:'linear-gradient(90deg, #ffffff 0%, #faf9ff 55%, #f6f4ff 100%)',
+          borderBottom:'1px solid rgba(124,58,237,0.10)',
+          // signature gradient hairline along the bottom edge
+          '&::after': {
+            content:'""', position:'absolute', left:0, right:0, bottom:-1, height:2,
+            background:'linear-gradient(90deg, #7c3aed 0%, #a78bfa 40%, #22d3ee 100%)',
+            opacity:0.85,
+          },
         }}>
-          <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+          <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
             <Box component="img" src="/logo-purple.png" alt="RetailTec"
-                 sx={{ height:28, objectFit:'contain' }} />
-            <Typography sx={{ fontSize:13, color:'#64748b', fontWeight:500, ml:1 }}>
-              Retail Pro Prism · RPS Schema
-            </Typography>
+                 sx={{ height:30, objectFit:'contain' }} />
+            <Box sx={{ width:1, height:26, bgcolor:'rgba(100,116,139,0.18)' }} />
+            <Box sx={{ lineHeight:1 }}>
+              <Typography component="div" sx={{ fontSize:15, fontWeight:800, letterSpacing:0.2, lineHeight:1.15 }}>
+                <Box component="span" sx={{ color:'#0f172a' }}>RetailTec&nbsp;</Box>
+                <Box component="span" sx={{
+                  background:'linear-gradient(90deg, #7c3aed, #22d3ee)',
+                  WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent',
+                }}>
+                  Analytics
+                </Box>
+              </Typography>
+              <Typography sx={{ fontSize:10.5, color:'#94a3b8', fontWeight:500,
+                                letterSpacing:1.1, textTransform:'uppercase', lineHeight:1.4 }}>
+                Retail Pro Prism · Live Retail Intelligence
+              </Typography>
+            </Box>
           </Box>
-          <Box sx={{ display:'flex', alignItems:'center', gap:2 }}>
+          <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
             <SyncBadge />
-            <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-              {new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
-            </Typography>
+            <Box sx={{
+              display:'flex', alignItems:'center', gap:0.8,
+              px:1.5, py:0.5, borderRadius:99,
+              bgcolor:'rgba(124,58,237,0.06)', border:'1px solid rgba(124,58,237,0.12)',
+            }}>
+              <Box sx={{ width:6, height:6, borderRadius:'50%', bgcolor:'#7c3aed' }} />
+              <Typography sx={{ fontSize:12, color:'#475569', fontWeight:600 }}>
+                {new Date().toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' })}
+              </Typography>
+            </Box>
           </Box>
         </Box>
 
