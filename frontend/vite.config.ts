@@ -8,7 +8,9 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // 127.0.0.1 (not localhost): Node 17+ resolves localhost to ::1 first,
+        // but uvicorn binds IPv4 only — proxying to localhost 500s on some machines
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         timeout: 0,          // no proxy timeout — required for long SSE streams
         proxyTimeout: 0,     // no upstream timeout
