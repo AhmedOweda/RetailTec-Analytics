@@ -175,7 +175,7 @@ export default function PurchasesTransactions() {
   ], [])
 
   const defaultColDef = useMemo(() => ({
-    sortable: true, filter: true, resizable: true, floatingFilter: true,
+    sortable: true, filter: true, resizable: true,   // filters via header menu (no floating filter row)
   }), [])
 
   // ── Totals ────────────────────────────────────────────────────────────────
