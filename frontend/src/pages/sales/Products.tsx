@@ -51,7 +51,7 @@ type Period = typeof PERIODS[number]['label']
 const VIEWS = ['item', 'dcs', 'vendor', 'department'] as const
 type View   = typeof VIEWS[number]
 const VIEW_LABELS: Record<View, string> = {
-  item: 'Top Items', dcs: 'DCS Breakdown', vendor: 'By Vendor', department: 'By Department',
+  item: 'Top Items', dcs: 'DCS Breakdown', vendor: 'By Item Vendor', department: 'By Department',
 }
 
 /* ── AG Grid shared styles ──────────────────────────────────────────── */
@@ -496,7 +496,8 @@ export default function Products() {
         field: 'DESCRIPTION1', headerName: 'Description', width: 240, pinned: 'left',
         cellStyle: { fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center' },
       },
-      { field: 'VEND_NAME', headerName: 'Vendor',   width: 160 },
+      { field: 'VEND_NAME', headerName: 'Item Vendor', width: 160,
+        headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
       { field: 'DCS_CODE',  headerName: 'DCS Code', width: 100, cellStyle: { fontSize: 11, color: C_SLATE, display: 'flex', alignItems: 'center' } },
       qtyCol, revCol, gpCol, gpPctCol,
     ]
@@ -519,7 +520,8 @@ export default function Products() {
     if (view === 'vendor') return [
       rankCol,
       {
-        field: 'name', headerName: 'Vendor', width: 240, pinned: 'left',
+        field: 'name', headerName: 'Item Vendor', width: 240, pinned: 'left',
+        headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from',
         cellStyle: { fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center' },
       },
       qtyCol, revCol, gpCol, gpPctCol,
@@ -642,8 +644,8 @@ export default function Products() {
       {/* ── Row 2: Vendor bar ─────────────────────────────────── */}
       <Box sx={{ px: 3 }}>
         <ChartCard
-          title="Top Vendors"
-          subtitle="Revenue ranking · GP% annotated on each bar"
+          title="Top Item Vendors"
+          subtitle="Item-master (catalog) vendor · revenue ranking · GP% annotated"
           option={vendorOpt}
           height={240}
           loading={vendorLoad}

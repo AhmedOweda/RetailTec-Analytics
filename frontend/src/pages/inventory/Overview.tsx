@@ -358,7 +358,9 @@ export default function InventoryOverview() {
 
     if (view === 'vendor') return [
       rankCol,
-      { field: 'vendor', headerName: 'Vendor', width: 250, pinned: 'left', cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+      { field: 'vendor', headerName: 'Item Vendor', width: 250, pinned: 'left',
+        headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from',
+        cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
       skuCol, qtyCol, costCol, retailCol, gmCol,
     ]
 
@@ -367,7 +369,8 @@ export default function InventoryOverview() {
       { field: 'ALU',          headerName: 'ALU',         width: 110, pinned: 'left', cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
       { field: 'DESCRIPTION1', headerName: 'Description', flex: 1, minWidth: 200 },
       { field: 'department',   headerName: 'Dept',        width: 140 },
-      { field: 'vendor',       headerName: 'Vendor',      width: 180 },
+      { field: 'vendor',       headerName: 'Item Vendor', width: 180,
+        headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
       { field: 'store_count',  headerName: 'Stores', width: 75, type: 'numericColumn' as const },
       qtyCol, costCol, retailCol, gmCol,
       { field: 'avg_cost',  headerName: 'Avg Cost',  width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `${moneyPrefix()}${(+(p.value ?? 0)).toFixed(2)}` },
@@ -467,7 +470,7 @@ export default function InventoryOverview() {
 
         {/* ── Row 2: Vendor Bar + Store Bar ── */}
         <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 2 }}>
-          <ChartCard title="Top Vendors by Stock Value" subtitle="Cost value · GM% annotated" option={vendorOpt} height={300} />
+          <ChartCard title="Top Item Vendors by Stock Value" subtitle="Item-master (catalog) vendor · cost value · GM% annotated" option={vendorOpt} height={300} />
           <ChartCard title="Stock by Store" subtitle="Cost value distribution" option={storeOpt} height={300} />
         </Box>
 
@@ -480,7 +483,7 @@ export default function InventoryOverview() {
               {([
                 { v: 'dept',       label: 'By Dept'     },
                 { v: 'dcs',        label: 'DCS'         },
-                { v: 'vendor',     label: 'By Vendor'   },
+                { v: 'vendor',     label: 'By Item Vendor' },
                 { v: 'store',      label: 'By Store'    },
                 { v: 'item',       label: 'By Item'     },
                 { v: 'item_store', label: 'Item × Store'},

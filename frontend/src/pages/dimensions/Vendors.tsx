@@ -144,7 +144,9 @@ export default function DimVendors() {
   }, [merged])
 
   const colDefs = useMemo<any[]>(() => [
-    { field: 'vendor_name', headerName: 'Vendor',       flex: 1.5, pinned: 'left' as const, cellStyle: { fontWeight: 600 } },
+    { field: 'vendor_name', headerName: 'Supplier',     flex: 1.5, pinned: 'left' as const,
+      headerTooltip: 'Supplier on purchase vouchers (who the goods were bought from)',
+      cellStyle: { fontWeight: 600 } },
     { field: 'tier',        headerName: 'SRM Tier',     width: 110,
       cellRenderer: (p: any) => {
         const c = TIER_META[p.value]?.color ?? C_SLATE
@@ -165,7 +167,10 @@ export default function DimVendors() {
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h5" fontWeight={700} mb={1.5}>SRM — Vendor Intelligence</Typography>
+        <Typography variant="h5" fontWeight={700} mb={0.3}>SRM — Supplier Intelligence</Typography>
+        <Typography sx={{ fontSize:12, color:'#64748b', mb:1.5 }}>
+          Ranked by purchase vouchers (supplier bought from) — item catalogs elsewhere use the item-master vendor
+        </Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
           <TextField size="small" label="From" type="date" value={dateFrom}
             onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
@@ -179,11 +184,11 @@ export default function DimVendors() {
       </Box>
 
       <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mb:2 }}>
-        <KpiCard label="Vendor Count"      value={fmtN(kpi.count)}      icon="ti-truck"         color={C_PURPLE} />
+        <KpiCard label="Supplier Count"    value={fmtN(kpi.count)}      icon="ti-truck"         color={C_PURPLE} />
         <KpiCard label="Total Purchased"   value={num(kpi.totalCost)}   icon="ti-coin"           color={C_CYAN}   />
         <KpiCard label="Avg Fill Rate"     value={pct(kpi.avgFill)}     icon="ti-circle-check"
           color={kpi.avgFill >= 90 ? C_GREEN : kpi.avgFill >= 70 ? C_AMBER : C_ROSE} />
-        <KpiCard label="Top Vendor Share"  value={pct(kpi.top1dep)}     icon="ti-alert-triangle"
+        <KpiCard label="Top Supplier Share" value={pct(kpi.top1dep)}    icon="ti-alert-triangle"
           color={kpi.top1dep >= 30 ? C_ROSE : kpi.top1dep >= 15 ? C_AMBER : C_GREEN}
           sub="concentration risk" />
       </Box>
@@ -211,8 +216,8 @@ export default function DimVendors() {
 
       <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-          <Typography sx={{ fontWeight:700, fontSize:13 }}>Vendor Detail — {merged.length} vendors</Typography>
-          <GridExportBar gridRef={gridRef} filename="vendors_srm" title="SRM — Vendor Intelligence"
+          <Typography sx={{ fontWeight:700, fontSize:13 }}>Supplier Detail — {merged.length} suppliers</Typography>
+          <GridExportBar gridRef={gridRef} filename="suppliers_srm" title="SRM — Supplier Intelligence"
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 420 }}>

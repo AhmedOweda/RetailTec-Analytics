@@ -179,7 +179,8 @@ export default function InventoryCoverage() {
     { field: productCodeField, headerName: codeFieldUpper,   width: 130,
       cellStyle: { fontFamily: 'monospace', color: C_PURPLE, fontWeight: 700 } },
     { field: 'description',   headerName: 'Item Description',flex: 2, minWidth: 180 },
-    { field: 'vendor',        headerName: 'Vendor',          width: 150 },
+    { field: 'vendor',        headerName: 'Item Vendor',     width: 150,
+      headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
     { field: 'department',    headerName: 'Department',      width: 140 },
     { field: 'on_hand',       headerName: 'Onhand Qty',      width: 110, type: 'numericColumn',
       valueFormatter: (p: any) => fmtN(p.value),
@@ -231,7 +232,7 @@ export default function InventoryCoverage() {
         <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center">
           {[
             { label:'Store',      options: storeOptions,  value: stores,  set: setStores  },
-            { label:'Vendor',     options: vendorOptions, value: vendors, set: setVendors },
+            { label:'Item Vendor', options: vendorOptions, value: vendors, set: setVendors },
             { label:'Department', options: deptOptions,   value: depts,   set: setDepts   },
           ].map(f => (
             <Autocomplete key={f.label} multiple disableCloseOnSelect size="small"

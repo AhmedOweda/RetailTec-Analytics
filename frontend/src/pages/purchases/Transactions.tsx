@@ -143,7 +143,8 @@ export default function PurchasesTransactions() {
     { field: 'status_label', headerName: 'Status',      width: 110,
       cellRenderer: StatusCell },
     { field: 'store_name',   headerName: 'Store',       width: 130 },
-    { field: 'vendor_name',  headerName: 'Vendor',      width: 160 },
+    { field: 'vendor_name',  headerName: 'Supplier',    width: 160,
+      headerTooltip: 'Supplier on the purchase voucher (who the goods were bought from)' },
     { field: 'department',   headerName: 'Department',  width: 130 },
     { field: 'alu',          headerName: 'ALU',         width: 110,
       cellStyle: { fontFamily: 'monospace', color: '#7c3aed', fontWeight: 600 } },
@@ -237,10 +238,10 @@ export default function PurchasesTransactions() {
           </FormControl>
 
           <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Vendor</InputLabel>
+            <InputLabel>Supplier</InputLabel>
             <Select multiple value={vendors}
               onChange={e => setVendors(e.target.value as string[])}
-              input={<OutlinedInput label="Vendor" />}
+              input={<OutlinedInput label="Supplier" />}
               renderValue={v => v.length === 1 ? v[0] : `${v.length} vendors`}
               MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}>
               {allVendors.map(v => (
