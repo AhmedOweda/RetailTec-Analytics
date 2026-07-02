@@ -30,6 +30,10 @@ interface AppSettings {
   setProductCodeField: (v: ProductCodeField) => void
   currency:            Currency
   setCurrency:         (code: string) => void
+  showCurrency:        boolean
+  setShowCurrency:     (v: boolean) => void
+  /** '⃁ ' prefix for money values, or '' when the sign is turned off */
+  moneyPrefix:         string
 }
 
 const DEFAULT_CURRENCY = CURRENCIES[0]
@@ -39,6 +43,9 @@ const AppSettingsContext = createContext<AppSettings>({
   setProductCodeField: () => {},
   currency:            DEFAULT_CURRENCY,
   setCurrency:         () => {},
+  showCurrency:        true,
+  setShowCurrency:     () => {},
+  moneyPrefix:         DEFAULT_CURRENCY.symbol + ' ',
 })
 
 export function AppSettingsProvider({ children }: { children: ReactNode }) {
@@ -55,14 +62,27 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     setFieldState(v)
   }
 
+  const [showCurrency, setShowCurrencyState] = useState<boolean>(
+    () => localStorage.getItem('showCurrency') !== 'false'   // default ON
+  )
+
   const setCurrency = (code: string) => {
     const c = CURRENCIES.find(x => x.code === code) ?? DEFAULT_CURRENCY
     localStorage.setItem('currency', c.code)
     setCurrencyState(c)
   }
 
+  const setShowCurrency = (v: boolean) => {
+    localStorage.setItem('showCurrency', String(v))
+    setShowCurrencyState(v)
+  }
+
+  const moneyPrefix = showCurrency ? currency.symbol + ' ' : ''
+
   return (
-    <AppSettingsContext.Provider value={{ productCodeField, setProductCodeField, currency, setCurrency }}>
+    <AppSettingsContext.Provider value={{ productCodeField, setProductCodeField,
+                                          currency, setCurrency,
+                                          showCurrency, setShowCurrency, moneyPrefix }}>
       {children}
     </AppSettingsContext.Provider>
   )
