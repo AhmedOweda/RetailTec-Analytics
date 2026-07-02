@@ -486,7 +486,9 @@ def _bulk_upsert_dim(duck, table: str, pk: str, rows, full_refresh: bool = False
     if not rows:
         return 0
     cols = [r[1] for r in duck.execute(f"PRAGMA table_info('{table}')").fetchall()]
-    stage_df = pd.DataFrame(rows, columns=cols)
+    # dtype=object: prevent float64 inference on nullable BIGINT SID columns
+    # (precision loss above 2^53 corrupted DIM_ITEM.VEND_SID — see _stream_insert)
+    stage_df = pd.DataFrame(rows, columns=cols, dtype=object)
     tmp = f"{table}__rebuild"
     duck.register("_dim_stage", stage_df)
     try:
@@ -623,7 +625,8 @@ def _sync_inventory_snapshot(duck, ora):
         import pandas as pd
         stage_df = pd.DataFrame(
             [(r[0], r[1], r[2], r[3], r[4], now_str) for r in rows],
-            columns=["ITEM_SID", "STORE_SID", "ON_HAND_QTY", "COST", "PRICE1", "SYNCED_AT"])
+            columns=["ITEM_SID", "STORE_SID", "ON_HAND_QTY", "COST", "PRICE1", "SYNCED_AT"],
+            dtype=object)  # exact BIGINT SIDs — see _stream_insert note
         duck.register("_snap_stage", stage_df)
         try:
             duck.execute("INSERT INTO FACT_INVENTORY SELECT * FROM _snap_stage")
@@ -685,7 +688,11 @@ def _stream_insert(duck, ora, sql: str, table: str, ncols: int,
         rows = cur.fetchmany(_BATCH)
         if not rows:
             break
-        stage_df = pd.DataFrame(rows, columns=cols)
+        # dtype=object is CRITICAL: with default inference, one NULL in a BIGINT
+        # column flips the whole batch to float64, silently corrupting 19-digit
+        # RP9 SIDs (> 2^53) — e.g. VEND_SID ...650 became ...648, breaking all
+        # vendor joins. object dtype passes exact Python ints through to DuckDB.
+        stage_df = pd.DataFrame(rows, columns=cols, dtype=object)
         duck.register("_stage", stage_df)
         try:
             if force_replace:
