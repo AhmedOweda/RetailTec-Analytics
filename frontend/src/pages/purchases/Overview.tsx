@@ -6,8 +6,7 @@
 import { useState, useMemo } from 'react'
 import {
   Box, Typography, Grid, Paper, Chip, Stack,
-  TextField, FormControl, InputLabel, Select, MenuItem,
-  OutlinedInput, Checkbox, ListItemText, CircularProgress,
+  TextField, Autocomplete, CircularProgress,
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
@@ -78,10 +77,11 @@ function useStores() {
 function useVendors() {
   const { data } = useQuery({
     queryKey: ['vendors-list'],
-    queryFn:  () => axios.get('/api/purchases/vendors-list').then(r => r.data as { vend_name: string }[]),
+    queryFn:  () => axios.get('/api/purchases/vendors-list').then(r => r.data as any[]),
     staleTime: Infinity,
   })
-  return data?.map(r => r.vend_name) ?? []
+  // API returns uppercase VEND_NAME (DuckDB column); accept both casings
+  return data?.map(r => r.VEND_NAME ?? r.vend_name).filter(Boolean) ?? []
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -230,49 +230,30 @@ export default function PurchasesOverview() {
             onChange={e => { setDateTo(e.target.value); setPreset('') }}
             InputLabelProps={{ shrink: true }} sx={{ width: 148 }} />
 
-          {/* Store */}
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Store</InputLabel>
-            <Select multiple value={stores}
-              onChange={e => setStores(e.target.value as string[])}
-              input={<OutlinedInput label="Store" />}
-              renderValue={s => s.length === 1 ? s[0] : `${s.length} stores`}
-              MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}>
-              {allStores.map(s => (
-                <MenuItem key={s} value={s} dense>
-                  <Checkbox checked={stores.includes(s)} size="small" />
-                  <ListItemText primary={s} primaryTypographyProps={{ fontSize: 13 }} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {/* Vendor */}
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Supplier</InputLabel>
-            <Select multiple value={vendors}
-              onChange={e => setVendors(e.target.value as string[])}
-              input={<OutlinedInput label="Supplier" />}
-              renderValue={v => v.length === 1 ? v[0] : `${v.length} vendors`}
-              MenuProps={{ PaperProps: { style: { maxHeight: 300 } } }}>
-              {allVendors.map(v => (
-                <MenuItem key={v} value={v} dense>
-                  <Checkbox checked={vendors.includes(v)} size="small" />
-                  <ListItemText primary={v} primaryTypographyProps={{ fontSize: 13 }} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {/* Status */}
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <InputLabel>Status</InputLabel>
-            <Select value={status} onChange={e => setStatus(e.target.value)} label="Status">
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="received">Received</MenuItem>
-              <MenuItem value="pending">Pending</MenuItem>
-            </Select>
-          </FormControl>
+          {/* Filters — Autocomplete style, consistent with all other pages */}
+          <Autocomplete
+            multiple disableCloseOnSelect size="small"
+            options={allStores} value={stores}
+            onChange={(_, v) => setStores(v)}
+            renderInput={p => <TextField {...p} placeholder="All Stores" size="small" sx={{ minWidth: 190 }} />}
+            sx={{ minWidth: 190 }}
+          />
+          <Autocomplete
+            multiple disableCloseOnSelect size="small"
+            options={allVendors} value={vendors}
+            onChange={(_, v) => setVendors(v)}
+            renderInput={p => <TextField {...p} placeholder="All Suppliers" size="small" sx={{ minWidth: 190 }} />}
+            sx={{ minWidth: 190 }}
+          />
+          <Autocomplete
+            size="small"
+            options={['received', 'pending']}
+            value={status || null}
+            onChange={(_, v) => setStatus(v ?? '')}
+            getOptionLabel={o => o === 'received' ? 'Received' : 'Pending'}
+            renderInput={p => <TextField {...p} placeholder="All Status" size="small" sx={{ minWidth: 140 }} />}
+            sx={{ minWidth: 140 }}
+          />
 
           {kpiQ.isLoading && <CircularProgress size={18} sx={{ color: '#7c3aed' }} />}
         </Box>
