@@ -85,8 +85,7 @@ export default function InventoryCoverage() {
   const [stores,   setStores]   = useState<string[]>([])
   const [vendors,  setVendors]  = useState<string[]>([])
   const [depts,    setDepts]    = useState<string[]>([])
-  const [descSearch, setDescSearch] = useState('')
-  const [codeSearch,  setCodeSearch]  = useState('')
+  const [itemSearch, setItemSearch] = useState('')   // one field: ALU / UPC / description
 
   // Period for Daily AVG (30 / 60 / 90)
   const [period, setPeriod] = useState<number>(30)
@@ -111,16 +110,19 @@ export default function InventoryCoverage() {
     staleTime: Infinity,
   })
 
-  const storeOptions  = storeList.map(r => r.STORE_NAME)
-  const vendorOptions = vendorList.map(r => r.vend_name)
-  const deptOptions   = deptList.map(r => r.department)
+  // Defensive key lookup — the APIs return UPPERCASE column names for
+  // unaliased selects (undefined options crashed the Autocomplete slicers)
+  const storeOptions  = storeList.map((r: any) => r.STORE_NAME ?? r.store_name).filter(Boolean)
+  const vendorOptions = vendorList.map((r: any) => r.VEND_NAME ?? r.vend_name).filter(Boolean)
+  const deptOptions   = deptList.map((r: any) => r.department ?? r.D_NAME).filter(Boolean)
 
   // ── Data fetch ──────────────────────────────────────────────────────────────
+  // Only stores filter server-side; vendor/department filter CLIENT-side —
+  // exact match on the row values (server csv matching broke on names that
+  // contain commas, returning no data)
   const params = useMemo(() => ({
     ...(stores.length  ? { stores:  stores.join(',')  } : {}),
-    ...(vendors.length ? { vendors: vendors.join(',') } : {}),
-    ...(depts.length   ? { dcs:     depts.join(',')   } : {}),
-  }), [stores, vendors, depts])
+  }), [stores])
 
   const { data: raw = [], isFetching } = useQuery<any[]>({
     queryKey: ['inv-coverage', params],
@@ -138,19 +140,20 @@ export default function InventoryCoverage() {
   // ── Apply text search + bucket filter ──────────────────────────────────────
   const rows = useMemo(() => {
     let r = enriched
-    if (descSearch.trim()) {
-      const q = descSearch.trim().toLowerCase()
-      r = r.filter(x => (x.description ?? '').toLowerCase().includes(q))
-    }
-    if (codeSearch.trim()) {
-      const q = codeSearch.trim().toLowerCase()
-      r = r.filter(x => (x[productCodeField] ?? '').toLowerCase().includes(q))
+    if (vendors.length) r = r.filter(x => vendors.includes(x.vendor))
+    if (depts.length)   r = r.filter(x => depts.includes(x.department))
+    if (itemSearch.trim()) {
+      const q = itemSearch.trim().toLowerCase()
+      r = r.filter(x =>
+        (x.description ?? '').toLowerCase().includes(q) ||
+        (x.alu ?? '').toLowerCase().includes(q) ||
+        String(x.upc ?? '').toLowerCase().includes(q))
     }
     if (bucket !== 'all') {
       r = r.filter(x => x.coverage_bucket === bucket)
     }
     return r
-  }, [enriched, descSearch, codeSearch, bucket])
+  }, [enriched, vendors, depts, itemSearch, bucket])
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
   const kpi = useMemo(() => {
@@ -215,7 +218,7 @@ export default function InventoryCoverage() {
         mx: -3, px: 3, pt: 2.5, pb: 1.5, mb: 2, borderBottom: '1px solid #e9e4ff',
       }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5}>
-          <Typography variant="h5" fontWeight={700}>
+          <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px' }}>
             Coverage & Replenishment Planning
           </Typography>
           {isFetching && (
@@ -226,40 +229,27 @@ export default function InventoryCoverage() {
         </Stack>
 
         <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center">
-          {/* Store */}
-          <Autocomplete multiple disableCloseOnSelect size="small"
-            options={storeOptions} value={stores}
-            onChange={(_, v) => setStores(v)} sx={{ minWidth: 200 }}
-            renderInput={p => <TextField {...p} label="Store" size="small" />}
-            renderTags={(val, gtp) => val.map((o, i) =>
-              <Chip label={o} size="small" {...gtp({ index: i })} />
-            )} />
+          {[
+            { label:'Store',      options: storeOptions,  value: stores,  set: setStores  },
+            { label:'Vendor',     options: vendorOptions, value: vendors, set: setVendors },
+            { label:'Department', options: deptOptions,   value: depts,   set: setDepts   },
+          ].map(f => (
+            <Autocomplete key={f.label} multiple disableCloseOnSelect size="small"
+              options={f.options} value={f.value}
+              onChange={(_, v) => f.set(v as string[])}
+              sx={{ minWidth: 200,
+                    '& .MuiOutlinedInput-root': { borderRadius: 2.5, bgcolor: '#fff' } }}
+              renderInput={p => <TextField {...p} label={f.label} size="small" />}
+              renderTags={(val, gtp) => val.map((o, i) =>
+                <Chip label={o} size="small" {...gtp({ index: i })} />
+              )} />
+          ))}
 
-          {/* Vendor */}
-          <Autocomplete multiple disableCloseOnSelect size="small"
-            options={vendorOptions} value={vendors}
-            onChange={(_, v) => setVendors(v)} sx={{ minWidth: 200 }}
-            renderInput={p => <TextField {...p} label="Vendor" size="small" />}
-            renderTags={(val, gtp) => val.map((o, i) =>
-              <Chip label={o} size="small" {...gtp({ index: i })} />
-            )} />
-
-          {/* Department */}
-          <Autocomplete multiple disableCloseOnSelect size="small"
-            options={deptOptions} value={depts}
-            onChange={(_, v) => setDepts(v)} sx={{ minWidth: 200 }}
-            renderInput={p => <TextField {...p} label="Department" size="small" />}
-            renderTags={(val, gtp) => val.map((o, i) =>
-              <Chip label={o} size="small" {...gtp({ index: i })} />
-            )} />
-
-          {/* Code search */}
-          <TextField size="small" label={codeFieldUpper} value={codeSearch}
-            onChange={e => setCodeSearch(e.target.value)} sx={{ width: 130 }} />
-
-          {/* Description search */}
-          <TextField size="small" label="Item Description" value={descSearch}
-            onChange={e => setDescSearch(e.target.value)} sx={{ width: 200 }} />
+          {/* Item search — ALU / UPC / description in one field */}
+          <TextField size="small" label={`Search item (${codeFieldUpper} / description)`}
+            value={itemSearch} onChange={e => setItemSearch(e.target.value)}
+            sx={{ width: 260,
+                  '& .MuiOutlinedInput-root': { borderRadius: 2.5, bgcolor: '#fff' } }} />
 
           {/* Period selector */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
