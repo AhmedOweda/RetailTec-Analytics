@@ -30,8 +30,16 @@ import duckdb
 import json
 import hashlib
 import secrets
+import threading
 from datetime import date, timedelta
 from pathlib import Path
+
+# ONE process-wide lock for ALL DuckDB access. The single shared connection is
+# not thread-safe; every module (auth, data routers, settings endpoints) MUST
+# guard queries with THIS lock. Two different locks on the same connection let
+# concurrent requests interleave and corrupt each other's cursors (random
+# IndexError 500s / bogus 401s under parallel page loads).
+DB_LOCK = threading.Lock()
 
 # ── Password hashing ──────────────────────────────────────────────────────────
 def hash_password(plain: str) -> str:

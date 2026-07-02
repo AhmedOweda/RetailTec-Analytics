@@ -250,47 +250,49 @@ def cancel_sync(_admin: dict = Depends(require_admin)):
 @router.post("/api/sync/cleanup")
 def sync_cleanup(_admin: dict = Depends(require_admin)):
     """Mark stuck 'running' sync runs as aborted. Safe to call anytime."""
-    from db.model import get_db
-    duck = get_db()
-    stale = duck.execute("SELECT run_id FROM SYNC_RUN WHERE status='running'").fetchall()
-    stale_ids = [r[0] for r in stale]
-    if stale_ids:
-        duck.execute("""
-            UPDATE SYNC_RUN
-            SET status = 'aborted', finished_at = NOW(),
-                error_msg = 'Marked aborted via /api/sync/cleanup'
-            WHERE status = 'running'
-        """)
-        duck.commit()
+    from db.model import DB_LOCK, get_db
+    with DB_LOCK:
+        duck = get_db()
+        stale = duck.execute("SELECT run_id FROM SYNC_RUN WHERE status='running'").fetchall()
+        stale_ids = [r[0] for r in stale]
+        if stale_ids:
+            duck.execute("""
+                UPDATE SYNC_RUN
+                SET status = 'aborted', finished_at = NOW(),
+                    error_msg = 'Marked aborted via /api/sync/cleanup'
+                WHERE status = 'running'
+            """)
+            duck.commit()
     return {"ok": True, "aborted_run_ids": stale_ids}
 
 
 @router.get("/api/sync/history")
 def sync_history(limit: int = 30):
     """Last N sync runs with per-table stats."""
-    from db.model import get_db
-    duck = get_db()
+    from db.model import DB_LOCK, get_db
+    with DB_LOCK:
+        duck = get_db()
 
-    runs = duck.execute("""
-        SELECT run_id, run_type, triggered_by, domains,
-               date_from, date_to, started_at, finished_at,
-               status, chunks_done, chunks_total, error_msg
-        FROM SYNC_RUN
-        ORDER BY run_id DESC
-        LIMIT ?
-    """, [limit]).fetchall()
+        runs = duck.execute("""
+            SELECT run_id, run_type, triggered_by, domains,
+                   date_from, date_to, started_at, finished_at,
+                   status, chunks_done, chunks_total, error_msg
+            FROM SYNC_RUN
+            ORDER BY run_id DESC
+            LIMIT ?
+        """, [limit]).fetchall()
 
-    if not runs:
-        return {"runs": []}
+        if not runs:
+            return {"runs": []}
 
-    run_ids = [r[0] for r in runs]
-    placeholders = ",".join(["?"] * len(run_ids))
-    stats = duck.execute(f"""
-        SELECT run_id, table_name, rows_before, rows_after, rows_loaded, duration_sec
-        FROM SYNC_RUN_STATS
-        WHERE run_id IN ({placeholders})
-        ORDER BY run_id DESC, table_name
-    """, run_ids).fetchall()
+        run_ids = [r[0] for r in runs]
+        placeholders = ",".join(["?"] * len(run_ids))
+        stats = duck.execute(f"""
+            SELECT run_id, table_name, rows_before, rows_after, rows_loaded, duration_sec
+            FROM SYNC_RUN_STATS
+            WHERE run_id IN ({placeholders})
+            ORDER BY run_id DESC, table_name
+        """, run_ids).fetchall()
 
     stats_map: dict = {}
     for s in stats:
@@ -330,8 +332,7 @@ def sync_history(limit: int = 30):
 @router.get("/api/sync/table-stats")
 def sync_table_stats():
     """Row counts for every FACT/DIM table + watermark state."""
-    from db.model import get_db
-    duck = get_db()
+    from db.model import DB_LOCK, get_db
 
     tables = [
         # Facts
@@ -345,29 +346,31 @@ def sync_table_stats():
     ]
 
     counts = {}
-    for t in tables:
-        try:
-            n = duck.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-            counts[t] = n
-        except Exception:
-            counts[t] = None
+    with DB_LOCK:
+        duck = get_db()
+        for t in tables:
+            try:
+                n = duck.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                counts[t] = n
+            except Exception:
+                counts[t] = None
 
-    watermarks = []
-    try:
-        wm = duck.execute("""
-            SELECT domain, loaded_from, loaded_to, last_run_id, updated_at
-            FROM SYNC_WATERMARK ORDER BY domain
-        """).fetchall()
-        for w in wm:
-            watermarks.append({
-                "domain":      w[0],
-                "loaded_from": str(w[1]) if w[1] else None,
-                "loaded_to":   str(w[2]) if w[2] else None,
-                "last_run_id": w[3],
-                "updated_at":  w[4].isoformat() if w[4] else None,
-            })
-    except Exception:
-        pass
+        watermarks = []
+        try:
+            wm = duck.execute("""
+                SELECT domain, loaded_from, loaded_to, last_run_id, updated_at
+                FROM SYNC_WATERMARK ORDER BY domain
+            """).fetchall()
+            for w in wm:
+                watermarks.append({
+                    "domain":      w[0],
+                    "loaded_from": str(w[1]) if w[1] else None,
+                    "loaded_to":   str(w[2]) if w[2] else None,
+                    "last_run_id": w[3],
+                    "updated_at":  w[4].isoformat() if w[4] else None,
+                })
+        except Exception:
+            pass
 
     return {"table_counts": counts, "watermarks": watermarks}
 
@@ -393,8 +396,7 @@ async def sync_range(req: RangeLoadReq, _admin: dict = Depends(require_admin)):
 @router.get("/api/sync/coverage")
 def sync_coverage():
     """Actual loaded date span + row counts per domain, read from the fact tables."""
-    from db.model import get_db
-    duck = get_db()
+    from db.model import DB_LOCK, get_db
     specs = [
         ("sales",             "FACT_SALES_INVOICES",    "INVC_POST_DATE"),
         ("transfers",         "FACT_TRANSFERS",         "SLIP_DATE"),
@@ -403,25 +405,27 @@ def sync_coverage():
         ("inventory_history", "FACT_INVENTORY_HISTORY", "ACTION_DATE"),
     ]
     coverage = []
-    for domain, table, col in specs:
+    with DB_LOCK:
+        duck = get_db()
+        for domain, table, col in specs:
+            try:
+                r = duck.execute(
+                    f"SELECT MIN({col}), MAX({col}), COUNT(*), COUNT(DISTINCT {col}) FROM {table}"
+                ).fetchone()
+                coverage.append({"domain": domain, "table": table,
+                                 "from": str(r[0]) if r[0] else None,
+                                 "to":   str(r[1]) if r[1] else None,
+                                 "rows": int(r[2] or 0), "days": int(r[3] or 0)})
+            except Exception:
+                coverage.append({"domain": domain, "table": table,
+                                 "from": None, "to": None, "rows": 0, "days": 0})
         try:
-            r = duck.execute(
-                f"SELECT MIN({col}), MAX({col}), COUNT(*), COUNT(DISTINCT {col}) FROM {table}"
-            ).fetchone()
-            coverage.append({"domain": domain, "table": table,
-                             "from": str(r[0]) if r[0] else None,
-                             "to":   str(r[1]) if r[1] else None,
-                             "rows": int(r[2] or 0), "days": int(r[3] or 0)})
+            r = duck.execute("SELECT COUNT(*), MAX(SYNCED_AT) FROM FACT_INVENTORY").fetchone()
+            coverage.append({"domain": "inventory_snapshot", "table": "FACT_INVENTORY",
+                             "from": None, "to": None, "rows": int(r[0] or 0), "days": 0,
+                             "synced_at": r[1].isoformat() if r[1] else None})
         except Exception:
-            coverage.append({"domain": domain, "table": table,
-                             "from": None, "to": None, "rows": 0, "days": 0})
-    try:
-        r = duck.execute("SELECT COUNT(*), MAX(SYNCED_AT) FROM FACT_INVENTORY").fetchone()
-        coverage.append({"domain": "inventory_snapshot", "table": "FACT_INVENTORY",
-                         "from": None, "to": None, "rows": int(r[0] or 0), "days": 0,
-                         "synced_at": r[1].isoformat() if r[1] else None})
-    except Exception:
-        pass
+            pass
     return {"coverage": coverage}
 
 

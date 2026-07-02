@@ -11,17 +11,12 @@ Invariants (see EXPERT_REVIEW.md C2):
   * `scoped_stores` enforces the JWT `stores` claim server-side so a
     store-scoped user can never read other stores (EXPERT_REVIEW.md C1).
 """
-import threading
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Query
 
-from db.model import get_db
+from db.model import DB_LOCK, get_db
 from routers.auth import get_current_user
-
-# One process-wide lock: DuckDB single connection is not thread-safe.
-# (Previously each router had its own lock guarding the same connection.)
-DB_LOCK = threading.Lock()
 
 
 def q(sql: str, params: Optional[list] = None):
