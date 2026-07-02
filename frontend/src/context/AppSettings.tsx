@@ -10,9 +10,12 @@ export type ProductCodeField = 'alu' | 'upc'
 
 export interface Currency { code: string; name: string; symbol: string }
 
-// Note: SAR uses the NEW Saudi Riyal sign (U+20C0), not the "SAR" code.
+// Note: SAR uses the NEW Saudi Riyal sign — U+20C1 SAUDI RIYAL SIGN
+// (Unicode 17.0, Sept 2025; SAMA rules: symbol LEFT of the number + space).
+// Font support is still rolling out; if it renders as a box on older fonts,
+// swap in SAMA's official SVG glyph.
 export const CURRENCIES: Currency[] = [
-  { code: 'SAR', name: 'Saudi Riyal',    symbol: '⃀' },
+  { code: 'SAR', name: 'Saudi Riyal',    symbol: '⃁' },
   { code: 'AED', name: 'UAE Dirham',     symbol: 'د.إ' },
   { code: 'QAR', name: 'Qatari Riyal',   symbol: 'ر.ق' },
   { code: 'KWD', name: 'Kuwaiti Dinar',  symbol: 'د.ك' },
