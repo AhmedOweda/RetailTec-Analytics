@@ -11,12 +11,27 @@ import logging
 import sys
 import os
 
-# ── Oracle thin client (no instant client needed) ──────────────────────────
+# ── Oracle client: try thick mode (needed for old 10G password verifiers —
+#    DPY-3015 in thin mode), fall back to thin if no client is found ─────────
 import oracledb
-try:
-    oracledb.init_oracle_client(lib_dir=r"C:\db_mcp\instantclient_23_0")
-except Exception:
-    pass   # falls back to thin mode automatically
+from pathlib import Path as _Path
+
+_IC_CANDIDATES = [
+    os.environ.get("RETAILTEC_ORACLE_CLIENT"),          # explicit override
+    r"C:\db_mcp\instantclient_23_0",                    # original laptop
+    r"C:\Oracle\instantclient",                         # common local installs
+    r"C:\oracle64\product\18.0.0\client_1\bin",
+    r"C:\oracle64\product\18.0.0\client_1",
+]
+for _p in _IC_CANDIDATES:
+    if _p and _Path(_p).exists():
+        try:
+            oracledb.init_oracle_client(lib_dir=_p)
+            print(f"Oracle thick mode enabled (client: {_p})")
+            break
+        except Exception as _e:
+            print(f"Oracle client at {_p} not usable: {_e}")
+# no break → stays in thin mode automatically
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
