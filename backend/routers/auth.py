@@ -61,11 +61,16 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _qdf(sql: str, params=None) -> list[dict]:
+    # Per-request cursor: auth reads (every request's token check!) must not
+    # queue behind a running sync on the shared connection.
     with _db_lock:
-        con = get_db()
-        rel = con.execute(sql, params or [])
+        cur = get_db().cursor()
+    try:
+        rel = cur.execute(sql, params or [])
         cols = [d[0] for d in rel.description]
         return [dict(zip(cols, row)) for row in rel.fetchall()]
+    finally:
+        cur.close()
 
 
 def _create_token(data: dict) -> str:

@@ -19,17 +19,31 @@ from db.model import DB_LOCK, get_db
 from routers.auth import get_current_user
 
 
+def _cursor():
+    """A per-request DuckDB cursor. Cursors are independent connections to the
+    same database (MVCC): reads run CONCURRENTLY with the sync writer instead of
+    queueing behind it on the shared connection — previously every dashboard
+    query (even login) froze for the entire duration of any sync."""
+    with DB_LOCK:                 # guard only connection creation / host switch
+        return get_db().cursor()
+
+
 def q(sql: str, params: Optional[list] = None):
-    with DB_LOCK:
-        return get_db().execute(sql, params or []).fetchall()
+    cur = _cursor()
+    try:
+        return cur.execute(sql, params or []).fetchall()
+    finally:
+        cur.close()
 
 
 def qdf(sql: str, params: Optional[list] = None) -> list[dict]:
-    with DB_LOCK:
-        con  = get_db()
-        rel  = con.execute(sql, params or [])
+    cur = _cursor()
+    try:
+        rel  = cur.execute(sql, params or [])
         cols = [d[0] for d in rel.description]
         return [dict(zip(cols, row)) for row in rel.fetchall()]
+    finally:
+        cur.close()
 
 
 # ── Parameterized filter fragments ────────────────────────────────────────────

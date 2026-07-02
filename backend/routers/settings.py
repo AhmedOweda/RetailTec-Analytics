@@ -191,7 +191,16 @@ def update_settings(payload: SettingsPayload, _admin: dict = Depends(require_adm
     if conn.get("password") == _PASSWORD_MASK:
         conn["password"] = current.get("connection", {}).get("password", "")
 
-    new_host = conn["host"]
+    new_host = conn["host"].strip()
+    conn["host"] = new_host
+
+    # Guard: saving an EMPTY host over a configured one silently switched the app
+    # to a fresh empty DB file (all dashboards went blank) and clobbered the
+    # stored credentials. Refuse it.
+    if old_host and not new_host:
+        raise HTTPException(status_code=422,
+                            detail="Host cannot be empty — clear it intentionally "
+                                   "by typing the new host, not by saving a blank form")
 
     current["connection"] = conn
     dm_obj = _validate_data_model(payload.data_model)
@@ -271,8 +280,8 @@ def sync_history(limit: int = 30):
     """Last N sync runs with per-table stats."""
     from db.model import DB_LOCK, get_db
     with DB_LOCK:
-        duck = get_db()
-
+        duck = get_db().cursor()   # per-request cursor — don't block behind syncs
+    if True:
         runs = duck.execute("""
             SELECT run_id, run_type, triggered_by, domains,
                    date_from, date_to, started_at, finished_at,
@@ -347,7 +356,8 @@ def sync_table_stats():
 
     counts = {}
     with DB_LOCK:
-        duck = get_db()
+        duck = get_db().cursor()   # per-request cursor — don't block behind syncs
+    if True:
         for t in tables:
             try:
                 n = duck.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
@@ -406,7 +416,8 @@ def sync_coverage():
     ]
     coverage = []
     with DB_LOCK:
-        duck = get_db()
+        duck = get_db().cursor()   # per-request cursor — don't block behind syncs
+    if True:
         for domain, table, col in specs:
             try:
                 r = duck.execute(
