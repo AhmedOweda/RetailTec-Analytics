@@ -67,6 +67,7 @@ export default function DimItems() {
 
   const params = {
     date_from: dateFrom, date_to: dateTo, group_by: 'item',
+    limit: 500,   // top 500 SKUs by revenue (backend default is 20)
     ...(stores.length ? { stores: stores.join(',') } : {}),
   }
 
