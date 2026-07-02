@@ -281,13 +281,13 @@ export default function PurchasesOverview() {
       {/* ── KPI strip (flex row — equal heights, like Stock Movement) ─── */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
         {([
-          { label: 'Total Vouchers',    value: fmt(kpi?.vou_count      ?? 0),                                  color: C.blue,   icon: 'ti-file-invoice' },
-          { label: 'Total Cost',   value: fmtC0(kpi?.total_cost   ?? 0),                                  color: C.purple, icon: 'ti-coin'          },
+          { label: 'Total Vouchers',    value: fmt(kpi?.vou_count      ?? 0), sub: 'purchase orders in period',      color: C.blue,   icon: 'ti-file-invoice' },
+          { label: 'Total Cost',   value: fmtC0(kpi?.total_cost   ?? 0), sub: 'sum of voucher totals',          color: C.purple, icon: 'ti-coin'          },
           { label: 'Received Vouchers', value: fmt(kpi?.received_count ?? 0), sub: `${kpi?.recv_pct ?? 0}% of total`, color: C.green,  icon: 'ti-circle-check'  },
-          { label: 'Pending Vouchers',  value: fmt(kpi?.pending_count  ?? 0),                                  color: C.amber,  icon: 'ti-clock'         },
-          { label: 'Vendors',      value: fmt(kpi?.vendor_count   ?? 0),                                  color: C.sky,    icon: 'ti-building-store'},
-          { label: 'Line Items',   value: fmt(kpi?.line_count     ?? 0),                                  color: C.rose,   icon: 'ti-list'          },
-          { label: 'Ordered Qty',  value: fmt(kpi?.ord_qty        ?? 0),                                  color: '#64748b', icon: 'ti-package' },
+          { label: 'Pending Vouchers',  value: fmt(kpi?.pending_count  ?? 0), sub: 'awaiting receipt',               color: C.amber,  icon: 'ti-clock'         },
+          { label: 'Vendors',      value: fmt(kpi?.vendor_count   ?? 0), sub: 'distinct suppliers',             color: C.sky,    icon: 'ti-building-store'},
+          { label: 'Line Items',   value: fmt(kpi?.line_count     ?? 0), sub: 'voucher detail rows',            color: C.rose,   icon: 'ti-list'          },
+          { label: 'Ordered Qty',  value: fmt(kpi?.ord_qty        ?? 0), sub: 'units on order',                 color: '#64748b', icon: 'ti-package' },
           { label: 'Received Qty', value: fmt(kpi?.recv_qty       ?? 0), sub: `Disc: ${fmtC0(kpi?.total_disc ?? 0)}`, color: '#64748b', icon: 'ti-inbox' },
         ] as const).map(k => (
           <KpiCard key={k.label} {...k} />

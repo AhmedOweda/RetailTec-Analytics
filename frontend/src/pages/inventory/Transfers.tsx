@@ -286,12 +286,12 @@ export default function Transfers() {
       {/* ── KPI strip ── */}
       <Box sx={{ display:'flex', gap:1.5, flexWrap:'wrap' }}>
         <KpiCard label="Total Transfers"  value={fmtN(kpi?.total_slips  || 0)} sub={`${fmtN(kpi?.total_lines || 0)} lines`} icon="ti-transfer" />
-        <KpiCard label="Sent Qty"         value={fmtN(kpi?.total_sent_qty || 0)} icon="ti-send" />
-        <KpiCard label="Received Qty"     value={fmtN(kpi?.total_recv_qty || 0)} icon="ti-inbox" />
-        <KpiCard label="Cost Value"       value={fmtC(kpi?.total_cost  || 0)} color={ACCENT} icon="ti-coin" />
+        <KpiCard label="Sent Qty"         value={fmtN(kpi?.total_sent_qty || 0)} sub="units shipped out" icon="ti-send" />
+        <KpiCard label="Received Qty"     value={fmtN(kpi?.total_recv_qty || 0)} sub="units received in" icon="ti-inbox" />
+        <KpiCard label="Cost Value"       value={fmtC(kpi?.total_cost  || 0)} sub="value of goods moved" color={ACCENT} icon="ti-coin" />
         <KpiCard label="Received"         value={fmtN(kpi?.received_slips || 0)}
           sub={`${kpi?.recv_pct ?? 0}% of total`} color={RECEIVED_C} icon="ti-circle-check" />
-        <KpiCard label="Pending"          value={fmtN(kpi?.pending_slips  || 0)} color={PENDING_C} icon="ti-clock" />
+        <KpiCard label="Pending"          value={fmtN(kpi?.pending_slips  || 0)} sub="awaiting receipt" color={PENDING_C} icon="ti-clock" />
       </Box>
 
       {/* ── Charts row 1 ── */}
