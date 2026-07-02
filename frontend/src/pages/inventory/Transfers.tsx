@@ -24,6 +24,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { EChartHandle } from '../../components/EChart'
 import KpiCard                  from '../../components/KpiCard'
 import GridExportBar            from '../../components/GridExportBar'
+import { moneyPrefix } from '../../utils/formatters'
 
 // ── Colours ────────────────────────────────────────────────────────────────
 const ACCENT   = '#7c3aed'
@@ -86,7 +87,7 @@ function ChartCard({ title, children, chartRef, height = 260 }: {
 // ── Number formatting ─────────────────────────────────────────────────────
 const fmtN = (v: number, dec = 0) =>
   v == null ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
-const fmtC = (v: number) => v == null ? '—' : v.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits:0 })
+const fmtC = (v: number) => v == null ? '—' : moneyPrefix() + v.toLocaleString('en-US', { maximumFractionDigits:0 })
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Transfers() {

@@ -34,3 +34,22 @@ export function formatDate(d: string): string {
     day: '2-digit', month: 'short', year: 'numeric',
   })
 }
+
+/* ── Currency prefix ──────────────────────────────────────────────────────────
+ * Global, kept in sync by AppSettingsProvider from the Display Settings
+ * (selected currency + show/hide switch). Pages call moneyPrefix() instead of
+ * hardcoding '$' — the app sells into the Gulf; default is the Saudi Riyal
+ * sign ⃁ (U+20C1). */
+let _moneyPrefix = '⃁ '
+
+export function setMoneyPrefixGlobal(p: string) { _moneyPrefix = p }
+export function moneyPrefix(): string { return _moneyPrefix }
+
+/** moneyPrefix() + thousands-formatted number */
+export function money(v: unknown, decimals = 0): string {
+  const n = v == null ? 0 : Number(v)
+  if (isNaN(n)) return _moneyPrefix + (0).toFixed(decimals)
+  return _moneyPrefix + n.toLocaleString('en-US', {
+    minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+  })
+}
