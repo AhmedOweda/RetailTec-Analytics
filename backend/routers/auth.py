@@ -21,11 +21,11 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-from db.model import get_db, hash_password, verify_password
+from db.model import DB_LOCK, get_db, hash_password, verify_password
 # Note: hash_password/verify_password now use stdlib hashlib — no passlib needed
 
 router = APIRouter(tags=["auth"])
-_db_lock = threading.Lock()
+_db_lock = DB_LOCK   # shared process-wide DuckDB lock — never create a second one
 
 # ── JWT config ────────────────────────────────────────────────────────────────
 # Secret resolution order (EXPERT_REVIEW.md C3 — never hardcode):
