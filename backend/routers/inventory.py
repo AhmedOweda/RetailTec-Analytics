@@ -401,7 +401,7 @@ def inv_movement(
             COUNT(DISTINCT F.ITEM_SID)                                               AS sku_count,
             ROUND(COALESCE(SUM(CASE WHEN F.ITEM_TYPE='Sale'   THEN  F.QTY ELSE 0 END), 0), 0) AS sold_qty,
             ROUND(COALESCE(SUM(CASE WHEN F.ITEM_TYPE='Return' THEN -F.QTY ELSE 0 END), 0), 0) AS return_qty,
-            ROUND(COALESCE(SUM(F.QTY), 0), 0)                                        AS net_qty,
+            ROUND(COALESCE(SUM(CASE WHEN F.ITEM_TYPE='Return' THEN -F.QTY ELSE F.QTY END), 0), 0) AS net_qty,
             ROUND(COALESCE(SUM(F.TOTAL_PRICE_WOTAX), 0), 2)                          AS revenue,
             ROUND(COALESCE(SUM(F.TOTAL_COST), 0), 2)                                 AS cogs,
             ROUND(COALESCE(
@@ -471,7 +471,7 @@ def inv_movement_by(
                 D.DCS_CODE,
                 ROUND(SUM(CASE WHEN F.ITEM_TYPE='Sale'   THEN  F.QTY ELSE 0 END), 0) AS sold_qty,
                 ROUND(SUM(CASE WHEN F.ITEM_TYPE='Return' THEN -F.QTY ELSE 0 END), 0) AS return_qty,
-                ROUND(SUM(F.QTY), 0)                            AS net_qty,
+                ROUND(SUM(CASE WHEN F.ITEM_TYPE='Return' THEN -F.QTY ELSE F.QTY END), 0) AS net_qty,
                 ROUND(SUM(F.TOTAL_PRICE_WOTAX), 2)             AS revenue,
                 ROUND(SUM(F.TOTAL_COST), 2)                    AS cogs,
                 ROUND(

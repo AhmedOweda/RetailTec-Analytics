@@ -127,6 +127,15 @@ def _doc_hint(df, dt) -> str:
 
 
 def _sql_invoices(df, dt):
+    # Column semantics verified against the production Krunch reports
+    # ('Krunch Queries feb 2024/Sales Invoices Details.sql'):
+    #   * return money lives in RETURN_SUBTOTAL_WITH_TAX / RETURN_TOTAL_TAX_AMT
+    #     (SALE_* is zero on RECEIPT_TYPE=1 docs — returns showed 0.00 before)
+    #   * NET_SALES_WOTAX / TOTAL_TAX are SIGNED (negative for return docs)
+    #   * item-level discount = SUM(DOCUMENT_ITEM.DISC_AMT) signed, kit_flag<>5
+    #   * loyalty discount = LTY_SALE_TOTAL_BASED_DISC; deposit = TOTAL_DEPOSIT_TAKEN
+    #   * payments come from RPS.TENDER by tender_type (0 cash / 2,11 card /
+    #     7 deposit / rest other) — they were hardcoded to 0 before
     return f"""
         SELECT {_doc_hint(df, dt)}
             H.SID                           AS DOC_SID,
@@ -141,20 +150,40 @@ def _sql_invoices(df, dt):
             NVL(H.SOLD_QTY, 0)             AS SOLD_QTY,
             NVL(H.RETURN_QTY, 0)           AS RETURN_QTY,
             0                               AS TOTAL_COGS,
-            NVL(H.SALE_SUBTOTAL, 0)         AS NET_SALES_WOTAX,
-            NVL(H.SALE_TOTAL_TAX_AMT, 0)   AS TOTAL_TAX,
+            (NVL(H.SALE_SUBTOTAL_WITH_TAX,0) - NVL(H.SALE_TOTAL_TAX_AMT,0))
+              - (NVL(H.RETURN_SUBTOTAL_WITH_TAX,0) - NVL(H.RETURN_TOTAL_TAX_AMT,0))
+                                            AS NET_SALES_WOTAX,
+            NVL(H.SALE_TOTAL_TAX_AMT,0) - NVL(H.RETURN_TOTAL_TAX_AMT,0)
+                                            AS TOTAL_TAX,
             NVL(H.DISC_AMT, 0)             AS INVOICE_DISC,
-            NVL(H.TOTAL_DISCOUNT_AMT, 0)   AS ITEM_DISC,
-            NVL(H.LTY_REDEEM_AMT, 0)       AS LOYALTY_DISC,
-            NVL(H.DEPOSIT_AMT_TAKEN, 0)    AS TOTAL_DEPOSIT,
+            NVL(IDISC.DISC_AMT, 0)         AS ITEM_DISC,
+            NVL(H.LTY_SALE_TOTAL_BASED_DISC, 0) AS LOYALTY_DISC,
+            NVL(H.TOTAL_DEPOSIT_TAKEN, 0)  AS TOTAL_DEPOSIT,
             NVL(H.TOTAL_FEE_AMT, 0)        AS TOTAL_FEES,
             NVL(H.SHIPPING_AMT, 0)         AS SHIPPING_AMT,
-            NVL(H.SALE_TOTAL_AMT, 0)       AS TOTAL_WTAX,
-            0                               AS CASH_AMT,
-            0                               AS CARD_AMT,
-            NVL(H.DEPOSIT_AMT_TAKEN, 0)    AS DEPOSIT_AMT,
-            0                               AS OTHER_AMT
+            (NVL(H.SALE_SUBTOTAL_WITH_TAX,0) - NVL(H.RETURN_SUBTOTAL_WITH_TAX,0))
+              + NVL(H.TOTAL_DEPOSIT_TAKEN,0) + NVL(H.TOTAL_FEE_AMT,0)
+              + NVL(H.SHIPPING_AMT,0)      AS TOTAL_WTAX,
+            NVL(TCASH.AMT, 0)              AS CASH_AMT,
+            NVL(TCARD.AMT, 0)              AS CARD_AMT,
+            NVL(TDEP.AMT, 0)               AS DEPOSIT_AMT,
+            NVL(TOTH.AMT, 0)               AS OTHER_AMT
         FROM RPS.DOCUMENT H
+        LEFT JOIN (
+            SELECT DOC_SID,
+                   SUM(CASE WHEN ITEM_TYPE = 2 THEN DISC_AMT * -1 ELSE DISC_AMT END) AS DISC_AMT
+            FROM RPS.DOCUMENT_ITEM
+            WHERE ITEM_TYPE IN (1, 2) AND KIT_FLAG <> 5
+            GROUP BY DOC_SID
+        ) IDISC ON IDISC.DOC_SID = H.SID
+        LEFT JOIN (SELECT DOC_SID, SUM(AMOUNT) AS AMT FROM RPS.TENDER
+                   WHERE TENDER_TYPE = 0 GROUP BY DOC_SID) TCASH ON TCASH.DOC_SID = H.SID
+        LEFT JOIN (SELECT DOC_SID, SUM(AMOUNT) AS AMT FROM RPS.TENDER
+                   WHERE TENDER_TYPE IN (2, 11) GROUP BY DOC_SID) TCARD ON TCARD.DOC_SID = H.SID
+        LEFT JOIN (SELECT DOC_SID, SUM(AMOUNT) AS AMT FROM RPS.TENDER
+                   WHERE TENDER_TYPE = 7 GROUP BY DOC_SID) TDEP ON TDEP.DOC_SID = H.SID
+        LEFT JOIN (SELECT DOC_SID, SUM(AMOUNT) AS AMT FROM RPS.TENDER
+                   WHERE TENDER_TYPE NOT IN (0, 2, 11, 7) GROUP BY DOC_SID) TOTH ON TOTH.DOC_SID = H.SID
         WHERE CAST(H.INVC_POST_DATE AS DATE) >= TO_DATE('{df}','YYYY-MM-DD')
           AND CAST(H.INVC_POST_DATE AS DATE) <  TO_DATE('{dt}','YYYY-MM-DD') + 1
           AND H.STATUS = 4
