@@ -294,12 +294,13 @@ export default function AppShell() {
             opacity:0.85,
           },
         }}>
-          <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
+          <Box sx={{ display:'flex', alignItems:'center', gap:1.5, minWidth:0, overflow:'hidden' }}>
             <Box component="img" src="/logo-purple.png" alt="RetailTec"
-                 sx={{ height:30, objectFit:'contain' }} />
-            <Box sx={{ width:1, height:26, bgcolor:'rgba(100,116,139,0.18)' }} />
-            <Box sx={{ lineHeight:1 }}>
-              <Typography component="div" sx={{ fontSize:15, fontWeight:800, letterSpacing:0.2, lineHeight:1.15 }}>
+                 sx={{ height:28, objectFit:'contain', flexShrink:0 }} />
+            <Box sx={{ width:'1px', height:24, bgcolor:'rgba(100,116,139,0.18)', flexShrink:0 }} />
+            <Box sx={{ minWidth:0 }}>
+              <Typography component="div" noWrap
+                sx={{ fontSize:15, fontWeight:800, letterSpacing:0.2, lineHeight:'18px' }}>
                 <Box component="span" sx={{ color:'#0f172a' }}>RetailTec&nbsp;</Box>
                 <Box component="span" sx={{
                   background:'linear-gradient(90deg, #7c3aed, #22d3ee)',
@@ -308,9 +309,9 @@ export default function AppShell() {
                   Analytics
                 </Box>
               </Typography>
-              <Typography sx={{ fontSize:10.5, color:'#94a3b8', fontWeight:500,
-                                letterSpacing:1.1, textTransform:'uppercase', lineHeight:1.4 }}>
-                Retail Pro Prism · Live Retail Intelligence
+              <Typography noWrap sx={{ fontSize:10, color:'#94a3b8', fontWeight:600,
+                                       letterSpacing:1, textTransform:'uppercase', lineHeight:'13px' }}>
+                Retail Pro Prism · Retail Intelligence
               </Typography>
             </Box>
           </Box>
