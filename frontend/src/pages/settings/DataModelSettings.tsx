@@ -8,6 +8,7 @@ import {
   FormControl, InputLabel, LinearProgress,
   ToggleButtonGroup, ToggleButton, Switch,
   Checkbox, FormGroup, FormControlLabel, Tooltip,
+  Dialog, DialogTitle, DialogContent,
 } from '@mui/material'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
 import ErrorIcon        from '@mui/icons-material/Error'
@@ -109,7 +110,8 @@ function SectionCard({ title, icon, children }:
 
 export default function DataModelSettings() {
   const qc = useQueryClient()
-  const { productCodeField, setProductCodeField, currency, setCurrency } = useAppSettings()
+  const { productCodeField, setProductCodeField, currency, setCurrency,
+          showCurrency, setShowCurrency } = useAppSettings()
 
   const { data: settings, isLoading: loadingSettings } = useQuery({
     queryKey: ['settings'],
@@ -130,13 +132,14 @@ export default function DataModelSettings() {
 
   const { data: history, refetch: refetchHistory, isFetching: histFetching } = useQuery({
     queryKey: ['sync-history'],
-    queryFn:  () => axios.get('/api/sync/history?limit=15').then(r => r.data.runs as any[]),
+    queryFn:  () => axios.get('/api/sync/history?limit=200').then(r => r.data.runs as any[]),
   })
 
   const [conn, setConn] = useState({ host:'', port:1521, sid:'', username:'', password:'' })
   const [dm, setDm]     = useState<DataModelV2>(DEFAULT_DM)
   const [saveMsg, setSaveMsg]         = useState('')
   const [saveErr, setSaveErr]         = useState('')
+  const [histOpen, setHistOpen]       = useState(false)
   const [selDomains, setSelDomains]   = useState<Set<string>>(new Set())  // empty = all
   const [rangeFrom, setRangeFrom]     = useState('')
   const [rangeTo,   setRangeTo]       = useState('')
@@ -308,8 +311,15 @@ export default function DataModelSettings() {
               ))}
             </Select>
           </FormControl>
+          <FormControlLabel sx={{ ml:0.5 }}
+            control={
+              <Switch size="small" checked={showCurrency}
+                onChange={e => setShowCurrency(e.target.checked)} />
+            }
+            label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>Show sign on money values</Typography>}
+          />
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-            Shown next to money values · e.g. {currency.symbol} 17.2M
+            {showCurrency ? `e.g. ${currency.symbol} 17.2M` : 'e.g. 17.2M (no sign)'}
           </Typography>
         </Box>
       </SectionCard>
@@ -627,39 +637,119 @@ export default function DataModelSettings() {
         </Box>
       </SectionCard>
 
-      {/* ── Sync history ─────────────────────────────────────────── */}
+      {/* ── Sync history — compact card + filterable dialog ─────── */}
       <SectionCard title="Sync History" icon={<SyncIcon />}>
-        <Box sx={{ display:'flex', justifyContent:'flex-end', mb:1 }}>
-          <Button size="small" onClick={() => refetchHistory()} disabled={histFetching}
-            sx={{ textTransform:'none', color:ACCENT, fontWeight:600 }}>
-            {histFetching ? 'Refreshing…' : 'Refresh'}
+        <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <Typography sx={{ fontSize:13, color:'#475569' }}>
+            {history?.length
+              ? `Last run: ${history[0].run_type} · ${history[0].status}` +
+                (history[0].duration_sec ? ` · ${history[0].duration_sec}s` : '')
+              : 'No sync runs yet.'}
+          </Typography>
+          <Button variant="outlined" size="small" onClick={() => setHistOpen(true)}
+            sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
+                  '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
+            View full history
           </Button>
         </Box>
-        <Box sx={{ display:'grid', gridTemplateColumns:'0.7fr 0.9fr 1.5fr 0.9fr 0.6fr',
-                   rowGap:0.6, columnGap:1.5, fontSize:12 }}>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>Type</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>By</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>Range</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>Status</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right' }}>Secs</Typography>
-          {(history ?? []).map((r:any) => (
-            <Box key={r.run_id} sx={{ display:'contents' }}>
-              <Typography sx={{ color:'#0f172a', fontWeight:600 }}>{r.run_type}</Typography>
-              <Typography sx={{ color:'#475569' }}>{r.triggered_by}</Typography>
-              <Typography sx={{ color:'#64748b' }}>{(r.date_from ?? '-')} → {(r.date_to ?? '-')}</Typography>
-              <Typography sx={{ color: r.status==='completed' ? '#16a34a'
-                                     : r.status==='error' ? '#ef4444'
-                                     : r.status==='cancelled' ? '#f59e0b' : '#94a3b8', fontWeight:600 }}>
-                {r.status}
-              </Typography>
-              <Typography sx={{ color:'#475569', textAlign:'right' }}>{r.duration_sec ?? '-'}</Typography>
-            </Box>
-          ))}
-          {(!history || history.length === 0) && (
-            <Typography sx={{ gridColumn:'1 / -1', color:'#94a3b8', py:1 }}>No sync runs yet.</Typography>
-          )}
-        </Box>
       </SectionCard>
+
+      <SyncHistoryDialog open={histOpen} onClose={() => setHistOpen(false)}
+        history={history ?? []} refetch={refetchHistory} fetching={histFetching} />
     </Box>
+  )
+}
+
+
+/* ── Sync History dialog: type/status/date filters + scrollable list ───────── */
+function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
+  open: boolean; onClose: () => void; history: any[]
+  refetch: () => void; fetching: boolean
+}) {
+  const [fType,   setFType]   = useState('all')
+  const [fStatus, setFStatus] = useState('all')
+  const [fFrom,   setFFrom]   = useState('')
+  const [fTo,     setFTo]     = useState('')
+
+  const rows = history.filter((r: any) => {
+    if (fType   !== 'all' && r.run_type !== fType)  return false
+    if (fStatus !== 'all' && r.status  !== fStatus) return false
+    const started = (r.started_at ?? '').slice(0, 10)
+    if (fFrom && started && started < fFrom) return false
+    if (fTo   && started && started > fTo)   return false
+    return true
+  })
+
+  const statusColor = (s: string) =>
+    s === 'completed' ? '#16a34a' : s === 'error' ? '#ef4444'
+    : s === 'cancelled' || s === 'aborted' ? '#f59e0b'
+    : s === 'running' ? ACCENT : '#94a3b8'
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ fontWeight:700, fontSize:16, pb:1 }}>Sync History</DialogTitle>
+      <DialogContent dividers sx={{ p:2 }}>
+        {/* Filters */}
+        <Box sx={{ display:'flex', gap:1.5, flexWrap:'wrap', alignItems:'center', mb:2 }}>
+          <FormControl size="small" sx={{ minWidth:130 }}>
+            <InputLabel>Type</InputLabel>
+            <Select value={fType} label="Type" onChange={e => setFType(String(e.target.value))}>
+              {['all','range','full','incremental','scheduled'].map(t =>
+                <MenuItem key={t} value={t}>{t === 'all' ? 'All types' : t}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth:140 }}>
+            <InputLabel>Status</InputLabel>
+            <Select value={fStatus} label="Status" onChange={e => setFStatus(String(e.target.value))}>
+              {['all','completed','running','error','aborted','cancelled'].map(s =>
+                <MenuItem key={s} value={s}>{s === 'all' ? 'All statuses' : s}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField label="From" type="date" size="small" sx={{ width:150 }}
+            InputLabelProps={{ shrink:true }} value={fFrom} onChange={e => setFFrom(e.target.value)} />
+          <TextField label="To" type="date" size="small" sx={{ width:150 }}
+            InputLabelProps={{ shrink:true }} value={fTo} onChange={e => setFTo(e.target.value)} />
+          <Box sx={{ flex:1 }} />
+          <Button size="small" onClick={refetch} disabled={fetching}
+            sx={{ textTransform:'none', color:ACCENT, fontWeight:600 }}>
+            {fetching ? 'Refreshing…' : 'Refresh'}
+          </Button>
+        </Box>
+
+        {/* Scrollable list */}
+        <Box sx={{ maxHeight:420, overflowY:'auto', pr:0.5 }}>
+          <Box sx={{ display:'grid',
+                     gridTemplateColumns:'0.8fr 0.8fr 1.6fr 1.2fr 0.9fr 0.6fr',
+                     rowGap:0.7, columnGap:1.5, fontSize:12.5 }}>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Type</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>By</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Range</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Started</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Status</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right', position:'sticky', top:0, bgcolor:'#fff' }}>Secs</Typography>
+            {rows.map((r: any) => (
+              <Box key={r.run_id} sx={{ display:'contents' }}>
+                <Typography sx={{ color:'#0f172a', fontWeight:600 }}>{r.run_type}</Typography>
+                <Typography sx={{ color:'#475569' }}>{r.triggered_by}</Typography>
+                <Typography sx={{ color:'#64748b', whiteSpace:'nowrap' }}>
+                  {(r.date_from ?? '-')} → {(r.date_to ?? '-')}
+                </Typography>
+                <Typography sx={{ color:'#64748b', whiteSpace:'nowrap' }}>
+                  {r.started_at ? new Date(r.started_at).toLocaleString('en-GB',
+                    { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '-'}
+                </Typography>
+                <Typography sx={{ color:statusColor(r.status), fontWeight:600 }}>{r.status}</Typography>
+                <Typography sx={{ color:'#475569', textAlign:'right' }}>{r.duration_sec ?? '-'}</Typography>
+              </Box>
+            ))}
+            {rows.length === 0 && (
+              <Typography sx={{ gridColumn:'1 / -1', color:'#94a3b8', py:2, textAlign:'center' }}>
+                No runs match the selected filters.
+              </Typography>
+            )}
+          </Box>
+        </Box>
+      </DialogContent>
+    </Dialog>
   )
 }
