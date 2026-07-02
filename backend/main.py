@@ -18,7 +18,7 @@ try:
 except Exception:
     pass   # falls back to thin mode automatically
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from db.model import init_db
@@ -26,7 +26,7 @@ from routers.sales      import router as sales_router
 from routers.settings   import router as settings_router
 from routers.inventory  import router as inventory_router
 from routers.purchases  import router as purchases_router
-from routers.auth       import router as auth_router
+from routers.auth       import router as auth_router, get_current_user
 from services.scheduler import background_loop
 
 logging.basicConfig(
@@ -40,17 +40,26 @@ log = logging.getLogger(__name__)
 
 app = FastAPI(title="RetailTec Analytics API", version="3.0.0")
 
+# CORS: the app is always served same-origin through a proxy (Vite dev server on
+# :3000, Electron's bundled HTTP server on :3001) — only those origins are allowed
+# for direct browser access to :8000. Never use "*" (EXPERT_REVIEW.md C1).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000", "http://127.0.0.1:3000",   # Vite dev
+        "http://localhost:3001", "http://127.0.0.1:3001",   # Electron prod proxy
+    ],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-app.include_router(sales_router)
-app.include_router(settings_router)
-app.include_router(inventory_router)
-app.include_router(purchases_router)
+# Every data router requires a valid JWT (EXPERT_REVIEW.md C1).
+# Only /api/auth/login, /health and /api/cache/status are reachable without one.
+_authed = [Depends(get_current_user)]
+app.include_router(sales_router,     dependencies=_authed)
+app.include_router(settings_router,  dependencies=_authed)
+app.include_router(inventory_router, dependencies=_authed)
+app.include_router(purchases_router, dependencies=_authed)
 app.include_router(auth_router)
 
 

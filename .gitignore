@@ -54,3 +54,6 @@ dist-electron/
 
 # Root node_modules (Electron deps)
 package-lock.json
+
+# JWT signing secret (auto-generated)
+backend/.jwt_secret

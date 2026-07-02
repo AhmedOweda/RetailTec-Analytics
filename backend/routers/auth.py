@@ -9,8 +9,11 @@ PUT  /api/auth/users/{id}   — update user (admin only)
 DELETE /api/auth/users/{id} — delete user (admin only)
 GET  /api/auth/debug        — TEMP: shows DB state (remove in prod)
 """
+import os
+import secrets as _secrets
 import threading
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,9 +28,32 @@ router = APIRouter(tags=["auth"])
 _db_lock = threading.Lock()
 
 # ── JWT config ────────────────────────────────────────────────────────────────
-SECRET_KEY = "retailtec-jwt-secret-change-in-prod-2024"
+# Secret resolution order (EXPERT_REVIEW.md C3 — never hardcode):
+#   1. RETAILTEC_JWT_SECRET env var
+#   2. backend/.jwt_secret file (auto-generated on first run, gitignored)
+_SECRET_FILE = Path(__file__).parent.parent / ".jwt_secret"
+
+def _load_jwt_secret() -> str:
+    env = os.environ.get("RETAILTEC_JWT_SECRET", "").strip()
+    if env:
+        return env
+    try:
+        if _SECRET_FILE.exists():
+            existing = _SECRET_FILE.read_text().strip()
+            if existing:
+                return existing
+        generated = _secrets.token_hex(32)
+        _SECRET_FILE.write_text(generated)
+        return generated
+    except OSError:
+        # Last resort: ephemeral secret (tokens won't survive a restart)
+        return _secrets.token_hex(32)
+
+SECRET_KEY = _load_jwt_secret()
 ALGORITHM  = "HS256"
 TOKEN_EXPIRE_HOURS = 12
+
+_DEFAULT_ADMIN_PASSWORD = "Retailtec@123"   # only used to seed + detect unchanged installs
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
@@ -79,7 +105,7 @@ def _ensure_admin():
             con.execute(
                 "INSERT INTO DIM_USERS (id, username, password_hash, role, full_name, is_active, created_at) "
                 "VALUES (1, 'admin', ?, 'admin', 'System Administrator', true, ?)",
-                [hash_password("Retailtec@123"),
+                [hash_password(_DEFAULT_ADMIN_PASSWORD),
                  datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")]
             )
             con.commit()
@@ -89,7 +115,7 @@ def _ensure_admin():
             if verify_password("admin123", row[1]):
                 con.execute(
                     "UPDATE DIM_USERS SET password_hash = ? WHERE username = 'admin'",
-                    [hash_password("Retailtec@123")]
+                    [hash_password(_DEFAULT_ADMIN_PASSWORD)]
                 )
                 con.commit()
                 return "migrated"
@@ -147,15 +173,6 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-# ── Debug (remove in prod) ────────────────────────────────────────────────────
-
-@router.get("/api/auth/debug")
-def debug():
-    rows = _qdf("SELECT id, username, role, is_active FROM DIM_USERS ORDER BY id")
-    result = _ensure_admin()
-    return {"users": rows, "ensure_admin": result}
-
-
 # ── Login ─────────────────────────────────────────────────────────────────────
 
 @router.post("/api/auth/login")
@@ -180,9 +197,12 @@ def login(req: LoginRequest):
         "stores": user["stores"],
         "id":     user["id"],
     })
+    # Flag accounts still on the seeded default password so the UI can force a change
+    must_change = verify_password(_DEFAULT_ADMIN_PASSWORD, user["password_hash"])
     return {
         "access_token": token,
         "token_type":   "bearer",
+        "must_change_password": must_change,
         "user": {
             "id":        user["id"],
             "username":  user["username"],
@@ -191,6 +211,31 @@ def login(req: LoginRequest):
             "stores":    user["stores"],
         },
     }
+
+
+# ── Change own password ───────────────────────────────────────────────────────
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password:     str
+
+
+@router.post("/api/auth/change-password")
+def change_password(req: ChangePasswordRequest,
+                    current: dict = Depends(get_current_user)):
+    if not verify_password(req.current_password, current["password_hash"]):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    if req.new_password == _DEFAULT_ADMIN_PASSWORD:
+        raise HTTPException(status_code=400, detail="New password cannot be the default password")
+    with _db_lock:
+        get_db().execute(
+            "UPDATE DIM_USERS SET password_hash = ? WHERE id = ?",
+            [hash_password(req.new_password), current["id"]]
+        )
+        get_db().commit()
+    return {"ok": True}
 
 
 # ── Me ────────────────────────────────────────────────────────────────────────
