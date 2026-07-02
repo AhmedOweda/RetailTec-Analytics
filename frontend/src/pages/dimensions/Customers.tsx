@@ -72,6 +72,7 @@ export default function DimCustomers() {
 
   const params = {
     date_from: dateFrom, date_to: dateTo,
+    limit: 100,   // top 100 customers by net sales (backend default is 20)
     ...(stores.length ? { stores: stores.join(',') } : {}),
   }
 

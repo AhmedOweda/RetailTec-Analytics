@@ -292,8 +292,9 @@ def products(
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
     group_by:  str = Query("item", pattern="^(item|dcs|vendor|department)$"),
-    limit:     int = Query(20, ge=1, le=10000),
+    limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
+    lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp  = store_filter(stores)
     base    = f"""
         FROM FACT_SALES_ITEMS F
@@ -322,7 +323,7 @@ def products(
                        {measures}
                 {base}
                 GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE
-                ORDER BY revenue DESC LIMIT {limit}
+                ORDER BY revenue DESC {lim}
             """, params)
         except Exception:
             return _qdf(f"""
@@ -330,7 +331,7 @@ def products(
                        {measures}
                 {base}
                 GROUP BY I.ALU, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE
-                ORDER BY revenue DESC LIMIT {limit}
+                ORDER BY revenue DESC {lim}
             """, params)
 
     if group_by == "dcs":
@@ -340,7 +341,7 @@ def products(
                    {measures}
             {base}
             GROUP BY D.DCS_CODE, D.D_NAME, D.C_NAME, D.S_NAME
-            ORDER BY revenue DESC LIMIT {limit}
+            ORDER BY revenue DESC {lim}
         """, params)
 
     if group_by == "vendor":
@@ -349,7 +350,7 @@ def products(
                    {measures}
             {base}
             GROUP BY V.VEND_NAME
-            ORDER BY revenue DESC LIMIT {limit}
+            ORDER BY revenue DESC {lim}
         """, params)
 
     # department
@@ -358,7 +359,7 @@ def products(
                {measures}
         {base}
         GROUP BY D.D_NAME
-        ORDER BY revenue DESC LIMIT {limit}
+        ORDER BY revenue DESC {lim}
     """, params)
 
 
@@ -370,9 +371,10 @@ def transactions(
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
     search:    str  = Query(""),
-    limit:     int  = Query(100, ge=0, le=100000),
+    limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
     offset:    int  = Query(0, ge=0),
 ):
+    lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores)
     # Server-side search across doc_no, store, associate, customer (bound param)
     sf2, search_params = "", []
@@ -417,7 +419,7 @@ def transactions(
         LEFT JOIN DIM_CUSTOMER C ON C.SID = F.BT_CUID
         WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {sf2}
         ORDER BY F.INVC_POST_DATE DESC
-        {"" if limit == 0 else f"LIMIT {limit} OFFSET {offset}"}
+        {"" if limit == 0 else f"{lim} OFFSET {offset}"}
     """, params)
     return {"total": int(total), "rows": rows}
 

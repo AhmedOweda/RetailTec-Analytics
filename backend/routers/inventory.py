@@ -177,7 +177,8 @@ def inv_by_dept(stores: Optional[str] = Depends(scoped_stores)):
 
 @router.get("/api/inventory/by-dcs")
 def inv_by_dcs(stores: Optional[str] = Depends(scoped_stores),
-               limit: int = Query(500, ge=1, le=10000)):
+               limit: Optional[int] = Query(None, ge=1)):   # no cap unless the caller asks
+    lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores)
     base = _inv_base_join(sf)
     return _qdf(f"""
@@ -193,7 +194,7 @@ def inv_by_dcs(stores: Optional[str] = Depends(scoped_stores),
         {base}
         GROUP BY D.D_NAME, D.C_NAME, D.S_NAME, D.DCS_CODE
         ORDER BY cost_value DESC
-        LIMIT {limit}
+        {lim}
     """, sp)
 
 
@@ -459,8 +460,9 @@ def inv_movement_by(
     date_to:   date = Query(...),
     stores: Optional[str] = Depends(scoped_stores),
     group_by: str = Query("dept", pattern="^(dept|dcs|vendor|store|item)$"),
-    limit: int = Query(500, ge=1, le=100000),
+    limit: Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
+    lim = f"LIMIT {int(limit)}" if limit else ""
     base, sp = _mv_base(stores)
     params = [date_from, date_to] + sp
 
@@ -484,7 +486,7 @@ def inv_movement_by(
             {base}
             GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE
             ORDER BY revenue DESC
-            LIMIT {limit}
+            {lim}
         """, params)
 
     if group_by == "dcs":
@@ -506,7 +508,7 @@ def inv_movement_by(
             {base}
             GROUP BY D.DCS_CODE, D.D_NAME, D.C_NAME, D.S_NAME
             ORDER BY revenue DESC
-            LIMIT {limit}
+            {lim}
         """, params)
 
     if group_by == "vendor":
@@ -525,7 +527,7 @@ def inv_movement_by(
             {base}
             GROUP BY V.VEND_NAME
             ORDER BY revenue DESC
-            LIMIT {limit}
+            {lim}
         """, params)
 
     if group_by == "store":
@@ -542,7 +544,7 @@ def inv_movement_by(
             WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf2}
             GROUP BY S.STORE_NAME
             ORDER BY revenue DESC
-            LIMIT {limit}
+            {lim}
         """, [date_from, date_to] + sp2)
 
     # default: by department
@@ -561,7 +563,7 @@ def inv_movement_by(
         {base}
         GROUP BY D.D_NAME
         ORDER BY revenue DESC
-        LIMIT {limit}
+        {lim}
     """, params)
 
 
@@ -697,8 +699,9 @@ def transfers_details(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
-    limit:     int = Query(500, ge=1, le=100000),
+    limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
+    lim = f"LIMIT {int(limit)}" if limit else ""
     base, sp = _trans_base(stores)
     status_label = _vou_status_label()
     return _qdf(f"""
@@ -720,7 +723,7 @@ def transfers_details(
             ROUND(FT.TOTAL_PRICE, 2)                AS total_price
         {base}
         ORDER BY FT.SLIP_DATE DESC, FT.SLIP_NO
-        LIMIT {limit}
+        {lim}
     """, [date_from, date_to] + sp)
 
 
@@ -870,8 +873,9 @@ def adjustments_details(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
-    limit:     int = Query(500, ge=1, le=100000),
+    limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
+    lim = f"LIMIT {int(limit)}" if limit else ""
     base, sp = _adj_base(stores)
     doc_lbl = _doc_type_label()
     return _qdf(f"""
@@ -892,7 +896,7 @@ def adjustments_details(
             ROUND(FA.COST_DIFF, 2)              AS cost_diff
         {base}
         ORDER BY FA.ADJ_DATE DESC, FA.ADJ_NO
-        LIMIT {limit}
+        {lim}
     """, [date_from, date_to] + sp)
 
 
@@ -1065,7 +1069,7 @@ def inventory_ledger(
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
     item_sid:  Optional[int] = Query(None),
-    limit:     int = Query(50000, ge=1, le=500000),
+    limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
     """
     Per-item × per-store inventory movement ledger for a date range.
@@ -1073,6 +1077,7 @@ def inventory_ledger(
              Opening QTY/Cost, Sales QTY/Cost, Recv QTY/Cost,
              Sent QTY/Cost, Adj QTY/Cost, Ending QTY/Cost
     """
+    lim = f"LIMIT {int(limit)}" if limit else ""
     # ── Store name filter fragments (each with its own bound params) ──────────
     sf_sale,  sp_sale  = csv_in("SS.STORE_NAME", stores)
     sf_trans, sp_trans = csv_in("DS.STORE_NAME", stores)
@@ -1206,7 +1211,7 @@ def inventory_ledger(
         LEFT JOIN ADJ          A   ON A.ITEM_SID  = AC.ITEM_SID  AND A.STORE_SID  = AC.STORE_SID
         LEFT JOIN FACT_INVENTORY FI ON FI.ITEM_SID = AC.ITEM_SID AND FI.STORE_SID = AC.STORE_SID
         ORDER BY DS.STORE_NAME, I.ALU
-        LIMIT {limit}
+        {lim}
     """, params)
 
 

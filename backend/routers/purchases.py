@@ -275,8 +275,9 @@ def purchases_details(
     stores:    Optional[str] = Depends(scoped_stores),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
-    limit:     int = Query(2000, ge=1, le=100000),
+    limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
+    lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores, alias="S")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     stf    = _status_filter(status)
@@ -307,7 +308,7 @@ def purchases_details(
         LEFT JOIN DIM_DCS        DC ON DC.SID       = I.DCS_SID
         WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {vf} {stf}
         ORDER BY FPI.VOU_DATE DESC, FP.VOU_NO
-        LIMIT {limit}
+        {lim}
     """, [date_from, date_to] + sp + vp)
 
 
