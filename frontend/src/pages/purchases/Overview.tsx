@@ -195,7 +195,7 @@ export default function PurchasesOverview() {
   }), [statusQ.data])
 
   return (
-    <Box sx={{ p: 3, minHeight: '100%' }}>
+    <Box sx={{ pt: 0, px: 3, pb: 3, minHeight: '100%' }}>
 
       {/* ── Header (standard page pattern — matches Stock Movement) ──── */}
       <Box sx={{

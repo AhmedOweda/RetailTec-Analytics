@@ -185,7 +185,7 @@ export default function PurchasesTransactions() {
   }), [rows])
 
   return (
-    <Box sx={{ p: 3, minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ pt: 0, px: 3, pb: 3, minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
 
       {/* ── Header (standard page pattern — matches Stock Movement) ──── */}
       <Box sx={{

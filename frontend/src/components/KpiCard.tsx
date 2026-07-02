@@ -34,6 +34,8 @@ export default function KpiCard({
   return (
     <Box sx={{
       flex: 1, minWidth: 140,
+      height: '100%',                    // equal heights when siblings stretch
+      display: 'flex', flexDirection: 'column',
       bgcolor: '#fff',
       borderRadius: 2,
       border: '0.5px solid #e2e8f0',
@@ -60,7 +62,7 @@ export default function KpiCard({
       </Box>
 
       {/* ── Body ── */}
-      <Box sx={{ px: 2, pt: 1.4, pb: 1.6 }}>
+      <Box sx={{ px: 2, pt: 1.4, pb: 1.6, flexGrow: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
           <Typography sx={{ fontSize: 26, fontWeight: 700, color, lineHeight: 1.1 }}>
             {value}

@@ -99,18 +99,38 @@ def purchases_kpi(
         {base}
     """, params)
     r = rows[0]
+
+    # Line-item metrics come from FACT_PURCHASE_ITEMS: RP9's VOUCHER header has
+    # no LINE_COUNT/ORD_QTY/RECV_QTY, so the header fact stores 0 for them.
+    sf, sp = store_filter(stores, alias="S")
+    vf, vp = csv_in("V.VEND_NAME", vendors)
+    stf = _status_filter(status).replace("FP.STATUS", "FPH.STATUS")
+    li = _q(f"""
+        SELECT
+            COUNT(*)                                   AS line_count,
+            ROUND(COALESCE(SUM(FPI.ORD_QTY),  0), 0)  AS ord_qty,
+            ROUND(COALESCE(SUM(FPI.RECV_QTY), 0), 0)  AS recv_qty,
+            ROUND(COALESCE(SUM(FPI.DISC_AMT), 0), 2)  AS item_disc
+        FROM FACT_PURCHASE_ITEMS FPI
+        JOIN FACT_PURCHASES FPH ON FPH.VOU_SID = FPI.VOU_SID
+        LEFT JOIN DIM_STORE  S ON S.SID = FPI.STORE_SID
+        LEFT JOIN DIM_VENDOR V ON V.SID = FPI.VEND_SID
+        WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {vf} {stf}
+    """, [date_from, date_to] + sp + vp)[0]
+
     total = float(r[0] or 0)
     recv  = float(r[9] or 0)
+    header_disc = float(r[5] or 0)
     return {
         "vou_count":      int(r[0] or 0),
         "vendor_count":   int(r[1] or 0),
         "store_count":    int(r[2] or 0),
         "total_cost":     float(r[3] or 0),
         "subtotal":       float(r[4] or 0),
-        "total_disc":     float(r[5] or 0),
-        "ord_qty":        float(r[6] or 0),
-        "recv_qty":       float(r[7] or 0),
-        "line_count":     int(r[8] or 0),
+        "total_disc":     header_disc if header_disc else float(li[3] or 0),
+        "ord_qty":        float(li[1] or 0),
+        "recv_qty":       float(li[2] or 0),
+        "line_count":     int(li[0] or 0),
         "received_count": int(r[9] or 0),
         "pending_count":  int(r[10] or 0),
         "recv_pct":       round(recv / total * 100, 1) if total > 0 else 0,
