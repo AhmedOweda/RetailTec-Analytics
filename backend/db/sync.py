@@ -44,6 +44,13 @@ def _check_cancel():
         raise SyncCancelled("Cancelled by user")
 
 
+def _tstz_as_naive(cursor, metadata):
+    """Fetch TIMESTAMP WITH TIME ZONE as plain TIMESTAMP — the warehouse stores
+    naive local datetimes, and TSTZ conversion in the client is far slower."""
+    if metadata.type_code is oracledb.DB_TYPE_TIMESTAMP_TZ:
+        return cursor.var(oracledb.DB_TYPE_TIMESTAMP, arraysize=cursor.arraysize)
+
+
 def _get_oracle_conn():
     from services.config import load_settings
     s = load_settings()   # decrypts the DPAPI-protected password in memory
@@ -55,7 +62,9 @@ def _get_oracle_conn():
     password = c.get("password", "")
     # Use Easy Connect string — same format as test-connection endpoint
     dsn = f"{host}:{port}/{sid}"
-    return oracledb.connect(user=user, password=password, dsn=dsn)
+    conn = oracledb.connect(user=user, password=password, dsn=dsn)
+    conn.outputtypehandler = _tstz_as_naive
+    return conn
 
 
 # ── Week-chunk iterator ────────────────────────────────────────────────────────
@@ -96,9 +105,30 @@ def _sql_daily(df, dt):
     """
 
 
+# ── Index vs full-scan strategy ───────────────────────────────────────────────
+# The RPS function-based date indexes are a huge win for NARROW windows
+# (incrementals, small ranges: 0.1s index range scans). But for WIDE windows
+# (historical backfills) an index plan means hundreds of thousands of scattered
+# ROWID lookups over the WAN — much slower than ONE sequential full scan.
+# Oracle's optimizer can't always tell (FBI stats), so we decide explicitly:
+_INDEX_WINDOW_DAYS = 21
+
+def _use_index(df, dt) -> bool:
+    try:
+        a = date.fromisoformat(str(df)[:10])
+        b = date.fromisoformat(str(dt)[:10])
+        return (b - a).days <= _INDEX_WINDOW_DAYS
+    except Exception:
+        return True
+
+
+def _doc_hint(df, dt) -> str:
+    return "/*+ INDEX(H IDX_DOCUMENT7) */" if _use_index(df, dt) else "/*+ FULL(H) */"
+
+
 def _sql_invoices(df, dt):
     return f"""
-        SELECT
+        SELECT {_doc_hint(df, dt)}
             H.SID                           AS DOC_SID,
             H.DOC_NO,
             H.INVC_POST_DATE,
@@ -139,7 +169,7 @@ def _sql_items(df, dt):
     # RPS.DOCUMENT_ITEM replaces RPS.LINE in RP9 Cloud; join via DOC_SID
     # Unit prices derived from PRICE/TAX_AMT; totals = unit * QTY
     return f"""
-        SELECT
+        SELECT {_doc_hint(df, dt)}
             DI.SID                                              AS DOC_ITEM_SID,
             DI.DOC_SID,
             H.INVC_POST_DATE                                    AS INVC_POST_DATE,
@@ -177,8 +207,9 @@ def _sql_transfers(df, dt):
     # RP9 Cloud: SLIP.SID is PK (not SLIP_SID); POST_DATE replaces SLIP_DATE
     # VOU_NO/VOU_CLASS don't exist on SLIP — hardcoded NULL/0
     # SLIP_ITEM: QTY replaces SENT_QTY/RECV_QTY; COST/PRICE replace UNIT_COST/TOTAL_COST/TOTAL_PRICE
+    hint = "/*+ INDEX(S IDX_CREATEDDATE_SLIP) */" if _use_index(df, dt) else "/*+ FULL(S) */"
     return f"""
-        SELECT
+        SELECT {hint}
             SI.SID                            AS TRANSFER_ITEM_SID,
             S.SID                             AS SLIP_SID,
             S.SLIP_NO,
@@ -210,8 +241,9 @@ def _sql_adjustments(df, dt):
     # RPS.ADJ_ITEM replaces RPS.ADJUSTMENT_ITEM in RP9 Cloud
     # ADJ_DATE->POST_DATE, EMPLOYEE_SID->CLERK_SID, DOC_TYPE->ADJ_TYPE
     # ORIG_QTY->ORIG_VALUE, ADJ_QTY->ADJ_VALUE, UNIT_COST->COST
+    hint = "/*+ INDEX(A IDXADJUSTMENT) */" if _use_index(df, dt) else "/*+ FULL(A) */"
     return f"""
-        SELECT
+        SELECT {hint}
             AI.SID                     AS ADJ_ITEM_SID,
             A.SID                      AS ADJ_SID,
             A.ADJ_NO,
@@ -238,8 +270,9 @@ def _sql_adjustments(df, dt):
 
 def _sql_purchases(df, dt):
     # RP9 Cloud: VOUCHER has no EMPLOYEE_SID (use CLERK_SID), no LINE_COUNT/ORD_QTY/RECV_QTY
+    hint = "/*+ INDEX(V IDX_CREATEDDATE_VOU) */" if _use_index(df, dt) else "/*+ FULL(V) */"
     return f"""
-        SELECT
+        SELECT {hint}
             V.SID                              AS VOU_SID,
             V.VOU_NO,
             CAST(V.CREATED_DATETIME AS DATE)   AS VOU_DATE,
@@ -266,8 +299,9 @@ def _sql_purchases(df, dt):
 
 
 def _sql_purchase_items(df, dt):
+    hint = "/*+ INDEX(V IDX_CREATEDDATE_VOU) */" if _use_index(df, dt) else "/*+ FULL(V) */"
     return f"""
-        SELECT
+        SELECT {hint}
             VI.SID                             AS VOU_ITEM_SID,
             VI.VOU_SID,
             CAST(V.CREATED_DATETIME AS DATE)   AS VOU_DATE,
@@ -294,8 +328,9 @@ def _sql_purchase_items(df, dt):
 
 def _sql_inventory_history(df, dt):
     """Qty change rows from INVENTORY_HISTORY trigger log, filtered by ACTION_DATE."""
+    hint = "/*+ INDEX(H IDX_INV_HIST_DATE) */" if _use_index(df, dt) else "/*+ FULL(H) */"
     return f"""
-        SELECT
+        SELECT {hint}
             H.HISTORY_SID,
             H.ACTION_TYPE,
             CAST(H.ACTION_DATE AS DATE)  AS ACTION_DATE,
@@ -496,14 +531,36 @@ def _sync_inventory_snapshot(duck, ora):
 
 _BATCH = 50_000
 
+# Primary key per fact table — used for the set-based anti-join dedup.
+_FACT_PK = {
+    "FACT_SALES_INVOICES":    "DOC_SID",
+    "FACT_SALES_ITEMS":       "DOC_ITEM_SID",
+    "FACT_TRANSFERS":         "TRANSFER_ITEM_SID",
+    "FACT_ADJUSTMENTS":       "ADJ_ITEM_SID",
+    "FACT_PURCHASES":         "VOU_SID",
+    "FACT_PURCHASE_ITEMS":    "VOU_ITEM_SID",
+    "FACT_INVENTORY_HISTORY": "HISTORY_SID",
+}
+
 
 def _stream_insert(duck, ora, sql: str, table: str, ncols: int,
                    force_replace: bool = False, progress=None) -> int:
     """Run one Oracle query and stream its rows into `table` in bulk batches.
+
+    Staged BULK insert (DB_SYNC_REDESIGN §4): each batch is registered as a
+    DataFrame view and loaded with one set-based INSERT ... SELECT anti-join.
+    The old per-row `executemany INSERT OR IGNORE` ground through the ART PK
+    index one row at a time (~55 rows/s observed = 15+ min for one 50k batch);
+    the set-based form is vectorized and hash-joins the dedup.
+
     The SELECT column order matches the DuckDB table column order (verified per
-    query builder), so rows are inserted positionally. Returns rows loaded."""
-    verb = "INSERT OR REPLACE INTO" if force_replace else "INSERT OR IGNORE INTO"
-    ph   = "(" + ",".join(["?"] * ncols) + ")"
+    query builder), so rows map positionally. Returns rows loaded."""
+    import pandas as pd
+
+    pk   = _FACT_PK[table]
+    cols = [r[1] for r in duck.execute(f"PRAGMA table_info('{table}')").fetchall()]
+    assert len(cols) == ncols, f"{table}: expected {ncols} cols, table has {len(cols)}"
+
     cur = ora.cursor()
     cur.arraysize    = _BATCH
     cur.prefetchrows = _BATCH
@@ -515,7 +572,20 @@ def _stream_insert(duck, ora, sql: str, table: str, ncols: int,
         rows = cur.fetchmany(_BATCH)
         if not rows:
             break
-        duck.executemany(f"{verb} {table} VALUES {ph}", rows)
+        stage_df = pd.DataFrame(rows, columns=cols)
+        duck.register("_stage", stage_df)
+        try:
+            if force_replace:
+                duck.execute(f"DELETE FROM {table} WHERE {pk} IN (SELECT {pk} FROM _stage)")
+                duck.execute(f"INSERT INTO {table} SELECT * FROM _stage")
+            else:
+                duck.execute(f"""
+                    INSERT INTO {table}
+                    SELECT s.* FROM _stage s
+                    WHERE NOT EXISTS (SELECT 1 FROM {table} f WHERE f.{pk} = s.{pk})
+                """)
+        finally:
+            duck.unregister("_stage")
         duck.commit()
         total += len(rows)
         if progress:
