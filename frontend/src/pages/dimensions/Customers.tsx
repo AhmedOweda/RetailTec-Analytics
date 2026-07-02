@@ -71,8 +71,7 @@ export default function DimCustomers() {
   })
 
   const params = {
-    date_from: dateFrom, date_to: dateTo,
-    limit: 100,   // top 100 customers by net sales (backend default is 20)
+    date_from: dateFrom, date_to: dateTo,   // no limit — all customers, grid paginates
     ...(stores.length ? { stores: stores.join(',') } : {}),
   }
 
@@ -140,6 +139,8 @@ export default function DimCustomers() {
 
   const colDefs = useMemo<any[]>(() => [
     { field: 'customer_name', headerName: 'Customer',     flex: 2, pinned: 'left' as const, cellStyle: { fontWeight: 600 } },
+    { field: 'phone',          headerName: 'Phone',       width: 140,
+      cellStyle: { fontFamily: 'monospace', direction: 'ltr' as const } },
     { field: 'segment',       headerName: 'CRM Segment',  width: 120,
       cellRenderer: (p: any) => {
         const c = SEG_META[p.value]?.color ?? C_SLATE
