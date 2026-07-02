@@ -59,6 +59,8 @@ const PRESETS: Record<string, [string, string]> = {
 }
 
 const fmtC = (v: number) => v == null ? '' : moneyPrefix() + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// KPI cards: whole numbers only (no decimals)
+const fmtC0 = (v: number) => v == null ? '' : moneyPrefix() + Math.round(v).toLocaleString('en-US')
 const fmtN = (v: number) => v == null ? '' : v.toLocaleString('en-US', { maximumFractionDigits: 0 })
 const fmtQ = (v: number) => v == null ? '' : v.toLocaleString('en-US', { maximumFractionDigits: 1 })
 
@@ -271,8 +273,8 @@ export default function PurchasesTransactions() {
       {/* ── KPI strip (shared KpiCard — consistent with other pages) ──── */}
       {!isLoading && rows.length > 0 && (
         <Box sx={{ display: 'flex', gap: 2, mt: 2, mb: 1.5, flexWrap: 'wrap' }}>
-          <KpiCard label="Total Cost"   value={fmtC(totals.total_cost)}   color="#7c3aed" icon="ti-coin" />
-          <KpiCard label="Total Retail" value={fmtC(totals.total_retail)} color="#0284c7" icon="ti-tag" />
+          <KpiCard label="Total Cost"   value={fmtC0(totals.total_cost)}   color="#7c3aed" icon="ti-coin" />
+          <KpiCard label="Total Retail" value={fmtC0(totals.total_retail)} color="#0284c7" icon="ti-tag" />
           <KpiCard label="Ordered Qty"  value={fmtN(totals.ord_qty)}      color="#64748b" icon="ti-package" />
           <KpiCard label="Received Qty" value={fmtN(totals.recv_qty)}     color="#059669" icon="ti-inbox" />
           <KpiCard label="Line Items"   value={fmtN(rows.length)}         color="#e11d48" icon="ti-list" />
@@ -286,7 +288,7 @@ export default function PurchasesTransactions() {
             colDefs={colDefs as any} onResetColumns={resetColumns} />
         </Box>
         <Box className="ag-theme-alpine" sx={{
-          width: '100%',
+          width: '100%', height: 580,
           '& .ag-root-wrapper': { borderRadius: 0 },
           '& .ag-header': { bgcolor: '#f8f7ff !important', borderBottom: '1px solid #e9e4ff' },
           '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
@@ -309,7 +311,6 @@ export default function PurchasesTransactions() {
             onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged}
             onColumnVisible={onColumnChanged}
-            style={{ width: '100%', height: 580 }}
           />
         </Box>
       </Box>

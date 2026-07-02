@@ -699,7 +699,7 @@ def perf_customers(
             ) sub WHERE rn = 1
         )
         SELECT
-            COALESCE(C.FULL_NAME, '(Unknown)')                                    AS customer_name,
+            C.FULL_NAME                                                            AS customer_name,
             COUNT(*)                                                               AS invoice_count,
             ROUND(SUM(F.NET_SALES_WOTAX),2)                                       AS net_sales,
             ROUND(SUM(F.NET_SALES_WOTAX)/NULLIF(COUNT(*),0),2)                   AS avg_basket,
@@ -709,13 +709,16 @@ def perf_customers(
             MAX(PS.primary_store)                                                  AS primary_store
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE    S   ON S.SID   = F.STORE_SID
-        LEFT JOIN DIM_CUSTOMER C   ON C.SID   = F.BT_CUID
+        -- INNER join: documents with no selected customer (walk-in BT_CUIDs that
+        -- don't resolve in DIM_CUSTOMER) are excluded from CRM analytics —
+        -- they pooled into a giant '(Unknown)' mega-customer otherwise.
+        JOIN DIM_CUSTOMER      C   ON C.SID   = F.BT_CUID
         LEFT JOIN cust_ltv     LTV ON LTV.BT_CUID = F.BT_CUID
         LEFT JOIN primary_store PS ON PS.BT_CUID  = F.BT_CUID
         WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
           AND F.RECEIPT_TYPE = 0
-          AND F.BT_CUID IS NOT NULL {sf}
-        GROUP BY COALESCE(C.FULL_NAME, '(Unknown)')
+          AND C.FULL_NAME IS NOT NULL AND TRIM(C.FULL_NAME) <> '' {sf}
+        GROUP BY C.FULL_NAME
         ORDER BY net_sales DESC
         LIMIT {limit}
     """, [date_from, date_to] + sp)
