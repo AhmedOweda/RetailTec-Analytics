@@ -11,6 +11,7 @@ import axios from 'axios'
 import { useRef } from 'react'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
+import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
@@ -183,7 +184,7 @@ export default function DimItems() {
       <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mb:2 }}>
         <KpiCard label="Active SKUs"   value={fmtN(kpi.count)}     icon="ti-barcode"     color={C_PURPLE} />
         <KpiCard label="Avg GP %"      value={pct(kpi.avgGPpct)}   icon="ti-chart-pie-2"
-          color={kpi.avgGPpct >= 30 ? C_GREEN : kpi.avgGPpct >= 10 ? C_AMBER : C_ROSE} />
+          color={gmColorOf(kpi.avgGPpct)} />
         <KpiCard label="Total GP"      value={num(kpi.totalGP)}    icon="ti-trending-up" color={C_GREEN}  />
         <KpiCard label="Loss-Making SKUs" value={fmtN(kpi.lossItems)} icon="ti-alert-triangle"
           color={kpi.lossItems > 0 ? C_ROSE : C_GREEN}

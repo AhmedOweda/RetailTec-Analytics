@@ -42,6 +42,7 @@ from routers.settings   import router as settings_router
 from routers.inventory  import router as inventory_router
 from routers.purchases  import router as purchases_router
 from routers.auth       import router as auth_router, get_current_user
+from routers.admin      import router as admin_router
 from services.scheduler import background_loop
 
 logging.basicConfig(
@@ -75,6 +76,7 @@ app.include_router(sales_router,     dependencies=_authed)
 app.include_router(settings_router,  dependencies=_authed)
 app.include_router(inventory_router, dependencies=_authed)
 app.include_router(purchases_router, dependencies=_authed)
+app.include_router(admin_router,     dependencies=_authed)
 app.include_router(auth_router)
 
 
