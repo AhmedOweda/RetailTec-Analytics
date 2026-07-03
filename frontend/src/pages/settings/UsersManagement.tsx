@@ -19,6 +19,7 @@ import SecurityIcon     from '@mui/icons-material/Security'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../api/client'
 import axios from 'axios'
+import { PAGE_DOMAINS, ALL_PAGE_KEYS } from '../../utils/pages'
 
 interface User {
   id:         number
@@ -28,6 +29,7 @@ interface User {
   stores:     string | null
   is_active:  boolean
   created_at: string
+  pages:      string | null
 }
 
 interface UserForm {
@@ -37,11 +39,12 @@ interface UserForm {
   full_name: string
   stores:    string
   is_active: boolean
+  pages:     string   // CSV of page keys; '' = all pages
 }
 
 const emptyForm = (): UserForm => ({
   username: '', password: '', role: 'viewer',
-  full_name: '', stores: '', is_active: true,
+  full_name: '', stores: '', is_active: true, pages: '',
 })
 
 const ROLE_COLORS: Record<string, string> = {
@@ -198,6 +201,7 @@ export default function UsersManagement() {
       role:      f.role,
       full_name: f.full_name.trim(),
       stores:    f.stores.trim() || null,
+      pages:     f.role === 'admin' ? null : (f.pages.trim() || null),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['auth-users'] }); closeDialog() },
     onError:   (e: any) => setFormErr(e?.response?.data?.detail ?? 'Error creating user'),
@@ -211,6 +215,7 @@ export default function UsersManagement() {
       full_name: f.full_name.trim(),
       stores:    f.stores.trim() || null,
       is_active: f.is_active,
+      pages:     f.role === 'admin' ? '' : f.pages.trim(),   // '' = all pages
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['auth-users'] }); closeDialog() },
     onError:   (e: any) => setFormErr(e?.response?.data?.detail ?? 'Error updating user'),
@@ -230,7 +235,8 @@ export default function UsersManagement() {
   function openEdit(u: User) {
     setEditId(u.id)
     setForm({ username: u.username, password: '', role: u.role,
-              full_name: u.full_name ?? '', stores: u.stores ?? '', is_active: u.is_active })
+              full_name: u.full_name ?? '', stores: u.stores ?? '',
+              is_active: u.is_active, pages: u.pages ?? '' })
     setFormErr(null); setOpen(true)
   }
 
@@ -275,7 +281,7 @@ export default function UsersManagement() {
           <Table size="small">
             <TableHead sx={{ bgcolor: '#f8fafc' }}>
               <TableRow>
-                {['User', 'Role', 'Stores', 'Status', 'Created', 'Actions'].map(h => (
+                {['User', 'Role', 'Stores', 'Pages', 'Status', 'Created', 'Actions'].map(h => (
                   <TableCell key={h} sx={{ fontWeight: 700, color: '#475569', fontSize: 12 }}>{h}</TableCell>
                 ))}
               </TableRow>
@@ -305,6 +311,15 @@ export default function UsersManagement() {
                     )}
                   </TableCell>
                   <TableCell>
+                    {u.role === 'admin' || !u.pages ? (
+                      <em style={{ color: '#94a3b8', fontSize: 12 }}>All pages</em>
+                    ) : (
+                      <Chip size="small"
+                        label={`${u.pages.split(',').filter(Boolean).length} of ${ALL_PAGE_KEYS.length}`}
+                        sx={{ fontSize: 10, height: 18, bgcolor: '#ede9fe', color: '#6366f1', fontWeight: 700 }} />
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <Chip label={u.is_active ? 'Active' : 'Inactive'} size="small"
                       sx={{ bgcolor: u.is_active ? '#d1fae5' : '#fee2e2',
                             color: u.is_active ? '#065f46' : '#991b1b', fontWeight: 600, fontSize: 11 }} />
@@ -330,7 +345,7 @@ export default function UsersManagement() {
               ))}
               {users.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ color: '#94a3b8', py: 4 }}>
+                  <TableCell colSpan={7} align="center" sx={{ color: '#94a3b8', py: 4 }}>
                     No users yet
                   </TableCell>
                 </TableRow>
@@ -440,6 +455,73 @@ export default function UsersManagement() {
               ))}
             </Box>
           </Box>
+
+          {/* ── Page Access (per domain) — admins always see everything ── */}
+          {form.role !== 'admin' && (() => {
+            const sel = new Set(form.pages.split(',').map(p => p.trim()).filter(Boolean))
+            const setSel = (next: Set<string>) => {
+              // selecting every page = no restriction (store empty)
+              const csv = next.size === 0 || next.size === ALL_PAGE_KEYS.length
+                ? '' : [...next].join(',')
+              setForm(f => ({ ...f, pages: csv }))
+            }
+            const togglePage = (k: string) => {
+              const base = sel.size === 0 ? new Set(ALL_PAGE_KEYS) : new Set(sel)
+              base.has(k) ? base.delete(k) : base.add(k)
+              setSel(base)
+            }
+            const toggleDomain = (keys: string[], allOn: boolean) => {
+              const base = sel.size === 0 ? new Set(ALL_PAGE_KEYS) : new Set(sel)
+              keys.forEach(k => allOn ? base.delete(k) : base.add(k))
+              setSel(base)
+            }
+            const isOn = (k: string) => sel.size === 0 || sel.has(k)
+            return (
+              <Box>
+                <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:0.8 }}>
+                  <Typography fontSize={12} fontWeight={600} color="#475569"
+                    sx={{ display:'flex', alignItems:'center', gap:0.5 }}>
+                    <SecurityIcon sx={{ fontSize:15 }} /> Page Access
+                  </Typography>
+                  <Typography fontSize={11} fontWeight={600}
+                    color={sel.size === 0 ? '#10b981' : '#6366f1'}>
+                    {sel.size === 0 ? 'All pages (no restriction)' : `${sel.size} of ${ALL_PAGE_KEYS.length} pages`}
+                  </Typography>
+                </Box>
+                <Box sx={{ border:'1px solid #e2e8f0', borderRadius:1.5, p:1.5, bgcolor:'#f8fafc',
+                           display:'grid', gridTemplateColumns:'1fr 1fr', gap:1.5 }}>
+                  {PAGE_DOMAINS.map(dom => {
+                    const keys = dom.pages.map(p => p.key)
+                    const allOn = keys.every(isOn)
+                    return (
+                      <Box key={dom.domain}>
+                        <FormControlLabel sx={{ mb:0.2, ml:-0.5 }}
+                          control={
+                            <Checkbox size="small" checked={allOn}
+                              indeterminate={!allOn && keys.some(isOn)}
+                              onChange={() => toggleDomain(keys, allOn)}
+                              sx={{ p:0.4, color:'#6366f1', '&.Mui-checked':{ color:'#6366f1' },
+                                    '&.MuiCheckbox-indeterminate':{ color:'#6366f1' } }} />
+                          }
+                          label={<Typography fontSize={12} fontWeight={700} color="#334155">{dom.domain}</Typography>}
+                        />
+                        {dom.pages.map(p => (
+                          <FormControlLabel key={p.key} sx={{ display:'flex', ml:1, mb:-0.6 }}
+                            control={
+                              <Checkbox size="small" checked={isOn(p.key)}
+                                onChange={() => togglePage(p.key)}
+                                sx={{ p:0.4, color:'#94a3b8', '&.Mui-checked':{ color:'#6366f1' } }} />
+                            }
+                            label={<Typography fontSize={12} color="#475569">{p.label}</Typography>}
+                          />
+                        ))}
+                      </Box>
+                    )
+                  })}
+                </Box>
+              </Box>
+            )
+          })()}
 
           {editId && (
             <FormControlLabel

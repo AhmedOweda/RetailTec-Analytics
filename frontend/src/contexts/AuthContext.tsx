@@ -7,6 +7,7 @@ export interface AuthUser {
   role:      'admin' | 'manager' | 'viewer'
   full_name: string
   stores:    string | null   // null = all stores
+  pages?:    string | null   // CSV of allowed page keys; null = all pages
 }
 
 interface AuthContextValue {
