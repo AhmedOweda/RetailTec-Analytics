@@ -93,6 +93,21 @@ const DEFAULT_DM: DataModelV2 = {
   }])) as Record<string, DomainCfg>,
 }
 
+/** Caption-above-control field: replaces MUI's floating notched labels, which
+ *  kept overlapping the outline/value on this page (late font swap + zoom). */
+function LabeledCtl({ label, children }:
+  { label: string; children: React.ReactNode }) {
+  return (
+    <Box sx={{ display:'flex', flexDirection:'column', gap:0.4 }}>
+      <Typography sx={{ fontSize:10.5, fontWeight:700, color:'#94a3b8',
+                        textTransform:'uppercase', letterSpacing:0.6, lineHeight:1 }}>
+        {label}
+      </Typography>
+      {children}
+    </Box>
+  )
+}
+
 function SectionCard({ title, icon, children }:
   { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -341,21 +356,23 @@ export default function DataModelSettings() {
             }
             label={<Typography sx={{ fontSize:13, fontWeight:600 }}>Background sync</Typography>}
           />
-          <FormControl size="small" sx={{ minWidth:190 }}>
-            <InputLabel>Timezone</InputLabel>
-            <Select value={dm.timezone} label="Timezone"
-              onChange={e => setDm({ ...dm, timezone: String(e.target.value) })}>
-              {[...new Set([dm.timezone, ...TIMEZONES])].map(tz =>
-                <MenuItem key={tz} value={tz}>{tz}</MenuItem>)}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth:170 }}>
-            <InputLabel>Incremental Overlap</InputLabel>
-            <Select value={dm.default_incremental_days} label="Incremental Overlap"
-              onChange={e => setDm({ ...dm, default_incremental_days:+e.target.value })}>
-              {INCR_OPTIONS.map(d => <MenuItem key={d} value={d}>Last {d} day{d>1?'s':''}</MenuItem>)}
-            </Select>
-          </FormControl>
+          <LabeledCtl label="Timezone">
+            <FormControl size="small" sx={{ minWidth:190 }}>
+              <Select value={dm.timezone}
+                onChange={e => setDm({ ...dm, timezone: String(e.target.value) })}>
+                {[...new Set([dm.timezone, ...TIMEZONES])].map(tz =>
+                  <MenuItem key={tz} value={tz}>{tz}</MenuItem>)}
+              </Select>
+            </FormControl>
+          </LabeledCtl>
+          <LabeledCtl label="Incremental overlap">
+            <FormControl size="small" sx={{ minWidth:170 }}>
+              <Select value={dm.default_incremental_days}
+                onChange={e => setDm({ ...dm, default_incremental_days:+e.target.value })}>
+                {INCR_OPTIONS.map(d => <MenuItem key={d} value={d}>Last {d} day{d>1?'s':''}</MenuItem>)}
+              </Select>
+            </FormControl>
+          </LabeledCtl>
         </Box>
         <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap', mb:2.5 }}>
           <FormControlLabel
@@ -507,25 +524,26 @@ export default function DataModelSettings() {
                     </Tooltip>
                   }
                 />
-                <FormControl size="small" sx={{ minWidth:150 }}>
-                  <InputLabel>Load window</InputLabel>
-                  <Select value={cfg.load_days} label="Load window"
-                    onChange={e => setDomain(d.key, { load_days: +e.target.value })}>
-                    {[...new Set([cfg.load_days, ...LOAD_OPTIONS])].sort((a, b) => a - b)
-                      .map(v => <MenuItem key={v} value={v}>Last {v} days</MenuItem>)}
-                  </Select>
-                </FormControl>
-                <FormControl size="small" sx={{ minWidth:165 }}>
-                  <InputLabel>Detail retention</InputLabel>
-                  <Select
-                    value={cfg.retain_detail_months === null ? 'null' : cfg.retain_detail_months}
-                    label="Detail retention"
-                    onChange={e => setDomain(d.key, {
-                      retain_detail_months: e.target.value === 'null' ? null : +e.target.value })}>
-                    {RETAIN_OPTIONS.map(o =>
-                      <MenuItem key={String(o.v)} value={o.v === null ? 'null' : o.v}>{o.l}</MenuItem>)}
-                  </Select>
-                </FormControl>
+                <LabeledCtl label="Load window">
+                  <FormControl size="small" sx={{ minWidth:150 }}>
+                    <Select value={cfg.load_days}
+                      onChange={e => setDomain(d.key, { load_days: +e.target.value })}>
+                      {[...new Set([cfg.load_days, ...LOAD_OPTIONS])].sort((a, b) => a - b)
+                        .map(v => <MenuItem key={v} value={v}>Last {v} days</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                </LabeledCtl>
+                <LabeledCtl label="Detail retention">
+                  <FormControl size="small" sx={{ minWidth:165 }}>
+                    <Select
+                      value={cfg.retain_detail_months === null ? 'null' : cfg.retain_detail_months}
+                      onChange={e => setDomain(d.key, {
+                        retain_detail_months: e.target.value === 'null' ? null : +e.target.value })}>
+                      {RETAIN_OPTIONS.map(o =>
+                        <MenuItem key={String(o.v)} value={o.v === null ? 'null' : o.v}>{o.l}</MenuItem>)}
+                    </Select>
+                  </FormControl>
+                </LabeledCtl>
               </Box>
 
               <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
@@ -551,8 +569,8 @@ export default function DataModelSettings() {
 
                 {sch.mode === 'times' && (
                   <>
-                    <TextField label="Times" size="small" sx={{ minWidth:230 }}
-                      placeholder="06:00, 12:00, 18:00"
+                    <TextField size="small" sx={{ minWidth:230 }}
+                      placeholder="Times — 06:00, 12:00, 18:00"
                       helperText="HH:MM, comma-separated"
                       value={(sch.times ?? []).join(', ')}
                       onChange={e => setSchedule(d.key, {
@@ -741,8 +759,9 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
           </Button>
         </Box>
 
-        {/* Scrollable list */}
-        <Box sx={{ maxHeight:420, overflowY:'auto', pr:0.5 }}>
+        {/* Scrollable list — pr:2.5 keeps the scrollbar clear of the Duration column */}
+        <Box sx={{ maxHeight:420, overflowY:'auto', pr:2.5,
+                   scrollbarGutter:'stable' }}>
           <Box sx={{ display:'grid',
                      gridTemplateColumns:'0.8fr 0.8fr 1.6fr 1.2fr 0.9fr 0.6fr',
                      rowGap:0.7, columnGap:1.5, fontSize:12.5 }}>

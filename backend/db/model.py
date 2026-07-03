@@ -530,9 +530,12 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             stores        VARCHAR,
             full_name     VARCHAR,
             is_active     BOOLEAN DEFAULT true,
-            created_at    VARCHAR
+            created_at    VARCHAR,
+            pages         VARCHAR
         )
     """)
+    # Migration: per-user page permissions (CSV of page keys; NULL = all pages)
+    con.execute("ALTER TABLE DIM_USERS ADD COLUMN IF NOT EXISTS pages VARCHAR")
 
     from datetime import datetime
     count = con.execute("SELECT COUNT(*) FROM DIM_USERS").fetchone()[0]

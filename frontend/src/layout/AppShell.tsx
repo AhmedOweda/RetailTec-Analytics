@@ -2,8 +2,8 @@
  * AppShell — persistent sidebar + header + page outlet
  * Same dark-purple theme as the original dashboard.
  */
-import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useState, useMemo, useEffect } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Box, Tooltip, Typography, Divider, CircularProgress,
   IconButton, Collapse,
@@ -32,6 +32,7 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
 import { useAuth }       from '../contexts/AuthContext'
+import { parsePages, pageAllowed, firstAllowedPage } from '../utils/pages'
 
 // ── Brand colours ──────────────────────────────────────────────────────────
 const SIDEBAR_BG   = '#160b33'
@@ -122,6 +123,27 @@ function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label
 // ── AppShell ───────────────────────────────────────────────────────────────
 export default function AppShell() {
   const { user, isAdmin, logout } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // ── Per-user page permissions (admins + users with no pages claim see all) ─
+  const allowed = useMemo(
+    () => (isAdmin ? null : parsePages(user?.pages)),
+    [isAdmin, user?.pages])
+  const salesNav      = SALES_NAV.filter(n => pageAllowed(allowed, n.to))
+  const inventoryNav  = INVENTORY_NAV.filter(n => pageAllowed(allowed, n.to))
+  const purchasesNav  = PURCHASES_NAV.filter(n => pageAllowed(allowed, n.to))
+  const dimensionsNav = DIMENSIONS_NAV.filter(n => pageAllowed(allowed, n.to))
+
+  // Route guard: opening a disallowed page redirects to the first allowed one
+  useEffect(() => {
+    const p = location.pathname
+    const guarded = p.startsWith('/sales/') || p.startsWith('/inventory/')
+                 || p.startsWith('/purchases/') || p.startsWith('/dimensions/')
+    if (guarded && !pageAllowed(allowed, p)) {
+      navigate(firstAllowedPage(allowed), { replace: true })
+    }
+  }, [location.pathname, allowed, navigate])
 
   // ── Sidebar section collapse state (all expanded by default) ─────
   const [salesOpen,      setSalesOpen     ] = useState(true)
@@ -151,6 +173,7 @@ export default function AppShell() {
                    '&::-webkit-scrollbar-thumb':{ bgcolor:'rgba(255,255,255,0.12)', borderRadius:2 } }}>
 
           {/* Sales section */}
+          {salesNav.length > 0 && (<>
           <Box onClick={() => setSalesOpen(o => !o)} sx={{
             px:2.5, pt:2.5, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
@@ -164,13 +187,15 @@ export default function AppShell() {
           </Box>
           <Collapse in={salesOpen}>
             <Box sx={{ px:1.5, pt:0.5 }}>
-              {SALES_NAV.map(n => <NavItem key={n.to} {...n} />)}
+              {salesNav.map(n => <NavItem key={n.to} {...n} />)}
             </Box>
           </Collapse>
 
           <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
 
+          </>)}
           {/* Inventory section */}
+          {inventoryNav.length > 0 && (<>
           <Box onClick={() => setInventoryOpen(o => !o)} sx={{
             px:2.5, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
@@ -184,13 +209,15 @@ export default function AppShell() {
           </Box>
           <Collapse in={inventoryOpen}>
             <Box sx={{ px:1.5, pt:0.5 }}>
-              {INVENTORY_NAV.map(n => <NavItem key={n.to} {...n} />)}
+              {inventoryNav.map(n => <NavItem key={n.to} {...n} />)}
             </Box>
           </Collapse>
 
           <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
 
+          </>)}
           {/* Purchasing section */}
+          {purchasesNav.length > 0 && (<>
           <Box onClick={() => setPurchasesOpen(o => !o)} sx={{
             px:2.5, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
@@ -204,13 +231,15 @@ export default function AppShell() {
           </Box>
           <Collapse in={purchasesOpen}>
             <Box sx={{ px:1.5, pt:0.5 }}>
-              {PURCHASES_NAV.map(n => <NavItem key={n.to} {...n} />)}
+              {purchasesNav.map(n => <NavItem key={n.to} {...n} />)}
             </Box>
           </Collapse>
 
           <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
 
+          </>)}
           {/* Dimensions section */}
+          {dimensionsNav.length > 0 && (<>
           <Box onClick={() => setDimensionsOpen(o => !o)} sx={{
             px:2.5, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
@@ -224,9 +253,10 @@ export default function AppShell() {
           </Box>
           <Collapse in={dimensionsOpen}>
             <Box sx={{ px:1.5, pt:0.5 }}>
-              {DIMENSIONS_NAV.map(n => <NavItem key={n.to} {...n} />)}
+              {dimensionsNav.map(n => <NavItem key={n.to} {...n} />)}
             </Box>
           </Collapse>
+          </>)}
 
           <Box sx={{ pb:1 }} />
         </Box>

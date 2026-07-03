@@ -85,7 +85,7 @@ def _decode_token(token: str) -> dict:
 
 def _get_user_by_username(username: str) -> Optional[dict]:
     rows = _qdf(
-        "SELECT id, username, password_hash, role, stores, full_name, is_active "
+        "SELECT id, username, password_hash, role, stores, full_name, is_active, pages "
         "FROM DIM_USERS WHERE username = ? AND is_active = true",
         [username]
     )
@@ -168,6 +168,7 @@ class UserCreate(BaseModel):
     role:      str = "viewer"
     full_name: str = ""
     stores:    Optional[str] = None
+    pages:     Optional[str] = None   # CSV of page keys; None = all pages
 
 
 class UserUpdate(BaseModel):
@@ -176,6 +177,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     stores:    Optional[str] = None
     is_active: Optional[bool] = None
+    pages:     Optional[str] = None   # CSV of page keys; '' clears to all pages
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────
@@ -214,6 +216,8 @@ def login(req: LoginRequest):
             "role":      user["role"],
             "full_name": user["full_name"],
             "stores":    user["stores"],
+            # CSV of allowed page keys; NULL/admin = all pages
+            "pages":     None if user["role"] == "admin" else user.get("pages"),
         },
     }
 
@@ -253,6 +257,7 @@ def me(current: dict = Depends(get_current_user)):
         "role":      current["role"],
         "full_name": current["full_name"],
         "stores":    current["stores"],
+        "pages":     None if current["role"] == "admin" else current.get("pages"),
     }
 
 
@@ -261,7 +266,7 @@ def me(current: dict = Depends(get_current_user)):
 @router.get("/api/auth/users")
 def list_users(current: dict = Depends(require_admin)):
     return _qdf(
-        "SELECT id, username, role, full_name, stores, is_active, created_at "
+        "SELECT id, username, role, full_name, stores, is_active, created_at, pages "
         "FROM DIM_USERS ORDER BY id"
     )
 
@@ -280,11 +285,12 @@ def create_user(req: UserCreate, current: dict = Depends(require_admin)):
     new_id = _next_id()
     with _db_lock:
         get_db().execute(
-            "INSERT INTO DIM_USERS (id, username, password_hash, role, full_name, stores, is_active, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, true, ?)",
+            "INSERT INTO DIM_USERS (id, username, password_hash, role, full_name, stores, is_active, created_at, pages) "
+            "VALUES (?, ?, ?, ?, ?, ?, true, ?, ?)",
             [new_id, req.username, hash_password(req.password),
              req.role, req.full_name, req.stores,
-             datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")]
+             datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+             req.pages or None]
         )
         get_db().commit()
 
@@ -315,6 +321,8 @@ def update_user(user_id: int, req: UserUpdate, current: dict = Depends(require_a
         sets.append("stores = ?"); vals.append(req.stores or None)
     if req.is_active is not None:
         sets.append("is_active = ?"); vals.append(req.is_active)
+    if req.pages is not None:
+        sets.append("pages = ?"); vals.append(req.pages or None)
 
     if sets:
         vals.append(user_id)
