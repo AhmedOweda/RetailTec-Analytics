@@ -68,10 +68,11 @@ const fmtC0 = (n: number) => moneyPrefix() + Math.round(n ?? 0).toLocaleString('
 function useStores() {
   const { data } = useQuery({
     queryKey: ['stores-list'],
-    queryFn:  () => axios.get('/api/inventory/stores-list').then(r => r.data as { STORE_NAME: string }[]),
+    queryFn:  () => axios.get('/api/inventory/stores-list').then(r => r.data as any[]),
     staleTime: Infinity,
   })
-  return data?.map(r => r.STORE_NAME) ?? []
+  // filter(Boolean): a NULL STORE_NAME row exists — undefined options crash Autocomplete
+  return data?.map(r => r.STORE_NAME ?? r.store_name).filter(Boolean) ?? []
 }
 
 function useVendors() {
@@ -250,7 +251,7 @@ export default function PurchasesOverview() {
             options={['received', 'pending']}
             value={status || null}
             onChange={(_, v) => setStatus(v ?? '')}
-            getOptionLabel={o => o === 'received' ? 'Received' : 'Pending'}
+            getOptionLabel={o => o === 'received' ? 'Received' : o === 'pending' ? 'Pending' : ''}
             renderInput={p => <TextField {...p} placeholder="All Status" size="small" sx={{ minWidth: 140 }} />}
             sx={{ minWidth: 140 }}
           />
