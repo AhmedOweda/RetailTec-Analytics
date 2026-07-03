@@ -16,12 +16,15 @@
  *   <Button onClick={resetColumns}>Reset Columns</Button>
  */
 import { useCallback, useRef } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 
 const STORAGE_PREFIX = 'rtc_grid_cols_'
 
 export function useGridColumnState(pageKey: string) {
+  const { user } = useAuth()
   const gridApiRef = useRef<any>(null)
-  const storageKey = `${STORAGE_PREFIX}${pageKey}`
+  // Per-user: each account keeps its own column arrangement on this machine
+  const storageKey = `${STORAGE_PREFIX}${user?.username ?? 'anon'}_${pageKey}`
 
   /** Call this in onGridReady — restores saved state immediately */
   const onGridReady = useCallback((params: any) => {

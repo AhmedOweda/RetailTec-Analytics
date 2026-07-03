@@ -10,6 +10,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
+import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
 
 const today = new Date().toISOString().slice(0, 10)
@@ -17,6 +18,8 @@ const prior = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
 
 export default function InventoryHistory() {
   const byItemGridRef   = useRef<AgGridReact>(null)
+  const colsA = useGridColumnState('inv-history-items')
+  const colsB = useGridColumnState('inv-history-details')
   const detailsGridRef  = useRef<AgGridReact>(null)
   const [dateFrom, setDateFrom] = useState(prior)
   const [dateTo,   setDateTo]   = useState(today)
@@ -131,7 +134,7 @@ export default function InventoryHistory() {
             <GridExportBar gridRef={byItemGridRef} filename="history_by_item" title="Inventory History — Most Active Items" />
           </Box>
           <Box className="ag-theme-alpine" sx={{ height: 300 }}>
-            <AgGridReact ref={byItemGridRef} rowData={byItem} columnDefs={itemCols} defaultColDef={gridDefault} animateRows />
+            <AgGridReact ref={byItemGridRef} rowData={byItem} columnDefs={itemCols} defaultColDef={gridDefault} animateRows onGridReady={colsA.onGridReady} onColumnMoved={colsA.onColumnChanged} onColumnResized={colsA.onColumnChanged} onColumnVisible={colsA.onColumnChanged} onColumnPinned={colsA.onColumnChanged} />
           </Box>
         </CardContent>
       </Card>
@@ -145,7 +148,7 @@ export default function InventoryHistory() {
             <GridExportBar gridRef={detailsGridRef} filename="history_details" title="Inventory History — Change Log" />
           </Box>
           <Box className="ag-theme-alpine" sx={{ height: 450 }}>
-            <AgGridReact ref={detailsGridRef} rowData={details} columnDefs={detailCols} defaultColDef={gridDefault} animateRows />
+            <AgGridReact ref={detailsGridRef} rowData={details} columnDefs={detailCols} defaultColDef={gridDefault} animateRows onGridReady={colsB.onGridReady} onColumnMoved={colsB.onColumnChanged} onColumnResized={colsB.onColumnChanged} onColumnVisible={colsB.onColumnChanged} onColumnPinned={colsB.onColumnChanged} />
           </Box>
         </CardContent>
       </Card>

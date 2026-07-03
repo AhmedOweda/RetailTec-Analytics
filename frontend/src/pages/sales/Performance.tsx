@@ -21,6 +21,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery }       from '@tanstack/react-query'
 import axios              from 'axios'
+import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { format, subDays, startOfMonth, startOfYear, subYears } from 'date-fns'
 import { num }            from '../../utils/formatters'
 
@@ -144,6 +145,8 @@ function TableSection({
 
 /* â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function Performance() {
+  const colsAssoc = useGridColumnState('perf-associates')
+  const colsCust  = useGridColumnState('perf-customers')
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   /* â”€â”€ Date range state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -573,15 +576,21 @@ export default function Performance() {
           <TableSection title="Top Associates" subtitle="Ranked by net sales Â· disc % amber >10% Â· return % red >5%" loading={assocLoad} height={320}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
               <AgGridReact rowData={(assocData??[]) as any[]} columnDefs={assocCols}
+                onGridReady={colsAssoc.onGridReady} onColumnMoved={colsAssoc.onColumnChanged}
+                onColumnResized={colsAssoc.onColumnChanged} onColumnVisible={colsAssoc.onColumnChanged}
+                onColumnPinned={colsAssoc.onColumnChanged}
                 defaultColDef={DEF_COL} rowHeight={34} headerHeight={38}
-                suppressCellFocus animateRows style={{ height:'100%', width:'100%' }} />
+                suppressCellFocus animateRows />
             </Box>
           </TableSection>
           <TableSection title="Top Customers" subtitle="Ranked by net spend for the selected period" loading={custLoad} height={320}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
               <AgGridReact rowData={(custData??[]) as any[]} columnDefs={custCols}
+                onGridReady={colsCust.onGridReady} onColumnMoved={colsCust.onColumnChanged}
+                onColumnResized={colsCust.onColumnChanged} onColumnVisible={colsCust.onColumnChanged}
+                onColumnPinned={colsCust.onColumnChanged}
                 defaultColDef={DEF_COL} rowHeight={34} headerHeight={38}
-                suppressCellFocus animateRows style={{ height:'100%', width:'100%' }} />
+                suppressCellFocus animateRows />
             </Box>
           </TableSection>
         </Box>
