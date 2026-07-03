@@ -20,6 +20,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
+import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { format, subDays, startOfMonth } from 'date-fns'
 import { num }           from '../../utils/formatters'
 import * as XLSX         from 'xlsx'
@@ -104,6 +105,7 @@ export default function Transactions() {
 
   const gridRef   = useRef<AgGridReact>(null)
   const gridApi   = useRef<any>(null)
+  const colState  = useGridColumnState('sales-transactions')
 
   const today  = format(new Date(), 'yyyy-MM-dd')
   const presetFrom = days === -1
@@ -142,6 +144,7 @@ export default function Transactions() {
   }, [rows])
 
   const onGridReady = useCallback((e: GridReadyEvent) => {
+    colState.onGridReady(e)
     gridApi.current = e.api
     e.api.sizeColumnsToFit()
   }, [])
@@ -392,6 +395,10 @@ export default function Transactions() {
       }}>
         <AgGridReact
           ref={gridRef}
+          onColumnMoved={colState.onColumnChanged}
+          onColumnResized={colState.onColumnChanged}
+          onColumnVisible={colState.onColumnChanged}
+          onColumnPinned={colState.onColumnChanged}
           rowData={rows}
           pinnedBottomRowData={totalsRow}
           columnDefs={COL_DEFS}
@@ -404,7 +411,6 @@ export default function Transactions() {
           rowHeight={38}
           headerHeight={42}
           suppressCellFocus={true}
-          style={{ height:'100%', width:'100%' }}
         />
       </Box>
     </Box>

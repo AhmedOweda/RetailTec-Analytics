@@ -24,6 +24,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { EChartHandle } from '../../components/EChart'
 import KpiCard                  from '../../components/KpiCard'
 import GridExportBar            from '../../components/GridExportBar'
+import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
 
 // ── Colours ────────────────────────────────────────────────────────────────
@@ -107,6 +108,7 @@ export default function Adjustments() {
   const [tab, setTab] = useState(0)
 
   const gridRef  = useRef<AgGridReact>(null)
+  const { onGridReady: onColGridReady, onColumnChanged } = useGridColumnState(`inv-adjustments-t${tab}`)
   const trendRef = useRef<EChartHandle>(null)
   const typeRef  = useRef<EChartHandle>(null)
   const storeRef = useRef<EChartHandle>(null)
@@ -361,7 +363,13 @@ export default function Adjustments() {
         </Tabs>
         <Box className="ag-theme-alpine" sx={{ height:360 }}>
           <AgGridReact
+            key={`tab-${tab}`}
             ref={gridRef}
+            onGridReady={onColGridReady}
+            onColumnMoved={onColumnChanged}
+            onColumnResized={onColumnChanged}
+            onColumnVisible={onColumnChanged}
+            onColumnPinned={onColumnChanged}
             rowData={tabData[tab]}
             columnDefs={tabCols[tab]}
             defaultColDef={{ resizable:true, sortable:true, filter:true }}

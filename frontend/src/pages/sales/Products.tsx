@@ -14,6 +14,7 @@ import CloseIcon         from '@mui/icons-material/Close'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import EChart, { type EChartHandle } from '../../components/EChart'
 import KpiCard                        from '../../components/KpiCard'
+import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { AgGridReact }   from 'ag-grid-react'
 import type { ColDef }   from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
@@ -168,6 +169,7 @@ export default function Products() {
   const [appliedTo,      setAppliedTo     ] = useState(todayStr)
   const [selectedStores, setSelectedStores] = useState<string[]>([])
   const [view,           setView          ] = useState<View>('item')
+  const { onGridReady: onColGridReady, onColumnChanged } = useGridColumnState(`sales-products-${view}`)
 
   const presetFrom = (p: Period) =>
     p === 'MTD' ? format(startOfMonth(new Date()), 'yyyy-MM-dd')
@@ -693,6 +695,12 @@ export default function Products() {
               : (
                 <Box className="ag-theme-alpine" sx={{ height: 460, ...GRID_SX }}>
                   <AgGridReact
+                    key={`view-${view}`}
+                    onGridReady={onColGridReady}
+                    onColumnMoved={onColumnChanged}
+                    onColumnResized={onColumnChanged}
+                    onColumnVisible={onColumnChanged}
+                    onColumnPinned={onColumnChanged}
                     rowData={(tableData ?? []) as any[]}
                     columnDefs={tableCols}
                     defaultColDef={DEF_COL}
