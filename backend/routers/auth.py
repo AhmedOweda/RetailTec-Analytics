@@ -84,9 +84,10 @@ def _decode_token(token: str) -> dict:
 
 
 def _get_user_by_username(username: str) -> Optional[dict]:
+    # Case-insensitive: 'Oweda' and 'oweda' are the same account
     rows = _qdf(
         "SELECT id, username, password_hash, role, stores, full_name, is_active, pages "
-        "FROM DIM_USERS WHERE username = ? AND is_active = true",
+        "FROM DIM_USERS WHERE LOWER(username) = LOWER(?) AND is_active = true",
         [username]
     )
     return rows[0] if rows else None
@@ -275,7 +276,7 @@ def list_users(current: dict = Depends(require_admin)):
 
 @router.post("/api/auth/users", status_code=201)
 def create_user(req: UserCreate, current: dict = Depends(require_admin)):
-    existing = _qdf("SELECT id FROM DIM_USERS WHERE username = ?", [req.username])
+    existing = _qdf("SELECT id FROM DIM_USERS WHERE LOWER(username) = LOWER(?)", [req.username])
     if existing:
         raise HTTPException(status_code=409, detail="Username already exists")
 
