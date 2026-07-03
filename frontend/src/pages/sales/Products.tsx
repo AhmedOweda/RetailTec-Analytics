@@ -22,6 +22,7 @@ import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
 import { format, subDays, startOfMonth, startOfYear } from 'date-fns'
 import { num }           from '../../utils/formatters'
+import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { useAppSettings } from '../../context/AppSettings'
 
 /* ── Theme ─────────────────────────────────────────────────────────── */
@@ -245,7 +246,7 @@ export default function Products() {
         formatter: (p: any) => {
           const d   = p.data
           const shr = total > 0 ? (d.value / total * 100).toFixed(1) : '0'
-          const gc  = d.gp_pct >= 30 ? C_GREEN : d.gp_pct >= 10 ? C_AMBER : C_ROSE
+          const gc  = gmColorOf(d.gp_pct)
           return `<div style="min-width:170px">
             <b>${d.name}</b><br/>
             Revenue: <b>${(+d.value).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
@@ -419,7 +420,7 @@ export default function Products() {
         trigger: 'axis', axisPointer: { type: 'shadow' },
         formatter: (p: any[]) => {
           const r  = rows[p[0]?.dataIndex] ?? {}
-          const gc = +(r.gp_pct ?? 0) >= 30 ? C_GREEN : +(r.gp_pct ?? 0) >= 10 ? C_AMBER : C_ROSE
+          const gc = gmColorOf(+(r.gp_pct ?? 0))
           return `<b>${p[0].name}</b><br/>Revenue: <b>${(+(r.revenue ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>GP: ${(+(r.gp ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}<br/>GP%: <b style="color:${gc}">${r.gp_pct ?? 0}%</b>`
         },
       },

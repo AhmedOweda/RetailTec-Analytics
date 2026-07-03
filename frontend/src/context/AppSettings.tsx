@@ -3,9 +3,12 @@
  * - productCodeField ('alu' | 'upc')
  * - currency (display currency for money values; default Saudi Riyal with the
  *   new ⃀ symbol — the software targets the Gulf market)
+ * - number format (decimals for money, K/M abbreviation)
+ * - analytics thresholds (days-on-hand, dormant customers, GM% traffic lights)
  */
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { setMoneyPrefixGlobal } from '../utils/formatters'
+import { setMoneyPrefixGlobal, setNumberFormatGlobal } from '../utils/formatters'
+import { Thresholds, DEFAULT_THRESHOLDS, setThresholdsGlobal } from '../utils/thresholds'
 
 export type ProductCodeField = 'alu' | 'upc'
 
@@ -35,6 +38,12 @@ interface AppSettings {
   setShowCurrency:     (v: boolean) => void
   /** '⃁ ' prefix for money values, or '' when the sign is turned off */
   moneyPrefix:         string
+  moneyDecimals:       number
+  setMoneyDecimals:    (v: number) => void
+  abbreviateNumbers:   boolean
+  setAbbreviateNumbers:(v: boolean) => void
+  thresholds:          Thresholds
+  setThreshold:        (patch: Partial<Thresholds>) => void
 }
 
 const DEFAULT_CURRENCY = CURRENCIES[0]
@@ -47,7 +56,21 @@ const AppSettingsContext = createContext<AppSettings>({
   showCurrency:        true,
   setShowCurrency:     () => {},
   moneyPrefix:         DEFAULT_CURRENCY.symbol + ' ',
+  moneyDecimals:       0,
+  setMoneyDecimals:    () => {},
+  abbreviateNumbers:   true,
+  setAbbreviateNumbers:() => {},
+  thresholds:          DEFAULT_THRESHOLDS,
+  setThreshold:        () => {},
 })
+
+function loadThresholds(): Thresholds {
+  try {
+    const raw = localStorage.getItem('thresholds')
+    if (raw) return { ...DEFAULT_THRESHOLDS, ...JSON.parse(raw) }
+  } catch { /* ignore */ }
+  return { ...DEFAULT_THRESHOLDS }
+}
 
 export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const [productCodeField, setFieldState] = useState<ProductCodeField>(
@@ -78,15 +101,46 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     setShowCurrencyState(v)
   }
 
+  // ── Number format ──────────────────────────────────────────────────────────
+  const [moneyDecimals, setMoneyDecState] = useState<number>(
+    () => Number(localStorage.getItem('moneyDecimals') ?? 0)
+  )
+  const [abbreviateNumbers, setAbbrevState] = useState<boolean>(
+    () => localStorage.getItem('abbreviateNumbers') !== 'false'   // default ON
+  )
+  const setMoneyDecimals = (v: number) => {
+    localStorage.setItem('moneyDecimals', String(v)); setMoneyDecState(v)
+  }
+  const setAbbreviateNumbers = (v: boolean) => {
+    localStorage.setItem('abbreviateNumbers', String(v)); setAbbrevState(v)
+  }
+
+  // ── Analytics thresholds ───────────────────────────────────────────────────
+  const [thresholds, setThresholdsState] = useState<Thresholds>(loadThresholds)
+  const setThreshold = (patch: Partial<Thresholds>) => {
+    setThresholdsState(prev => {
+      const next = { ...prev, ...patch }
+      localStorage.setItem('thresholds', JSON.stringify(next))
+      return next
+    })
+  }
+
   const moneyPrefix = showCurrency ? currency.symbol + ' ' : ''
 
-  // keep the module-level helper (used by page formatters) in sync
+  // keep the module-level helpers (used by page formatters) in sync
   useEffect(() => { setMoneyPrefixGlobal(moneyPrefix) }, [moneyPrefix])
+  useEffect(() => {
+    setNumberFormatGlobal({ abbreviate: abbreviateNumbers, moneyDecimals })
+  }, [abbreviateNumbers, moneyDecimals])
+  useEffect(() => { setThresholdsGlobal(thresholds) }, [thresholds])
 
   return (
     <AppSettingsContext.Provider value={{ productCodeField, setProductCodeField,
                                           currency, setCurrency,
-                                          showCurrency, setShowCurrency, moneyPrefix }}>
+                                          showCurrency, setShowCurrency, moneyPrefix,
+                                          moneyDecimals, setMoneyDecimals,
+                                          abbreviateNumbers, setAbbreviateNumbers,
+                                          thresholds, setThreshold }}>
       {children}
     </AppSettingsContext.Provider>
   )

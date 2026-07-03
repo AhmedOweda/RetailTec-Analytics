@@ -4,6 +4,7 @@
  * KPIs · Daily Trend · Dept Velocity · ABC Pareto · AG Grid
  */
 import { useMemo, useRef, useState, useCallback } from 'react'
+import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { useAppSettings } from '../../context/AppSettings'
 import {
   Box, Typography, Chip, Dialog, DialogTitle, DialogContent,
@@ -106,7 +107,7 @@ function ChartCard({ title, subtitle, option, height = 300 }: {
 function gpStyle(p: any) {
   const v = +(p.value ?? 0)
   return {
-    color: v >= 30 ? C_GREEN : v >= 10 ? C_AMBER : C_ROSE,
+    color: gmColorOf(v),
     fontWeight: 700,
     backgroundColor: v >= 30 ? 'rgba(5,150,105,0.10)' : v >= 10 ? 'rgba(217,119,6,0.10)' : 'rgba(225,29,72,0.10)',
     display: 'flex', alignItems: 'center',
@@ -331,7 +332,7 @@ export default function InventoryMovement() {
     ]
   }, [tableData, view, codeField])
 
-  const gmColor = kpi.gmPct >= 30 ? C_GREEN : kpi.gmPct >= 10 ? C_AMBER : C_ROSE
+  const gmColor = gmColorOf(kpi.gmPct)
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (

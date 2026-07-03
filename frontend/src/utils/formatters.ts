@@ -8,17 +8,28 @@
  * formatDate(d)  → "23 Jun 2026"
  */
 
+/* Number-format preferences (Display Settings) — synced by AppSettingsProvider */
+let _abbrev        = true   // 1.23M / 1.2K style for large numbers
+let _moneyDecimals = 0      // decimals for money() amounts
+
+export function setNumberFormatGlobal(opts: { abbreviate?: boolean; moneyDecimals?: number }) {
+  if (opts.abbreviate    !== undefined) _abbrev        = opts.abbreviate
+  if (opts.moneyDecimals !== undefined) _moneyDecimals = opts.moneyDecimals
+}
+
 export function num(v: unknown, decimals = 2): string {
   const n = v == null ? 0 : Number(v)
   if (isNaN(n)) return (0).toFixed(decimals)
   const abs  = Math.abs(n)
   const sign = n < 0 ? '-' : ''
-  if (abs >= 1_000_000)
-    return `${sign}${(abs / 1_000_000).toFixed(decimals)}M`
-  if (abs >= 1_000)
-    return `${sign}${(abs / 1_000).toFixed(decimals)}K`
+  if (_abbrev) {
+    if (abs >= 1_000_000)
+      return `${sign}${(abs / 1_000_000).toFixed(decimals)}M`
+    if (abs >= 1_000)
+      return `${sign}${(abs / 1_000).toFixed(decimals)}K`
+  }
   return n.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
+    minimumFractionDigits: _abbrev ? decimals : Math.min(decimals, _moneyDecimals),
     maximumFractionDigits: decimals,
   })
 }
@@ -45,11 +56,12 @@ let _moneyPrefix = '⃁ '
 export function setMoneyPrefixGlobal(p: string) { _moneyPrefix = p }
 export function moneyPrefix(): string { return _moneyPrefix }
 
-/** moneyPrefix() + thousands-formatted number */
-export function money(v: unknown, decimals = 0): string {
+/** moneyPrefix() + thousands-formatted number (decimals default from Display Settings) */
+export function money(v: unknown, decimals?: number): string {
+  const d = decimals ?? _moneyDecimals
   const n = v == null ? 0 : Number(v)
-  if (isNaN(n)) return _moneyPrefix + (0).toFixed(decimals)
+  if (isNaN(n)) return _moneyPrefix + (0).toFixed(d)
   return _moneyPrefix + n.toLocaleString('en-US', {
-    minimumFractionDigits: decimals, maximumFractionDigits: decimals,
+    minimumFractionDigits: d, maximumFractionDigits: d,
   })
 }

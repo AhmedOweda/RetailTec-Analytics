@@ -126,7 +126,10 @@ function SectionCard({ title, icon, children }:
 export default function DataModelSettings() {
   const qc = useQueryClient()
   const { productCodeField, setProductCodeField, currency, setCurrency,
-          showCurrency, setShowCurrency } = useAppSettings()
+          showCurrency, setShowCurrency,
+          moneyDecimals, setMoneyDecimals,
+          abbreviateNumbers, setAbbreviateNumbers,
+          thresholds, setThreshold } = useAppSettings()
 
   const { data: settings, isLoading: loadingSettings } = useQuery({
     queryKey: ['settings'],
@@ -341,6 +344,57 @@ export default function DataModelSettings() {
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
             {showCurrency ? `e.g. ${currency.symbol} 17.2M` : 'e.g. 17.2M (no sign)'}
           </Typography>
+        </Box>
+
+        {/* ── Number format ── */}
+        <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5, flexWrap:'wrap' }}>
+          <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
+            Number Format
+          </Typography>
+          <ToggleButtonGroup
+            value={moneyDecimals} exclusive size="small"
+            onChange={(_, v) => { if (v !== null) setMoneyDecimals(v) }}
+            sx={{ '& .MuiToggleButton-root': { px:2, fontWeight:700, fontSize:12, textTransform:'none' },
+                  '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important`, borderColor:`${ACCENT} !important` } }}>
+            <ToggleButton value={0}>No decimals</ToggleButton>
+            <ToggleButton value={2}>2 decimals</ToggleButton>
+          </ToggleButtonGroup>
+          <FormControlLabel sx={{ ml:0.5 }}
+            control={
+              <Switch size="small" checked={abbreviateNumbers}
+                onChange={e => setAbbreviateNumbers(e.target.checked)} />
+            }
+            label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>Abbreviate large numbers (1.2M / 340K)</Typography>}
+          />
+          <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
+            {abbreviateNumbers ? 'e.g. 1.23M' : `e.g. 1,234,${moneyDecimals === 2 ? '567.89' : '568'}`}
+          </Typography>
+        </Box>
+
+        {/* ── Analytics thresholds ── */}
+        <Box sx={{ mt:2.5 }}>
+          <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', mb:0.3 }}>
+            Analytics Thresholds
+          </Typography>
+          <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1.5 }}>
+            Drive the traffic-light colours across the dashboard (days-on-hand,
+            margin quality, dormant customers). Saved instantly.
+          </Typography>
+          <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
+            {([
+              { k:'dohWarn',     l:'DOH amber above',   suffix:'days' },
+              { k:'dohBad',      l:'DOH red above',     suffix:'days' },
+              { k:'dormantDays', l:'Customer dormant after', suffix:'days' },
+              { k:'lowGmPct',    l:'Low margin below',  suffix:'%' },
+              { k:'goodGmPct',   l:'Good margin at',    suffix:'%' },
+            ] as const).map(f => (
+              <LabeledCtl key={f.k} label={`${f.l} (${f.suffix})`}>
+                <TextField size="small" type="number" sx={{ width:150 }}
+                  value={thresholds[f.k]}
+                  onChange={e => setThreshold({ [f.k]: Math.max(0, +e.target.value) })} />
+              </LabeledCtl>
+            ))}
+          </Box>
         </Box>
       </SectionCard>
 
@@ -665,6 +719,12 @@ export default function DataModelSettings() {
         </Box>
       </SectionCard>
 
+      {/* ── Maintenance: backup & compact ─────────────────────────── */}
+      <MaintenanceCard />
+
+      {/* ── Email (SMTP) ──────────────────────────────────────────── */}
+      <EmailCard />
+
       <SyncHistoryDialog open={histOpen} onClose={() => setHistOpen(false)}
         history={history ?? []} refetch={refetchHistory} fetching={histFetching} />
 
@@ -695,6 +755,138 @@ export default function DataModelSettings() {
         )}
       </Box>
     </Box>
+  )
+}
+
+/* ── Maintenance card: backup + compact ─────────────────────────────────────── */
+function MaintenanceCard() {
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [folder, setFolder] = useState('')
+
+  const backup = useMutation({
+    mutationFn: () => axios.post('/api/admin/backup', { dest_folder: folder.trim() || null }),
+    onSuccess: r => { setErr(null); setMsg(`Backup saved: ${r.data.path} (${r.data.size_mb} MB)`) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Backup failed') },
+  })
+  const compact = useMutation({
+    mutationFn: () => axios.post('/api/admin/compact'),
+    onSuccess: r => { setErr(null); setMsg(`Compacted: ${r.data.before_mb} MB → ${r.data.after_mb} MB`) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Compact failed') },
+  })
+
+  return (
+    <SectionCard title="Maintenance" icon={<StorageIcon />}>
+      <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+        Back up the local warehouse file (safe while the app is running), or
+        compact it to flush pending writes and reclaim space.
+      </Typography>
+      <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
+        <LabeledCtl label="Backup folder (empty = backend/backups)">
+          <TextField size="small" sx={{ minWidth:320 }} placeholder="D:\\RetailTecBackups"
+            value={folder} onChange={e => setFolder(e.target.value)} />
+        </LabeledCtl>
+        <Button variant="outlined" size="small" disabled={backup.isPending}
+          onClick={() => backup.mutate()}
+          sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
+          {backup.isPending ? 'Backing up…' : 'Backup Now'}
+        </Button>
+        <Button variant="outlined" size="small" disabled={compact.isPending}
+          onClick={() => compact.mutate()}
+          sx={{ borderColor:'#64748b', color:'#64748b', textTransform:'none', fontWeight:600 }}>
+          {compact.isPending ? 'Compacting…' : 'Compact Database'}
+        </Button>
+      </Box>
+      {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
+      {err && <Alert severity="error" sx={{ mt:1.5, fontSize:12 }}>{err}</Alert>}
+    </SectionCard>
+  )
+}
+
+/* ── Email (SMTP) card ───────────────────────────────────────────────────────── */
+function EmailCard() {
+  const [cfg, setCfg] = useState({ host:'', port:587, username:'', password:'',
+                                   from_addr:'', use_tls:true, has_password:false })
+  const [testTo, setTestTo] = useState('')
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  useQuery({
+    queryKey: ['email-settings'],
+    queryFn: () => axios.get('/api/admin/email').then(r => {
+      setCfg(c => ({ ...c, ...r.data, password: '' }))
+      return r.data
+    }),
+  })
+
+  const save = useMutation({
+    mutationFn: () => axios.put('/api/admin/email', {
+      host: cfg.host, port: +cfg.port, username: cfg.username,
+      password: cfg.password || null,   // empty = keep stored
+      from_addr: cfg.from_addr, use_tls: cfg.use_tls,
+    }),
+    onSuccess: () => { setErr(null); setMsg('Email settings saved') },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Save failed') },
+  })
+  const test = useMutation({
+    mutationFn: () => axios.post('/api/admin/email/test', { to: testTo.trim() }),
+    onSuccess: r => { setErr(null); setMsg(r.data.message) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Test failed') },
+  })
+
+  return (
+    <SectionCard title="Email (SMTP)" icon={<SyncIcon />}>
+      <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+        Used for sending reports and alerts. Works with your company mail server
+        or Gmail (smtp.gmail.com, port 587, app password). The password is
+        stored encrypted.
+      </Typography>
+      <Box sx={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:2, mb:2 }}>
+        <LabeledCtl label="SMTP host">
+          <TextField size="small" placeholder="smtp.gmail.com" value={cfg.host}
+            onChange={e => setCfg({ ...cfg, host: e.target.value })} />
+        </LabeledCtl>
+        <LabeledCtl label="Port">
+          <TextField size="small" type="number" value={cfg.port}
+            onChange={e => setCfg({ ...cfg, port: +e.target.value })} />
+        </LabeledCtl>
+        <LabeledCtl label="Username">
+          <TextField size="small" placeholder="reports@company.com" value={cfg.username}
+            onChange={e => setCfg({ ...cfg, username: e.target.value })} />
+        </LabeledCtl>
+        <LabeledCtl label={cfg.has_password ? 'Password (saved — enter to change)' : 'Password'}>
+          <TextField size="small" type="password" value={cfg.password}
+            onChange={e => setCfg({ ...cfg, password: e.target.value })} />
+        </LabeledCtl>
+        <LabeledCtl label="From address">
+          <TextField size="small" placeholder="RetailTec <reports@company.com>" value={cfg.from_addr}
+            onChange={e => setCfg({ ...cfg, from_addr: e.target.value })} />
+        </LabeledCtl>
+        <FormControlLabel sx={{ mt:2 }}
+          control={<Switch size="small" checked={cfg.use_tls}
+            onChange={e => setCfg({ ...cfg, use_tls: e.target.checked })} />}
+          label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>Use TLS</Typography>} />
+      </Box>
+      <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
+        <Button variant="contained" size="small" disabled={save.isPending}
+          onClick={() => save.mutate()}
+          sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:600, boxShadow:'none',
+                '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
+          Save Email Settings
+        </Button>
+        <LabeledCtl label="Send test to">
+          <TextField size="small" placeholder="you@company.com" sx={{ minWidth:220 }}
+            value={testTo} onChange={e => setTestTo(e.target.value)} />
+        </LabeledCtl>
+        <Button variant="outlined" size="small" disabled={test.isPending || !testTo.trim()}
+          onClick={() => test.mutate()}
+          sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
+          {test.isPending ? 'Sending…' : 'Send Test Email'}
+        </Button>
+      </Box>
+      {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
+      {err && <Alert severity="error" sx={{ mt:1.5, fontSize:12 }}>{err}</Alert>}
+    </SectionCard>
   )
 }
 

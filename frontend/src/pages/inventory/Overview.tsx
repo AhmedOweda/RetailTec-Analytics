@@ -23,6 +23,7 @@ import KpiCard                        from '../../components/KpiCard'
 import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
+import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 
 // ── Colours ────────────────────────────────────────────────────────────────────
 const C_PURPLE = '#7c3aed'
@@ -106,7 +107,7 @@ function ChartCard({ title, subtitle, option, height = 340, children }: {
 function gmStyle(p: any) {
   const v = +(p.value ?? 0)
   return {
-    color: v >= 30 ? C_GREEN : v >= 10 ? C_AMBER : C_ROSE,
+    color: gmColorOf(v),
     fontWeight: 700,
     backgroundColor: v >= 30 ? 'rgba(5,150,105,0.10)' : v >= 10 ? 'rgba(217,119,6,0.10)' : 'rgba(225,29,72,0.10)',
     display: 'flex', alignItems: 'center',
@@ -396,7 +397,7 @@ export default function InventoryOverview() {
     ]
   }, [tableData, view])
 
-  const gmColor = kpi.gmPct >= 30 ? C_GREEN : kpi.gmPct >= 10 ? C_AMBER : C_ROSE
+  const gmColor = gmColorOf(kpi.gmPct)
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -455,7 +456,7 @@ export default function InventoryOverview() {
             sub="COGS ÷ stock cost (12m)" color="#0891b2" icon="ti-refresh" />
           <KpiCard variant="F" label="Days on Hand"       value={`${turnover.doh}`}
             sub="365 ÷ turnover rate" icon="ti-calendar-stats"
-            color={turnover.doh > 180 ? C_ROSE : turnover.doh > 90 ? C_AMBER : C_GREEN} />
+            color={dohColor(turnover.doh)} />
           <KpiCard variant="F" label="Months Supply"      value={`${turnover.months}m`}
             sub="stock cost ÷ monthly COGS" color="#0891b2" icon="ti-clock" />
           <KpiCard variant="F" label="COGS (12m)"         value={num(turnover.cogs12m)}
