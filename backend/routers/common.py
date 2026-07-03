@@ -19,6 +19,30 @@ from db.model import DB_LOCK, get_db
 from routers.auth import get_current_user
 
 
+# ── Optional item-master fields (configurable grid columns) ───────────────────
+# Whitelist: only these DIM_ITEM columns may be requested via ?item_fields=csv.
+ITEM_EXTRA_FIELDS = {
+    "DESCRIPTION2", "DESCRIPTION3", "DESCRIPTION4", "LONG_DESCRIPTION",
+    "ATTRIBUTE", "ITEM_SIZE",
+    *{f"TEXT{i}" for i in range(1, 11)},
+    *{f"UDF{i}_STRING" for i in range(1, 6)},
+    "PRICE_LVL1", "PRICE_LVL2", "PRICE_LVL3",
+}
+
+
+def item_fields_sql(item_fields: Optional[str], alias: str = "I",
+                    agg: bool = False) -> str:
+    """SELECT fragment for requested item fields (whitelisted — safe to
+    interpolate). agg=True wraps in MAX() for GROUP BY queries."""
+    if not item_fields:
+        return ""
+    cols = [c.strip().upper() for c in item_fields.split(",") if c.strip()]
+    good = [c for c in cols if c in ITEM_EXTRA_FIELDS]
+    if agg:
+        return "".join(f", MAX({alias}.{c}) AS {c}" for c in good)
+    return "".join(f", {alias}.{c} AS {c}" for c in good)
+
+
 def _cursor():
     """A per-request DuckDB cursor. Cursors are independent connections to the
     same database (MVCC): reads run CONCURRENTLY with the sync writer instead of

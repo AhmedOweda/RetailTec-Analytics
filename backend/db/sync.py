@@ -551,12 +551,19 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
     # resolve against RPS.VENDOR or INVN_SBS_VENDOR.SID, which collapsed vendor
     # analytics into '(Unknown)'. Resolve the item's vendor through the link table
     # instead (latest link wins when an item has several).
-    cur.execute("""
+    # NOTE: column list must match DIM_ITEM's DDL order (incl. the optional
+    # item-master fields appended by the model.py migration) — _bulk_upsert_dim
+    # maps rows to table columns positionally.
+    cur.execute(f"""
         SELECT I.SID, I.SBS_SID, I.ALU, I.UPC,
                I.DESCRIPTION1, I.DESCRIPTION2,
                I.ATTRIBUTE, I.ITEM_SIZE,
                I.DCS_SID, ISV.VEND_SID,
-               NVL(I.ACTIVE, 1)
+               NVL(I.ACTIVE, 1),
+               I.DESCRIPTION3, I.DESCRIPTION4, I.LONG_DESCRIPTION,
+               {', '.join(f'I.TEXT{i}' for i in range(1, 11))},
+               {', '.join(f'I.UDF{i}_STRING' for i in range(1, 6))},
+               P1.PRICE, P2.PRICE, P3.PRICE
         FROM RPS.INVN_SBS_ITEM I
         LEFT JOIN (
             SELECT INVN_SBS_ITEM_SID, VEND_SID,
@@ -566,6 +573,18 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
                    ) AS RN
             FROM RPS.INVN_SBS_VENDOR
         ) ISV ON ISV.INVN_SBS_ITEM_SID = I.SID AND ISV.RN = 1
+        LEFT JOIN (SELECT DISTINCT PR.INVN_SBS_ITEM_SID, PR.PRICE
+                   FROM RPS.INVN_SBS_PRICE PR
+                   INNER JOIN RPS.PRICE_LEVEL PL ON PL.SID = PR.PRICE_LVL_SID
+                   WHERE PL.PRICE_LVL = 1) P1 ON P1.INVN_SBS_ITEM_SID = I.SID
+        LEFT JOIN (SELECT DISTINCT PR.INVN_SBS_ITEM_SID, PR.PRICE
+                   FROM RPS.INVN_SBS_PRICE PR
+                   INNER JOIN RPS.PRICE_LEVEL PL ON PL.SID = PR.PRICE_LVL_SID
+                   WHERE PL.PRICE_LVL = 2) P2 ON P2.INVN_SBS_ITEM_SID = I.SID
+        LEFT JOIN (SELECT DISTINCT PR.INVN_SBS_ITEM_SID, PR.PRICE
+                   FROM RPS.INVN_SBS_PRICE PR
+                   INNER JOIN RPS.PRICE_LEVEL PL ON PL.SID = PR.PRICE_LVL_SID
+                   WHERE PL.PRICE_LVL = 3) P3 ON P3.INVN_SBS_ITEM_SID = I.SID
     """)
     n = _bulk_upsert_dim(duck, "DIM_ITEM", "SID", cur.fetchall(), full_refresh=True)
     log.info(f"DIM_ITEM: {n} rows (full refresh, vendor via INVN_SBS_VENDOR)")

@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, Query
 from db.model import get_db
 from routers.auth import get_current_user, require_admin
 from routers.common import (DB_LOCK, allowed_store_set, q as _q, qdf as _qdf,
-                            scoped_stores, store_filter)
+                            scoped_stores, store_filter, item_fields_sql)
 from services.scheduler import on_open_sync, trigger_full_load, get_sync_state
 
 router = APIRouter(tags=["sales"])
@@ -293,8 +293,10 @@ def products(
     stores:    Optional[str] = Depends(scoped_stores),
     group_by:  str = Query("item", pattern="^(item|dcs|vendor|department)$"),
     limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
+    item_fields: Optional[str] = Query(None),       # csv of whitelisted DIM_ITEM cols
 ):
     lim = f"LIMIT {int(limit)}" if limit else ""
+    xf  = item_fields_sql(item_fields, agg=True)
     sf, sp  = store_filter(stores)
     base    = f"""
         FROM FACT_SALES_ITEMS F
@@ -320,7 +322,7 @@ def products(
         try:
             return _qdf(f"""
                 SELECT I.ALU, I.UPC, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE,
-                       {measures}
+                       {measures} {xf}
                 {base}
                 GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE
                 ORDER BY revenue DESC {lim}

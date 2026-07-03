@@ -44,6 +44,9 @@ interface AppSettings {
   setAbbreviateNumbers:(v: boolean) => void
   thresholds:          Thresholds
   setThreshold:        (patch: Partial<Thresholds>) => void
+  /** DIM_ITEM columns to add to every item grid (keys from utils/itemFields) */
+  itemFields:          string[]
+  setItemFields:       (v: string[]) => void
 }
 
 const DEFAULT_CURRENCY = CURRENCIES[0]
@@ -62,6 +65,8 @@ const AppSettingsContext = createContext<AppSettings>({
   setAbbreviateNumbers:() => {},
   thresholds:          DEFAULT_THRESHOLDS,
   setThreshold:        () => {},
+  itemFields:          [],
+  setItemFields:       () => {},
 })
 
 function loadThresholds(): Thresholds {
@@ -125,6 +130,15 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  // ── Item-master grid fields ────────────────────────────────────────────────
+  const [itemFields, setItemFieldsState] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('itemFields') ?? '[]') }
+    catch { return [] }
+  })
+  const setItemFields = (v: string[]) => {
+    localStorage.setItem('itemFields', JSON.stringify(v)); setItemFieldsState(v)
+  }
+
   const moneyPrefix = showCurrency ? currency.symbol + ' ' : ''
 
   // keep the module-level helpers (used by page formatters) in sync
@@ -140,7 +154,8 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
                                           showCurrency, setShowCurrency, moneyPrefix,
                                           moneyDecimals, setMoneyDecimals,
                                           abbreviateNumbers, setAbbreviateNumbers,
-                                          thresholds, setThreshold }}>
+                                          thresholds, setThreshold,
+                                          itemFields, setItemFields }}>
       {children}
     </AppSettingsContext.Provider>
   )

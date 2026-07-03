@@ -256,6 +256,16 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             ACTIVE       BOOLEAN DEFAULT TRUE
         )
     """)
+    # Migration 2026-07: optional item-master fields for configurable grid columns
+    for col, typ in [
+        ("DESCRIPTION3", "VARCHAR"), ("DESCRIPTION4", "VARCHAR"),
+        ("LONG_DESCRIPTION", "VARCHAR"),
+        *[(f"TEXT{i}", "VARCHAR") for i in range(1, 11)],
+        *[(f"UDF{i}_STRING", "VARCHAR") for i in range(1, 6)],
+        ("PRICE_LVL1", "DECIMAL(18,4)"), ("PRICE_LVL2", "DECIMAL(18,4)"),
+        ("PRICE_LVL3", "DECIMAL(18,4)"),
+    ]:
+        con.execute(f"ALTER TABLE DIM_ITEM ADD COLUMN IF NOT EXISTS {col} {typ}")
     con.execute("""
         CREATE TABLE IF NOT EXISTS DIM_DCS (
             SID      BIGINT  PRIMARY KEY,
