@@ -23,6 +23,7 @@ import axios             from 'axios'
 import { format, subDays, startOfMonth, startOfYear } from 'date-fns'
 import { num }           from '../../utils/formatters'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
+import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
 
 /* ── Theme ─────────────────────────────────────────────────────────── */
@@ -156,7 +157,7 @@ const gpAbsStyle = (p: any) => ({
 
 /* ── Main component ─────────────────────────────────────────────────── */
 export default function Products() {
-  const { productCodeField } = useAppSettings()
+  const { productCodeField, itemFields } = useAppSettings()
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   /* Date range state */
@@ -216,8 +217,8 @@ export default function Products() {
 
   /* Table data — changes per view tab */
   const { data: tableData,  isLoading: tableLoad  } = useQuery({
-    queryKey: ['prod-table',  from, to, view, storesKey],
-    queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=${view}${storeQS}`).then(r => r.data),  // no limit — grid paginates
+    queryKey: ['prod-table',  from, to, view, storesKey, itemFields.join(',')],
+    queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=${view}${storeQS}${view === 'item' ? itemFieldsQS(itemFields) : ''}`).then(r => r.data),  // no limit — grid paginates
     ...qOpts,
   })
 
@@ -501,6 +502,7 @@ export default function Products() {
         headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
       { field: 'DCS_CODE',  headerName: 'DCS Code', width: 100, cellStyle: { fontSize: 11, color: C_SLATE, display: 'flex', alignItems: 'center' } },
       qtyCol, revCol, gpCol, gpPctCol,
+      ...itemFieldCols(itemFields),
     ]
 
     if (view === 'dcs') return [
@@ -536,7 +538,7 @@ export default function Products() {
       },
       qtyCol, revCol, gpCol, gpPctCol,
     ]
-  }, [tableData, view, productCodeField])
+  }, [tableData, view, productCodeField, itemFields])
 
   const gpColor = kpi.gpPct >= 30 ? '#065f46' : kpi.gpPct >= 10 ? '#78350f' : '#991b1b'
   const gpLabel = kpi.gpPct >= 30 ? 'Excellent margin' : kpi.gpPct >= 10 ? 'Healthy margin' : 'Low margin'

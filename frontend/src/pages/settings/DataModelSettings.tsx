@@ -24,6 +24,7 @@ import ScheduleIcon     from '@mui/icons-material/Schedule'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
+import { ITEM_FIELDS, itemFieldLabel } from '../../utils/itemFields'
 
 const ACCENT = '#7c3aed'
 
@@ -149,7 +150,8 @@ export default function DataModelSettings() {
           showCurrency, setShowCurrency,
           moneyDecimals, setMoneyDecimals,
           abbreviateNumbers, setAbbreviateNumbers,
-          thresholds, setThreshold } = useAppSettings()
+          thresholds, setThreshold,
+          itemFields, setItemFields } = useAppSettings()
 
   const { data: settings, isLoading: loadingSettings } = useQuery({
     queryKey: ['settings'],
@@ -389,6 +391,28 @@ export default function DataModelSettings() {
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
             {abbreviateNumbers ? 'e.g. 1.23M' : `e.g. 1,234,${moneyDecimals === 2 ? '567.89' : '568'}`}
           </Typography>
+        </Box>
+
+        {/* ── Item grid columns ── */}
+        <Box sx={{ mt:2.5 }}>
+          <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', mb:0.3 }}>
+            Item Grid Columns
+          </Typography>
+          <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1 }}>
+            Extra item-master fields shown as columns in every table that lists
+            items (descriptions, texts, UDFs, price levels). Applied instantly —
+            data appears after the next sync refreshes the item master.
+          </Typography>
+          <Autocomplete
+            multiple disableCloseOnSelect size="small"
+            options={ITEM_FIELDS.map(f => f.key)}
+            getOptionLabel={k => itemFieldLabel(k)}
+            value={itemFields}
+            onChange={(_, v) => setItemFields(v)}
+            renderInput={p => <TextField {...p} placeholder={itemFields.length ? '' : 'None — default columns only'}
+              size="small" sx={{ maxWidth:560 }} />}
+            sx={{ maxWidth:560 }}
+          />
         </Box>
 
         {/* ── Analytics thresholds ── */}

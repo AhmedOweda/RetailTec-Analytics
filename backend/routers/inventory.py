@@ -34,7 +34,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 from routers.common import (csv_in, q as _q, qdf as _qdf, scoped_stores,
-                            store_filter, trans_store_filter)
+                            store_filter, trans_store_filter, item_fields_sql)
 
 router = APIRouter(tags=["inventory"])
 
@@ -251,12 +251,15 @@ def inv_items(
     stores: Optional[str] = Depends(scoped_stores),
     group_by: str = Query("dept", pattern="^(dept|dcs|vendor|store|item|item_store)$"),
     limit: Optional[int] = Query(None, ge=1),
+    item_fields: Optional[str] = Query(None),   # csv of whitelisted DIM_ITEM cols
 ):
     sf, sp = store_filter(stores)
     base = _inv_base_join(sf)
     # No hardcoded cap: LIMIT applies only when the caller asks for one.
     # `limit` is validated as int by FastAPI, safe to interpolate.
     lim = f"LIMIT {int(limit)}" if limit else ""
+    xf_agg  = item_fields_sql(item_fields, agg=True)
+    xf_plain = item_fields_sql(item_fields)
 
     if group_by == "item":
         return _qdf(f"""
@@ -277,6 +280,7 @@ def inv_items(
                 1) AS gm_pct,
                 ROUND(AVG(FI.COST),   4) AS avg_cost,
                 ROUND(AVG(FI.PRICE1), 4) AS avg_price
+                {xf_agg}
             {base}
             GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE, D.D_NAME
             ORDER BY cost_value DESC
@@ -299,6 +303,7 @@ def inv_items(
                 ROUND(
                   (FI.PRICE1 - FI.COST) / NULLIF(FI.PRICE1, 0) * 100,
                 1) AS gm_pct
+                {xf_plain}
             {base}
             ORDER BY cost_value DESC
             {lim}

@@ -24,6 +24,8 @@ import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
+import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
+import { useAppSettings } from '../../context/AppSettings'
 
 // ── Colours ────────────────────────────────────────────────────────────────────
 const C_PURPLE = '#7c3aed'
@@ -116,6 +118,7 @@ function gmStyle(p: any) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function InventoryOverview() {
+  const { itemFields } = useAppSettings()
   const [stores, setStores] = useState<string[]>([])
   const [view,   setView  ] = useState<'dept'|'dcs'|'vendor'|'store'|'item'|'item_store'>('dept')
 
@@ -169,9 +172,10 @@ export default function InventoryOverview() {
     queryFn:  () => axios.get(`/api/inventory/by-store?${storeQS.slice(1)}`).then(r => r.data),
     gcTime: 1_800_000,
   })
+  const xfQS = view.startsWith('item') ? itemFieldsQS(itemFields) : ''
   const { data: tableData = [] } = useQuery({
-    queryKey: ['inv-items', view, storeQS],
-    queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}${storeQS}`).then(r => r.data),  // no limit — full dataset, grid paginates
+    queryKey: ['inv-items', view, storeQS, xfQS],
+    queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}${storeQS}${xfQS}`).then(r => r.data),  // no limit — full dataset, grid paginates
     gcTime: 1_800_000, refetchOnMount: 'always',
   })
 
@@ -389,6 +393,7 @@ export default function InventoryOverview() {
       qtyCol, costCol, retailCol, gmCol,
       { field: 'avg_cost',  headerName: 'Avg Cost',  width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `${moneyPrefix()}${(+(p.value ?? 0)).toFixed(2)}` },
       { field: 'avg_price', headerName: 'Avg Price', width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `${moneyPrefix()}${(+(p.value ?? 0)).toFixed(2)}` },
+      ...itemFieldCols(itemFields),
     ]
 
     if (view === 'item_store') return [
@@ -401,6 +406,7 @@ export default function InventoryOverview() {
       { field: 'unit_cost',    headerName: 'Unit Cost',  width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `${moneyPrefix()}${(+(p.value ?? 0)).toFixed(2)}` },
       { field: 'unit_price',   headerName: 'Unit Price', width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `${moneyPrefix()}${(+(p.value ?? 0)).toFixed(2)}` },
       costCol, retailCol, gmCol,
+      ...itemFieldCols(itemFields),
     ]
 
     return [  // store
@@ -408,7 +414,7 @@ export default function InventoryOverview() {
       { field: 'store_name', headerName: 'Store', width: 240, pinned: 'left', cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
       skuCol, qtyCol, costCol, retailCol,
     ]
-  }, [tableData, view])
+  }, [tableData, view, itemFields])
 
   const gmColor = gmColorOf(kpi.gmPct)
 

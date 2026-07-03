@@ -12,6 +12,8 @@ import { useRef } from 'react'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
+import { itemFieldCols } from '../../utils/itemFields'
+import { useAppSettings } from '../../context/AppSettings'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
@@ -55,6 +57,7 @@ const GP_META: Record<string, { color: string; desc: string }> = {
 }
 
 export default function DimItems() {
+  const { itemFields } = useAppSettings()
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('dim-items')
   const [dateFrom, setDateFrom] = useState(prior)
@@ -69,11 +72,12 @@ export default function DimItems() {
   const params = {
     date_from: dateFrom, date_to: dateTo, group_by: 'item',
     limit: 500,   // top 500 SKUs by revenue (backend default is 20)
+    ...(itemFields.length ? { item_fields: itemFields.join(',') } : {}),
     ...(stores.length ? { stores: stores.join(',') } : {}),
   }
 
   const { data: raw = [] } = useQuery({
-    queryKey: ['dim-items', dateFrom, dateTo, stores.join(',')],
+    queryKey: ['dim-items', dateFrom, dateTo, stores.join(','), itemFields.join(',')],
     queryFn:  () => axios.get('/api/sales/products', { params }).then(r => r.data),
   })
 
@@ -162,7 +166,8 @@ export default function DimItems() {
       cellStyle: (p: any) => ({ color: +(p.value??0) >= 40 ? C_PURPLE : +(p.value??0) >= 20 ? C_GREEN : +(p.value??0) >= 0 ? C_AMBER : C_ROSE, fontWeight: 700 }) },
     { field: 'gp',           headerName: 'GP $',        width: 110, type: 'numericColumn', valueFormatter: (p: any) => num(p.value) },
     { field: 'qty',          headerName: 'Qty Sold',    width: 90,  type: 'numericColumn', valueFormatter: (p: any) => fmtN(p.value) },
-  ], [])
+    ...itemFieldCols(itemFields),
+  ], [itemFields])
 
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
