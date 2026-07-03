@@ -194,10 +194,10 @@ async def background_loop():
         except Exception as e:
             log.error(f"Background sync error: {e}")
             _sync_state.update(running=False, error=str(e))
-        # Daily report email (no-op unless enabled in Settings → Email)
+        # Scheduled report emails (no-op unless enabled in Settings → Email)
         try:
-            from services.report_email import maybe_send_daily
-            maybe_send_daily()
+            from services.report_email import maybe_send_scheduled
+            maybe_send_scheduled()
         except Exception as e:
-            log.error(f"Daily report check failed: {e}")
+            log.error(f"Report schedule check failed: {e}")
         await asyncio.sleep(60)

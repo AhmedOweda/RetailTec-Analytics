@@ -217,7 +217,7 @@ export default function Products() {
   /* Table data — changes per view tab */
   const { data: tableData,  isLoading: tableLoad  } = useQuery({
     queryKey: ['prod-table',  from, to, view, storesKey],
-    queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=${view}&limit=50${storeQS}`).then(r => r.data),
+    queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=${view}${storeQS}`).then(r => r.data),  // no limit — grid paginates
     ...qOpts,
   })
 

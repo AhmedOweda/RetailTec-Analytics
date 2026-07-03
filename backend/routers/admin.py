@@ -88,17 +88,12 @@ class EmailCfg(BaseModel):
     password:  Optional[str] = None   # None = keep stored password
     from_addr: str = ""
     use_tls:   bool = True
-    # Daily report schedule
-    report_enabled:    bool = False
-    report_time:       str  = "07:00"
-    report_recipients: str  = ""
 
 
 @router.get("/api/admin/email")
 def get_email(_admin: dict = Depends(require_admin)):
     s = load_settings()
     email = s.get("email") or {}
-    rpt = email.get("report") or {}
     return {
         "host":      email.get("host", ""),
         "port":      email.get("port", 587),
@@ -106,10 +101,6 @@ def get_email(_admin: dict = Depends(require_admin)):
         "from_addr": email.get("from_addr", ""),
         "use_tls":   email.get("use_tls", True),
         "has_password": bool(email.get("password")),
-        "report_enabled":    rpt.get("enabled", False),
-        "report_time":       rpt.get("time", "07:00"),
-        "report_recipients": rpt.get("recipients", ""),
-        "report_last_sent":  rpt.get("last_sent"),
     }
 
 
@@ -124,35 +115,56 @@ def put_email(cfg: EmailCfg, _admin: dict = Depends(require_admin)):
     })
     if cfg.password:                       # empty/None = keep existing
         email["password"] = cfg.password
-    rpt = email.get("report") or {}
-    rpt.update({"enabled": cfg.report_enabled,
-                "time": cfg.report_time.strip() or "07:00",
-                "recipients": cfg.report_recipients.strip()})
-    email["report"] = rpt
     s["email"] = email
     save_settings(s)                       # encrypts password at rest (DPAPI)
     return {"ok": True}
 
 
+# ── Scheduled reports (configurable list) ─────────────────────────────────────
+
+class ReportDef(BaseModel):
+    id:         Optional[str] = None
+    type:       str  = "daily_sales"
+    name:       str  = ""
+    time:       str  = "07:00"
+    stores:     str  = ""      # CSV of store names; "" = all stores
+    recipients: str  = ""
+    enabled:    bool = False
+    last_sent:  Optional[str] = None
+
+
+@router.get("/api/admin/reports")
+def list_reports(_admin: dict = Depends(require_admin)):
+    from services.report_email import get_reports, REPORT_TYPES
+    return {"types": REPORT_TYPES, "reports": get_reports()}
+
+
+class ReportsPut(BaseModel):
+    reports: list[ReportDef]
+
+
+@router.put("/api/admin/reports")
+def put_reports(req: ReportsPut, _admin: dict = Depends(require_admin)):
+    from services.report_email import save_reports, REPORT_TYPES
+    for r in req.reports:
+        if r.type not in REPORT_TYPES:
+            raise HTTPException(status_code=400, detail=f"Unknown report type: {r.type}")
+    save_reports([r.dict() for r in req.reports])
+    return {"ok": True}
+
+
 class SendReportReq(BaseModel):
-    to: Optional[str] = None   # CSV; default = saved report recipients
+    report: ReportDef   # send this definition as-is (doesn't have to be saved)
 
 
-@router.post("/api/admin/email/send-report")
+@router.post("/api/admin/reports/send")
 def send_report_now(req: SendReportReq, _admin: dict = Depends(require_admin)):
-    from services.report_email import send_report
-    s = load_settings()
-    rpt = (s.get("email") or {}).get("report") or {}
-    csv = (req.to or rpt.get("recipients") or "").strip()
-    recipients = [r.strip() for r in csv.split(",") if r.strip()]
-    if not recipients:
-        raise HTTPException(status_code=400, detail="No recipients configured")
+    from services.report_email import send_one
     try:
-        subject = send_report(recipients)
+        subject = send_one(req.report.dict())
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Send failed: {e}")
-    return {"ok": True, "message": f"Report sent to {', '.join(recipients)}",
-            "subject": subject}
+    return {"ok": True, "message": f"Sent: {subject}"}
 
 
 class TestEmailReq(BaseModel):

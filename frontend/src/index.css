@@ -35,3 +35,14 @@ body { margin: 0; font-family: 'Manrope', sans-serif; background: #F5F3FB; color
 .react-datepicker__input-container input { width: 100%; background: rgba(78,42,153,0.35); border: 1px solid rgba(155,101,208,0.4); border-radius: 8px; color: white; padding: 7px 10px; font-size: 12px; font-family: 'Manrope', sans-serif; outline: none; }
 .react-datepicker__input-container input:focus { border-color: #9B65D0; }
 .react-datepicker { font-family: 'Manrope', sans-serif !important; border-color: #E3D9F5 !important; }
+
+/* ── AG Grid: wrap header text instead of truncating (e.g. "Return Qty" was
+   clipped to "Ret..." on numeric columns). Applies to every grid. ── */
+.ag-theme-alpine .ag-header-cell-text {
+  white-space: normal !important;
+  line-height: 1.15;
+  text-align: inherit;
+}
+.ag-theme-alpine .ag-header-cell-label {
+  align-items: center;
+}
