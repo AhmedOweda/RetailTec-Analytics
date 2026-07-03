@@ -216,7 +216,12 @@ export default function DataModelSettings() {
   if (loadingSettings) return <Box sx={{ p:3 }}><LinearProgress /></Box>
 
   return (
-    <Box sx={{ p:3, maxWidth:720 }}>
+    <Box sx={{ p:3, maxWidth:720,
+               // Fix: notched-outline labels overlapped the border (legend gap
+               // stayed collapsed after late font load) — force the notch open
+               // for every shrunk label on this page.
+               '& .MuiInputLabel-shrink ~ .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline legend':
+                 { maxWidth: '100%' } }}>
       <Typography variant="h6" sx={{ fontWeight:700, color:'#0f172a', mb:0.5 }}>Settings</Typography>
       <Typography sx={{ fontSize:13, color:'#64748b', mb:3 }}>
         Configure Oracle connection and data model refresh behaviour.
@@ -445,16 +450,9 @@ export default function DataModelSettings() {
           </FormGroup>
         </Box>
 
-        {/* Action buttons */}
+        {/* Load action (contextual to the domain selection above) — the global
+            Save Settings button lives in the sticky bar at the bottom */}
         <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
-          <Button variant="contained" size="small"
-            onClick={() => saveSettings.mutate()}
-            disabled={saveSettings.isPending}
-            sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:600, boxShadow:'none',
-                  '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
-            Save Settings
-          </Button>
-
           {!isRunning ? (
             <Button variant="outlined" size="small"
               onClick={() => fullLoad.mutate()}
@@ -476,16 +474,6 @@ export default function DataModelSettings() {
             </Button>
           )}
         </Box>
-
-        {saveMsg && (
-          <Typography sx={{ fontSize:12, color: saveMsg.includes('Host') ? '#f59e0b' : '#16a34a',
-                            mt:1, fontWeight:600 }}>
-            {saveMsg.includes('Host') ? '⚠ ' : '✓ '}{saveMsg}
-          </Typography>
-        )}
-        {saveErr && (
-          <Alert severity="error" sx={{ mt:1, fontSize:12 }}>{saveErr}</Alert>
-        )}
       </SectionCard>
 
       {/* ── Refresh Schedules & Retention (per domain) ───────────── */}
@@ -563,8 +551,9 @@ export default function DataModelSettings() {
 
                 {sch.mode === 'times' && (
                   <>
-                    <TextField label="Times (HH:MM, comma-separated)" size="small" sx={{ minWidth:230 }}
+                    <TextField label="Times" size="small" sx={{ minWidth:230 }}
                       placeholder="06:00, 12:00, 18:00"
+                      helperText="HH:MM, comma-separated"
                       value={(sch.times ?? []).join(', ')}
                       onChange={e => setSchedule(d.key, {
                         times: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })} />
@@ -643,7 +632,7 @@ export default function DataModelSettings() {
           <Typography sx={{ fontSize:13, color:'#475569' }}>
             {history?.length
               ? `Last run: ${history[0].run_type} · ${history[0].status}` +
-                (history[0].duration_sec ? ` · ${history[0].duration_sec}s` : '')
+                (history[0].duration_sec ? ` · ${fmtDur(history[0].duration_sec)}` : '')
               : 'No sync runs yet.'}
           </Typography>
           <Button variant="outlined" size="small" onClick={() => setHistOpen(true)}
@@ -656,8 +645,44 @@ export default function DataModelSettings() {
 
       <SyncHistoryDialog open={histOpen} onClose={() => setHistOpen(false)}
         history={history ?? []} refetch={refetchHistory} fetching={histFetching} />
+
+      {/* ── Sticky save bar — always visible, no more hunting mid-page ── */}
+      <Box sx={{ position:'sticky', bottom:0, zIndex:10, mt:2, mx:-3, px:3, py:1.5,
+                 bgcolor:'#ffffff', borderTop:'1px solid #e9e4ff',
+                 display:'flex', alignItems:'center', gap:2,
+                 boxShadow:'0 -4px 12px rgba(15,23,42,0.06)' }}>
+        <Button variant="contained"
+          onClick={() => saveSettings.mutate()}
+          disabled={saveSettings.isPending}
+          sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, boxShadow:'none',
+                px:3, '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
+          {saveSettings.isPending ? 'Saving…' : 'Save Settings'}
+        </Button>
+        <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
+          Applies connection, data model and schedule changes
+        </Typography>
+        <Box sx={{ flex:1 }} />
+        {saveMsg && (
+          <Typography sx={{ fontSize:12, color: saveMsg.includes('Host') ? '#f59e0b' : '#16a34a',
+                            fontWeight:600 }}>
+            {saveMsg.includes('Host') ? '⚠ ' : '✓ '}{saveMsg}
+          </Typography>
+        )}
+        {saveErr && (
+          <Typography sx={{ fontSize:12, color:'#ef4444', fontWeight:600 }}>{saveErr}</Typography>
+        )}
+      </Box>
     </Box>
   )
+}
+
+/** 97.2 → "1m 37s" · 52.4 → "52s" · 3675 → "1h 1m" */
+function fmtDur(sec: number | null | undefined): string {
+  if (sec == null) return '-'
+  const s = Math.round(Number(sec))
+  if (s < 60)   return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
 }
 
 
@@ -726,7 +751,7 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
             <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Range</Typography>
             <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Started</Typography>
             <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Status</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right', position:'sticky', top:0, bgcolor:'#fff' }}>Secs</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right', position:'sticky', top:0, bgcolor:'#fff' }}>Duration</Typography>
             {rows.map((r: any) => (
               <Box key={r.run_id} sx={{ display:'contents' }}>
                 <Typography sx={{ color:'#0f172a', fontWeight:600 }}>{r.run_type}</Typography>
@@ -739,7 +764,7 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
                     { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '-'}
                 </Typography>
                 <Typography sx={{ color:statusColor(r.status), fontWeight:600 }}>{r.status}</Typography>
-                <Typography sx={{ color:'#475569', textAlign:'right' }}>{r.duration_sec ?? '-'}</Typography>
+                <Typography sx={{ color:'#475569', textAlign:'right' }}>{fmtDur(r.duration_sec)}</Typography>
               </Box>
             ))}
             {rows.length === 0 && (
