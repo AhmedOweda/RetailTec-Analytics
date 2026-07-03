@@ -96,7 +96,7 @@ def _decrypt_password(pw: str) -> str:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def load_settings() -> dict:
-    """Read settings.json; the returned dict always has a PLAINTEXT password
+    """Read settings.json; the returned dict always has PLAINTEXT passwords
     (decrypted in memory only)."""
     if not SETTINGS_FILE.exists():
         return json.loads(json.dumps(_DEFAULTS))
@@ -104,6 +104,9 @@ def load_settings() -> dict:
     conn = data.get("connection", {})
     stored = conn.get("password", "")
     conn["password"] = _decrypt_password(stored)
+    email = data.get("email")
+    if email and email.get("password"):
+        email["password"] = _decrypt_password(email["password"])
     # Transparent migration: re-save plaintext files encrypted
     if stored and not stored.startswith(_DPAPI_PREFIX) and _dpapi_available():
         try:
@@ -114,9 +117,12 @@ def load_settings() -> dict:
 
 
 def save_settings(data: dict) -> None:
-    """Write settings.json, encrypting the password at rest."""
+    """Write settings.json, encrypting passwords at rest."""
     out = json.loads(json.dumps(data, default=str))
     conn = out.get("connection", {})
     if conn.get("password"):
         conn["password"] = _encrypt_password(conn["password"])
+    email = out.get("email")
+    if email and email.get("password"):
+        email["password"] = _encrypt_password(email["password"])
     SETTINGS_FILE.write_text(json.dumps(out, indent=2, default=str))

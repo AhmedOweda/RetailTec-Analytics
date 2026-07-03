@@ -433,11 +433,13 @@ export default function DataModelSettings() {
 
         {/* Domain selector */}
         <Box sx={{ mb:2 }}>
-          <Typography sx={{ fontSize:12, fontWeight:600, color:'#475569', mb:1 }}>
-            Domains to load
-            <Typography component="span" sx={{ fontSize:11, color:'#94a3b8', ml:1, fontWeight:400 }}>
-              (leave all unchecked to load everything)
-            </Typography>
+          <Typography sx={{ fontSize:12, fontWeight:700, color:'#475569' }}>
+            Manual load — one-time pull from Oracle
+          </Typography>
+          <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1 }}>
+            Runs once, right now. How far back each domain goes is its
+            <b> Load window</b> in “Refresh Schedules &amp; Retention” below.
+            Tick domains to load only those — all unchecked = everything.
           </Typography>
           <FormGroup row sx={{ gap:1 }}>
             {DOMAINS.map(d => (
@@ -477,8 +479,8 @@ export default function DataModelSettings() {
               sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
                     '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
               {selDomains.size > 0
-                ? `Load ${[...selDomains].join(' + ')} (last ${dm.domains.sales?.load_days ?? 365} days)`
-                : `Load All Data (last ${dm.domains.sales?.load_days ?? 365} days)`}
+                ? `Load ${[...selDomains].join(' + ')} now`
+                : 'Load All Data now'}
             </Button>
           ) : (
             <Button variant="outlined" size="small"
@@ -496,10 +498,12 @@ export default function DataModelSettings() {
       {/* ── Refresh Schedules & Retention (per domain) ───────────── */}
       <SectionCard title="Refresh Schedules & Retention" icon={<ScheduleIcon />}>
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-          Each domain refreshes on its own schedule: specific times on
-          selected days, a fixed interval, or manual only. Retention prunes old
-          line-item detail while keeping daily summaries forever.
-          Times use the timezone selected above. Remember to <b>Save Settings</b>.
+          Controls the <b>automatic</b> refresh of each domain: at specific times on
+          selected days, on a fixed interval, or manual only. The <b>Load window </b>
+          here sets how far back that domain keeps data — it is also the period the
+          manual “Load now” button above pulls. Retention prunes old line-item
+          detail while keeping daily summaries forever. Times use the timezone
+          selected above. Remember to <b>Save Settings</b>.
         </Typography>
 
         {DOMAINS.map(d => {
