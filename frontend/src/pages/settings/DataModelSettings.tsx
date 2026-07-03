@@ -806,7 +806,9 @@ function MaintenanceCard() {
 /* ── Email (SMTP) card ───────────────────────────────────────────────────────── */
 function EmailCard() {
   const [cfg, setCfg] = useState({ host:'', port:587, username:'', password:'',
-                                   from_addr:'', use_tls:true, has_password:false })
+                                   from_addr:'', use_tls:true, has_password:false,
+                                   report_enabled:false, report_time:'07:00',
+                                   report_recipients:'', report_last_sent:null as string | null })
   const [testTo, setTestTo] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -824,6 +826,9 @@ function EmailCard() {
       host: cfg.host, port: +cfg.port, username: cfg.username,
       password: cfg.password || null,   // empty = keep stored
       from_addr: cfg.from_addr, use_tls: cfg.use_tls,
+      report_enabled: cfg.report_enabled,
+      report_time: cfg.report_time,
+      report_recipients: cfg.report_recipients,
     }),
     onSuccess: () => { setErr(null); setMsg('Email settings saved') },
     onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Save failed') },
@@ -832,6 +837,11 @@ function EmailCard() {
     mutationFn: () => axios.post('/api/admin/email/test', { to: testTo.trim() }),
     onSuccess: r => { setErr(null); setMsg(r.data.message) },
     onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Test failed') },
+  })
+  const sendReport = useMutation({
+    mutationFn: () => axios.post('/api/admin/email/send-report', {}),
+    onSuccess: r => { setErr(null); setMsg(r.data.message) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Report failed') },
   })
 
   return (
@@ -884,6 +894,42 @@ function EmailCard() {
           {test.isPending ? 'Sending…' : 'Send Test Email'}
         </Button>
       </Box>
+      {/* ── Daily report schedule ── */}
+      <Box sx={{ mt:3, pt:2, borderTop:'1px dashed #e2e8f0' }}>
+        <Box sx={{ display:'flex', alignItems:'center', gap:1.5, mb:1 }}>
+          <FormControlLabel sx={{ mr:0 }}
+            control={<Switch size="small" checked={cfg.report_enabled}
+              onChange={e => setCfg({ ...cfg, report_enabled: e.target.checked })} />}
+            label={<Typography sx={{ fontSize:13, fontWeight:700 }}>Daily sales report</Typography>} />
+          {cfg.report_last_sent && (
+            <Typography sx={{ fontSize:11, color:'#94a3b8' }}>last sent {cfg.report_last_sent}</Typography>
+          )}
+        </Box>
+        <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1.5 }}>
+          Emails yesterday's net sales, transactions, returns, top stores and top
+          items every morning. Save Email Settings to apply.
+        </Typography>
+        <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
+          <LabeledCtl label="Send at">
+            <TextField size="small" type="time" sx={{ width:130 }}
+              value={cfg.report_time}
+              onChange={e => setCfg({ ...cfg, report_time: e.target.value })} />
+          </LabeledCtl>
+          <LabeledCtl label="Recipients (comma-separated)">
+            <TextField size="small" sx={{ minWidth:320 }}
+              placeholder="owner@company.com, manager@company.com"
+              value={cfg.report_recipients}
+              onChange={e => setCfg({ ...cfg, report_recipients: e.target.value })} />
+          </LabeledCtl>
+          <Button variant="outlined" size="small"
+            disabled={sendReport.isPending || !cfg.report_recipients.trim()}
+            onClick={() => sendReport.mutate()}
+            sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
+            {sendReport.isPending ? 'Sending…' : 'Send Report Now'}
+          </Button>
+        </Box>
+      </Box>
+
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
       {err && <Alert severity="error" sx={{ mt:1.5, fontSize:12 }}>{err}</Alert>}
     </SectionCard>
