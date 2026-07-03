@@ -253,13 +253,26 @@ export default function InventoryOverview() {
         },
       },
       series: [{
-        type: 'sunburst', data, radius: ['18%', '92%'], sort: undefined, nodeClick: 'rootToNode',
+        // Readability: labels only on slices wide enough to read (minAngle);
+        // the outer subclass ring is unlabeled at root — click a department
+        // to zoom in and its class/subclass labels become large and readable.
+        // Everything is always available in the tooltip.
+        type: 'sunburst', data, radius: ['20%', '90%'], sort: 'desc', nodeClick: 'rootToNode',
         emphasis: { focus: 'ancestor', itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' } },
+        label: { minAngle: 14 },
         levels: [
           {},
-          { r0: '18%', r: '42%', label: { rotate: 'tangential', fontSize: 10, color: '#fff', fontWeight: 700, overflow: 'truncate' }, itemStyle: { borderWidth: 2, borderColor: '#fff' } },
-          { r0: '43%', r: '68%', label: { fontSize: 9, color: '#fff', minAngle: 6 }, itemStyle: { borderWidth: 1, borderColor: '#fff' } },
-          { r0: '69%', r: '92%', label: { position: 'outside', fontSize: 8, color: '#475569', minAngle: 8 } },
+          { r0: '20%', r: '50%',
+            label: { rotate: 'tangential', fontSize: 11, color: '#fff', fontWeight: 700,
+                     minAngle: 10, overflow: 'truncate', width: 80 },
+            itemStyle: { borderWidth: 2, borderColor: '#fff' } },
+          { r0: '51%', r: '74%',
+            label: { rotate: 'radial', fontSize: 10, color: '#fff',
+                     minAngle: 14, overflow: 'truncate', width: 70 },
+            itemStyle: { borderWidth: 1.5, borderColor: '#fff' } },
+          { r0: '75%', r: '90%',
+            label: { show: false },
+            itemStyle: { borderWidth: 1, borderColor: '#fff', opacity: 0.85 } },
         ],
       }],
     }
@@ -466,7 +479,9 @@ export default function InventoryOverview() {
         {/* ── Row 1: Treemap + Sunburst ── */}
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 2 }}>
           <ChartCard title="Stock by Department" subtitle="Block size = cost value · colour = dept" option={treemapOpt} height={340} />
-          <ChartCard title="DCS Hierarchy — Drill-down Sunburst" subtitle="Dept › Class › Subclass · click to drill · click centre to go up" option={sunburstOpt} height={340} />
+          <ChartCard title="DCS Hierarchy — Drill-down Sunburst"
+            subtitle="Dept › Class › Subclass · click a department to zoom in (labels get readable) · click centre to go back · hover for details"
+            option={sunburstOpt} height={340} />
         </Box>
 
         {/* ── Row 2: Vendor Bar + Store Bar ── */}

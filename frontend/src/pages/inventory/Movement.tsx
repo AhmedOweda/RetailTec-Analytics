@@ -174,7 +174,7 @@ export default function InventoryMovement() {
 
   const { data: tableData = [] } = useQuery({
     queryKey: ['mv-table', view, ...qKey],
-    queryFn:  () => axios.get(`/api/inventory/movement-by?group_by=${view}&limit=50&${dateQS}${storeQS}`).then(r => r.data),
+    queryFn:  () => axios.get(`/api/inventory/movement-by?group_by=${view}&${dateQS}${storeQS}`).then(r => r.data),  // no limit — grid paginates
     gcTime: 1_800_000, refetchOnMount: 'always',
   })
 
@@ -251,12 +251,14 @@ export default function InventoryMovement() {
     const cumPct   = sorted.map(r => { cum += +(r.revenue ?? 0); return total > 0 ? +((cum / total) * 100).toFixed(1) : 0 })
     return {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      legend: { top: 0, right: 0, textStyle: { fontSize: 11 } },
-      grid: { top: 28, right: 60, bottom: 36, left: 8, containLabel: true },
+      // legend centred + no axis names: they collided with the legend and the
+      // % labels in the top-right corner
+      legend: { top: 0, left: 'center', textStyle: { fontSize: 11 } },
+      grid: { top: 34, right: 48, bottom: 36, left: 8, containLabel: true },
       xAxis: { type: 'category', data: names, axisLabel: { color: C_SLATE, fontSize: 10, rotate: 20, interval: 0 } },
       yAxis: [
-        { type: 'value', name: 'Revenue', axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => num(v) } },
-        { type: 'value', name: 'Cum %', max: 100, axisLabel: { color: C_CYAN, fontSize: 10, formatter: (v: number) => `${v}%` } },
+        { type: 'value', axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => num(v) } },
+        { type: 'value', max: 100, axisLabel: { color: C_CYAN, fontSize: 10, formatter: (v: number) => `${v}%` } },
       ],
       series: [
         { name: 'Revenue', type: 'bar', data: revs, barMaxWidth: 30,
@@ -264,7 +266,8 @@ export default function InventoryMovement() {
         { name: 'Cumulative %', type: 'line', yAxisIndex: 1, data: cumPct, smooth: false,
           lineStyle: { color: C_CYAN, width: 2, type: 'dashed' },
           itemStyle: { color: C_CYAN }, symbol: 'circle', symbolSize: 6,
-          markLine: { silent: true, lineStyle: { color: C_AMBER, type: 'dashed' }, data: [{ yAxis: 80, name: '80%' }], label: { formatter: '80%', color: C_AMBER } } },
+          markLine: { silent: true, lineStyle: { color: C_AMBER, type: 'dashed' }, data: [{ yAxis: 80, name: '80%' }],
+                      label: { formatter: '80%', color: C_AMBER, position: 'insideStartTop' } } },
       ],
     }
   }, [deptData])

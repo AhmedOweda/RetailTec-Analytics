@@ -9,8 +9,12 @@ import {
   ToggleButtonGroup, ToggleButton, Switch,
   Checkbox, FormGroup, FormControlLabel, Tooltip,
   Dialog, DialogTitle, DialogContent,
+  Collapse, IconButton, Autocomplete,
 } from '@mui/material'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
+import ExpandMoreIcon   from '@mui/icons-material/ExpandMore'
+import DeleteIcon       from '@mui/icons-material/Delete'
+import AddIcon          from '@mui/icons-material/Add'
 import ErrorIcon        from '@mui/icons-material/Error'
 import SyncIcon         from '@mui/icons-material/Sync'
 import StopIcon         from '@mui/icons-material/Stop'
@@ -110,14 +114,30 @@ function LabeledCtl({ label, children }:
 
 function SectionCard({ title, icon, children }:
   { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+  // Collapsible: state remembered per section
+  const storageKey = `settings-card-${title.replace(/\W+/g, '-')}`
+  const [open, setOpen] = useState<boolean>(
+    () => localStorage.getItem(storageKey) !== 'closed')
+  const toggle = () => {
+    setOpen(o => {
+      localStorage.setItem(storageKey, o ? 'closed' : 'open')
+      return !o
+    })
+  }
   return (
     <Card elevation={0} sx={{ border:'1px solid #e2e8f0', borderRadius:2, mb:3 }}>
-      <CardContent sx={{ p:3, '&:last-child':{ pb:3 } }}>
-        <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:2.5 }}>
+      <CardContent sx={{ p:3, '&:last-child':{ pb: open ? 3 : 2 } }}>
+        <Box onClick={toggle}
+          sx={{ display:'flex', alignItems:'center', gap:1, mb: open ? 2.5 : 0,
+                cursor:'pointer', userSelect:'none',
+                '&:hover .sc-chevron': { color:'#0f172a' } }}>
           <Box sx={{ color:ACCENT }}>{icon}</Box>
-          <Typography sx={{ fontWeight:700, fontSize:15, color:'#0f172a' }}>{title}</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:15, color:'#0f172a', flex:1 }}>{title}</Typography>
+          <ExpandMoreIcon className="sc-chevron"
+            sx={{ color:'#94a3b8', transition:'transform 0.2s',
+                  transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
         </Box>
-        {children}
+        <Collapse in={open} timeout={200}>{children}</Collapse>
       </CardContent>
     </Card>
   )
@@ -725,6 +745,9 @@ export default function DataModelSettings() {
       {/* ── Email (SMTP) ──────────────────────────────────────────── */}
       <EmailCard />
 
+      {/* ── Scheduled reports (per-store, per-type) ──────────────── */}
+      <ReportsCard />
+
       <SyncHistoryDialog open={histOpen} onClose={() => setHistOpen(false)}
         history={history ?? []} refetch={refetchHistory} fetching={histFetching} />
 
@@ -806,9 +829,7 @@ function MaintenanceCard() {
 /* ── Email (SMTP) card ───────────────────────────────────────────────────────── */
 function EmailCard() {
   const [cfg, setCfg] = useState({ host:'', port:587, username:'', password:'',
-                                   from_addr:'', use_tls:true, has_password:false,
-                                   report_enabled:false, report_time:'07:00',
-                                   report_recipients:'', report_last_sent:null as string | null })
+                                   from_addr:'', use_tls:true, has_password:false })
   const [testTo, setTestTo] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -826,9 +847,6 @@ function EmailCard() {
       host: cfg.host, port: +cfg.port, username: cfg.username,
       password: cfg.password || null,   // empty = keep stored
       from_addr: cfg.from_addr, use_tls: cfg.use_tls,
-      report_enabled: cfg.report_enabled,
-      report_time: cfg.report_time,
-      report_recipients: cfg.report_recipients,
     }),
     onSuccess: () => { setErr(null); setMsg('Email settings saved') },
     onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Save failed') },
@@ -837,11 +855,6 @@ function EmailCard() {
     mutationFn: () => axios.post('/api/admin/email/test', { to: testTo.trim() }),
     onSuccess: r => { setErr(null); setMsg(r.data.message) },
     onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Test failed') },
-  })
-  const sendReport = useMutation({
-    mutationFn: () => axios.post('/api/admin/email/send-report', {}),
-    onSuccess: r => { setErr(null); setMsg(r.data.message) },
-    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Report failed') },
   })
 
   return (
@@ -894,40 +907,137 @@ function EmailCard() {
           {test.isPending ? 'Sending…' : 'Send Test Email'}
         </Button>
       </Box>
-      {/* ── Daily report schedule ── */}
-      <Box sx={{ mt:3, pt:2, borderTop:'1px dashed #e2e8f0' }}>
-        <Box sx={{ display:'flex', alignItems:'center', gap:1.5, mb:1 }}>
-          <FormControlLabel sx={{ mr:0 }}
-            control={<Switch size="small" checked={cfg.report_enabled}
-              onChange={e => setCfg({ ...cfg, report_enabled: e.target.checked })} />}
-            label={<Typography sx={{ fontSize:13, fontWeight:700 }}>Daily sales report</Typography>} />
-          {cfg.report_last_sent && (
-            <Typography sx={{ fontSize:11, color:'#94a3b8' }}>last sent {cfg.report_last_sent}</Typography>
-          )}
+      {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
+      {err && <Alert severity="error" sx={{ mt:1.5, fontSize:12 }}>{err}</Alert>}
+    </SectionCard>
+  )
+}
+
+/* ── Scheduled reports card: configurable list with store scope ─────────────── */
+interface ReportDef {
+  id?: string; type: string; name: string; time: string
+  stores: string; recipients: string; enabled: boolean; last_sent?: string | null
+}
+
+function ReportsCard() {
+  const [reports, setReports] = useState<ReportDef[]>([])
+  const [types,   setTypes]   = useState<Record<string, string>>({})
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  useQuery({
+    queryKey: ['email-reports'],
+    queryFn: () => axios.get('/api/admin/reports').then(r => {
+      setTypes(r.data.types); setReports(r.data.reports); return r.data
+    }),
+  })
+  const { data: storeList = [] } = useQuery<string[]>({
+    queryKey: ['stores-list'],
+    queryFn:  () => axios.get('/api/sales/stores-list').then(r => r.data),
+    staleTime: Infinity,
+  })
+
+  const save = useMutation({
+    mutationFn: () => axios.put('/api/admin/reports', { reports }),
+    onSuccess: () => { setErr(null); setMsg('Report schedules saved') },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Save failed') },
+  })
+  const sendNow = useMutation({
+    mutationFn: (r: ReportDef) => axios.post('/api/admin/reports/send', { report: r }),
+    onSuccess: r => { setErr(null); setMsg(r.data.message) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Send failed') },
+  })
+
+  const upd = (i: number, patch: Partial<ReportDef>) =>
+    setReports(rs => rs.map((r, j) => j === i ? { ...r, ...patch } : r))
+
+  const addReport = () => setReports(rs => [...rs, {
+    type: 'daily_sales', name: `Report ${rs.length + 1}`, time: '07:00',
+    stores: '', recipients: '', enabled: false,
+  }])
+
+  return (
+    <SectionCard title="Scheduled Reports" icon={<ScheduleIcon />}>
+      <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+        Each report has its own type, send time, store scope and recipients —
+        e.g. a morning sales report for all stores to the owner, plus a separate
+        one per branch manager scoped to their store. Uses the SMTP settings
+        above. Remember to <b>Save Report Schedules</b>.
+      </Typography>
+
+      {reports.map((r, i) => (
+        <Box key={r.id ?? i}
+          sx={{ border:'1px solid #e2e8f0', borderRadius:1.5, p:1.5, mb:1.5,
+                opacity: r.enabled ? 1 : 0.6 }}>
+          <Box sx={{ display:'flex', gap:1.5, alignItems:'flex-end', flexWrap:'wrap', mb:1 }}>
+            <FormControlLabel sx={{ mr:0 }}
+              control={<Switch size="small" checked={r.enabled}
+                onChange={e => upd(i, { enabled: e.target.checked })} />}
+              label={<Typography sx={{ fontSize:12.5, fontWeight:700 }}>Enabled</Typography>} />
+            <LabeledCtl label="Name">
+              <TextField size="small" sx={{ width:160 }} value={r.name}
+                onChange={e => upd(i, { name: e.target.value })} />
+            </LabeledCtl>
+            <LabeledCtl label="Report type">
+              <FormControl size="small" sx={{ minWidth:230 }}>
+                <Select value={r.type} onChange={e => upd(i, { type: String(e.target.value) })}>
+                  {Object.entries(types).map(([k, label]) =>
+                    <MenuItem key={k} value={k}>{label}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </LabeledCtl>
+            <LabeledCtl label="Send at">
+              <TextField size="small" type="time" sx={{ width:120 }} value={r.time}
+                onChange={e => upd(i, { time: e.target.value })} />
+            </LabeledCtl>
+            {r.last_sent && (
+              <Typography sx={{ fontSize:11, color:'#94a3b8', mb:0.7 }}>last sent {r.last_sent}</Typography>
+            )}
+            <Box sx={{ flex:1 }} />
+            <Tooltip title="Delete report">
+              <IconButton size="small" onClick={() => setReports(rs => rs.filter((_, j) => j !== i))}>
+                <DeleteIcon sx={{ fontSize:17, color:'#ef4444' }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <Box sx={{ display:'flex', gap:1.5, alignItems:'flex-end', flexWrap:'wrap' }}>
+            <LabeledCtl label="Stores (empty = all stores)">
+              <Autocomplete
+                multiple disableCloseOnSelect size="small"
+                options={storeList}
+                value={r.stores ? r.stores.split(',').map(s => s.trim()).filter(Boolean) : []}
+                onChange={(_, v) => upd(i, { stores: v.join(', ') })}
+                renderInput={p => <TextField {...p} placeholder="All Stores" size="small" sx={{ minWidth:260 }} />}
+                sx={{ minWidth:260 }}
+              />
+            </LabeledCtl>
+            <LabeledCtl label="Recipients (comma-separated)">
+              <TextField size="small" sx={{ minWidth:280 }}
+                placeholder="owner@company.com, manager@company.com"
+                value={r.recipients}
+                onChange={e => upd(i, { recipients: e.target.value })} />
+            </LabeledCtl>
+            <Button variant="outlined" size="small"
+              disabled={sendNow.isPending || !r.recipients.trim()}
+              onClick={() => sendNow.mutate(r)}
+              sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
+              Send Now
+            </Button>
+          </Box>
         </Box>
-        <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1.5 }}>
-          Emails yesterday's net sales, transactions, returns, top stores and top
-          items every morning. Save Email Settings to apply.
-        </Typography>
-        <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
-          <LabeledCtl label="Send at">
-            <TextField size="small" type="time" sx={{ width:130 }}
-              value={cfg.report_time}
-              onChange={e => setCfg({ ...cfg, report_time: e.target.value })} />
-          </LabeledCtl>
-          <LabeledCtl label="Recipients (comma-separated)">
-            <TextField size="small" sx={{ minWidth:320 }}
-              placeholder="owner@company.com, manager@company.com"
-              value={cfg.report_recipients}
-              onChange={e => setCfg({ ...cfg, report_recipients: e.target.value })} />
-          </LabeledCtl>
-          <Button variant="outlined" size="small"
-            disabled={sendReport.isPending || !cfg.report_recipients.trim()}
-            onClick={() => sendReport.mutate()}
-            sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
-            {sendReport.isPending ? 'Sending…' : 'Send Report Now'}
-          </Button>
-        </Box>
+      ))}
+
+      <Box sx={{ display:'flex', gap:2 }}>
+        <Button size="small" startIcon={<AddIcon />} onClick={addReport}
+          sx={{ textTransform:'none', color:ACCENT, fontWeight:600 }}>
+          Add Report
+        </Button>
+        <Button variant="contained" size="small" disabled={save.isPending}
+          onClick={() => save.mutate()}
+          sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:600, boxShadow:'none',
+                '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
+          Save Report Schedules
+        </Button>
       </Box>
 
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
