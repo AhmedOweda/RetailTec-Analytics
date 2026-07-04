@@ -58,3 +58,7 @@ package-lock.json
 # JWT signing secret (auto-generated)
 backend/.jwt_secret
 backend/backups/
+packaging/out/
+packaging/work/
+packaging/*.spec
+backend/webapp/
