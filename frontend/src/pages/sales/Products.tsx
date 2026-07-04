@@ -345,75 +345,57 @@ export default function Products() {
             .slice(1)
             .map((n: any) => n.name)
             .join(' › ')
-          const gc = DEPT_COLORS[0]
           return `<div style="min-width:190px">
             <b>${path || p.name}</b><br/>
             Revenue: <b>${(+p.value).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
-            <span style="font-size:10px;color:#94a3b8">Click to drill down · Click center to go up</span>
+            <span style="font-size:10px;color:#94a3b8">Click a box to drill down · breadcrumb to go back</span>
           </div>`
         },
       },
       series: [{
-        type:      'sunburst',
+        type:          'treemap',
         data,
-        radius:    ['18%', '92%'],
-        sort:      undefined,
-        nodeClick: 'rootToNode',
-
-        emphasis: {
-          focus:     'ancestor',
-          itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.25)' },
-        },
-
-        levels: [
-          /* Level 0 — root (invisible center) */
-          {},
-          /* Level 1 — Departments (inner ring) */
-          {
-            r0: '15%', r: '45%',
-            label: {
-              rotate:     'radial',
-              fontSize:   11,
-              color:      '#fff',
-              fontWeight: 700,
-              overflow:   'truncate',
-              minAngle:   4,          // hide labels on slivers too thin to read
-            },
-            itemStyle: { borderWidth: 2, borderColor: '#fff' },
-          },
-          /* Level 2 — Classes (middle ring) */
-          {
-            r0: '46%', r: '72%',
-            label: {
-              rotate:    'radial',
-              fontSize:  10,
-              color:     '#fff',
-              fontWeight: 600,
-              overflow:  'truncate',
-              minAngle:  14,          // only label classes with a meaningful slice
-            },
-            itemStyle: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' },
-          },
-          /* Level 3 — Subclasses (outer ring) */
-          {
-            r0: '73%', r: '98%',
-            label: {
-              position:  'inside',    // radial inside labels instead of messy outside spokes
-              rotate:    'radial',
-              fontSize:  9,
-              color:     '#fff',
-              overflow:  'truncate',
-              minAngle:  22,          // most subclasses stay unlabelled until you drill in
-            },
-            itemStyle: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.45)' },
-          },
-        ],
-
+        roam:          false,
+        nodeClick:     'zoomToNode',
+        leafDepth:     2,            // show Dept → Class at once; click to drill into Subclass
+        drillDownIcon: '▸',
+        width:  '100%', height: '100%',
+        top: 4, left: 4, right: 4, bottom: 26,
+        visibleMin: 300,            // suppress unreadable slivers; still reachable via drill
         label: {
+          show:            true,
+          formatter:       '{b}',
           color:           '#fff',
-          textBorderColor: 'rgba(0,0,0,0.35)',   // halo keeps text legible on light fills
+          fontSize:        12,
+          fontWeight:      600,
+          overflow:        'truncate',
+          textBorderColor: 'rgba(0,0,0,0.35)',
           textBorderWidth: 2,
         },
+        upperLabel: {                // parent-name band when a level contains children
+          show:            true,
+          height:          22,
+          color:           '#fff',
+          fontSize:        12,
+          fontWeight:      700,
+          textBorderColor: 'rgba(0,0,0,0.30)',
+          textBorderWidth: 2,
+        },
+        itemStyle: { borderColor: '#fff', borderWidth: 2, gapWidth: 2 },
+        emphasis:  { upperLabel: { color: '#fff' } },
+        breadcrumb: {
+          show: true, height: 22, bottom: 0,
+          itemStyle: { color: '#ede9fe', borderColor: '#ddd6fe',
+                       textStyle: { color: '#5b21b6', fontSize: 11 } },
+          emphasis:  { itemStyle: { color: '#ddd6fe' } },
+        },
+        levels: [
+          { itemStyle: { borderColor: '#fff', borderWidth: 3, gapWidth: 3 } },
+          { colorSaturation: [0.32, 0.55],
+            itemStyle: { borderColor: '#fff', borderColorSaturation: 0.6, borderWidth: 2, gapWidth: 2 } },
+          { colorSaturation: [0.25, 0.48],
+            itemStyle: { borderColorSaturation: 0.5, borderWidth: 1, gapWidth: 1 } },
+        ],
       }],
     }
   }, [dcsData])
@@ -644,8 +626,8 @@ export default function Products() {
           loading={deptLoad}
         />
         <ChartCard
-          title="DCS Hierarchy — Drill-down Sunburst"
-          subtitle="Department › Class › Subclass · click segment to drill down · click centre to go up"
+          title="DCS Hierarchy — Treemap"
+          subtitle="Department › Class › Subclass · click a box to drill down · breadcrumb to go back"
           option={sunburstOpt}
           height={440}
           loading={dcsLoad}

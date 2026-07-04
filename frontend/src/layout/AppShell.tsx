@@ -250,7 +250,13 @@ export default function AppShell() {
   // First-run wizard: admins only, when the install has never completed setup.
   // Gated on an explicit `false` so a still-loading query never flashes it.
   const [wizardDismissed, setWizardDismissed] = useState(false)
-  const showWizard = isAdmin && !wizardDismissed && brandSettings?.setup_complete === false
+  // Only for a genuinely fresh install: setup not completed AND nothing ever
+  // loaded (no prior sync). Existing installs that already have data — even if
+  // the older settings file predates the setup_complete flag — never see it.
+  const showWizard = isAdmin && !wizardDismissed
+    && brandSettings?.setup_complete === false
+    && !brandSettings?.last_sync
+    && (brandSettings?.model_status ?? 'empty') === 'empty'
 
   return (
     <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
