@@ -191,7 +191,7 @@ export default function PurchasesOverview() {
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     series: [{ type: 'pie', radius: ['45%', '68%'],
       data: (statusQ.data ?? []).map((r, i) => ({
-        name: r.status_label, value: r.vou_count,
+        name: tr(r.status_label), value: r.vou_count,
         itemStyle: { color: [C.amber, C.green][i] ?? C.blue },
       })),
       label: { fontSize: 11 }, emphasis: { itemStyle: { shadowBlur: 10 } },
@@ -225,10 +225,10 @@ export default function PurchasesOverview() {
             ))}
           </Stack>
 
-          <TextField size="small" label="From" type="date" value={dateFrom}
+          <TextField size="small" label={tr('From')} type="date" value={dateFrom}
             onChange={e => { setDateFrom(e.target.value); setPreset('') }}
             InputLabelProps={{ shrink: true }} sx={{ width: 148 }} />
-          <TextField size="small" label="To" type="date" value={dateTo}
+          <TextField size="small" label={tr('To')} type="date" value={dateTo}
             onChange={e => { setDateTo(e.target.value); setPreset('') }}
             InputLabelProps={{ shrink: true }} sx={{ width: 148 }} />
 
@@ -313,7 +313,7 @@ export default function PurchasesOverview() {
       <Grid container spacing={2} sx={{ mt: 0, mb: 2 }}>
         <Grid item xs={12} md={6}>
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>Cost by Store</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>{tr('Cost by Store')}</Typography>
             {storeQ.isLoading
               ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
               : <ReactECharts option={storeOpt} style={{ height: 260 }} />
@@ -322,7 +322,7 @@ export default function PurchasesOverview() {
         </Grid>
         <Grid item xs={12} md={6}>
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>PO Status Split</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>{tr('PO Status Split')}</Typography>
             {statusQ.isLoading
               ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
               : (
@@ -331,7 +331,7 @@ export default function PurchasesOverview() {
                   <Box sx={{ display: 'flex', gap: 4, justifyContent: 'center', mt: 1 }}>
                     {(statusQ.data ?? []).map(r => (
                       <Box key={r.status_label} sx={{ textAlign: 'center' }}>
-                        <Typography sx={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{r.status_label}</Typography>
+                        <Typography sx={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{tr(r.status_label)}</Typography>
                         <Typography sx={{ fontSize: 20, fontWeight: 800, color: r.status === 4 ? C.green : C.amber }}>
                           {fmt(r.vou_count)}
                         </Typography>
