@@ -116,3 +116,25 @@ def health():
 def cache_status():
     """Kept for backward-compat (Electron health check uses this endpoint)."""
     return {"status": "ok"}
+
+
+# ── Bundled frontend (production) ───────────────────────────────────────────
+# When a built SPA sits in ./webapp (packaged installs), serve it from this
+# process — one port, no Node/Vite at runtime. API routes above take priority;
+# any other path falls back to index.html (client-side routing).
+from pathlib import Path as _Path
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+_WEBAPP = _Path(__file__).parent / "webapp"
+if _WEBAPP.exists():
+    app.mount("/assets", StaticFiles(directory=_WEBAPP / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        target = _WEBAPP / full_path
+        if full_path and target.is_file():
+            return FileResponse(target)
+        return FileResponse(_WEBAPP / "index.html")
+
+    log.info(f"Serving bundled frontend from {_WEBAPP}")
