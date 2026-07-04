@@ -34,6 +34,7 @@ import axios             from 'axios'
 import { useAuth }       from '../contexts/AuthContext'
 import { useTranslation } from 'react-i18next'
 import { parsePages, pageAllowed, firstAllowedPage } from '../utils/pages'
+import FirstRunWizard from '../components/FirstRunWizard'
 
 // ── Brand colours ──────────────────────────────────────────────────────────
 const SIDEBAR_BG   = '#160b33'
@@ -246,11 +247,19 @@ export default function AppShell() {
   const brandName: string = brandSettings?.brand_name || 'RetailTec Analytics'
   const brandLogo: string = brandSettings?.brand_logo || ''
 
+  // First-run wizard: admins only, when the install has never completed setup.
+  // Gated on an explicit `false` so a still-loading query never flashes it.
+  const [wizardDismissed, setWizardDismissed] = useState(false)
+  const showWizard = isAdmin && !wizardDismissed && brandSettings?.setup_complete === false
+
   return (
     <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
 
       {/* Blocks everything while the account is on the default password */}
       <ForcePasswordDialog />
+
+      {/* One-time first-run setup wizard (skippable, admins only) */}
+      {showWizard && <FirstRunWizard onDone={() => setWizardDismissed(true)} />}
 
       {/* ── Sidebar ──────────────────────────────────────────────────── */}
       <Box sx={{

@@ -30,6 +30,10 @@ _DEFAULTS = {
     # base64 data-URL or file path shown in the app header/sidebar.
     "brand_name":   "RetailTec Analytics",
     "brand_logo":   "",
+    # First-run + maintenance. auto_maintenance defaults ON for NEW installs
+    # (i.e. when the key is absent); setup_complete gates the first-run wizard.
+    "auto_maintenance": True,
+    "setup_complete":   False,
 }
 
 

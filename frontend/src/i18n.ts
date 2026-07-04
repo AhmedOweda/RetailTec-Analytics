@@ -226,6 +226,27 @@ const ar_strings: Record<string, string> = {
   'Default logo': 'الشعار الافتراضي',
   'Upload': 'رفع',
   'Remove': 'إزالة',
+  // Automatic maintenance
+  'Automatic Maintenance': 'الصيانة التلقائية',
+  'Weekly automatic maintenance': 'صيانة تلقائية أسبوعية',
+  'Runs a weekly CHECKPOINT to flush pending writes and reclaim space. Safe to leave on. Remember to Save Settings.':
+    'تشغّل نقطة تحقق أسبوعية لتفريغ الكتابات المعلّقة واستعادة المساحة. آمنة لتركها مفعّلة. تذكّر حفظ الإعدادات.',
+  // First-run wizard
+  'Welcome to RetailTec Analytics': 'مرحبًا بك في ريتيل تك أناليتكس',
+  'Connect your Retail Pro Oracle database and load the first history window. You can change everything later in Settings.':
+    'اربط قاعدة بيانات ريتيل برو أوراكل وحمّل أول نافذة تاريخية. يمكنك تغيير كل شيء لاحقًا من الإعدادات.',
+  'Connect Oracle': 'ربط أوراكل',
+  'Test': 'اختبار',
+  'History window': 'النافذة التاريخية',
+  'Load': 'تحميل',
+  'Connected': 'تم الاتصال',
+  'Load failed': 'فشل التحميل',
+  'Initial load started — you can follow progress in Settings.': 'بدأ التحميل الأولي — يمكنك متابعة التقدم من الإعدادات.',
+  'Ready to load. This runs in the background and may take a while for large databases.':
+    'جاهز للتحميل. يعمل في الخلفية وقد يستغرق وقتًا لقواعد البيانات الكبيرة.',
+  'Skip for now': 'تخطٍ الآن',
+  'Next': 'التالي',
+  'Load Now': 'حمّل الآن',
   'Database Connection': 'اتصال قاعدة البيانات',
   'Display Settings': 'إعدادات العرض',
   'Data Model': 'نموذج البيانات',
