@@ -609,4 +609,11 @@ export default function Performance() {
         </Box>
 
         {/* Row 6: YoY per Store */}
-        <ChartPanel title="Year-over-Year by Store" subtitle={`Current period vs same window last year  ·  ${from.slice(5)} → ${to.slice(5)}`} option={yoyOpt} height={300} load
+        <ChartPanel title="Year-over-Year by Store" subtitle={`Current period vs same window last year  ·  ${from.slice(5)} → ${to.slice(5)}`} option={yoyOpt} height={300} loading={yoyLoad} />
+
+
+
+      </Box>
+    </Box>
+  )
+}
