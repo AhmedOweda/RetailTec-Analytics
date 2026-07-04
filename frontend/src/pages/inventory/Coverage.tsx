@@ -21,7 +21,7 @@ import GridExportBar from '../../components/GridExportBar'
 import axios from 'axios'
 import { useAppSettings } from '../../context/AppSettings'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 
 // ── Colours ────────────────────────────────────────────────────────────────────
 const C_PURPLE = '#7c3aed'
@@ -192,13 +192,13 @@ export default function InventoryCoverage() {
       valueFormatter: (p: any) => fmtN(p.value) },
     { field: 'sales_90',      headerName: 'Sales 90d',       width: 100, type: 'numericColumn',
       valueFormatter: (p: any) => fmtN(p.value) },
-    { field: 'daily_avg',     headerName: `Daily AVG (${period}d)`, width: 120, type: 'numericColumn',
+    { field: 'daily_avg',     headerName: `${tr('Daily AVG')} (${period}d)`, width: 120, type: 'numericColumn',
       valueFormatter: (p: any) => fmtD(p.value),
       cellStyle: (p: any) => ({ color: +(p.value ?? 0) === 0 ? C_SLATE : C_CYAN, fontWeight: 600 }) },
     { field: 'days_coverage', headerName: 'Days Coverage',   width: 120, type: 'numericColumn',
       valueFormatter: (p: any) => {
         const v = p.value
-        if (!isFinite(v) || v === Infinity) return 'Stagnant'
+        if (!isFinite(v) || v === Infinity) return tr('Stagnant')
         return v.toFixed(0) + 'd'
       },
       cellStyle: (p: any) => {
@@ -221,11 +221,11 @@ export default function InventoryCoverage() {
       }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5}>
           <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px' }}>
-            Coverage & Replenishment Planning
+            {tr('Coverage & Replenishment Planning')}
           </Typography>
           {isFetching && (
             <Typography sx={{ fontSize: 11, color: C_PURPLE, fontWeight: 600 }}>
-              ⟳ Loading…
+              ⟳ {tr('Loading…')}
             </Typography>
           )}
         </Stack>
@@ -248,7 +248,7 @@ export default function InventoryCoverage() {
           ))}
 
           {/* Item search — ALU / UPC / description in one field */}
-          <TextField size="small" label={`Search item (${codeFieldUpper} / description)`}
+          <TextField size="small" label={trf('Search item ({{code}} / description)', { code: codeFieldUpper })}
             value={itemSearch} onChange={e => setItemSearch(e.target.value)}
             sx={{ width: 260,
                   '& .MuiOutlinedInput-root': { borderRadius: 2.5, bgcolor: '#fff' } }} />
@@ -256,7 +256,7 @@ export default function InventoryCoverage() {
           {/* Period selector */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
             <Typography sx={{ fontSize: 11, color: C_SLATE, fontWeight: 600, whiteSpace: 'nowrap' }}>
-              AVG basis:
+              {tr('AVG basis:')}
             </Typography>
             <ToggleButtonGroup value={period} exclusive
               onChange={(_, v) => { if (v !== null) setPeriod(v) }}
@@ -276,15 +276,15 @@ export default function InventoryCoverage() {
 
       {/* ── KPI row ─────────────────────────────────────────────────────── */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-        <KpiCard label="Onhand Qty"     value={fmtN(kpi.totalOnHand)}  icon="ti-package"      color={C_PURPLE} />
-        <KpiCard label={`Sales (${period}d Qty)`} value={fmtN(kpi.totalSales)} icon="ti-shopping-cart" color={C_CYAN}
-          sub={`Daily AVG: ${fmtD(kpi.avgDailyQty)} units`} />
-        <KpiCard label="Critical (< 7d)"  value={fmtN(kpi.critical)}   icon="ti-alert-triangle"
+        <KpiCard label={tr('Onhand Qty')}     value={fmtN(kpi.totalOnHand)}  icon="ti-package"      color={C_PURPLE} />
+        <KpiCard label={trf('Sales ({{n}}d Qty)', { n: period })} value={fmtN(kpi.totalSales)} icon="ti-shopping-cart" color={C_CYAN}
+          sub={trf('Daily AVG: {{v}} units', { v: fmtD(kpi.avgDailyQty) })} />
+        <KpiCard label={tr('Critical (< 7d)')}  value={fmtN(kpi.critical)}   icon="ti-alert-triangle"
           color={kpi.critical > 0 ? C_ROSE : C_GREEN}
-          sub="reorder immediately" />
-        <KpiCard label="Stagnant SKUs"    value={fmtN(kpi.stagnant)}   icon="ti-trending-down"
+          sub={tr('reorder immediately')} />
+        <KpiCard label={tr('Stagnant SKUs')}    value={fmtN(kpi.stagnant)}   icon="ti-trending-down"
           color={kpi.stagnant > 0 ? C_AMBER : C_GREEN}
-          sub={`no sales in ${period}d window`} />
+          sub={trf('no sales in {{n}}d window', { n: period })} />
       </Box>
 
       {/* ── Coverage bucket bar ──────────────────────────────────────────── */}
@@ -300,7 +300,7 @@ export default function InventoryCoverage() {
           return (
             <Box key={b.key}
               onClick={() => setBucket(b.key)}
-              title={b.desc}
+              title={tr(b.desc)}
               sx={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 px: 2, py: 1, borderRadius: 2, cursor: 'pointer', minWidth: 90,
@@ -313,7 +313,7 @@ export default function InventoryCoverage() {
                 {fmtN(count)}
               </Typography>
               <Typography sx={{ fontSize: 10, fontWeight: 600, color: b.color, mt: 0.3, textAlign: 'center' }}>
-                {b.label}
+                {tr(b.label)}
               </Typography>
             </Box>
           )
@@ -325,10 +325,10 @@ export default function InventoryCoverage() {
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: 13 }}>
-              {bucket === 'all' ? 'All Items' : BUCKETS.find(b => b.key === bucket)?.label} — {fmtN(rows.length)} SKU×Store
+              {trf('{{label}} — {{n}} SKU×Store', { label: bucket === 'all' ? tr('All Items') : tr(BUCKETS.find(b => b.key === bucket)?.label ?? ''), n: fmtN(rows.length) })}
             </Typography>
             <Typography sx={{ fontSize: 11, color: C_SLATE }}>
-              Daily AVG calculated from last {period} days · Days Coverage = Onhand ÷ Daily AVG
+              {trf('Daily AVG calculated from last {{n}} days · Days Coverage = Onhand ÷ Daily AVG', { n: period })}
             </Typography>
           </Box>
           <Stack direction="row" alignItems="center" spacing={1}>

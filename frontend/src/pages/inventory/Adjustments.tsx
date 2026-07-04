@@ -26,7 +26,7 @@ import KpiCard                  from '../../components/KpiCard'
 import GridExportBar            from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 
 // ── Colours ────────────────────────────────────────────────────────────────
 const ACCENT   = '#7c3aed'
@@ -67,8 +67,8 @@ function ChartCard({ title, children, chartRef, height = 260 }: {
         <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'center', mb:1 }}>
           <Typography sx={{ fontWeight:700, fontSize:13, color:'#334155' }}>{tr(title)}</Typography>
           <Box>
-            <Tooltip title="Download PNG"><IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
-            <Tooltip title="Fullscreen"><IconButton size="small" onClick={() => setFs(true)}><FullscreenIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
+            <Tooltip title={tr('Download PNG')}><IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
+            <Tooltip title={tr('Fullscreen')}><IconButton size="small" onClick={() => setFs(true)}><FullscreenIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
           </Box>
         </Box>
         <Box sx={{ height }}>{children}</Box>
@@ -76,7 +76,7 @@ function ChartCard({ title, children, chartRef, height = 260 }: {
       <Dialog open={fs} onClose={() => setFs(false)} maxWidth="lg" fullWidth>
         <DialogContent sx={{ p:2 }}>
           <Box sx={{ display:'flex', justifyContent:'space-between', mb:1 }}>
-            <Typography sx={{ fontWeight:700 }}>{title}</Typography>
+            <Typography sx={{ fontWeight:700 }}>{tr(title)}</Typography>
             <IconButton size="small" onClick={() => setFs(false)}><CloseIcon /></IconButton>
           </Box>
           <Box sx={{ height:500 }}>{children}</Box>
@@ -180,13 +180,13 @@ export default function Adjustments() {
     yAxis:   { type:'value', axisLabel:{ fontSize:10, formatter:(v:number) => v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` } },
     series: [
       {
-        name:'+ Cost', type:'bar',
+        name:tr('+ Cost'), type:'bar',
         data: trend.map(r => r.pos_cost),
         stack:'cost',
         itemStyle:{ color:POS_C, borderRadius:[2,2,0,0] }, barMaxWidth:16,
       },
       {
-        name:'− Cost', type:'bar',
+        name:tr('− Cost'), type:'bar',
         data: trend.map(r => r.neg_cost),
         stack:'cost',
         itemStyle:{ color:NEG_C, borderRadius:[0,0,2,2] }, barMaxWidth:16,
@@ -320,13 +320,13 @@ export default function Adjustments() {
 
       {/* ── KPI strip ── */}
       <Box sx={{ display:'flex', gap:1.5, flexWrap:'wrap' }}>
-        <KpiCard label="Net Cost Impact" value={fmtC(kpi?.net_cost    || 0)}
+        <KpiCard label={tr('Net Cost Impact')} value={fmtC(kpi?.net_cost    || 0)}
           sub={`+${fmtC(kpi?.pos_cost || 0)} / ${fmtC(kpi?.neg_cost || 0)}`}
           color={(kpi?.net_cost || 0) >= 0 ? POS_C : NEG_C} icon="ti-scale" />
-        <KpiCard label="+ Positive Cost" value={fmtC(kpi?.pos_cost    || 0)} color={POS_C} icon="ti-trending-up" />
-        <KpiCard label="− Negative Cost" value={fmtC(Math.abs(kpi?.neg_cost || 0))} color={NEG_C} icon="ti-trending-down" />
-        <KpiCard label="Adjustments"     value={fmtN(kpi?.total_adjs  || 0)} sub={`${fmtN(kpi?.total_lines || 0)} lines`} icon="ti-edit" />
-        <KpiCard label="Net Qty Change"  value={fmtSign(kpi?.net_qty  || 0)}
+        <KpiCard label={tr('+ Positive Cost')} value={fmtC(kpi?.pos_cost    || 0)} color={POS_C} icon="ti-trending-up" />
+        <KpiCard label={tr('− Negative Cost')} value={fmtC(Math.abs(kpi?.neg_cost || 0))} color={NEG_C} icon="ti-trending-down" />
+        <KpiCard label={tr('Adjustments')}     value={fmtN(kpi?.total_adjs  || 0)} sub={trf('{{n}} lines', { n: fmtN(kpi?.total_lines || 0) })} icon="ti-edit" />
+        <KpiCard label={tr('Net Qty Change')}  value={fmtSign(kpi?.net_qty  || 0)}
           sub={`+${fmtN(kpi?.pos_qty || 0)} / ${fmtN(kpi?.neg_qty || 0)}`}
           color={(kpi?.net_qty || 0) >= 0 ? POS_C : NEG_C} icon="ti-arrows-diff" />
       </Box>

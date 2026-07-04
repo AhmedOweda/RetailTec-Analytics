@@ -254,7 +254,7 @@ export default function GridExportBar({
           borderColor: '#e2e8f0', color: '#16a34a',
           '&:hover': { borderColor: '#16a34a', bgcolor: '#f0fdf4' },
         }}
-      >Excel</Button>
+      >{tr('Excel')}</Button>
 
       {/* ── PDF ── */}
       <Button size="small" variant="outlined" disabled={!!exporting} onClick={exportPdf}
@@ -266,7 +266,7 @@ export default function GridExportBar({
           borderColor: '#e2e8f0', color: '#dc2626',
           '&:hover': { borderColor: '#dc2626', bgcolor: '#fff5f5' },
         }}
-      >PDF</Button>
+      >{tr('PDF')}</Button>
 
     </Stack>
   )

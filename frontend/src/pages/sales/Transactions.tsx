@@ -3,7 +3,7 @@
  *                          *  custom column show/hide picker
  */
 import { useState, useRef, useCallback, useMemo } from 'react'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 import {
   Box, Typography, Chip, TextField, LinearProgress,
   Button, CircularProgress, Stack,
@@ -228,13 +228,13 @@ export default function Transactions() {
                  mx:-2.5, px:2.5, pt:2.5, pb:1.5, borderBottom:'1px solid #e9e4ff',
                  display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mr:'auto' }}>
-          Transactions
+          {tr('Transactions')}
         </Typography>
 
         {/* Period selector */}
         <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor:'#f1f5f9', borderRadius:2 }}>
           {QUICK.map(q => (
-            <Chip key={q.label} label={q.label} size="small"
+            <Chip key={q.label} label={tr(q.label)} size="small"
               onClick={() => { setCustom(null); setDays(q.days) }}
               sx={{
                 fontWeight:700, fontSize:12, height:28, px:0.5,
@@ -250,10 +250,10 @@ export default function Transactions() {
 
         {/* Custom date range */}
         <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
-          <TextField label="From" type="date" size="small" sx={{ width:150, bgcolor:'#fff', borderRadius:2 }}
+          <TextField label={tr('From')} type="date" size="small" sx={{ width:150, bgcolor:'#fff', borderRadius:2 }}
             InputLabelProps={{ shrink:true }}
             value={draftFrom} onChange={e => setDraftFrom(e.target.value)} />
-          <TextField label="To" type="date" size="small" sx={{ width:150, bgcolor:'#fff', borderRadius:2 }}
+          <TextField label={tr('To')} type="date" size="small" sx={{ width:150, bgcolor:'#fff', borderRadius:2 }}
             InputLabelProps={{ shrink:true }}
             value={draftTo} onChange={e => setDraftTo(e.target.value)} />
           <Button size="small" variant={custom ? 'contained' : 'outlined'}
@@ -263,7 +263,7 @@ export default function Transactions() {
                   ...(custom
                     ? { bgcolor:ACCENT, '&:hover':{ bgcolor:ACCENT2 } }
                     : { borderColor:ACCENT, color:ACCENT }) }}>
-            Apply
+            {tr('Apply')}
           </Button>
         </Box>
 
@@ -298,7 +298,7 @@ export default function Transactions() {
       {/* == Status bar == */}
       <Box sx={{ display:'flex', alignItems:'center', gap:1.5, minHeight:20 }}>
         <Typography variant="caption" sx={{ color:'#64748b', fontWeight:500 }}>
-          {busy ? 'Loading...' : `${total.toLocaleString()} transaction${total!==1?'s':''}  ·  ${from}  ->  ${today}`}
+          {busy ? tr('Loading...') : trf('{{n}} transactions  ·  {{from}}  →  {{to}}', { n: total.toLocaleString(), from, to: today })}
         </Typography>
         {busy && (
           <LinearProgress sx={{ flex:1, height:3, borderRadius:2, bgcolor:'#ede9fe',
@@ -319,7 +319,7 @@ export default function Transactions() {
                bgcolor:     hiddenCols.size > 0 ? '#ede9fe' : 'transparent',
                '&:hover':{ borderColor:ACCENT, color:ACCENT, bgcolor:'#ede9fe' } }}
         >
-          Columns{hiddenCols.size > 0 ? ` (${hiddenCols.size} hidden)` : ''}
+          {tr('Columns')}{hiddenCols.size > 0 ? ` (${hiddenCols.size} ${tr('hidden')})` : ''}
         </Button>
 
         {/* Export */}
@@ -331,7 +331,7 @@ export default function Transactions() {
           sx={{ textTransform:'none', borderRadius:2.5, fontWeight:600, height:34,
                borderColor:'#e2e8f0', color:'#16a34a',
                '&:hover':{ borderColor:'#16a34a', bgcolor:'#f0fdf4' } }}
-        >Excel</Button>
+        >{tr('Excel')}</Button>
 
         <Button size="small" variant="outlined" disabled={!!exporting || rows.length === 0}
           onClick={exportPDF}
@@ -341,7 +341,7 @@ export default function Transactions() {
           sx={{ textTransform:'none', borderRadius:2.5, fontWeight:600, height:34,
                borderColor:'#e2e8f0', color:'#dc2626',
                '&:hover':{ borderColor:'#dc2626', bgcolor:'#fff5f5' } }}
-        >PDF</Button>
+        >{tr('PDF')}</Button>
       </Stack>
 
       {/* == Column picker popover == */}
@@ -354,10 +354,10 @@ export default function Transactions() {
         PaperProps={{ sx:{ borderRadius:2, border:'1px solid #e9e4ff', boxShadow:'0 8px 24px rgba(15,23,42,.12)', minWidth:200 } }}
       >
         <Box sx={{ px:2, pt:1.5, pb:0.5, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <Typography sx={{ fontWeight:700, fontSize:12, color:'#374151' }}>Show / Hide Columns</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:12, color:'#374151' }}>{tr('Show / Hide Columns')}</Typography>
           <Button size="small" onClick={showAll}
             sx={{ fontSize:10, textTransform:'none', color:ACCENT, fontWeight:600, minWidth:0, px:1, py:0 }}>
-            Show all
+            {tr('Show all')}
           </Button>
         </Box>
         <Divider sx={{ borderColor:'#f1f5f9', my:0.5 }} />
@@ -372,7 +372,7 @@ export default function Transactions() {
                   sx={{ color:'#cbd5e1', '&.Mui-checked':{ color:ACCENT }, py:0.5 }}
                 />
               }
-              label={<Typography sx={{ fontSize:12, color:'#374151' }}>{col.headerName as string}</Typography>}
+              label={<Typography sx={{ fontSize:12, color:'#374151' }}>{tr(col.headerName as string)}</Typography>}
               sx={{ display:'flex', m:0, py:0.25 }}
               />
             )
