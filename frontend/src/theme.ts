@@ -13,10 +13,12 @@ export const PURPLE_BRAND = {
   900: '#1A0D45',
 }
 
-export function createAppTheme(mode: 'light' | 'dark') {
+export function createAppTheme(mode: 'light' | 'dark',
+                               direction: 'ltr' | 'rtl' = 'ltr') {
   const dark = mode === 'dark'
 
   return createTheme({
+    direction,
     palette: {
       mode,
       primary: {
