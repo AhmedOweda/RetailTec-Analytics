@@ -123,6 +123,8 @@ const ar_strings: Record<string, string> = {
   'Daily Purchase Trend': 'اتجاه المشتريات اليومية',
   'Top Suppliers by Cost': 'أعلى الموردين حسب التكلفة',
   'Top Departments by Cost': 'أعلى الأقسام حسب التكلفة',
+  'PO Status Split': 'توزيع حالات أوامر الشراء',
+  'Cost by Store': 'التكلفة حسب الفرع',
   'Top Item Vendors': 'أعلى موردي الأصناف',
   'Top 15 by Lifetime Value': 'أعلى 15 حسب القيمة الدائمة',
   'Top 12 by Purchase Value': 'أعلى 12 حسب قيمة المشتريات',
