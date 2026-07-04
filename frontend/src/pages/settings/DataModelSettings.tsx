@@ -190,6 +190,7 @@ export default function DataModelSettings() {
   const [tab, setTab]                 = useState(0)   // Settings tab (UI grouping only)
   const [brandName, setBrandName]     = useState('')  // whitelabel product name
   const [brandLogo, setBrandLogo]     = useState('')  // base64 data-URL or empty
+  const [autoMaint, setAutoMaint]     = useState(true) // weekly auto-maintenance
 
   useEffect(() => {
     if (settings) {
@@ -198,6 +199,7 @@ export default function DataModelSettings() {
       if (settings.data_model?.domains) setDm(settings.data_model)
       setBrandName(settings.brand_name ?? '')
       setBrandLogo(settings.brand_logo ?? '')
+      setAutoMaint(settings.auto_maintenance !== false)
     }
   }, [settings])
 
@@ -218,7 +220,7 @@ export default function DataModelSettings() {
 
   const saveSettings = useMutation({
     mutationFn: () => axios.put('/api/settings', { connection: conn, data_model: dm,
-      brand_name: brandName, brand_logo: brandLogo }),
+      brand_name: brandName, brand_logo: brandLogo, auto_maintenance: autoMaint }),
     onSuccess: (res) => {
       setSaveErr('')
       qc.invalidateQueries({ queryKey:['settings'] })
@@ -875,6 +877,21 @@ export default function DataModelSettings() {
       <Box sx={{ display: tab === 4 ? 'block' : 'none' }}>
       {/* ── Maintenance: backup & compact ─────────────────────────── */}
       <MaintenanceCard />
+      {/* ── Automatic maintenance toggle (saved with Save Settings) ── */}
+      <SectionCard title="Automatic Maintenance" icon={<ScheduleIcon />}>
+        <FormControlLabel
+          control={
+            <Switch size="small" checked={autoMaint}
+              onChange={e => setAutoMaint(e.target.checked)}
+              sx={{ '& .Mui-checked': { color: ACCENT },
+                    '& .Mui-checked + .MuiSwitch-track': { bgcolor: `${ACCENT} !important` } }} />
+          }
+          label={<Typography sx={{ fontSize:13, fontWeight:600 }}>{tr('Weekly automatic maintenance')}</Typography>}
+        />
+        <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.5 }}>
+          {tr('Runs a weekly CHECKPOINT to flush pending writes and reclaim space. Safe to leave on. Remember to Save Settings.')}
+        </Typography>
+      </SectionCard>
       {/* ── About & Diagnostics (read-only) ──────────────────────── */}
       <AboutCard />
       </Box>{/* end Tab 4 */}

@@ -22,6 +22,37 @@ SETTINGS_FILE = Path(__file__).parent.parent / "settings.json"
 # Last time each domain was synced by the scheduler (for schedule evaluation)
 _domain_last_run: dict = {}
 
+# Last time the weekly auto-maintenance CHECKPOINT ran (additive, opt-out via
+# settings.auto_maintenance=False). Purely a housekeeping flush — never touches
+# the sync pipeline or schedules.
+_last_maintenance: datetime | None = None
+_MAINTENANCE_INTERVAL_SEC = 7 * 24 * 3600   # weekly
+
+
+def _maybe_auto_maintenance(cfg: dict) -> None:
+    """Weekly CHECKPOINT to flush the WAL / reclaim space. Best-effort and
+    fully guarded — any failure is logged and ignored. Skipped entirely when
+    auto_maintenance is disabled or a sync is running."""
+    global _last_maintenance
+    try:
+        if not cfg.get("auto_maintenance", True):
+            return
+        if _sync_state.get("running"):
+            return
+        now = datetime.utcnow()
+        if _last_maintenance is not None and \
+           (now - _last_maintenance).total_seconds() < _MAINTENANCE_INTERVAL_SEC:
+            return
+        from db.model import DB_LOCK, get_db
+        with DB_LOCK:
+            get_db().execute("CHECKPOINT")
+        _last_maintenance = now
+        log.info("Auto-maintenance: weekly CHECKPOINT completed")
+        # TODO(monthly backup): a monthly COPY-FROM-DATABASE backup could be
+        # wired here once a retention/rotation policy is agreed.
+    except Exception as e:
+        log.error(f"Auto-maintenance skipped: {e}")
+
 # ── Shared sync state (read by /api/sync/status endpoint) ─────────────────
 _sync_state: dict = {
     "running": False,
@@ -200,4 +231,9 @@ async def background_loop():
             maybe_send_scheduled()
         except Exception as e:
             log.error(f"Report schedule check failed: {e}")
+        # Weekly housekeeping (opt-out via settings.auto_maintenance)
+        try:
+            _maybe_auto_maintenance(_load_settings())
+        except Exception as e:
+            log.error(f"Auto-maintenance check failed: {e}")
         await asyncio.sleep(60)

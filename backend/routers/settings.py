@@ -142,6 +142,9 @@ class SettingsPayload(BaseModel):
     # that omit them (they simply keep the stored / default values).
     brand_name:  Optional[str] = None
     brand_logo:  Optional[str] = None
+    # First-run + maintenance flags (optional; omitted → unchanged)
+    auto_maintenance: Optional[bool] = None
+    setup_complete:   Optional[bool] = None
 
 
 def _validate_data_model(raw: dict) -> Union["DataModelV2", "DataModelSettings"]:
@@ -222,6 +225,10 @@ def update_settings(payload: SettingsPayload, _admin: dict = Depends(require_adm
         current["brand_name"] = payload.brand_name.strip() or "RetailTec Analytics"
     if payload.brand_logo is not None:
         current["brand_logo"] = payload.brand_logo
+    if payload.auto_maintenance is not None:
+        current["auto_maintenance"] = bool(payload.auto_maintenance)
+    if payload.setup_complete is not None:
+        current["setup_complete"] = bool(payload.setup_complete)
 
     save_settings(current)
 
