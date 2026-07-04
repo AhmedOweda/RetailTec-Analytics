@@ -411,6 +411,20 @@ const ar_strings: Record<string, string> = {
   'Return value ÷ gross sales · dashed = avg': 'قيمة المرتجعات ÷ إجمالي المبيعات · المتقطع = المتوسط',
   'Total discounts ÷ gross sales · dashed = avg': 'إجمالي الخصومات ÷ إجمالي المبيعات · المتقطع = المتوسط',
 
+  // ── Forced password-change dialog ──
+  'Set a new password': 'تعيين كلمة مرور جديدة',
+  'This account is still using the default password. For security you must change it before using RetailTec Analytics.':
+    'لا يزال هذا الحساب يستخدم كلمة المرور الافتراضية. للأمان يجب تغييرها قبل استخدام ريتيل تك.',
+  'Current password': 'كلمة المرور الحالية',
+  'New password (min 8 chars)': 'كلمة المرور الجديدة (8 أحرف على الأقل)',
+  'Repeat new password': 'إعادة إدخال كلمة المرور الجديدة',
+  'Change Password': 'تغيير كلمة المرور',
+  'Saving…': 'جارٍ الحفظ…',
+  'Log out': 'تسجيل الخروج',
+  'New password must be at least 8 characters': 'يجب أن تكون كلمة المرور الجديدة 8 أحرف على الأقل',
+  'Passwords do not match': 'كلمتا المرور غير متطابقتين',
+  'Failed to change password': 'تعذّر تغيير كلمة المرور',
+
   // ── Login ──
   'Welcome back': 'مرحبًا بعودتك',
   'Sign in to your RetailTec workspace': 'سجّل الدخول إلى منصة ريتيل تك',
