@@ -194,10 +194,13 @@ function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label
         <Box sx={{
           display:'flex', alignItems:'center', gap:1.5,
           px:1.5, py:1, borderRadius:1.5, mb:0.5, cursor:'pointer',
-          bgcolor: isActive ? 'rgba(124,58,237,0.18)' : 'transparent',
+          background: isActive
+            ? 'linear-gradient(90deg, rgba(124,58,237,0.34), rgba(124,58,237,0.08))'
+            : 'transparent',
           color:   isActive ? ACCENT_LIGHT : 'rgba(255,255,255,0.6)',
-          '&:hover': { bgcolor:'rgba(255,255,255,0.06)', color:'#fff' },
-          transition:'all 0.15s',
+          boxShadow: isActive ? 'inset 0 0 0 1px rgba(167,139,250,0.22)' : 'none',
+          '&:hover': { background:'rgba(255,255,255,0.06)', color:'#fff' },
+          transition:'all 0.18s ease',
         }}>
           <Box sx={{ fontSize:18, display:'flex', '& svg':{ fontSize:'18px !important' },
                      color: isActive ? ACCENT : 'inherit' }}>
@@ -280,8 +283,11 @@ export default function AppShell() {
       {/* ── Sidebar ──────────────────────────────────────────────────── */}
       <Box sx={{
         width: SIDEBAR_W, flexShrink: 0,
-        bgcolor: SIDEBAR_BG, display:'flex', flexDirection:'column',
+        // Subtle top-to-bottom depth instead of a flat fill
+        background: `linear-gradient(180deg, #1e1248 0%, ${SIDEBAR_BG} 58%, #100621 100%)`,
+        display:'flex', flexDirection:'column',
         borderRight: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: '1px 0 0 rgba(0,0,0,0.20)',
       }}>
         {/* Logo */}
         <Box sx={{ px:2.5, py:2, display:'flex', alignItems:'center', gap:1.5,
@@ -400,10 +406,13 @@ export default function AppShell() {
             display:'flex', alignItems:'center', gap:1, px:1.5, py:1,
             borderRadius:1.5, mt:0.5,
             bgcolor:'rgba(255,255,255,0.05)',
+            border:'1px solid rgba(255,255,255,0.07)',
           }}>
             <Box sx={{
               width:28, height:28, borderRadius:'50%',
-              bgcolor: ACCENT, display:'flex', alignItems:'center', justifyContent:'center',
+              background:'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+              boxShadow:'0 2px 6px rgba(124,58,237,0.45)',
+              display:'flex', alignItems:'center', justifyContent:'center',
               flexShrink:0,
             }}>
               <Typography sx={{ color:'#fff', fontWeight:700, fontSize:12 }}>
@@ -440,6 +449,7 @@ export default function AppShell() {
           px:3,
           background:'linear-gradient(90deg, #ffffff 0%, #faf9ff 55%, #f6f4ff 100%)',
           borderBottom:'1px solid rgba(124,58,237,0.10)',
+          boxShadow:'0 2px 10px rgba(15,23,42,0.05)',
           // signature gradient hairline along the bottom edge
           '&::after': {
             content:'""', position:'absolute', left:0, right:0, bottom:-1, height:2,
