@@ -10,6 +10,7 @@ import {
   Checkbox, FormGroup, FormControlLabel, Tooltip,
   Dialog, DialogTitle, DialogContent,
   Collapse, IconButton, Autocomplete,
+  Tabs, Tab,
 } from '@mui/material'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
 import ExpandMoreIcon   from '@mui/icons-material/ExpandMore'
@@ -185,6 +186,7 @@ export default function DataModelSettings() {
   const [selDomains, setSelDomains]   = useState<Set<string>>(new Set())  // empty = all
   const [rangeFrom, setRangeFrom]     = useState('')
   const [rangeTo,   setRangeTo]       = useState('')
+  const [tab, setTab]                 = useState(0)   // Settings tab (UI grouping only)
 
   useEffect(() => {
     if (settings) {
@@ -269,6 +271,23 @@ export default function DataModelSettings() {
         {tr('Configure Oracle connection and data model refresh behaviour.')}
       </Typography>
 
+      {/* ── Tab bar (pure UI grouping — no settings logic changes) ── */}
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable"
+        scrollButtons="auto" allowScrollButtonsMobile
+        sx={{ mb:3, minHeight:40,
+              '& .MuiTab-root': { textTransform:'none', fontWeight:600, fontSize:13, minHeight:40, py:0.5 },
+              '& .Mui-selected': { color:`${ACCENT} !important` },
+              '& .MuiTabs-indicator': { bgcolor:ACCENT } }}>
+        <Tab label={tr('Connection & Data')} />
+        <Tab label={tr('Schedules')} />
+        <Tab label={tr('Display')} />
+        <Tab label={tr('Reports')} />
+        <Tab label={tr('Maintenance')} />
+      </Tabs>
+
+      {/* ── Tab 0: Connection & Data ── */}
+      <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
+
       {/* ── Connection ──────────────────────────────────────────── */}
       <SectionCard title="Database Connection" icon={<StorageIcon />}>
         <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:2, mb:2 }}>
@@ -312,6 +331,11 @@ export default function DataModelSettings() {
           )}
         </Box>
       </SectionCard>
+
+      </Box>{/* end Tab 0 (part 1) */}
+
+      {/* ── Tab 2: Display ── */}
+      <Box sx={{ display: tab === 2 ? 'block' : 'none' }}>
 
       {/* ── Display Settings ────────────────────────────────────── */}
       <SectionCard title="Display Settings" icon={<TuneIcon />}>
@@ -457,6 +481,11 @@ export default function DataModelSettings() {
           </Box>
         </Box>
       </SectionCard>
+
+      </Box>{/* end Tab 2 */}
+
+      {/* ── Tab 0: Connection & Data (part 2) ── */}
+      <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
 
       {/* ── Data Model ──────────────────────────────────────────── */}
       <SectionCard title="Data Model" icon={<SyncIcon />}>
@@ -607,6 +636,11 @@ export default function DataModelSettings() {
         </Box>
       </SectionCard>
 
+      </Box>{/* end Tab 0 (part 2) */}
+
+      {/* ── Tab 1: Schedules ── */}
+      <Box sx={{ display: tab === 1 ? 'block' : 'none' }}>
+
       {/* ── Refresh Schedules & Retention (per domain) ───────────── */}
       <SectionCard title="Refresh Schedules & Retention" icon={<ScheduleIcon />}>
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
@@ -708,6 +742,11 @@ export default function DataModelSettings() {
         })}
       </SectionCard>
 
+      </Box>{/* end Tab 1 (part 1) */}
+
+      {/* ── Tab 0: Connection & Data (part 3) ── */}
+      <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
+
       {/* ── Load a specific date range ──────────────────────────── */}
       <SectionCard title="Load a Date Range" icon={<SyncIcon />}>
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
@@ -754,6 +793,11 @@ export default function DataModelSettings() {
         </Box>
       </SectionCard>
 
+      </Box>{/* end Tab 0 (part 3) */}
+
+      {/* ── Tab 1: Schedules (part 2 — Sync History) ── */}
+      <Box sx={{ display: tab === 1 ? 'block' : 'none' }}>
+
       {/* ── Sync history — compact card + filterable dialog ─────── */}
       <SectionCard title="Sync History" icon={<SyncIcon />}>
         <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
@@ -771,14 +815,22 @@ export default function DataModelSettings() {
         </Box>
       </SectionCard>
 
+      </Box>{/* end Tab 1 (part 2) */}
+
+      {/* ── Tab 4: Maintenance ── */}
+      <Box sx={{ display: tab === 4 ? 'block' : 'none' }}>
       {/* ── Maintenance: backup & compact ─────────────────────────── */}
       <MaintenanceCard />
+      </Box>{/* end Tab 4 */}
 
+      {/* ── Tab 3: Reports ── */}
+      <Box sx={{ display: tab === 3 ? 'block' : 'none' }}>
       {/* ── Email (SMTP) ──────────────────────────────────────────── */}
       <EmailCard />
 
       {/* ── Scheduled reports (per-store, per-type) ──────────────── */}
       <ReportsCard />
+      </Box>{/* end Tab 3 */}
 
       <SyncHistoryDialog open={histOpen} onClose={() => setHistOpen(false)}
         history={history ?? []} refetch={refetchHistory} fetching={histFetching} />

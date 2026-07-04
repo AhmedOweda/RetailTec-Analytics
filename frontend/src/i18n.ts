@@ -197,6 +197,11 @@ const ar_strings: Record<string, string> = {
 
   // ── Settings sections / buttons ──
   'Settings': 'الإعدادات',
+  // Settings tab labels
+  'Connection & Data': 'الاتصال والبيانات',
+  'Schedules': 'الجداول',
+  'Display': 'العرض',
+  'Reports': 'التقارير',
   'Database Connection': 'اتصال قاعدة البيانات',
   'Display Settings': 'إعدادات العرض',
   'Data Model': 'نموذج البيانات',
