@@ -22,6 +22,7 @@ import StopIcon         from '@mui/icons-material/Stop'
 import StorageIcon      from '@mui/icons-material/Storage'
 import TuneIcon         from '@mui/icons-material/Tune'
 import ScheduleIcon     from '@mui/icons-material/Schedule'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
@@ -821,6 +822,8 @@ export default function DataModelSettings() {
       <Box sx={{ display: tab === 4 ? 'block' : 'none' }}>
       {/* ── Maintenance: backup & compact ─────────────────────────── */}
       <MaintenanceCard />
+      {/* ── About & Diagnostics (read-only) ──────────────────────── */}
+      <AboutCard />
       </Box>{/* end Tab 4 */}
 
       {/* ── Tab 3: Reports ── */}
@@ -862,6 +865,77 @@ export default function DataModelSettings() {
         )}
       </Box>
     </Box>
+  )
+}
+
+/* ── About / Diagnostics card (read-only) ───────────────────────────────────── */
+function AboutCard() {
+  const [copied, setCopied] = useState(false)
+  const { data, isLoading } = useQuery({
+    queryKey: ['diagnostics'],
+    queryFn:  () => axios.get('/api/admin/diagnostics').then(r => r.data),
+    refetchOnWindowFocus: false,
+  })
+
+  const lic = data?.license ?? {}
+  const facts: Record<string, number | null> = data?.fact_row_counts ?? {}
+  const totalFacts = Object.values(facts).reduce<number>((a, v) => a + (v ?? 0), 0)
+
+  const copy = () => {
+    try {
+      navigator.clipboard.writeText(JSON.stringify(data ?? {}, null, 2))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard unavailable — ignore */ }
+  }
+
+  const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <>
+      <Typography sx={{ fontSize:12.5, color:'#64748b' }}>{tr(label)}</Typography>
+      <Typography sx={{ fontSize:12.5, color:'#0f172a', fontWeight:600 }}>{value}</Typography>
+    </>
+  )
+
+  // License chip colour: red if expired, amber if expiring within 30 days
+  const licChip = () => {
+    if (!lic.present) return <Typography sx={{ fontSize:12.5, color:'#94a3b8' }}>{tr('No license file')}</Typography>
+    if (!lic.valid)   return <Typography sx={{ fontSize:12.5, color:'#ef4444', fontWeight:600 }}>{tr('Invalid signature')}</Typography>
+    const days = lic.days_remaining
+    const colour = lic.expired ? '#ef4444' : (days != null && days <= 30 ? '#f59e0b' : '#16a34a')
+    const text = lic.expired
+      ? tr('Expired')
+      : (days != null ? trf('{{n}} days remaining', { n: days }) : tr('Active'))
+    return (
+      <Box component="span" sx={{ display:'inline-flex', alignItems:'center', gap:0.8,
+                                  px:1, py:0.2, borderRadius:99, bgcolor:`${colour}18` }}>
+        <Box sx={{ width:7, height:7, borderRadius:'50%', bgcolor:colour }} />
+        <Typography component="span" sx={{ fontSize:12, color:colour, fontWeight:700 }}>{text}</Typography>
+      </Box>
+    )
+  }
+
+  return (
+    <SectionCard title="About & Diagnostics" icon={<InfoOutlinedIcon />}>
+      {isLoading ? <LinearProgress /> : (
+        <Box sx={{ display:'grid', gridTemplateColumns:'auto 1fr', rowGap:0.9, columnGap:3,
+                   alignItems:'center', maxWidth:520 }}>
+          <Row label="App Version"       value={data?.app_version ?? '—'} />
+          <Row label="Schema Version"    value={data?.schema_version ?? '—'} />
+          <Row label="Last Sync"         value={data?.last_sync ? new Date(data.last_sync).toLocaleString() : '—'} />
+          <Row label="Warehouse Size"    value={data?.warehouse_size_mb != null ? `${data.warehouse_size_mb} MB` : '—'} />
+          <Row label="Fact Rows"         value={totalFacts.toLocaleString()} />
+          <Row label="License Customer"  value={lic.customer ?? '—'} />
+          <Row label="License Expiry"    value={lic.expiry ?? '—'} />
+          <Row label="License Status"    value={licChip()} />
+        </Box>
+      )}
+      <Box sx={{ mt:2, display:'flex', alignItems:'center', gap:1.5 }}>
+        <Button variant="outlined" size="small" onClick={copy} disabled={!data}
+          sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
+          {copied ? tr('Copied!') : tr('Copy diagnostics')}
+        </Button>
+      </Box>
+    </SectionCard>
   )
 }
 
