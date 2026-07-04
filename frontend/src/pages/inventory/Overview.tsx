@@ -23,6 +23,7 @@ import KpiCard                        from '../../components/KpiCard'
 import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
+import { tr, trCols } from '../../i18n'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
@@ -69,8 +70,8 @@ function ChartCard({ title, subtitle, option, height = 340, children }: {
                  flexDirection: 'column', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{title}</Typography>
-            {subtitle && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{subtitle}</Typography>}
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{tr(title)}</Typography>
+            {subtitle && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{tr(subtitle)}</Typography>}
           </Box>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <Tooltip title="Download PNG">
@@ -426,10 +427,10 @@ export default function InventoryOverview() {
       <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
                  borderBottom: '1px solid #e9e4ff', px: 3, pt: 3, pb: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
-          Stock Levels
+          {tr('Stock Levels')}
         </Typography>
         <Typography sx={{ fontSize: 12, color: C_SLATE, mb: 1.5 }}>
-          Current on-hand snapshot · refreshed on each data sync
+          {tr('Current on-hand snapshot · refreshed on each data sync')}
         </Typography>
 
         {/* Store filter */}
@@ -500,7 +501,7 @@ export default function InventoryOverview() {
         <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
                    boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>Stock Detail</Typography>
+            <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>{tr('Stock Detail')}</Typography>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               {([
                 { v: 'dept',       label: 'By Dept'     },
@@ -510,7 +511,7 @@ export default function InventoryOverview() {
                 { v: 'item',       label: 'By Item'     },
                 { v: 'item_store', label: 'Item × Store'},
               ] as const).map(({ v, label }) => (
-                <Chip key={v} label={label}
+                <Chip key={v} label={tr(label)}
                   size="small" onClick={() => setView(v)}
                   sx={{ fontWeight: 600, cursor: 'pointer',
                         bgcolor: view === v ? C_PURPLE : 'transparent',
@@ -526,7 +527,7 @@ export default function InventoryOverview() {
             <AgGridReact
               ref={gridRef}
               rowData={tableData as any[]}
-              columnDefs={tableCols}
+              columnDefs={trCols(tableCols as any[])}
               pagination paginationPageSize={20}
               defaultColDef={{ sortable: true, resizable: true, filter: true, cellStyle: { display: 'flex', alignItems: 'center' } }}
               rowHeight={36}

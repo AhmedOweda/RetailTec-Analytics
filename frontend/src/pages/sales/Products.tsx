@@ -23,6 +23,7 @@ import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
 import { format, subDays, startOfMonth, startOfYear } from 'date-fns'
 import { num }           from '../../utils/formatters'
+import { tr, trCols } from '../../i18n'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
@@ -93,9 +94,9 @@ function ChartCard({
       <CardContent sx={{ p: 2.5, flex: 1, '&:last-child': { pb: 2.5 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
           <Box>
-            <Typography sx={{ fontWeight: 800, color: '#0f172a', fontSize: 14 }}>{title}</Typography>
+            <Typography sx={{ fontWeight: 800, color: '#0f172a', fontSize: 14 }}>{tr(title)}</Typography>
             {subtitle && (
-              <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.3 }}>{subtitle}</Typography>
+              <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.3 }}>{tr(subtitle)}</Typography>
             )}
           </Box>
           <Box sx={{ display: 'flex', gap: 0.25, opacity: 0.45, transition: 'opacity .15s', '&:hover': { opacity: 1 } }}>
@@ -555,7 +556,7 @@ export default function Products() {
         borderBottom: '1px solid #e9e4ff', px: 3, pt: 3, pb: 2,
       }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
-          Products
+          {tr('Products')}
         </Typography>
         <Typography sx={{ fontSize: 12, color: C_SLATE, mb: 1.5 }}>{from} → {to}</Typography>
 
@@ -666,7 +667,7 @@ export default function Products() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
               <Box sx={{ display: 'flex', gap: 0.75, p: 0.5, bgcolor: '#f1f5f9', borderRadius: 2 }}>
                 {VIEWS.map(v => (
-                  <Chip key={v} label={VIEW_LABELS[v]} size="small" onClick={() => setView(v)}
+                  <Chip key={v} label={tr(VIEW_LABELS[v])} size="small" onClick={() => setView(v)}
                     sx={{
                       fontWeight: 700, fontSize: 12, height: 28, px: 0.5, transition: 'all .18s ease',
                       bgcolor:    view === v ? ACCENT  : 'transparent',
@@ -702,7 +703,7 @@ export default function Products() {
                     onColumnVisible={onColumnChanged}
                     onColumnPinned={onColumnChanged}
                     rowData={(tableData ?? []) as any[]}
-                    columnDefs={tableCols}
+                    columnDefs={trCols(tableCols as any[])}
                     defaultColDef={DEF_COL}
                     rowHeight={36}
                     headerHeight={40}

@@ -4,6 +4,7 @@
  * KPIs · Daily Trend · Dept Velocity · ABC Pareto · AG Grid
  */
 import { useMemo, useRef, useState, useCallback } from 'react'
+import { tr, trCols } from '../../i18n'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { useAppSettings } from '../../context/AppSettings'
 import {
@@ -75,8 +76,8 @@ function ChartCard({ title, subtitle, option, height = 300 }: {
                  flexDirection: 'column', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{title}</Typography>
-            {subtitle && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{subtitle}</Typography>}
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{tr(title)}</Typography>
+            {subtitle && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{tr(subtitle)}</Typography>}
           </Box>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <Tooltip title="Download PNG"><IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
@@ -345,7 +346,7 @@ export default function InventoryMovement() {
       <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
                  borderBottom: '1px solid #e9e4ff', px: 3, pt: 3, pb: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
-          Stock Movement
+          {tr('Stock Movement')}
         </Typography>
         <Typography sx={{ fontSize: 12, color: C_SLATE, mb: 1.5 }}>
           {from} — {to}
@@ -405,10 +406,10 @@ export default function InventoryMovement() {
         <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
                    boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>Movement Detail</Typography>
+            <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>{tr('Movement Detail')}</Typography>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               {(['dept','dcs','vendor','store','item'] as const).map(v => (
-                <Chip key={v} label={v === 'dept' ? 'By Dept' : v === 'dcs' ? 'DCS' : v === 'vendor' ? 'By Item Vendor' : v === 'store' ? 'By Store' : 'By Item'}
+                <Chip key={v} label={tr(v === 'dept' ? 'By Dept' : v === 'dcs' ? 'DCS' : v === 'vendor' ? 'By Item Vendor' : v === 'store' ? 'By Store' : 'By Item')}
                   size="small" onClick={() => setView(v)}
                   sx={{ fontWeight: 600, cursor: 'pointer',
                         bgcolor: view === v ? C_PURPLE : 'transparent',
@@ -424,7 +425,7 @@ export default function InventoryMovement() {
             <AgGridReact
               ref={gridRef}
               rowData={tableData as any[]}
-              columnDefs={tableCols}
+              columnDefs={trCols(tableCols as any[])}
               pagination paginationPageSize={25}
               defaultColDef={{ sortable: true, resizable: true, filter: true, cellStyle: { display: 'flex', alignItems: 'center' } }}
               rowHeight={36}
