@@ -65,7 +65,7 @@ export default function InventoryHistory() {
     ],
   }
 
-  const gridDefault = { sortable: true, filter: true, resizable: true }   // filters via header menu
+  const gridDefault = { sortable: true, filter: true, resizable: true, wrapHeaderText: true, autoHeaderHeight: true }   // filters via header menu
 
   const itemCols = [
     { field: 'alu',          headerName: 'ALU',         flex: 1 },

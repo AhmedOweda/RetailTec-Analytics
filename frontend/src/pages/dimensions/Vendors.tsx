@@ -223,7 +223,7 @@ export default function DimVendors() {
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 420 }}>
           <AgGridReact ref={gridRef} rowData={merged} columnDefs={trCols(colDefs as any[])}
-            defaultColDef={{ sortable:true, resizable:true, filter:true }}
+            defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             rowHeight={36} headerHeight={38} suppressCellFocus
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged} onColumnVisible={onColumnChanged} />

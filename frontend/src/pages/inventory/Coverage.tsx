@@ -348,7 +348,7 @@ export default function InventoryCoverage() {
             ref={gridRef}
             rowData={rows}
             columnDefs={trCols(colDefs as any[])}
-            defaultColDef={{ sortable: true, resizable: true, filter: true }}
+            defaultColDef={{ sortable: true, resizable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true }}
             pagination
             paginationPageSize={50}
             rowHeight={34}

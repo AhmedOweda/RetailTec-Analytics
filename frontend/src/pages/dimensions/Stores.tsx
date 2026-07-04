@@ -192,7 +192,7 @@ export default function DimStores() {
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 380 }}>
           <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
-            defaultColDef={{ sortable:true, resizable:true, filter:true }}
+            defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             rowHeight={36} headerHeight={38} suppressCellFocus
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged} onColumnVisible={onColumnChanged} />

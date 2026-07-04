@@ -352,7 +352,7 @@ export default function Transfers() {
             onColumnPinned={onColumnChanged}
             rowData={tabData[tab]}
             columnDefs={trCols(tabCols[tab] as any[])}
-            defaultColDef={{ resizable:true, sortable:true, filter:true }}
+            defaultColDef={{ resizable:true, sortable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             pagination paginationPageSize={100}
           />
         </Box>

@@ -87,6 +87,7 @@ const TOGGLE_COLS = COL_DEFS.filter(c => c.headerName !== '#')
 
 const DEFAULT_COL: ColDef = {
   sortable: true, resizable: true, filter: true, suppressMovable: false,
+  wrapHeaderText: true, autoHeaderHeight: true,
   cellStyle: { display:'flex', alignItems:'center' },
 }
 

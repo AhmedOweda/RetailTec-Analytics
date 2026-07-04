@@ -69,6 +69,7 @@ const GRID_SX = {
 }
 const DEF_COL: ColDef = {
   sortable: true, resizable: true, filter: true,
+  wrapHeaderText: true, autoHeaderHeight: true,
   cellStyle: { display: 'flex', alignItems: 'center' },
 }
 
