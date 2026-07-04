@@ -172,6 +172,44 @@ const ar_strings: Record<string, string> = {
   // ── Filters / misc ──
   'All Stores': 'كل الفروع', 'All Suppliers': 'كل الموردين', 'All Status': 'كل الحالات',
   'Columns': 'الأعمدة', 'Reset Columns': 'إعادة تعيين الأعمدة',
+  'Show All': 'إظهار الكل', 'Reset': 'إعادة تعيين',
+  'From': 'من', 'To': 'إلى', 'Apply': 'تطبيق', 'Loading…': 'جارٍ التحميل…',
+  'Search ALU / Desc': 'بحث ALU / الوصف',
+  'Type 2+ chars…': 'اكتب حرفين على الأقل…', 'No match': 'لا نتائج',
+
+  // ── Period chips (Western digits kept by request) ──
+  '7D': '7 أيام', '30D': '30 يومًا', '90D': '90 يومًا',
+  'MTD': 'الشهر الحالي', 'YTD': 'منذ بداية السنة',
+
+  // ── Chart legends / series ──
+  'Returns': 'المرتجعات', 'Recv Qty ': 'كمية مستلمة',
+  'Total Cost ($)': 'إجمالي التكلفة', 'PO Count': 'عدد أوامر الشراء',
+  'Cumulative %': 'النسبة التراكمية', 'Other': 'أخرى',
+  '+ Cost': '+ تكلفة', '− Cost': '− تكلفة',
+  'INS Qty': 'كمية الإضافات', 'UPD Qty': 'كمية التعديلات',
+
+  // ── Data values shown in cells ──
+  'Sale': 'بيع', 'Return': 'مرتجع', 'TOTAL': 'الإجمالي',
+  'Active': 'نشط', 'Inactive': 'غير نشط',
+
+  // ── Settings sections / buttons ──
+  'Settings': 'الإعدادات',
+  'Database Connection': 'اتصال قاعدة البيانات',
+  'Display Settings': 'إعدادات العرض',
+  'Data Model': 'نموذج البيانات',
+  'Refresh Schedules & Retention': 'جداول التحديث والاحتفاظ',
+  'Load a Date Range': 'تحميل فترة زمنية',
+  'Loaded Data': 'البيانات المحمّلة',
+  'Sync History': 'سجل المزامنة',
+  'Maintenance': 'الصيانة',
+  'Email (SMTP)': 'البريد الإلكتروني (SMTP)',
+  'Scheduled Reports': 'التقارير المجدولة',
+  'Save Settings': 'حفظ الإعدادات',
+  'View full history': 'عرض السجل الكامل',
+
+  // ── Users page ──
+  'Add User': 'إضافة مستخدم', 'User': 'المستخدم', 'Role': 'الدور',
+  'Pages': 'الصفحات', 'Created': 'تاريخ الإنشاء', 'Actions': 'إجراءات',
 }
 
 i18n.use(initReactI18next).init({

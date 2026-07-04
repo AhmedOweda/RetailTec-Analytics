@@ -295,7 +295,7 @@ export default function Adjustments() {
         </Typography>
         <Box sx={{ display:'flex', gap:1, flexWrap:'wrap', alignItems:'center' }}>
           {PERIODS.map((p, i) => (
-            <Chip key={p.label} label={p.label} size="small" onClick={() => selectPeriod(i)}
+            <Chip key={p.label} label={tr(p.label)} size="small" onClick={() => selectPeriod(i)}
               sx={{ fontWeight:700, cursor:'pointer',
                     bgcolor: period===i ? ACCENT : 'transparent',
                     color:   period===i ? '#fff' : '#64748b',
@@ -312,7 +312,7 @@ export default function Adjustments() {
             multiple disableCloseOnSelect size="small"
             options={storeNames} value={selStores}
             onChange={(_, v) => setSelStores(v)}
-            renderInput={p => <TextField {...p} placeholder="All Stores" size="small" sx={{ minWidth:200 }} />}
+            renderInput={p => <TextField {...p} placeholder={tr('All Stores')} size="small" sx={{ minWidth:200 }} />}
             sx={{ minWidth:200 }}
           />
         </Box>

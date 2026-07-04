@@ -12,6 +12,7 @@ import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
+import { tr } from '../../i18n'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
@@ -58,9 +59,9 @@ export default function InventoryHistory() {
     xAxis: { type: 'category', data: trend.map((r: any) => r.action_date), axisLabel: { fontSize: 11 } },
     yAxis: { type: 'value', axisLabel: { fontSize: 11 } },
     series: [
-      { name: 'INS Qty',  type: 'line', data: trend.map((r: any) => r.inserted_qty), smooth: true, color: '#4caf50', lineStyle: { width: 2 } },
-      { name: 'UPD Qty',  type: 'line', data: trend.map((r: any) => r.updated_qty),  smooth: true, color: '#2196f3', lineStyle: { width: 2 } },
-      { name: 'Events',   type: 'bar',  data: trend.map((r: any) => r.event_count),  color: '#ff980055', yAxisIndex: 0 },
+      { name: tr('INS Qty'),  type: 'line', data: trend.map((r: any) => r.inserted_qty), smooth: true, color: '#4caf50', lineStyle: { width: 2 } },
+      { name: tr('UPD Qty'),  type: 'line', data: trend.map((r: any) => r.updated_qty),  smooth: true, color: '#2196f3', lineStyle: { width: 2 } },
+      { name: tr('Events'),   type: 'bar',  data: trend.map((r: any) => r.event_count),  color: '#ff980055', yAxisIndex: 0 },
     ],
   }
 

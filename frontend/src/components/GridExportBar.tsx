@@ -25,6 +25,7 @@ import type { ColDef }      from 'ag-grid-community'
 import * as XLSX from 'xlsx'
 import jsPDF     from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { tr }    from '../i18n'
 
 const ACCENT = '#7c3aed'
 
@@ -198,7 +199,7 @@ export default function GridExportBar({
               '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: '#ede9fe' },
             }}
           >
-            Columns{hiddenCols.size > 0 ? ` (${hiddenCols.size} hidden)` : ''}
+            {tr('Columns')}{hiddenCols.size > 0 ? ` (${hiddenCols.size})` : ''}
           </Button>
 
           <Popover open={Boolean(colAnchor)} anchorEl={colAnchor} onClose={() => setColAnchor(null)}
@@ -211,12 +212,12 @@ export default function GridExportBar({
                 <Stack direction="row" spacing={0.5}>
                   <Button size="small" onClick={showAll}
                     sx={{ fontSize: 10, py: 0, minWidth: 0, textTransform: 'none', color: ACCENT }}>
-                    Show All
+                    {tr('Show All')}
                   </Button>
                   {onResetColumns && (
                     <Button size="small" onClick={handleReset}
                       sx={{ fontSize: 10, py: 0, minWidth: 0, textTransform: 'none', color: '#64748b' }}>
-                      Reset
+                      {tr('Reset')}
                     </Button>
                   )}
                 </Stack>
@@ -231,7 +232,7 @@ export default function GridExportBar({
                         onChange={e => toggleCol(id, e.target.checked)}
                         sx={{ '&.Mui-checked': { color: ACCENT }, py: 0.25 }} />
                     }
-                    label={<Typography sx={{ fontSize: 12 }}>{colLabel(c)}</Typography>}
+                    label={<Typography sx={{ fontSize: 12 }}>{tr(colLabel(c))}</Typography>}
                     sx={{ display: 'flex', ml: 0, mr: 0, mb: 0.25 }}
                   />
                 ) : null

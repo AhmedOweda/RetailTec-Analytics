@@ -179,7 +179,7 @@ export default function DimVendors() {
             onChange={e => setDateTo(e.target.value)} InputLabelProps={{ shrink: true }} />
           <Autocomplete multiple disableCloseOnSelect size="small" options={storeList} value={stores}
             onChange={(_, v) => setStores(v)} sx={{ minWidth: 240 }}
-            renderInput={p => <TextField {...p} placeholder="All Stores" size="small" />}
+            renderInput={p => <TextField {...p} placeholder={tr('All Stores')} size="small" />}
             renderTags={(val, gtp) => val.map((o, i) => <Chip label={o} size="small" {...gtp({ index: i })} key={o} />)} />
         </Stack>
       </Box>
