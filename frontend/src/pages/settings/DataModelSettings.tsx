@@ -292,7 +292,7 @@ export default function DataModelSettings() {
             sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
                   '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
             {testConn.isPending ? <CircularProgress size={14} sx={{ mr:1 }} /> : null}
-            Test Connection
+            {tr('Test Connection')}
           </Button>
           {testConn.isSuccess && (
             <Box sx={{ display:'flex', alignItems:'center', gap:0.5 }}>
@@ -474,7 +474,7 @@ export default function DataModelSettings() {
                 sx={{ '& .Mui-checked': { color: ACCENT },
                       '& .Mui-checked + .MuiSwitch-track': { bgcolor: `${ACCENT} !important` } }} />
             }
-            label={<Typography sx={{ fontSize:13, fontWeight:600 }}>Background sync</Typography>}
+            label={<Typography sx={{ fontSize:13, fontWeight:600 }}>{tr('Background sync')}</Typography>}
           />
           <LabeledCtl label="Timezone">
             <FormControl size="small" sx={{ minWidth:190 }}>
@@ -600,7 +600,7 @@ export default function DataModelSettings() {
                     '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
               {selDomains.size > 0
                 ? `Load ${[...selDomains].join(' + ')} now`
-                : 'Load All Data now'}
+                : tr('Load All Data now')}
             </Button>
           ) : (
             <Button variant="outlined" size="small"
@@ -609,7 +609,7 @@ export default function DataModelSettings() {
               disabled={stopLoad.isPending}
               sx={{ borderColor:'#ef4444', color:'#ef4444', textTransform:'none', fontWeight:600,
                     '&:hover':{ borderColor:'#dc2626', bgcolor:'rgba(239,68,68,0.04)' } }}>
-              Stop Load
+              {tr('Stop Load')}
             </Button>
           )}
         </Box>
@@ -780,7 +780,7 @@ export default function DataModelSettings() {
           <Button variant="outlined" size="small" onClick={() => setHistOpen(true)}
             sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
                   '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
-            View full history
+            {tr('View full history')}
           </Button>
         </Box>
       </SectionCard>
@@ -858,12 +858,12 @@ function MaintenanceCard() {
         <Button variant="outlined" size="small" disabled={backup.isPending}
           onClick={() => backup.mutate()}
           sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
-          {backup.isPending ? 'Backing up…' : 'Backup Now'}
+          {backup.isPending ? 'Backing up…' : tr('Backup Now')}
         </Button>
         <Button variant="outlined" size="small" disabled={compact.isPending}
           onClick={() => compact.mutate()}
           sx={{ borderColor:'#64748b', color:'#64748b', textTransform:'none', fontWeight:600 }}>
-          {compact.isPending ? 'Compacting…' : 'Compact Database'}
+          {compact.isPending ? 'Compacting…' : tr('Compact Database')}
         </Button>
       </Box>
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
@@ -941,7 +941,7 @@ function EmailCard() {
           onClick={() => save.mutate()}
           sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:600, boxShadow:'none',
                 '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
-          Save Email Settings
+          {tr('Save Email Settings')}
         </Button>
         <LabeledCtl label="Send test to">
           <TextField size="small" placeholder="you@company.com" sx={{ minWidth:220 }}
@@ -950,7 +950,7 @@ function EmailCard() {
         <Button variant="outlined" size="small" disabled={test.isPending || !testTo.trim()}
           onClick={() => test.mutate()}
           sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
-          {test.isPending ? 'Sending…' : 'Send Test Email'}
+          {test.isPending ? 'Sending…' : tr('Send Test Email')}
         </Button>
       </Box>
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
@@ -1067,7 +1067,7 @@ function ReportsCard() {
               disabled={sendNow.isPending || !r.recipients.trim()}
               onClick={() => sendNow.mutate(r)}
               sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
-              Send Now
+              {tr('Send Now')}
             </Button>
           </Box>
         </Box>
@@ -1076,13 +1076,13 @@ function ReportsCard() {
       <Box sx={{ display:'flex', gap:2 }}>
         <Button size="small" startIcon={<AddIcon />} onClick={addReport}
           sx={{ textTransform:'none', color:ACCENT, fontWeight:600 }}>
-          Add Report
+          {tr('Add Report')}
         </Button>
         <Button variant="contained" size="small" disabled={save.isPending}
           onClick={() => save.mutate()}
           sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:600, boxShadow:'none',
                 '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
-          Save Report Schedules
+          {tr('Save Report Schedules')}
         </Button>
       </Box>
 

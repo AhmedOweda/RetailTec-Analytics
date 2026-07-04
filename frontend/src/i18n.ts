@@ -226,6 +226,71 @@ const ar_strings: Record<string, string> = {
   'Bar colour = CRM segment': 'لون العمود = شريحة العميل',
   'Revenue ranking · GP% annotated on each bar': 'ترتيب حسب الإيراد · نسبة الربح على كل عمود',
 
+  // ── Sales Overview page ──
+  'Today': 'اليوم', 'Yesterday': 'أمس', '2 days ago': 'قبل يومين',
+  'Month to Date': 'الشهر حتى تاريخه', 'Year to Date': 'السنة حتى تاريخها',
+  'Last Month': 'الشهر الماضي', 'Last Year': 'السنة الماضية',
+  'Sales Trend': 'اتجاه المبيعات', 'No prior data': 'لا بيانات سابقة',
+  'Incl. Tax': 'شامل الضريبة', 'Tax Amount': 'قيمة الضريبة', 'Avg Ticket': 'متوسط الفاتورة',
+  'Top Products (7D)': 'أعلى المنتجات (7 أيام)',
+  'MTD vs Last Month': 'الشهر الحالي مقابل الماضي',
+  'Top Associates (MTD)': 'أفضل البائعين (الشهر)',
+  'Cumulative net sales · day by day': 'صافي مبيعات تراكمي · يومًا بيوم',
+  'Net sales · month to date': 'صافي المبيعات · الشهر حتى تاريخه',
+
+  // ── Performance page ──
+  'Store Rankings': 'ترتيب الفروع', 'Payment Mix': 'مزيج طرق الدفع',
+  'Hourly Sales Heatmap': 'خريطة المبيعات بالساعة',
+  'Top Associates': 'أفضل البائعين', 'Top Customers': 'أفضل العملاء',
+  'Return Rate by Store': 'نسبة المرتجعات حسب الفرع',
+  'Discount Rate by Store': 'نسبة الخصومات حسب الفرع',
+  'Year-over-Year by Store': 'مقارنة سنوية حسب الفرع',
+  'Net sales by branch · top 10': 'صافي المبيعات حسب الفرع · أعلى 10',
+  'Cash · Card · Deposit · Other': 'نقدًا · بطاقة · عربون · أخرى',
+  'Net sales intensity · hour of day × day of week': 'كثافة المبيعات · الساعة × اليوم',
+  'Ranked by net sales · disc % amber >10% · return % red >5%': 'مرتب حسب صافي المبيعات',
+  'Ranked by net spend for the selected period': 'مرتب حسب صافي الإنفاق في الفترة',
+  'Total net sales per weekday': 'صافي المبيعات لكل يوم أسبوع',
+  'Transaction count by value bucket': 'عدد الفواتير حسب فئة القيمة',
+  'Return value ÷ gross sales · dashed = avg': 'قيمة المرتجعات ÷ إجمالي المبيعات · المتقطع = المتوسط',
+  'Total discounts ÷ gross sales · dashed = avg': 'إجمالي الخصومات ÷ إجمالي المبيعات · المتقطع = المتوسط',
+
+  // ── Login ──
+  'Welcome back': 'مرحبًا بعودتك',
+  'Sign in to your RetailTec workspace': 'سجّل الدخول إلى منصة ريتيل تك',
+  'USERNAME': 'اسم المستخدم', 'PASSWORD': 'كلمة المرور',
+  'Sign In →': 'تسجيل الدخول',
+  'Quick search...': 'بحث سريع...',
+
+  // ── Dimension pages ──
+  'Store Intelligence': 'ذكاء الفروع',
+  'Employee Performance Intelligence': 'ذكاء أداء الموظفين',
+
+  // ── Ledger legend ──
+  'Opening Balance': 'رصيد افتتاحي', 'Sales / COGS': 'مبيعات / تكلفة',
+  'Transfers Out': 'تحويلات صادرة', 'Ending Balance': 'رصيد ختامي',
+
+  // ── Settings page ──
+  'Test Connection': 'اختبار الاتصال', 'Stop Load': 'إيقاف التحميل',
+  'Load All Data now': 'تحميل كل البيانات الآن',
+  'Backup Now': 'نسخ احتياطي الآن', 'Compact Database': 'ضغط قاعدة البيانات',
+  'Save Email Settings': 'حفظ إعدادات البريد', 'Send Test Email': 'إرسال بريد تجريبي',
+  'Add Report': 'إضافة تقرير', 'Save Report Schedules': 'حفظ جداول التقارير',
+  'Send Now': 'إرسال الآن',
+  'Background sync': 'مزامنة تلقائية بالخلفية', 'Enabled': 'مفعل',
+  'Name': 'الاسم', 'Report type': 'نوع التقرير', 'Send at': 'وقت الإرسال',
+  'Language': 'اللغة', 'Product Code Field': 'حقل رمز الصنف', 'Currency': 'العملة',
+  'Number Format': 'تنسيق الأرقام', 'Analytics Thresholds': 'حدود التحليلات',
+  'Item Grid Columns': 'أعمدة جداول الأصناف',
+  'Timezone': 'المنطقة الزمنية', 'Incremental overlap': 'نافذة التحديث',
+  'Load window': 'نافذة التحميل', 'Detail retention': 'الاحتفاظ بالتفاصيل',
+  'Times': 'الأوقات',
+  'Sales': 'المبيعات', 'Inventory': 'المخزون', 'Purchases': 'المشتريات',
+
+  // ── Users page ──
+  'Manage who can access RetailTec Analytics and what they can see.':
+    'إدارة من يمكنه الوصول إلى ريتيل تك وما يمكنه رؤيته.',
+
   // ── Dynamic KPI subs (templates) ──
   'across {{n}} stores': 'في {{n}} فرعًا',
   '{{n}} departments': '{{n}} أقسام',

@@ -21,6 +21,7 @@ import GridExportBar from '../../components/GridExportBar'
 import axios from 'axios'
 import { useAppSettings } from '../../context/AppSettings'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { tr, trCols } from '../../i18n'
 
 // ── Colours ────────────────────────────────────────────────────────────────────
 const C_PURPLE = '#7c3aed'
@@ -231,9 +232,9 @@ export default function InventoryCoverage() {
 
         <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center">
           {[
-            { label:'Store',      options: storeOptions,  value: stores,  set: setStores  },
-            { label:'Item Vendor', options: vendorOptions, value: vendors, set: setVendors },
-            { label:'Department', options: deptOptions,   value: depts,   set: setDepts   },
+            { label:tr('Store'),      options: storeOptions,  value: stores,  set: setStores  },
+            { label:tr('Item Vendor'), options: vendorOptions, value: vendors, set: setVendors },
+            { label:tr('Department'), options: deptOptions,   value: depts,   set: setDepts   },
           ].map(f => (
             <Autocomplete key={f.label} multiple disableCloseOnSelect size="small"
               options={f.options} value={f.value}
@@ -346,7 +347,7 @@ export default function InventoryCoverage() {
           <AgGridReact
             ref={gridRef}
             rowData={rows}
-            columnDefs={colDefs}
+            columnDefs={trCols(colDefs as any[])}
             defaultColDef={{ sortable: true, resizable: true, filter: true }}
             pagination
             paginationPageSize={50}

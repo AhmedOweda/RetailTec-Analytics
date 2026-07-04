@@ -3,6 +3,7 @@
  * List, add, edit, deactivate/delete users with role + store assignment.
  */
 import { useState, useMemo } from 'react'
+import { tr } from '../../i18n'
 import {
   Box, Typography, Button, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, Select, MenuItem, FormControl, InputLabel,
@@ -261,14 +262,14 @@ export default function UsersManagement() {
     <Box sx={{ p: 3, maxWidth: 960, mx: 'auto' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Box>
-          <Typography variant="h5" fontWeight={700} color="#0f172a">Users Management</Typography>
+          <Typography variant="h5" fontWeight={700} color="#0f172a">{tr('Users Management')}</Typography>
           <Typography variant="body2" color="#64748b" mt={0.5}>
-            Manage who can access RetailTec Analytics and what they can see.
+            {tr('Manage who can access RetailTec Analytics and what they can see.')}
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}
           sx={{ bgcolor: '#6366f1', '&:hover': { bgcolor: '#4f46e5' }, textTransform: 'none', fontWeight: 700 }}>
-          Add User
+          {tr('Add User')}
         </Button>
       </Box>
 
@@ -281,7 +282,7 @@ export default function UsersManagement() {
           <Table size="small">
             <TableHead sx={{ bgcolor: '#f8fafc' }}>
               <TableRow>
-                {['User', 'Role', 'Stores', 'Pages', 'Status', 'Created', 'Actions'].map(h => (
+                {['User', 'Role', 'Stores', 'Pages', 'Status', 'Created', 'Actions'].map(h => tr(h)).map(h => (
                   <TableCell key={h} sx={{ fontWeight: 700, color: '#475569', fontSize: 12 }}>{h}</TableCell>
                 ))}
               </TableRow>

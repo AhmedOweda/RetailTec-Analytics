@@ -2,6 +2,7 @@
  * Overview — KPI cards with period-over-period comparisons + Sales Trend chart
  */
 import { useState, useMemo, useRef } from 'react'
+import { tr, trCols } from '../../i18n'
 import {
   Box, Card, CardContent, Typography, Divider,
   Skeleton, Alert, Chip,
@@ -63,7 +64,7 @@ function ChangeBadge({ curr, prev, label }: { curr: number; prev: number; label:
   if (p === null) return (
     <Box sx={{ display:'flex', alignItems:'center', gap:0.5 }}>
       <RemoveIcon sx={{ fontSize:13, color:'#94a3b8' }}/>
-      <Typography sx={{ fontSize:11, color:'#94a3b8' }}>No prior data</Typography>
+      <Typography sx={{ fontSize:11, color:'#94a3b8' }}>{tr('No prior data')}</Typography>
     </Box>
   )
   const up  = p >= 0
@@ -183,8 +184,8 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
             {/* Secondary metrics — 2-col grid */}
             <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:1 }}>
 
-              <Stat label="Incl. Tax"  value={num(wtax)} />
-              <Stat label="Tax Amount" value={num(tax)}  />
+              <Stat label={tr('Incl. Tax')}  value={num(wtax)} />
+              <Stat label={tr('Tax Amount')} value={num(tax)}  />
 
               {/* Invoices — with thousands sep */}
               <Box>
@@ -231,7 +232,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
               </Box>
 
               {/* Avg Ticket */}
-              <Stat label="Avg Ticket" value={num(avgTkt)} />
+              <Stat label={tr('Avg Ticket')} value={num(avgTkt)} />
 
               {/* Discount — amount + ratio badge */}
               <Box>
@@ -302,8 +303,8 @@ function MiniChart({ title, subtitle, option, loading }: {
         <CardContent sx={{ p:2, '&:last-child':{ pb:2 } }}>
           <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', mb:0.5 }}>
             <Box>
-              <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:13, lineHeight:1.2 }}>{title}</Typography>
-              {subtitle && <Typography sx={{ fontSize:11, color:'#94a3b8', mt:0.2 }}>{subtitle}</Typography>}
+              <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:13, lineHeight:1.2 }}>{tr(title)}</Typography>
+              {subtitle && <Typography sx={{ fontSize:11, color:'#94a3b8', mt:0.2 }}>{tr(subtitle)}</Typography>}
             </Box>
             {toolbar}
           </Box>
@@ -694,10 +695,10 @@ export default function Overview() {
 
       {/* ── KPI cards ── */}
       <Box sx={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:2 }}>
-        <KpiCard label="Today"          dot={ACCENT}    data={kpi?.today}     prevData={kpi?.yesterday} prevLabel="Yesterday"  loading={kpiLoading}/>
-        <KpiCard label="Yesterday"      dot={C_INV}     data={kpi?.yesterday} prevData={kpi?.prev_day}  prevLabel="2 days ago" loading={kpiLoading}/>
-        <KpiCard label="Month to Date"  dot="#f59e0b"   data={kpi?.mtd}       prevData={kpi?.lmtd}      prevLabel="Last Month" loading={kpiLoading}/>
-        <KpiCard label="Year to Date"   dot="#10b981"   data={kpi?.ytd}       prevData={kpi?.lytd}      prevLabel="Last Year"  loading={kpiLoading}/>
+        <KpiCard label={tr('Today')}          dot={ACCENT}    data={kpi?.today}     prevData={kpi?.yesterday} prevLabel={tr('Yesterday')}  loading={kpiLoading}/>
+        <KpiCard label={tr('Yesterday')}      dot={C_INV}     data={kpi?.yesterday} prevData={kpi?.prev_day}  prevLabel={tr('2 days ago')} loading={kpiLoading}/>
+        <KpiCard label={tr('Month to Date')}  dot="#f59e0b"   data={kpi?.mtd}       prevData={kpi?.lmtd}      prevLabel={tr('Last Month')} loading={kpiLoading}/>
+        <KpiCard label={tr('Year to Date')}   dot="#10b981"   data={kpi?.ytd}       prevData={kpi?.lytd}      prevLabel={tr('Last Year')}  loading={kpiLoading}/>
       </Box>
 
       {/* ── Mini charts: Top Products · MTD Cumulative · Top Associates ── */}
@@ -727,7 +728,7 @@ export default function Overview() {
           <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:2 }}>
             <Box>
               <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:15 }}>
-                Sales Trend
+                {tr('Sales Trend')}
               </Typography>
               <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.2 }}>
                 Net sales · invoices · return rate by day

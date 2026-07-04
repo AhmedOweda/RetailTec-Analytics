@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { tr, trCols } from '../../i18n'
 import { Box, Typography, Stack, TextField, Chip, Autocomplete, Tooltip } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import ReactECharts from 'echarts-for-react'
@@ -151,7 +152,7 @@ export default function DimEmployees() {
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h5" fontWeight={700} mb={1.5}>Employee Performance Intelligence</Typography>
+        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('Employee Performance Intelligence')}</Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
           <TextField size="small" label="From" type="date" value={dateFrom}
             onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
@@ -201,7 +202,7 @@ export default function DimEmployees() {
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 420 }}>
-          <AgGridReact ref={gridRef} rowData={rows} columnDefs={colDefs}
+          <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
             defaultColDef={{ sortable:true, resizable:true, filter:true }}
             rowHeight={36} headerHeight={38} suppressCellFocus
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
