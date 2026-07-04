@@ -5,7 +5,7 @@
  * Year-over-year per-store comparison
  */
 import { useState, useMemo, useRef } from 'react'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 import {
   Box, Card, CardContent, Typography, Chip, Skeleton,
   TextField, Button, Divider, Autocomplete,
@@ -609,7 +609,7 @@ export default function Performance() {
         </Box>
 
         {/* Row 6: YoY per Store */}
-        <ChartPanel title="Year-over-Year by Store" subtitle={`Current period vs same window last year  ·  ${from.slice(5)} → ${to.slice(5)}`} option={yoyOpt} height={300} loading={yoyLoad} />
+        <ChartPanel title="Year-over-Year by Store" subtitle={trf('Current period vs same window last year  ·  {{from}} → {{to}}', { from: from.slice(5), to: to.slice(5) })} option={yoyOpt} height={300} loading={yoyLoad} />
 
 
 

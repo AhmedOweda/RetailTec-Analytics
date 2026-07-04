@@ -122,10 +122,10 @@ export default function DimItems() {
           const label = p[0]?.name ?? ''
           const d = rows.find((x: any) => `${x.ALU} ${(x.DESCRIPTION1 ?? '').slice(0,20)}` === label) ?? {}
           return `<b>${label}</b><br/>
-            ABC: <b>${d.abc}</b> · GP Tier: <b style="color:${GP_META[d.gp_tier]?.color}">${d.gp_tier}</b><br/>
-            Revenue: <b>${num(d.revenue)}</b> (${pct(d.rev_share)} of total)<br/>
-            GP: ${num(d.gp)} @ ${pct(d.gp_pct)}<br/>
-            Qty Sold: ${fmtN(d.qty)}`
+            ${tr('ABC')}: <b>${d.abc}</b> · ${tr('GP Tier')}: <b style="color:${GP_META[d.gp_tier]?.color}">${d.gp_tier ? tr(d.gp_tier) : ''}</b><br/>
+            ${tr('Revenue')}: <b>${num(d.revenue)}</b> (${pct(d.rev_share)} ${tr('of total')})<br/>
+            ${tr('GP')}: ${num(d.gp)} @ ${pct(d.gp_pct)}<br/>
+            ${tr('Qty Sold')}: ${fmtN(d.qty)}`
         },
       },
       xAxis: { type: 'value', axisLabel: { formatter: (v: number) => num(v), fontSize: 10 } },
@@ -188,11 +188,11 @@ export default function DimItems() {
       </Box>
 
       <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mb:2 }}>
-        <KpiCard label="Active SKUs"   value={fmtN(kpi.count)}     icon="ti-barcode"     color={C_PURPLE} />
-        <KpiCard label="Avg GP %"      value={pct(kpi.avgGPpct)}   icon="ti-chart-pie-2"
+        <KpiCard label={tr('Active SKUs')}   value={fmtN(kpi.count)}     icon="ti-barcode"     color={C_PURPLE} />
+        <KpiCard label={tr('Avg GP %')}      value={pct(kpi.avgGPpct)}   icon="ti-chart-pie-2"
           color={gmColorOf(kpi.avgGPpct)} />
-        <KpiCard label="Total GP"      value={num(kpi.totalGP)}    icon="ti-trending-up" color={C_GREEN}  />
-        <KpiCard label="Loss-Making SKUs" value={fmtN(kpi.lossItems)} icon="ti-alert-triangle"
+        <KpiCard label={tr('Total GP')}      value={num(kpi.totalGP)}    icon="ti-trending-up" color={C_GREEN}  />
+        <KpiCard label={tr('Loss-Making SKUs')} value={fmtN(kpi.lossItems)} icon="ti-alert-triangle"
           color={kpi.lossItems > 0 ? C_ROSE : C_GREEN}
           sub={trf('{{n}}% of portfolio',{n: kpi.count > 0 ? ((kpi.lossItems / kpi.count)*100).toFixed(0) : 0})} />
       </Box>
@@ -214,7 +214,7 @@ export default function DimItems() {
           {['A','B','C'].map(c => (
             <Box key={c} sx={{ display:'flex', alignItems:'center', gap:0.5 }}>
               <Typography sx={{ fontSize:12, fontWeight:800, color: c === 'A' ? C_PURPLE : c === 'B' ? C_CYAN : C_SLATE }}>{c}</Typography>
-              <Typography sx={{ fontSize:11, color: C_SLATE }}>{c === 'A' ? '70%' : c === 'B' ? '20%' : '10%'} revenue</Typography>
+              <Typography sx={{ fontSize:11, color: C_SLATE }}>{trf('revenue {{p}}%', { p: c === 'A' ? '70' : c === 'B' ? '20' : '10' })}</Typography>
             </Box>
           ))}
         </Box>

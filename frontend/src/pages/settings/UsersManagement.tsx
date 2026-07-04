@@ -3,7 +3,7 @@
  * List, add, edit, deactivate/delete users with role + store assignment.
  */
 import { useState, useMemo } from 'react'
-import { tr } from '../../i18n'
+import { tr, trf } from '../../i18n'
 import {
   Box, Typography, Button, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, Select, MenuItem, FormControl, InputLabel,
@@ -114,21 +114,21 @@ function StorePickerDialog({
       PaperProps={{ sx: { borderRadius: 3 } }}>
       <DialogTitle sx={{ fontWeight: 700, pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
         <StorefrontIcon sx={{ color: '#6366f1', fontSize: 20 }} />
-        Store Access
+        {tr('Store Access')}
       </DialogTitle>
       <DialogContent sx={{ pt: 0 }}>
         <Typography fontSize={12} color="#64748b" mb={1.5}>
-          Select which stores this user can access. Leave all unchecked to grant access to all stores.
+          {tr('Select which stores this user can access. Leave all unchecked to grant access to all stores.')}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, mb: 1.5 }}>
           <Button size="small" variant="outlined" sx={{ fontSize: 11, textTransform: 'none', py: 0.3 }}
-            onClick={() => setLocal([...allStores])}>Select All</Button>
+            onClick={() => setLocal([...allStores])}>{tr('Select All')}</Button>
           <Button size="small" variant="outlined" sx={{ fontSize: 11, textTransform: 'none', py: 0.3 }}
-            onClick={() => setLocal([])}>Clear</Button>
+            onClick={() => setLocal([])}>{tr('Clear')}</Button>
         </Box>
         <Box sx={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 1.5, p: 1 }}>
           {allStores.length === 0 && (
-            <Typography fontSize={12} color="#94a3b8" sx={{ p: 1 }}>No stores found</Typography>
+            <Typography fontSize={12} color="#94a3b8" sx={{ p: 1 }}>{tr('No stores found')}</Typography>
           )}
           {allStores.map(s => (
             <Box key={s} onClick={() => toggle(s)}
@@ -146,20 +146,20 @@ function StorePickerDialog({
         </Box>
         {local.length > 0 && (
           <Typography fontSize={11} color="#6366f1" mt={1} fontWeight={600}>
-            {local.length} store{local.length !== 1 ? 's' : ''} selected
+            {trf('{{n}} stores selected', { n: local.length })}
           </Typography>
         )}
         {local.length === 0 && (
           <Typography fontSize={11} color="#10b981" mt={1} fontWeight={600}>
-            Access to all stores (no restriction)
+            {tr('Access to all stores (no restriction)')}
           </Typography>
         )}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-        <Button onClick={onClose} sx={{ textTransform: 'none', color: '#64748b' }}>Cancel</Button>
+        <Button onClick={onClose} sx={{ textTransform: 'none', color: '#64748b' }}>{tr('Cancel')}</Button>
         <Button onClick={() => { onApply(local); onClose() }} variant="contained"
           sx={{ textTransform: 'none', fontWeight: 700, bgcolor: '#6366f1', '&:hover': { bgcolor: '#4f46e5' } }}>
-          Apply
+          {tr('Apply')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -205,7 +205,7 @@ export default function UsersManagement() {
       pages:     f.role === 'admin' ? null : (f.pages.trim() || null),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['auth-users'] }); closeDialog() },
-    onError:   (e: any) => setFormErr(e?.response?.data?.detail ?? 'Error creating user'),
+    onError:   (e: any) => setFormErr(e?.response?.data?.detail ?? tr('Error creating user')),
   })
 
   // ── Update ─────────────────────────────────────────────────────────────────
@@ -219,14 +219,14 @@ export default function UsersManagement() {
       pages:     f.role === 'admin' ? '' : f.pages.trim(),   // '' = all pages
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['auth-users'] }); closeDialog() },
-    onError:   (e: any) => setFormErr(e?.response?.data?.detail ?? 'Error updating user'),
+    onError:   (e: any) => setFormErr(e?.response?.data?.detail ?? tr('Error updating user')),
   })
 
   // ── Delete ─────────────────────────────────────────────────────────────────
   const deleteMut = useMutation({
     mutationFn: (id: number) => api.delete(`/api/auth/users/${id}`),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['auth-users'] }),
-    onError:    (e: any) => alert(e?.response?.data?.detail ?? 'Cannot delete user'),
+    onError:    (e: any) => alert(e?.response?.data?.detail ?? tr('Cannot delete user')),
   })
 
   function openCreate() {
@@ -249,8 +249,8 @@ export default function UsersManagement() {
 
   function submit() {
     setFormErr(null)
-    if (!form.username.trim()) { setFormErr('Username is required'); return }
-    if (!editId && !form.password) { setFormErr('Password is required for new users'); return }
+    if (!form.username.trim()) { setFormErr(tr('Username is required')); return }
+    if (!editId && !form.password) { setFormErr(tr('Password is required for new users')); return }
     if (editId) updateMut.mutate(form)
     else        createMut.mutate(form)
   }
@@ -274,7 +274,7 @@ export default function UsersManagement() {
       </Box>
 
       {isLoading && <CircularProgress />}
-      {error    && <Alert severity="error">Failed to load users</Alert>}
+      {error    && <Alert severity="error">{tr('Failed to load users')}</Alert>}
 
       {!isLoading && (
         <TableContainer component={Paper} elevation={0}
@@ -308,20 +308,20 @@ export default function UsersManagement() {
                         ))}
                       </Box>
                     ) : (
-                      <em style={{ color: '#94a3b8', fontSize: 12 }}>All stores</em>
+                      <em style={{ color: '#94a3b8', fontSize: 12 }}>{tr('All stores')}</em>
                     )}
                   </TableCell>
                   <TableCell>
                     {u.role === 'admin' || !u.pages ? (
-                      <em style={{ color: '#94a3b8', fontSize: 12 }}>All pages</em>
+                      <em style={{ color: '#94a3b8', fontSize: 12 }}>{tr('All pages')}</em>
                     ) : (
                       <Chip size="small"
-                        label={`${u.pages.split(',').filter(Boolean).length} of ${ALL_PAGE_KEYS.length}`}
+                        label={trf('{{a}} of {{b}}', { a: u.pages.split(',').filter(Boolean).length, b: ALL_PAGE_KEYS.length })}
                         sx={{ fontSize: 10, height: 18, bgcolor: '#ede9fe', color: '#6366f1', fontWeight: 700 }} />
                     )}
                   </TableCell>
                   <TableCell>
-                    <Chip label={u.is_active ? 'Active' : 'Inactive'} size="small"
+                    <Chip label={u.is_active ? tr('Active') : tr('Inactive')} size="small"
                       sx={{ bgcolor: u.is_active ? '#d1fae5' : '#fee2e2',
                             color: u.is_active ? '#065f46' : '#991b1b', fontWeight: 600, fontSize: 11 }} />
                   </TableCell>
@@ -329,14 +329,14 @@ export default function UsersManagement() {
                     {u.created_at ? u.created_at.slice(0, 10) : '—'}
                   </TableCell>
                   <TableCell>
-                    <Tooltip title="Edit">
+                    <Tooltip title={tr('Edit')}>
                       <IconButton size="small" onClick={() => openEdit(u)}>
                         <EditIcon fontSize="small" sx={{ color: '#6366f1' }} />
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="Delete">
+                    <Tooltip title={tr('Delete')}>
                       <IconButton size="small" onClick={() => {
-                        if (confirm(`Delete user "${u.username}"?`)) deleteMut.mutate(u.id)
+                        if (confirm(trf('Delete user "{{u}}"?', { u: u.username }))) deleteMut.mutate(u.id)
                       }}>
                         <DeleteIcon fontSize="small" sx={{ color: '#ef4444' }} />
                       </IconButton>
@@ -347,7 +347,7 @@ export default function UsersManagement() {
               {users.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} align="center" sx={{ color: '#94a3b8', py: 4 }}>
-                    No users yet
+                    {tr('No users yet')}
                   </TableCell>
                 </TableRow>
               )}
@@ -364,10 +364,10 @@ export default function UsersManagement() {
           { role: 'viewer',  desc: 'Read-only, store-scoped if stores are set' },
         ].map(({ role, desc }) => (
           <Box key={role} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip label={role} size="small"
+            <Chip label={tr(role)} size="small"
               sx={{ bgcolor: ROLE_COLORS[role] + '1a', color: ROLE_COLORS[role],
                     fontWeight: 700, fontSize: 11 }} />
-            <Typography fontSize={11} color="#94a3b8">{desc}</Typography>
+            <Typography fontSize={11} color="#94a3b8">{tr(desc)}</Typography>
           </Box>
         ))}
       </Box>
@@ -376,31 +376,31 @@ export default function UsersManagement() {
       <Dialog open={open} onClose={closeDialog} maxWidth="sm" fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 700 }}>
-          {editId ? 'Edit User' : 'Add New User'}
+          {editId ? tr('Edit User') : tr('Add New User')}
         </DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2 }}>
 
           {formErr && <Alert severity="error">{formErr}</Alert>}
 
-          <TextField label="Full Name" value={form.full_name} size="small"
+          <TextField label={tr('Full Name')} value={form.full_name} size="small"
             onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} />
 
-          <TextField label="Username *" value={form.username} size="small"
+          <TextField label={tr('Username *')} value={form.username} size="small"
             disabled={!!editId}
             onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
 
           <TextField
-            label={editId ? 'New Password (leave blank to keep)' : 'Password *'}
+            label={editId ? tr('New Password (leave blank to keep)') : tr('Password *')}
             type="password" value={form.password} size="small"
             onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
 
           <FormControl size="small">
-            <InputLabel>Role</InputLabel>
-            <Select value={form.role} label="Role"
+            <InputLabel>{tr('Role')}</InputLabel>
+            <Select value={form.role} label={tr('Role')}
               onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-              <MenuItem value="admin">Admin</MenuItem>
-              <MenuItem value="manager">Manager</MenuItem>
-              <MenuItem value="viewer">Viewer</MenuItem>
+              <MenuItem value="admin">{tr('Admin')}</MenuItem>
+              <MenuItem value="manager">{tr('Manager')}</MenuItem>
+              <MenuItem value="viewer">{tr('Viewer')}</MenuItem>
             </Select>
           </FormControl>
 
@@ -411,20 +411,20 @@ export default function UsersManagement() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
                   <SecurityIcon sx={{ fontSize: 15, color: ROLE_COLORS[form.role] }} />
                   <Typography fontSize={12} fontWeight={700} color={ROLE_COLORS[form.role]}>
-                    {ROLE_PRIVILEGES[form.role]?.label}
+                    {tr(ROLE_PRIVILEGES[form.role]?.label ?? '')}
                   </Typography>
                 </Box>
                 <Button size="small" sx={{ fontSize: 10, textTransform: 'none', py: 0, minWidth: 0, color: '#6366f1' }}
                   onClick={() => setPrivOpen(true)}>
-                  View details
+                  {tr('View details')}
                 </Button>
               </Box>
               {ROLE_PRIVILEGES[form.role]?.items.slice(0, 2).map(item => (
-                <Typography key={item} fontSize={11} color="#64748b" sx={{ pl: 1 }}>• {item}</Typography>
+                <Typography key={item} fontSize={11} color="#64748b" sx={{ pl: 1 }}>• {tr(item)}</Typography>
               ))}
               {(ROLE_PRIVILEGES[form.role]?.items.length ?? 0) > 2 && (
                 <Typography fontSize={11} color="#94a3b8" sx={{ pl: 1 }}>
-                  +{(ROLE_PRIVILEGES[form.role]?.items.length ?? 0) - 2} more…
+                  {trf('+{{n}} more…', { n: (ROLE_PRIVILEGES[form.role]?.items.length ?? 0) - 2 })}
                 </Typography>
               )}
             </Box>
@@ -435,19 +435,19 @@ export default function UsersManagement() {
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
               <Typography fontSize={12} fontWeight={600} color="#475569"
                 sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <StorefrontIcon sx={{ fontSize: 15 }} /> Store Access
+                <StorefrontIcon sx={{ fontSize: 15 }} /> {tr('Store Access')}
               </Typography>
               <Button size="small" variant="outlined" startIcon={<StorefrontIcon sx={{ fontSize: 14 }} />}
                 onClick={() => setStorePickOpen(true)}
                 sx={{ fontSize: 11, textTransform: 'none', py: 0.3, borderColor: '#6366f1', color: '#6366f1' }}>
-                {selectedStores.length > 0 ? 'Edit Stores' : 'Select Stores'}
+                {selectedStores.length > 0 ? tr('Edit Stores') : tr('Select Stores')}
               </Button>
             </Box>
             <Box sx={{ minHeight: 40, border: '1px solid #e2e8f0', borderRadius: 1.5, p: 1,
                         display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center', bgcolor: '#f8fafc' }}>
               {selectedStores.length === 0 ? (
                 <Typography fontSize={12} color="#94a3b8" sx={{ fontStyle: 'italic' }}>
-                  All stores (no restriction)
+                  {tr('All stores (no restriction)')}
                 </Typography>
               ) : selectedStores.map(s => (
                 <Chip key={s} label={s} size="small" onDelete={() => applyStores(selectedStores.filter(x => x !== s))}
@@ -482,11 +482,11 @@ export default function UsersManagement() {
                 <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:0.8 }}>
                   <Typography fontSize={12} fontWeight={600} color="#475569"
                     sx={{ display:'flex', alignItems:'center', gap:0.5 }}>
-                    <SecurityIcon sx={{ fontSize:15 }} /> Page Access
+                    <SecurityIcon sx={{ fontSize:15 }} /> {tr('Page Access')}
                   </Typography>
                   <Typography fontSize={11} fontWeight={600}
                     color={sel.size === 0 ? '#10b981' : '#6366f1'}>
-                    {sel.size === 0 ? 'All pages (no restriction)' : `${sel.size} of ${ALL_PAGE_KEYS.length} pages`}
+                    {sel.size === 0 ? tr('All pages (no restriction)') : trf('{{n}} of {{b}} pages', { n: sel.size, b: ALL_PAGE_KEYS.length })}
                   </Typography>
                 </Box>
                 <Box sx={{ border:'1px solid #e2e8f0', borderRadius:1.5, p:1.5, bgcolor:'#f8fafc',
@@ -504,7 +504,7 @@ export default function UsersManagement() {
                               sx={{ p:0.4, color:'#6366f1', '&.Mui-checked':{ color:'#6366f1' },
                                     '&.MuiCheckbox-indeterminate':{ color:'#6366f1' } }} />
                           }
-                          label={<Typography fontSize={12} fontWeight={700} color="#334155">{dom.domain}</Typography>}
+                          label={<Typography fontSize={12} fontWeight={700} color="#334155">{tr(dom.domain)}</Typography>}
                         />
                         {dom.pages.map(p => (
                           <FormControlLabel key={p.key} sx={{ display:'flex', ml:1, mb:-0.6 }}
@@ -513,7 +513,7 @@ export default function UsersManagement() {
                                 onChange={() => togglePage(p.key)}
                                 sx={{ p:0.4, color:'#94a3b8', '&.Mui-checked':{ color:'#6366f1' } }} />
                             }
-                            label={<Typography fontSize={12} color="#475569">{p.label}</Typography>}
+                            label={<Typography fontSize={12} color="#475569">{tr(p.label)}</Typography>}
                           />
                         ))}
                       </Box>
@@ -528,17 +528,17 @@ export default function UsersManagement() {
             <FormControlLabel
               control={<Switch checked={form.is_active}
                 onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} />}
-              label="Account Active"
+              label={tr('Account Active')}
             />
           )}
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button onClick={closeDialog} sx={{ textTransform: 'none', color: '#64748b' }}>Cancel</Button>
+          <Button onClick={closeDialog} sx={{ textTransform: 'none', color: '#64748b' }}>{tr('Cancel')}</Button>
           <Button onClick={submit} variant="contained" disabled={busy}
             sx={{ textTransform: 'none', fontWeight: 700, bgcolor: '#6366f1',
                   '&:hover': { bgcolor: '#4f46e5' } }}>
-            {busy ? <CircularProgress size={18} /> : editId ? 'Save Changes' : 'Create User'}
+            {busy ? <CircularProgress size={18} /> : editId ? tr('Save Changes') : tr('Create User')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -557,25 +557,25 @@ export default function UsersManagement() {
         PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
           <SecurityIcon sx={{ color: '#6366f1' }} />
-          Role Privileges
+          {tr('Role Privileges')}
         </DialogTitle>
         <DialogContent>
           <Stack spacing={2.5}>
             {Object.entries(ROLE_PRIVILEGES).map(([role, { label, items }]) => (
               <Box key={role}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.8 }}>
-                  <Chip label={role} size="small"
+                  <Chip label={tr(role)} size="small"
                     sx={{ bgcolor: ROLE_COLORS[role] + '1a', color: ROLE_COLORS[role],
                           fontWeight: 700, fontSize: 11, textTransform: 'capitalize' }} />
-                  <Typography fontSize={13} fontWeight={700} color={ROLE_COLORS[role]}>{label}</Typography>
+                  <Typography fontSize={13} fontWeight={700} color={ROLE_COLORS[role]}>{tr(label)}</Typography>
                   {form.role === role && (
-                    <Chip label="Current selection" size="small"
+                    <Chip label={tr('Current selection')} size="small"
                       sx={{ fontSize: 10, bgcolor: '#f0fdf4', color: '#15803d', fontWeight: 600 }} />
                   )}
                 </Box>
                 {items.map(item => (
                   <Typography key={item} fontSize={12} color="#475569" sx={{ pl: 1.5, mb: 0.3 }}>
-                    ✓ {item}
+                    ✓ {tr(item)}
                   </Typography>
                 ))}
                 <Divider sx={{ mt: 1.5 }} />
@@ -586,7 +586,7 @@ export default function UsersManagement() {
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button onClick={() => setPrivOpen(false)} variant="contained"
             sx={{ textTransform: 'none', fontWeight: 700, bgcolor: '#6366f1', '&:hover': { bgcolor: '#4f46e5' } }}>
-            Close
+            {tr('Close')}
           </Button>
         </DialogActions>
       </Dialog>

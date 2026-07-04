@@ -25,7 +25,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
 import { ITEM_FIELDS, itemFieldLabel } from '../../utils/itemFields'
-import { tr } from '../../i18n'
+import { tr, trf } from '../../i18n'
 
 const ACCENT = '#7c3aed'
 
@@ -35,7 +35,7 @@ const KIND_LABEL: Record<string, string> = {
 function etaText(s: any): string {
   if (!s?.started_at || !s?.done || !s?.total) return ''
   const pct = s.done / s.total
-  if (pct <= 0.02) return 'estimating…'
+  if (pct <= 0.02) return tr('estimating…')
   const remain = (Date.now() / 1000 - s.started_at) * (1 - pct) / pct
   if (remain < 1) return ''
   const m = Math.floor(remain / 60), sec = Math.round(remain % 60)
@@ -216,9 +216,9 @@ export default function DataModelSettings() {
       qc.invalidateQueries({ queryKey:['settings'] })
       qc.invalidateQueries({ queryKey:['sync-status'] })
       if (res.data?.host_changed) {
-        setSaveMsg('Host changed — switched to new database. Run Load All Data to populate it.')
+        setSaveMsg(tr('Host changed — switched to new database. Run Load All Data to populate it.'))
       } else {
-        setSaveMsg('Settings saved')
+        setSaveMsg(tr('Settings saved'))
       }
       setTimeout(() => setSaveMsg(''), 5000)
     },
@@ -226,7 +226,7 @@ export default function DataModelSettings() {
       const detail = err?.response?.data?.detail
       const msg = Array.isArray(detail)
         ? detail.map((d: any) => d.msg ?? JSON.stringify(d)).join(' · ')
-        : (detail ?? 'Save failed')
+        : (detail ?? tr('Save failed'))
       setSaveErr(String(msg))
     },
   })
@@ -264,25 +264,25 @@ export default function DataModelSettings() {
                // for every shrunk label on this page.
                '& .MuiInputLabel-shrink ~ .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline legend':
                  { maxWidth: '100%' } }}>
-      <Typography variant="h6" sx={{ fontWeight:700, color:'#0f172a', mb:0.5 }}>Settings</Typography>
+      <Typography variant="h6" sx={{ fontWeight:700, color:'#0f172a', mb:0.5 }}>{tr('Settings')}</Typography>
       <Typography sx={{ fontSize:13, color:'#64748b', mb:3 }}>
-        Configure Oracle connection and data model refresh behaviour.
+        {tr('Configure Oracle connection and data model refresh behaviour.')}
       </Typography>
 
       {/* ── Connection ──────────────────────────────────────────── */}
       <SectionCard title="Database Connection" icon={<StorageIcon />}>
         <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:2, mb:2 }}>
-          <TextField label="Host IP / Hostname" size="small" fullWidth
+          <TextField label={tr('Host IP / Hostname')} size="small" fullWidth
             value={conn.host} onChange={e => setConn({ ...conn, host:e.target.value })} />
-          <TextField label="Port" size="small" type="number" fullWidth
+          <TextField label={tr('Port')} size="small" type="number" fullWidth
             value={conn.port} onChange={e => setConn({ ...conn, port:+e.target.value })} />
-          <TextField label="Service Name" size="small" fullWidth
-            placeholder="e.g. rproods"
+          <TextField label={tr('Service Name')} size="small" fullWidth
+            placeholder={tr('e.g. rproods')}
             value={conn.sid} onChange={e => setConn({ ...conn, sid:e.target.value })} />
-          <TextField label="Username" size="small" fullWidth
+          <TextField label={tr('Username')} size="small" fullWidth
             value={conn.username} onChange={e => setConn({ ...conn, username:e.target.value })} />
-          <TextField label="Password" size="small" type="password" fullWidth
-            placeholder="Enter to change password"
+          <TextField label={tr('Password')} size="small" type="password" fullWidth
+            placeholder={tr('Enter to change password')}
             value={conn.password} onChange={e => setConn({ ...conn, password:e.target.value })} />
         </Box>
 
@@ -306,7 +306,7 @@ export default function DataModelSettings() {
             <Box sx={{ display:'flex', alignItems:'center', gap:0.5 }}>
               <ErrorIcon sx={{ color:'#ef4444', fontSize:18 }} />
               <Typography sx={{ fontSize:13, color:'#ef4444' }}>
-                {(testConn.error as any)?.response?.data?.detail ?? 'Connection failed'}
+                {(testConn.error as any)?.response?.data?.detail ?? tr('Connection failed')}
               </Typography>
             </Box>
           )}
@@ -316,12 +316,11 @@ export default function DataModelSettings() {
       {/* ── Display Settings ────────────────────────────────────── */}
       <SectionCard title="Display Settings" icon={<TuneIcon />}>
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-          Choose which product code appears alongside the item description
-          in charts and tables throughout the dashboard.
+          {tr('Choose which product code appears alongside the item description in charts and tables throughout the dashboard.')}
         </Typography>
         <Box sx={{ display:'flex', alignItems:'center', gap:2 }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
-            Product Code Field
+            {tr('Product Code Field')}
           </Typography>
           <ToggleButtonGroup
             value={productCodeField}
@@ -336,14 +335,14 @@ export default function DataModelSettings() {
           </ToggleButtonGroup>
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
             {productCodeField === 'alu'
-              ? 'Showing ALU (internal item code) · e.g. ALU001 | Blue Shirt'
-              : 'Showing UPC (barcode) · e.g. 123456789 | Blue Shirt'}
+              ? tr('Showing ALU (internal item code) · e.g. ALU001 | Blue Shirt')
+              : tr('Showing UPC (barcode) · e.g. 123456789 | Blue Shirt')}
           </Typography>
         </Box>
 
         <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5 }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
-            Currency
+            {tr('Currency')}
           </Typography>
           <FormControl size="small" sx={{ minWidth:230 }}>
             <Select value={currency.code}
@@ -363,32 +362,32 @@ export default function DataModelSettings() {
               <Switch size="small" checked={showCurrency}
                 onChange={e => setShowCurrency(e.target.checked)} />
             }
-            label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>Show sign on money values</Typography>}
+            label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>{tr('Show sign on money values')}</Typography>}
           />
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-            {showCurrency ? `e.g. ${currency.symbol} 17.2M` : 'e.g. 17.2M (no sign)'}
+            {showCurrency ? `e.g. ${currency.symbol} 17.2M` : tr('e.g. 17.2M (no sign)')}
           </Typography>
         </Box>
 
         {/* ── Number format ── */}
         <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5, flexWrap:'wrap' }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
-            Number Format
+            {tr('Number Format')}
           </Typography>
           <ToggleButtonGroup
             value={moneyDecimals} exclusive size="small"
             onChange={(_, v) => { if (v !== null) setMoneyDecimals(v) }}
             sx={{ '& .MuiToggleButton-root': { px:2, fontWeight:700, fontSize:12, textTransform:'none' },
                   '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important`, borderColor:`${ACCENT} !important` } }}>
-            <ToggleButton value={0}>No decimals</ToggleButton>
-            <ToggleButton value={2}>2 decimals</ToggleButton>
+            <ToggleButton value={0}>{tr('No decimals')}</ToggleButton>
+            <ToggleButton value={2}>{tr('2 decimals')}</ToggleButton>
           </ToggleButtonGroup>
           <FormControlLabel sx={{ ml:0.5 }}
             control={
               <Switch size="small" checked={abbreviateNumbers}
                 onChange={e => setAbbreviateNumbers(e.target.checked)} />
             }
-            label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>Abbreviate large numbers (1.2M / 340K)</Typography>}
+            label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>{tr('Abbreviate large numbers (1.2M / 340K)')}</Typography>}
           />
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
             {abbreviateNumbers ? 'e.g. 1.23M' : `e.g. 1,234,${moneyDecimals === 2 ? '567.89' : '568'}`}
@@ -398,32 +397,28 @@ export default function DataModelSettings() {
         {/* ── Language / direction ── */}
         <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5 }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
-            Language
+            {tr('Language')}
           </Typography>
           <ToggleButtonGroup
             value={language} exclusive size="small"
             onChange={(_, v) => { if (v) setLanguage(v) }}
             sx={{ '& .MuiToggleButton-root': { px:2.5, fontWeight:700, fontSize:12, textTransform:'none' },
                   '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important`, borderColor:`${ACCENT} !important` } }}>
-            <ToggleButton value="en">English</ToggleButton>
+            <ToggleButton value="en">{tr('English')}</ToggleButton>
             <ToggleButton value="ar">العربية</ToggleButton>
           </ToggleButtonGroup>
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-            {language === 'ar'
-              ? 'Arabic flips the whole layout right-to-left'
-              : 'Arabic flips the whole layout right-to-left'}
+            {tr('Arabic flips the whole layout right-to-left')}
           </Typography>
         </Box>
 
         {/* ── Item grid columns ── */}
         <Box sx={{ mt:2.5 }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', mb:0.3 }}>
-            Item Grid Columns
+            {tr('Item Grid Columns')}
           </Typography>
           <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1 }}>
-            Extra item-master fields shown as columns in every table that lists
-            items (descriptions, texts, UDFs, price levels). Applied instantly —
-            data appears after the next sync refreshes the item master.
+            {tr('Extra item-master fields shown as columns in every table that lists items (descriptions, texts, UDFs, price levels). Applied instantly — data appears after the next sync refreshes the item master.')}
           </Typography>
           <Autocomplete
             multiple disableCloseOnSelect size="small"
@@ -431,7 +426,7 @@ export default function DataModelSettings() {
             getOptionLabel={k => itemFieldLabel(k)}
             value={itemFields}
             onChange={(_, v) => setItemFields(v)}
-            renderInput={p => <TextField {...p} placeholder={itemFields.length ? '' : 'None — default columns only'}
+            renderInput={p => <TextField {...p} placeholder={itemFields.length ? '' : tr('None — default columns only')}
               size="small" sx={{ maxWidth:560 }} />}
             sx={{ maxWidth:560 }}
           />
@@ -440,11 +435,10 @@ export default function DataModelSettings() {
         {/* ── Analytics thresholds ── */}
         <Box sx={{ mt:2.5 }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', mb:0.3 }}>
-            Analytics Thresholds
+            {tr('Analytics Thresholds')}
           </Typography>
           <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1.5 }}>
-            Drive the traffic-light colours across the dashboard (days-on-hand,
-            margin quality, dormant customers). Saved instantly.
+            {tr('Drive the traffic-light colours across the dashboard (days-on-hand, margin quality, dormant customers). Saved instantly.')}
           </Typography>
           <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
             {([
@@ -454,7 +448,7 @@ export default function DataModelSettings() {
               { k:'lowGmPct',    l:'Low margin below',  suffix:'%' },
               { k:'goodGmPct',   l:'Good margin at',    suffix:'%' },
             ] as const).map(f => (
-              <LabeledCtl key={f.k} label={`${f.l} (${f.suffix})`}>
+              <LabeledCtl key={f.k} label={`${tr(f.l)} (${tr(f.suffix)})`}>
                 <TextField size="small" type="number" sx={{ width:150 }}
                   value={thresholds[f.k]}
                   onChange={e => setThreshold({ [f.k]: Math.max(0, +e.target.value) })} />
@@ -489,7 +483,7 @@ export default function DataModelSettings() {
             <FormControl size="small" sx={{ minWidth:170 }}>
               <Select value={dm.default_incremental_days}
                 onChange={e => setDm({ ...dm, default_incremental_days:+e.target.value })}>
-                {INCR_OPTIONS.map(d => <MenuItem key={d} value={d}>Last {d} day{d>1?'s':''}</MenuItem>)}
+                {INCR_OPTIONS.map(d => <MenuItem key={d} value={d}>{trf('Last {{n}} days', { n: d })}</MenuItem>)}
               </Select>
             </FormControl>
           </LabeledCtl>
@@ -502,15 +496,15 @@ export default function DataModelSettings() {
                   quiet_hours: e.target.checked ? { from:'08:00', to:'18:00' } : null })}
                 sx={{ color: ACCENT, '&.Mui-checked': { color: ACCENT } }} />
             }
-            label={<Typography sx={{ fontSize:13 }}>Quiet hours (no background sync)</Typography>}
+            label={<Typography sx={{ fontSize:13 }}>{tr('Quiet hours (no background sync)')}</Typography>}
           />
           {dm.quiet_hours && (
             <>
-              <TextField label="From" type="time" size="small" sx={{ width:130 }}
+              <TextField label={tr('From')} type="time" size="small" sx={{ width:130 }}
                 InputLabelProps={{ shrink:true }}
                 value={dm.quiet_hours.from}
                 onChange={e => setDm({ ...dm, quiet_hours: { ...dm.quiet_hours!, from: e.target.value } })} />
-              <TextField label="To" type="time" size="small" sx={{ width:130 }}
+              <TextField label={tr('To')} type="time" size="small" sx={{ width:130 }}
                 InputLabelProps={{ shrink:true }}
                 value={dm.quiet_hours.to}
                 onChange={e => setDm({ ...dm, quiet_hours: { ...dm.quiet_hours!, to: e.target.value } })} />
@@ -523,7 +517,7 @@ export default function DataModelSettings() {
           <Box sx={{ mb:2, p:1.5, bgcolor:'rgba(124,58,237,0.06)', borderRadius:1.5 }}>
             <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:0.5 }}>
               <Typography sx={{ fontSize:11, fontWeight:700, color:ACCENT, textTransform:'uppercase', letterSpacing:0.4 }}>
-                {KIND_LABEL[syncState.kind] || 'Sync'}
+                {tr(KIND_LABEL[syncState.kind] || 'Sync')}
               </Typography>
               <Box sx={{ flex:1 }} />
               <Typography sx={{ fontSize:11, color:'#94a3b8' }}>{etaText(syncState)}</Typography>
@@ -547,23 +541,21 @@ export default function DataModelSettings() {
         )}
         {syncState?.last_sync && !isRunning && (
           <Typography sx={{ fontSize:12, color:'#94a3b8', mb:2 }}>
-            Last sync: {new Date(syncState.last_sync).toLocaleString()}
+            {trf('Last sync: {{t}}', { t: new Date(syncState.last_sync).toLocaleString() })}
           </Typography>
         )}
 
         {/* Domain selector */}
         <Box sx={{ mb:2 }}>
           <Typography sx={{ fontSize:12, fontWeight:700, color:'#475569' }}>
-            Manual load — one-time pull from Oracle
+            {tr('Manual load — one-time pull from Oracle')}
           </Typography>
           <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1 }}>
-            Runs once, right now. How far back each domain goes is its
-            <b> Load window</b> in “Refresh Schedules &amp; Retention” below.
-            Tick domains to load only those — all unchecked = everything.
+            {tr('Runs once, right now. How far back each domain goes is its Load window in Refresh Schedules & Retention below. Tick domains to load only those — all unchecked = everything.')}
           </Typography>
           <FormGroup row sx={{ gap:1 }}>
             {DOMAINS.map(d => (
-              <Tooltip key={d.key} title={d.desc} placement="top" arrow>
+              <Tooltip key={d.key} title={tr(d.desc)} placement="top" arrow>
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -580,7 +572,7 @@ export default function DataModelSettings() {
                   label={
                     <Typography sx={{ fontSize:13, fontWeight: selDomains.has(d.key) ? 700 : 400,
                                       color: selDomains.has(d.key) ? ACCENT : '#374151' }}>
-                      {d.label}
+                      {tr(d.label)}
                     </Typography>
                   }
                 />
@@ -599,7 +591,7 @@ export default function DataModelSettings() {
               sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
                     '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
               {selDomains.size > 0
-                ? `Load ${[...selDomains].join(' + ')} now`
+                ? trf('Load {{d}} now', { d: [...selDomains].join(' + ') })
                 : tr('Load All Data now')}
             </Button>
           ) : (
@@ -618,12 +610,7 @@ export default function DataModelSettings() {
       {/* ── Refresh Schedules & Retention (per domain) ───────────── */}
       <SectionCard title="Refresh Schedules & Retention" icon={<ScheduleIcon />}>
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-          Controls the <b>automatic</b> refresh of each domain: at specific times on
-          selected days, on a fixed interval, or manual only. The <b>Load window </b>
-          here sets how far back that domain keeps data — it is also the period the
-          manual “Load now” button above pulls. Retention prunes old line-item
-          detail while keeping daily summaries forever. Times use the timezone
-          selected above. Remember to <b>Save Settings</b>.
+          {tr('Controls the automatic refresh of each domain: at specific times on selected days, on a fixed interval, or manual only. The Load window here sets how far back that domain keeps data — it is also the period the manual Load now button above pulls. Retention prunes old line-item detail while keeping daily summaries forever. Times use the timezone selected above. Remember to Save Settings.')}
         </Typography>
 
         {DOMAINS.map(d => {
@@ -641,9 +628,9 @@ export default function DataModelSettings() {
                       onChange={e => setDomain(d.key, { enabled: e.target.checked })} />
                   }
                   label={
-                    <Tooltip title={d.desc} placement="top" arrow>
+                    <Tooltip title={tr(d.desc)} placement="top" arrow>
                       <Typography sx={{ fontSize:13.5, fontWeight:700, color:'#0f172a' }}>
-                        {d.label}
+                        {tr(d.label)}
                       </Typography>
                     </Tooltip>
                   }
@@ -653,7 +640,7 @@ export default function DataModelSettings() {
                     <Select value={cfg.load_days}
                       onChange={e => setDomain(d.key, { load_days: +e.target.value })}>
                       {[...new Set([cfg.load_days, ...LOAD_OPTIONS])].sort((a, b) => a - b)
-                        .map(v => <MenuItem key={v} value={v}>Last {v} days</MenuItem>)}
+                        .map(v => <MenuItem key={v} value={v}>{trf('Last {{n}} days', { n: v })}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </LabeledCtl>
@@ -664,7 +651,7 @@ export default function DataModelSettings() {
                       onChange={e => setDomain(d.key, {
                         retain_detail_months: e.target.value === 'null' ? null : +e.target.value })}>
                       {RETAIN_OPTIONS.map(o =>
-                        <MenuItem key={String(o.v)} value={o.v === null ? 'null' : o.v}>{o.l}</MenuItem>)}
+                        <MenuItem key={String(o.v)} value={o.v === null ? 'null' : o.v}>{tr(o.l)}</MenuItem>)}
                     </Select>
                   </FormControl>
                 </LabeledCtl>
@@ -675,18 +662,18 @@ export default function DataModelSettings() {
                   onChange={(_, v) => { if (v) setSchedule(d.key, { mode: v }) }}
                   sx={{ '& .MuiToggleButton-root': { px:1.5, py:0.4, fontWeight:700, fontSize:11.5, textTransform:'none' },
                         '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important` } }}>
-                  <ToggleButton value="manual">Manual</ToggleButton>
-                  <ToggleButton value="interval">Interval</ToggleButton>
-                  <ToggleButton value="times">Times</ToggleButton>
+                  <ToggleButton value="manual">{tr('Manual')}</ToggleButton>
+                  <ToggleButton value="interval">{tr('Interval')}</ToggleButton>
+                  <ToggleButton value="times">{tr('Times')}</ToggleButton>
                 </ToggleButtonGroup>
 
                 {sch.mode === 'interval' && (
                   <FormControl size="small" sx={{ minWidth:130 }}>
-                    <InputLabel>Every</InputLabel>
-                    <Select value={sch.every_minutes ?? 30} label="Every"
+                    <InputLabel>{tr('Every')}</InputLabel>
+                    <Select value={sch.every_minutes ?? 30} label={tr('Every')}
                       onChange={e => setSchedule(d.key, { every_minutes: +e.target.value })}>
                       {[...new Set([sch.every_minutes ?? 30, ...REFR_OPTIONS])].sort((a, b) => a - b)
-                        .map(m => <MenuItem key={m} value={m}>{m} min</MenuItem>)}
+                        .map(m => <MenuItem key={m} value={m}>{trf('{{n}} min', { n: m })}</MenuItem>)}
                     </Select>
                   </FormControl>
                 )}
@@ -694,8 +681,8 @@ export default function DataModelSettings() {
                 {sch.mode === 'times' && (
                   <>
                     <TextField size="small" sx={{ minWidth:230 }}
-                      placeholder="Times — 06:00, 12:00, 18:00"
-                      helperText="HH:MM, comma-separated"
+                      placeholder={tr('Times — 06:00, 12:00, 18:00')}
+                      helperText={tr('HH:MM, comma-separated')}
                       value={(sch.times ?? []).join(', ')}
                       onChange={e => setSchedule(d.key, {
                         times: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })} />
@@ -705,14 +692,14 @@ export default function DataModelSettings() {
                       sx={{ flexWrap:'wrap',
                             '& .MuiToggleButton-root': { px:1, py:0.3, fontSize:11, fontWeight:700, textTransform:'none' },
                             '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important` } }}>
-                      {WEEKDAYS.map(w => <ToggleButton key={w} value={w}>{w}</ToggleButton>)}
+                      {WEEKDAYS.map(w => <ToggleButton key={w} value={w}>{tr(w)}</ToggleButton>)}
                     </ToggleButtonGroup>
                   </>
                 )}
 
                 {sch.mode === 'manual' && (
                   <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-                    No automatic refresh — use Sync buttons or a range load.
+                    {tr('No automatic refresh — use Sync buttons or a range load.')}
                   </Typography>
                 )}
               </Box>
@@ -724,14 +711,13 @@ export default function DataModelSettings() {
       {/* ── Load a specific date range ──────────────────────────── */}
       <SectionCard title="Load a Date Range" icon={<SyncIcon />}>
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-          Load an explicit period (e.g. backfill older history). This <b>appends</b> to
-          existing data — nothing is deleted. Respects the domain selection above.
+          {tr('Load an explicit period (e.g. backfill older history). This appends to existing data — nothing is deleted. Respects the domain selection above.')}
         </Typography>
         <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap' }}>
-          <TextField label="From" type="date" size="small"
+          <TextField label={tr('From')} type="date" size="small"
             InputLabelProps={{ shrink:true }}
             value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
-          <TextField label="To" type="date" size="small"
+          <TextField label={tr('To')} type="date" size="small"
             InputLabelProps={{ shrink:true }}
             value={rangeTo} onChange={e => setRangeTo(e.target.value)} />
           <Button variant="outlined" size="small"
@@ -739,7 +725,7 @@ export default function DataModelSettings() {
             disabled={isRunning || rangeLoad.isPending || !rangeFrom || !rangeTo}
             sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
                   '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
-            Load Range
+            {tr('Load Range')}
           </Button>
         </Box>
       </SectionCard>
@@ -747,19 +733,19 @@ export default function DataModelSettings() {
       {/* ── Loaded data coverage ────────────────────────────────── */}
       <SectionCard title="Loaded Data" icon={<StorageIcon />}>
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-          The date span actually present in the warehouse, per domain.
+          {tr('The date span actually present in the warehouse, per domain.')}
         </Typography>
         <Box sx={{ display:'grid', gridTemplateColumns:'1.2fr 1fr 1fr 0.8fr',
                    rowGap:0.8, columnGap:2, fontSize:12.5 }}>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>Domain</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>From</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>To</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right' }}>Rows</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>{tr('Domain')}</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>{tr('From')}</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155' }}>{tr('To')}</Typography>
+          <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right' }}>{tr('Rows')}</Typography>
           {(coverage ?? []).map((c:any) => (
             <Box key={c.domain} sx={{ display:'contents' }}>
               <Typography sx={{ color:'#0f172a', fontWeight:600 }}>{c.domain}</Typography>
               <Typography sx={{ color:'#475569' }}>{c.from ?? '-'}</Typography>
-              <Typography sx={{ color:'#475569' }}>{c.to ?? (c.synced_at ? 'snapshot' : '-')}</Typography>
+              <Typography sx={{ color:'#475569' }}>{c.to ?? (c.synced_at ? tr('snapshot') : '-')}</Typography>
               <Typography sx={{ color:'#475569', textAlign:'right' }}>
                 {(c.rows ?? 0).toLocaleString()}
               </Typography>
@@ -773,9 +759,9 @@ export default function DataModelSettings() {
         <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <Typography sx={{ fontSize:13, color:'#475569' }}>
             {history?.length
-              ? `Last run: ${history[0].run_type} · ${history[0].status}` +
+              ? trf('Last run: {{type}} · {{status}}', { type: history[0].run_type, status: history[0].status }) +
                 (history[0].duration_sec ? ` · ${fmtDur(history[0].duration_sec)}` : '')
-              : 'No sync runs yet.'}
+              : tr('No sync runs yet.')}
           </Typography>
           <Button variant="outlined" size="small" onClick={() => setHistOpen(true)}
             sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
@@ -807,10 +793,10 @@ export default function DataModelSettings() {
           disabled={saveSettings.isPending}
           sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, boxShadow:'none',
                 px:3, '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
-          {saveSettings.isPending ? 'Saving…' : tr('Save Settings')}
+          {saveSettings.isPending ? tr('Saving…') : tr('Save Settings')}
         </Button>
         <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-          Applies connection, data model and schedule changes
+          {tr('Applies connection, data model and schedule changes')}
         </Typography>
         <Box sx={{ flex:1 }} />
         {saveMsg && (
@@ -835,20 +821,19 @@ function MaintenanceCard() {
 
   const backup = useMutation({
     mutationFn: () => axios.post('/api/admin/backup', { dest_folder: folder.trim() || null }),
-    onSuccess: r => { setErr(null); setMsg(`Backup saved: ${r.data.path} (${r.data.size_mb} MB)`) },
-    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Backup failed') },
+    onSuccess: r => { setErr(null); setMsg(trf('Backup saved: {{path}} ({{mb}} MB)', { path: r.data.path, mb: r.data.size_mb })) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Backup failed')) },
   })
   const compact = useMutation({
     mutationFn: () => axios.post('/api/admin/compact'),
-    onSuccess: r => { setErr(null); setMsg(`Compacted: ${r.data.before_mb} MB → ${r.data.after_mb} MB`) },
-    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Compact failed') },
+    onSuccess: r => { setErr(null); setMsg(trf('Compacted: {{a}} MB → {{b}} MB', { a: r.data.before_mb, b: r.data.after_mb })) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Compact failed')) },
   })
 
   return (
     <SectionCard title="Maintenance" icon={<StorageIcon />}>
       <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-        Back up the local warehouse file (safe while the app is running), or
-        compact it to flush pending writes and reclaim space.
+        {tr('Back up the local warehouse file (safe while the app is running), or compact it to flush pending writes and reclaim space.')}
       </Typography>
       <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
         <LabeledCtl label="Backup folder (empty = backend/backups)">
@@ -858,12 +843,12 @@ function MaintenanceCard() {
         <Button variant="outlined" size="small" disabled={backup.isPending}
           onClick={() => backup.mutate()}
           sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
-          {backup.isPending ? 'Backing up…' : tr('Backup Now')}
+          {backup.isPending ? tr('Backing up…') : tr('Backup Now')}
         </Button>
         <Button variant="outlined" size="small" disabled={compact.isPending}
           onClick={() => compact.mutate()}
           sx={{ borderColor:'#64748b', color:'#64748b', textTransform:'none', fontWeight:600 }}>
-          {compact.isPending ? 'Compacting…' : tr('Compact Database')}
+          {compact.isPending ? tr('Compacting…') : tr('Compact Database')}
         </Button>
       </Box>
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
@@ -894,21 +879,19 @@ function EmailCard() {
       password: cfg.password || null,   // empty = keep stored
       from_addr: cfg.from_addr, use_tls: cfg.use_tls,
     }),
-    onSuccess: () => { setErr(null); setMsg('Email settings saved') },
-    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Save failed') },
+    onSuccess: () => { setErr(null); setMsg(tr('Email settings saved')) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Save failed')) },
   })
   const test = useMutation({
     mutationFn: () => axios.post('/api/admin/email/test', { to: testTo.trim() }),
     onSuccess: r => { setErr(null); setMsg(r.data.message) },
-    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Test failed') },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Test failed')) },
   })
 
   return (
     <SectionCard title="Email (SMTP)" icon={<SyncIcon />}>
       <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-        Used for sending reports and alerts. Works with your company mail server
-        or Gmail (smtp.gmail.com, port 587, app password). The password is
-        stored encrypted.
+        {tr('Used for sending reports and alerts. Works with your company mail server or Gmail (smtp.gmail.com, port 587, app password). The password is stored encrypted.')}
       </Typography>
       <Box sx={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:2, mb:2 }}>
         <LabeledCtl label="SMTP host">
@@ -934,7 +917,7 @@ function EmailCard() {
         <FormControlLabel sx={{ mt:2 }}
           control={<Switch size="small" checked={cfg.use_tls}
             onChange={e => setCfg({ ...cfg, use_tls: e.target.checked })} />}
-          label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>Use TLS</Typography>} />
+          label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>{tr('Use TLS')}</Typography>} />
       </Box>
       <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
         <Button variant="contained" size="small" disabled={save.isPending}
@@ -950,7 +933,7 @@ function EmailCard() {
         <Button variant="outlined" size="small" disabled={test.isPending || !testTo.trim()}
           onClick={() => test.mutate()}
           sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
-          {test.isPending ? 'Sending…' : tr('Send Test Email')}
+          {test.isPending ? tr('Sending…') : tr('Send Test Email')}
         </Button>
       </Box>
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
@@ -985,13 +968,13 @@ function ReportsCard() {
 
   const save = useMutation({
     mutationFn: () => axios.put('/api/admin/reports', { reports }),
-    onSuccess: () => { setErr(null); setMsg('Report schedules saved') },
-    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Save failed') },
+    onSuccess: () => { setErr(null); setMsg(tr('Report schedules saved')) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Save failed')) },
   })
   const sendNow = useMutation({
     mutationFn: (r: ReportDef) => axios.post('/api/admin/reports/send', { report: r }),
     onSuccess: r => { setErr(null); setMsg(r.data.message) },
-    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? 'Send failed') },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Send failed')) },
   })
 
   const upd = (i: number, patch: Partial<ReportDef>) =>
@@ -1005,10 +988,7 @@ function ReportsCard() {
   return (
     <SectionCard title="Scheduled Reports" icon={<ScheduleIcon />}>
       <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-        Each report has its own type, send time, store scope and recipients —
-        e.g. a morning sales report for all stores to the owner, plus a separate
-        one per branch manager scoped to their store. Uses the SMTP settings
-        above. Remember to <b>Save Report Schedules</b>.
+        {tr('Each report has its own type, send time, store scope and recipients — e.g. a morning sales report for all stores to the owner, plus a separate one per branch manager scoped to their store. Uses the SMTP settings above. Remember to Save Report Schedules.')}
       </Typography>
 
       {reports.map((r, i) => (
@@ -1019,7 +999,7 @@ function ReportsCard() {
             <FormControlLabel sx={{ mr:0 }}
               control={<Switch size="small" checked={r.enabled}
                 onChange={e => upd(i, { enabled: e.target.checked })} />}
-              label={<Typography sx={{ fontSize:12.5, fontWeight:700 }}>Enabled</Typography>} />
+              label={<Typography sx={{ fontSize:12.5, fontWeight:700 }}>{tr('Enabled')}</Typography>} />
             <LabeledCtl label="Name">
               <TextField size="small" sx={{ width:160 }} value={r.name}
                 onChange={e => upd(i, { name: e.target.value })} />
@@ -1037,10 +1017,10 @@ function ReportsCard() {
                 onChange={e => upd(i, { time: e.target.value })} />
             </LabeledCtl>
             {r.last_sent && (
-              <Typography sx={{ fontSize:11, color:'#94a3b8', mb:0.7 }}>last sent {r.last_sent}</Typography>
+              <Typography sx={{ fontSize:11, color:'#94a3b8', mb:0.7 }}>{trf('last sent {{t}}', { t: r.last_sent })}</Typography>
             )}
             <Box sx={{ flex:1 }} />
-            <Tooltip title="Delete report">
+            <Tooltip title={tr('Delete report')}>
               <IconButton size="small" onClick={() => setReports(rs => rs.filter((_, j) => j !== i))}>
                 <DeleteIcon sx={{ fontSize:17, color:'#ef4444' }} />
               </IconButton>
@@ -1053,7 +1033,7 @@ function ReportsCard() {
                 options={storeList}
                 value={r.stores ? r.stores.split(',').map(s => s.trim()).filter(Boolean) : []}
                 onChange={(_, v) => upd(i, { stores: v.join(', ') })}
-                renderInput={p => <TextField {...p} placeholder="All Stores" size="small" sx={{ minWidth:260 }} />}
+                renderInput={p => <TextField {...p} placeholder={tr('All Stores')} size="small" sx={{ minWidth:260 }} />}
                 sx={{ minWidth:260 }}
               />
             </LabeledCtl>
@@ -1128,32 +1108,32 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ fontWeight:700, fontSize:16, pb:1 }}>Sync History</DialogTitle>
+      <DialogTitle sx={{ fontWeight:700, fontSize:16, pb:1 }}>{tr('Sync History')}</DialogTitle>
       <DialogContent dividers sx={{ p:2 }}>
         {/* Filters */}
         <Box sx={{ display:'flex', gap:1.5, flexWrap:'wrap', alignItems:'center', mb:2 }}>
           <FormControl size="small" sx={{ minWidth:130 }}>
-            <InputLabel>Type</InputLabel>
-            <Select value={fType} label="Type" onChange={e => setFType(String(e.target.value))}>
+            <InputLabel>{tr('Type')}</InputLabel>
+            <Select value={fType} label={tr('Type')} onChange={e => setFType(String(e.target.value))}>
               {['all','range','full','incremental','scheduled'].map(t =>
-                <MenuItem key={t} value={t}>{t === 'all' ? 'All types' : t}</MenuItem>)}
+                <MenuItem key={t} value={t}>{t === 'all' ? tr('All types') : tr(t)}</MenuItem>)}
             </Select>
           </FormControl>
           <FormControl size="small" sx={{ minWidth:140 }}>
-            <InputLabel>Status</InputLabel>
-            <Select value={fStatus} label="Status" onChange={e => setFStatus(String(e.target.value))}>
+            <InputLabel>{tr('Status')}</InputLabel>
+            <Select value={fStatus} label={tr('Status')} onChange={e => setFStatus(String(e.target.value))}>
               {['all','completed','running','error','aborted','cancelled'].map(s =>
-                <MenuItem key={s} value={s}>{s === 'all' ? 'All statuses' : s}</MenuItem>)}
+                <MenuItem key={s} value={s}>{s === 'all' ? tr('All statuses') : tr(s)}</MenuItem>)}
             </Select>
           </FormControl>
-          <TextField label="From" type="date" size="small" sx={{ width:150 }}
+          <TextField label={tr('From')} type="date" size="small" sx={{ width:150 }}
             InputLabelProps={{ shrink:true }} value={fFrom} onChange={e => setFFrom(e.target.value)} />
-          <TextField label="To" type="date" size="small" sx={{ width:150 }}
+          <TextField label={tr('To')} type="date" size="small" sx={{ width:150 }}
             InputLabelProps={{ shrink:true }} value={fTo} onChange={e => setFTo(e.target.value)} />
           <Box sx={{ flex:1 }} />
           <Button size="small" onClick={refetch} disabled={fetching}
             sx={{ textTransform:'none', color:ACCENT, fontWeight:600 }}>
-            {fetching ? 'Refreshing…' : 'Refresh'}
+            {fetching ? tr('Refreshing…') : tr('Refresh')}
           </Button>
         </Box>
 
@@ -1163,12 +1143,12 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
           <Box sx={{ display:'grid',
                      gridTemplateColumns:'0.8fr 0.8fr 1.6fr 1.2fr 0.9fr 0.6fr',
                      rowGap:0.7, columnGap:1.5, fontSize:12.5 }}>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Type</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>By</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Range</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Started</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>Status</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right', position:'sticky', top:0, bgcolor:'#fff' }}>Duration</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Type')}</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('By')}</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Range')}</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Started')}</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Status')}</Typography>
+            <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Duration')}</Typography>
             {rows.map((r: any) => (
               <Box key={r.run_id} sx={{ display:'contents' }}>
                 <Typography sx={{ color:'#0f172a', fontWeight:600 }}>{r.run_type}</Typography>
@@ -1186,7 +1166,7 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
             ))}
             {rows.length === 0 && (
               <Typography sx={{ gridColumn:'1 / -1', color:'#94a3b8', py:2, textAlign:'center' }}>
-                No runs match the selected filters.
+                {tr('No runs match the selected filters.')}
               </Typography>
             )}
           </Box>

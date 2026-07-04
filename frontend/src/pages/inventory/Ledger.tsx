@@ -18,7 +18,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { moneyPrefix } from '../../utils/formatters'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 
 // ── Colours ─────────────────────────────────────────────────────────────────
 const ACCENT    = '#7c3aed'
@@ -138,25 +138,25 @@ export default function InventoryLedger() {
 
     // ── Opening balance  (teal)
     { field: 'open_qty',   headerName: 'Open Qty',   width: 100, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="Open Qty"   color={C_OPEN} />,
+      headerComponent: () => <ColHdr label={tr('Open Qty')}   color={C_OPEN} />,
       valueFormatter: p => fmtN(p.value),
       cellStyle: { color: C_OPEN, display: 'flex', alignItems: 'center' } },
     { field: 'open_cost',  headerName: 'Open Cost',  width: 120, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="Open Cost"  color={C_OPEN} />,
+      headerComponent: () => <ColHdr label={tr('Open Cost')}  color={C_OPEN} />,
       valueFormatter: p => fmtC(p.value),
       cellStyle: { color: C_OPEN, fontWeight: 600, display: 'flex', alignItems: 'center' } },
 
     // ── Sales  (rose)
     { field: 'sold_qty',   headerName: 'Sold Qty',   width: 95, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="Sold Qty"   color={C_SALES} icon="ti-receipt" />,
+      headerComponent: () => <ColHdr label={tr('Sold Qty')}   color={C_SALES} icon="ti-receipt" />,
       valueFormatter: p => fmtN(p.value),
       cellStyle: { color: C_SALES, display: 'flex', alignItems: 'center' } },
     { field: 'return_qty', headerName: 'Return Qty', width: 100, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="Return Qty" color={C_SALES} icon="ti-receipt" />,
+      headerComponent: () => <ColHdr label={tr('Return Qty')} color={C_SALES} icon="ti-receipt" />,
       valueFormatter: p => fmtN(p.value),
       cellStyle: { color: C_SALES, display: 'flex', alignItems: 'center' } },
     { field: 'sold_cost',  headerName: 'COGS',       width: 110, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="COGS"       color={C_SALES} icon="ti-receipt" />,
+      headerComponent: () => <ColHdr label={tr('COGS')}       color={C_SALES} icon="ti-receipt" />,
       valueFormatter: p => fmtC(p.value),
       cellStyle: { color: C_SALES, fontWeight: 600, display: 'flex', alignItems: 'center' } },
     { field: 'sold_revenue', headerName: 'Revenue',  width: 110, type: 'numericColumn',
@@ -165,21 +165,21 @@ export default function InventoryLedger() {
 
     // ── Transfers In  (green)
     { field: 'recv_qty',   headerName: 'Recv Qty',   width: 100, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="Recv Qty"   color={C_RECV}  icon="ti-arrows-down-up" />,
+      headerComponent: () => <ColHdr label={tr('Recv Qty')}   color={C_RECV}  icon="ti-arrows-down-up" />,
       valueFormatter: p => fmtN(p.value),
       cellStyle: { color: C_RECV, display: 'flex', alignItems: 'center' } },
     { field: 'recv_cost',  headerName: 'Recv Cost',  width: 110, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="Recv Cost"  color={C_RECV}  icon="ti-arrows-down-up" />,
+      headerComponent: () => <ColHdr label={tr('Recv Cost')}  color={C_RECV}  icon="ti-arrows-down-up" />,
       valueFormatter: p => fmtC(p.value),
       cellStyle: { color: C_RECV, fontWeight: 600, display: 'flex', alignItems: 'center' } },
 
     // ── Transfers Out  (amber)
     { field: 'sent_qty',   headerName: 'Sent Qty',   width: 100, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="Sent Qty"   color={C_SENT} />,
+      headerComponent: () => <ColHdr label={tr('Sent Qty')}   color={C_SENT} />,
       valueFormatter: p => fmtN(p.value),
       cellStyle: { color: C_SENT, display: 'flex', alignItems: 'center' } },
     { field: 'sent_cost',  headerName: 'Sent Cost',  width: 110, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="Sent Cost"  color={C_SENT} />,
+      headerComponent: () => <ColHdr label={tr('Sent Cost')}  color={C_SENT} />,
       valueFormatter: p => fmtC(p.value),
       cellStyle: { color: C_SENT, fontWeight: 600, display: 'flex', alignItems: 'center' } },
 
@@ -199,11 +199,11 @@ export default function InventoryLedger() {
 
     // ── Ending balance  (purple)
     { field: 'end_qty',    headerName: 'End Qty',    width: 100, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="End Qty"    color={C_END} />,
+      headerComponent: () => <ColHdr label={tr('End Qty')}    color={C_END} />,
       valueFormatter: p => fmtN(p.value),
       cellStyle: { color: C_END, fontWeight: 700, display: 'flex', alignItems: 'center' } },
     { field: 'end_cost',   headerName: 'End Cost',   width: 120, type: 'numericColumn',
-      headerComponent: () => <ColHdr label="End Cost"   color={C_END} />,
+      headerComponent: () => <ColHdr label={tr('End Cost')}   color={C_END} />,
       valueFormatter: p => fmtC(p.value),
       cellStyle: { color: C_END, fontWeight: 800, display: 'flex', alignItems: 'center' } },
   ], [codeField])
@@ -253,32 +253,32 @@ export default function InventoryLedger() {
             onInputChange={(_, v) => setItemQ(v)}
             onChange={(_, v) => setSelItem(v)}
             filterOptions={x => x}
-            noOptionsText={itemQ.length < 2 ? 'Type 2+ chars…' : 'No match'}
+            noOptionsText={itemQ.length < 2 ? tr('Type 2+ chars…') : tr('No match')}
             renderInput={p => (
-              <TextField {...p} placeholder={`Search ${codeField} / Desc`}
+              <TextField {...p} placeholder={trf('Search {{code}} / Desc', { code: codeField })}
                 sx={{ minWidth: 280 }} size="small" />
             )}
             sx={{ minWidth: 280 }}
           />
 
           {isFetching && (
-            <Typography sx={{ fontSize: 11, color: C_SLATE, ml: 1 }}>Loading…</Typography>
+            <Typography sx={{ fontSize: 11, color: C_SLATE, ml: 1 }}>{tr('Loading…')}</Typography>
           )}
         </Box>
       </Box>
 
       {/* ── KPI strip ── */}
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-        <KpiCard label="Active SKUs"    value={fmtN(kpi?.sku_count  || 0)} sub="items with movement" color={ACCENT}  icon="ti-barcode" />
-        <KpiCard label="Sold Cost (COGS)" value={fmtC(kpi?.sold_cost  || 0)}
-          sub={`${fmtN(kpi?.sold_qty || 0)} units sold`}    color={C_SALES} icon="ti-receipt" />
-        <KpiCard label="Transfers In"   value={fmtN(kpi?.recv_qty   || 0)}
+        <KpiCard label={tr('Active SKUs')}    value={fmtN(kpi?.sku_count  || 0)} sub={tr('items with movement')} color={ACCENT}  icon="ti-barcode" />
+        <KpiCard label={tr('Sold Cost (COGS)')} value={fmtC(kpi?.sold_cost  || 0)}
+          sub={trf('units sold {{n}}', { n: fmtN(kpi?.sold_qty || 0) })}    color={C_SALES} icon="ti-receipt" />
+        <KpiCard label={tr('Transfers In')}   value={fmtN(kpi?.recv_qty   || 0)}
           sub={fmtC(kpi?.recv_cost || 0)}                   color={C_RECV}  icon="ti-arrows-down-up" />
-        <KpiCard label="Adj Cost Impact" value={fmtC(kpi?.adj_cost  || 0)}
-          sub={`${fmtSign(kpi?.adj_qty || 0)} qty`}
+        <KpiCard label={tr('Adj Cost Impact')} value={fmtC(kpi?.adj_cost  || 0)}
+          sub={trf('qty {{n}}', { n: fmtSign(kpi?.adj_qty || 0) })}
           color={(kpi?.adj_cost || 0) >= 0 ? C_ADJ_POS : C_ADJ_NEG} icon="ti-adjustments" />
-        <KpiCard label="Rows in View"   value={fmtN(rows.length)}
-          sub={`Item × Store combinations`}                 color={C_SLATE} icon="ti-list" />
+        <KpiCard label={tr('Rows in View')}   value={fmtN(rows.length)}
+          sub={tr('Item × Store combinations')}                 color={C_SLATE} icon="ti-list" />
       </Box>
 
       {/* ── Colour legend ── */}
