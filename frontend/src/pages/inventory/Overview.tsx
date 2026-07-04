@@ -23,7 +23,7 @@ import KpiCard                        from '../../components/KpiCard'
 import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
@@ -463,8 +463,8 @@ export default function InventoryOverview() {
 
         {/* ── KPI Strip — style F (top accent bar) ── */}
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <KpiCard variant="F" label="Total SKUs"       value={kpi.skus.toLocaleString()}    sub={`${kpi.depts} departments`} icon="ti-barcode" />
-          <KpiCard variant="F" label="Units On-Hand"    value={num(kpi.totalQty)}             sub={`across ${kpi.stores} stores`} icon="ti-package" />
+          <KpiCard variant="F" label="Total SKUs"       value={kpi.skus.toLocaleString()}    sub={trf('{{n}} departments', { n: kpi.depts })} icon="ti-barcode" />
+          <KpiCard variant="F" label="Units On-Hand"    value={num(kpi.totalQty)}             sub={trf('across {{n}} stores', { n: kpi.stores })} icon="ti-package" />
           <KpiCard variant="F" label="Cost Value"       value={num(kpi.stockCost)}            sub="at cost price" icon="ti-coin" />
           <KpiCard variant="F" label="Retail Value"     value={num(kpi.stockRetail)}          sub="at selling price" icon="ti-tag" />
           <KpiCard variant="F" label="Potential GM"     value={`${kpi.gmPct}%`}              sub="retail − cost margin" color={gmColor} icon="ti-chart-pie-2" />
