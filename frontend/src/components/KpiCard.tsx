@@ -20,6 +20,7 @@
  *   tag     — optional small badge (top-right) used for style comparison
  */
 import { Box, Typography } from '@mui/material'
+import { tr } from '../i18n'
 
 export type KpiVariant = 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
 
@@ -62,6 +63,9 @@ export default function KpiCard({
   variant = 'F',   // dashboard-wide default: top accent bar (chosen by Waseem)
   tag,
 }: KpiCardProps) {
+  // Arabic: labels + known sub-lines translate; dynamic subs pass through
+  label = tr(label)
+  sub   = sub ? tr(sub) : sub
 
   // NOTE: no explicit height here — an explicit cross-size (height:'100%')
   // disables flex-stretch, which made cards in the same row render at

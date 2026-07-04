@@ -18,6 +18,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { moneyPrefix } from '../../utils/formatters'
+import { tr, trCols } from '../../i18n'
 
 // ── Colours ─────────────────────────────────────────────────────────────────
 const ACCENT    = '#7c3aed'
@@ -217,7 +218,7 @@ export default function InventoryLedger() {
         mx: -3, px: 3, pt: 3, pb: 2, borderBottom: '1px solid #e9e4ff',
       }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
-          Inventory Ledger
+          {tr('Inventory Ledger')}
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
           {dateFrom} — {dateTo}
@@ -310,7 +311,7 @@ export default function InventoryLedger() {
           <AgGridReact
             ref={gridRef}
             rowData={rows}
-            columnDefs={columns}
+            columnDefs={trCols(columns as any[])}
             defaultColDef={{ resizable: true, sortable: true, filter: true }}
             rowHeight={36}
             headerHeight={40}

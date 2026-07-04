@@ -26,6 +26,7 @@ import KpiCard                  from '../../components/KpiCard'
 import GridExportBar            from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
+import { tr, trCols } from '../../i18n'
 
 // ── Colours ────────────────────────────────────────────────────────────────
 const ACCENT   = '#7c3aed'
@@ -64,7 +65,7 @@ function ChartCard({ title, children, chartRef, height = 260 }: {
     <>
       <Paper elevation={0} sx={{ borderRadius:2, border:'1px solid #e2e8f0', p:2, flex:1 }}>
         <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'center', mb:1 }}>
-          <Typography sx={{ fontWeight:700, fontSize:13, color:'#334155' }}>{title}</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:13, color:'#334155' }}>{tr(title)}</Typography>
           <Box>
             <Tooltip title="Download PNG"><IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
             <Tooltip title="Fullscreen"><IconButton size="small" onClick={() => setFs(true)}><FullscreenIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
@@ -256,7 +257,7 @@ export default function Transfers() {
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#ffffff',
                  mx:-3, px:3, pt:3, pb:2, borderBottom:'1px solid #e9e4ff' }}>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
-          Transfers
+          {tr('Transfers')}
         </Typography>
         <Typography sx={{ fontSize:12, color:'#64748b', mb:1.5 }}>
           {dateFrom} — {dateTo}
@@ -348,7 +349,7 @@ export default function Transfers() {
             onColumnVisible={onColumnChanged}
             onColumnPinned={onColumnChanged}
             rowData={tabData[tab]}
-            columnDefs={tabCols[tab]}
+            columnDefs={trCols(tabCols[tab] as any[])}
             defaultColDef={{ resizable:true, sortable:true, filter:true }}
             pagination paginationPageSize={100}
           />

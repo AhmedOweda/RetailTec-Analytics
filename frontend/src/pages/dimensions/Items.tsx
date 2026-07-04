@@ -11,6 +11,7 @@ import axios from 'axios'
 import { useRef } from 'react'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
+import { tr, trCols } from '../../i18n'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
@@ -232,7 +233,7 @@ export default function DimItems() {
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 460 }}>
-          <AgGridReact ref={gridRef} rowData={rows} columnDefs={colDefs}
+          <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
             defaultColDef={{ sortable:true, resizable:true, filter:true }}
             pagination paginationPageSize={25}
             rowHeight={36} headerHeight={38} suppressCellFocus

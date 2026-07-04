@@ -17,6 +17,7 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import { moneyPrefix } from '../../utils/formatters'
+import { tr, trCols } from '../../i18n'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -198,7 +199,7 @@ export default function PurchasesTransactions() {
         borderBottom: '1px solid #e9e4ff',
       }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
-          Purchase Transactions
+          {tr('Purchase Transactions')}
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
           {dateFrom} — {dateTo}
@@ -286,7 +287,7 @@ export default function PurchasesTransactions() {
           <AgGridReact
             ref={gridRef}
             rowData={rows}
-            columnDefs={colDefs as any}
+            columnDefs={trCols(colDefs as any[])}
             defaultColDef={defaultColDef}
             animateRows
             pagination

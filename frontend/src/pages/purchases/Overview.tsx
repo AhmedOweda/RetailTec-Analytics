@@ -13,6 +13,7 @@ import axios from 'axios'
 import ReactECharts from 'echarts-for-react'
 import KpiCard      from '../../components/KpiCard'
 import { moneyPrefix } from '../../utils/formatters'
+import { tr, trCols } from '../../i18n'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -207,7 +208,7 @@ export default function PurchasesOverview() {
         borderBottom: '1px solid #e9e4ff',
       }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
-          Purchases Overview
+          {tr('Purchases Overview')}
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
           {dateFrom} — {dateTo}
@@ -278,7 +279,7 @@ export default function PurchasesOverview() {
 
       {/* ── Daily Trend ───────────────────────────────────────────────── */}
       <Paper elevation={0} sx={{ mt: 3, p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
-        <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>Daily Purchase Trend</Typography>
+        <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>{tr('Daily Purchase Trend')}</Typography>
         {trendQ.isLoading
           ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
           : <ReactECharts option={trendOpt} style={{ height: 240 }} />
@@ -289,7 +290,7 @@ export default function PurchasesOverview() {
       <Grid container spacing={2} sx={{ mt: 0 }}>
         <Grid item xs={12} md={6}>
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 14 }}>Top Suppliers by Cost</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{tr('Top Suppliers by Cost')}</Typography>
             <Typography sx={{ fontSize: 11, color: '#94a3b8', mb: 1.5 }}>Supplier on the purchase voucher</Typography>
             {vendQ.isLoading
               ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
@@ -299,7 +300,7 @@ export default function PurchasesOverview() {
         </Grid>
         <Grid item xs={12} md={6}>
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>Top Departments by Cost</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>{tr('Top Departments by Cost')}</Typography>
             {deptQ.isLoading
               ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
               : <ReactECharts option={deptOpt} style={{ height: 300 }} />
