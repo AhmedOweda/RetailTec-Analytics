@@ -680,12 +680,12 @@ export default function Products() {
               </Box>
               {view === 'dcs' && (
                 <Typography sx={{ fontSize: 11, color: C_SLATE, fontStyle: 'italic' }}>
-                  DCS = Department · Class · Subclass
+                  {tr('DCS = Department · Class · Subclass')}
                 </Typography>
               )}
               {view === 'item' && (
                 <Typography sx={{ fontSize: 11, color: C_SLATE }}>
-                  Showing <b style={{ color: ACCENT }}>{productCodeField.toUpperCase()}</b> code · change in Settings
+                  {tr('Showing')} <b style={{ color: ACCENT }}>{productCodeField.toUpperCase()}</b> {tr('code · change in Settings')}
                 </Typography>
               )}
             </Box>

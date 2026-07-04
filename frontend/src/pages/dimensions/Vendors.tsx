@@ -11,7 +11,7 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import axios from 'axios'
 import { useRef } from 'react'
 import { moneyPrefix } from '../../utils/formatters'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
@@ -151,7 +151,7 @@ export default function DimVendors() {
     { field: 'tier',        headerName: 'SRM Tier',     width: 110,
       cellRenderer: (p: any) => {
         const c = TIER_META[p.value]?.color ?? C_SLATE
-        return <span style={{background:`${c}18`,color:c,border:`1px solid ${c}55`,borderRadius:'12px',padding:'2px 10px',fontSize:'11px',fontWeight:700}}>{p.value ?? '—'}</span>
+        return <span style={{background:`${c}18`,color:c,border:`1px solid ${c}55`,borderRadius:'12px',padding:'2px 10px',fontSize:'11px',fontWeight:700}}>{p.value ? tr(p.value) : '—'}</span>
       }},
     { field: 'dep_pct',     headerName: 'Dependency %', width: 115, type: 'numericColumn', valueFormatter: (p: any) => pct(p.value),
       cellStyle: (p: any) => ({ color: +(p.value??0) >= 20 ? C_ROSE : +(p.value??0) >= 10 ? C_AMBER : C_SLATE, fontWeight: 600 }) },
@@ -170,12 +170,12 @@ export default function DimVendors() {
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
         <Typography variant="h5" fontWeight={700} mb={0.3}>{tr('SRM — Supplier Intelligence')}</Typography>
         <Typography sx={{ fontSize:12, color:'#64748b', mb:1.5 }}>
-          Ranked by purchase vouchers (supplier bought from) — item catalogs elsewhere use the item-master vendor
+          {tr('Ranked by purchase vouchers (supplier bought from) — item catalogs elsewhere use the item-master vendor')}
         </Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
-          <TextField size="small" label="From" type="date" value={dateFrom}
+          <TextField size="small" label={tr('From')} type="date" value={dateFrom}
             onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
-          <TextField size="small" label="To" type="date" value={dateTo}
+          <TextField size="small" label={tr('To')} type="date" value={dateTo}
             onChange={e => setDateTo(e.target.value)} InputLabelProps={{ shrink: true }} />
           <Autocomplete multiple disableCloseOnSelect size="small" options={storeList} value={stores}
             onChange={(_, v) => setStores(v)} sx={{ minWidth: 240 }}
@@ -197,11 +197,11 @@ export default function DimVendors() {
       {/* SRM tier legend */}
       <Stack direction="row" spacing={1} mb={2.5} flexWrap="wrap">
         {Object.entries(TIER_META).map(([tier, { color, desc }]) => (
-          <Tooltip key={tier} title={desc} arrow>
+          <Tooltip key={tier} title={tr(desc)} arrow>
             <Box sx={{ display:'flex', alignItems:'center', gap:0.6, px:1.5, py:0.5,
                        bgcolor:`${color}12`, border:`1px solid ${color}40`, borderRadius:2, cursor:'default' }}>
               <Box sx={{ width:7, height:7, borderRadius:'50%', bgcolor: color }} />
-              <Typography sx={{ fontSize:11, fontWeight:700, color }}>{tier}</Typography>
+              <Typography sx={{ fontSize:11, fontWeight:700, color }}>{tr(tier)}</Typography>
               <Typography sx={{ fontSize:11, color, opacity:0.8 }}>·</Typography>
               <Typography sx={{ fontSize:11, fontWeight:600, color }}>{tierCounts[tier] ?? 0}</Typography>
             </Box>
@@ -210,14 +210,14 @@ export default function DimVendors() {
       </Stack>
 
       <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2, mb:2.5 }}>
-        <Typography sx={{ fontWeight:700, fontSize:13, mb:0.5 }}>Top 12 by Purchase Value</Typography>
-        <Typography sx={{ fontSize:11, color: C_SLATE, mb:1.5 }}>Bar colour = SRM tier</Typography>
+        <Typography sx={{ fontWeight:700, fontSize:13, mb:0.5 }}>{tr('Top 12 by Purchase Value')}</Typography>
+        <Typography sx={{ fontSize:11, color: C_SLATE, mb:1.5 }}>{tr('Bar colour = SRM tier')}</Typography>
         <ReactECharts option={chartOpt} style={{ height: 320 }} />
       </Box>
 
       <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-          <Typography sx={{ fontWeight:700, fontSize:13 }}>Supplier Detail — {merged.length} suppliers</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Supplier Detail — {{n}} suppliers',{n:merged.length})}</Typography>
           <GridExportBar gridRef={gridRef} filename="suppliers_srm" title="SRM — Supplier Intelligence"
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>

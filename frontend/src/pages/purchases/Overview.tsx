@@ -13,7 +13,7 @@ import axios from 'axios'
 import ReactECharts from 'echarts-for-react'
 import KpiCard      from '../../components/KpiCard'
 import { moneyPrefix } from '../../utils/formatters'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -137,8 +137,8 @@ export default function PurchasesOverview() {
       grid:    { left: 70, right: 60, top: 40, bottom: 30 },
       xAxis:   { type: 'category', data: rows.map(r => r.vou_date), axisLabel: { fontSize: 10 } },
       yAxis: [
-        { type: 'value', name: 'Cost',  axisLabel: { fontSize: 10, formatter: (v: number) => `${moneyPrefix()}${(v/1000).toFixed(0)}k` } },
-        { type: 'value', name: 'POs',   axisLabel: { fontSize: 10 }, splitLine: { show: false } },
+        { type: 'value', name: tr('Cost'),  axisLabel: { fontSize: 10, formatter: (v: number) => `${moneyPrefix()}${(v/1000).toFixed(0)}k` } },
+        { type: 'value', name: tr('POs'),   axisLabel: { fontSize: 10 }, splitLine: { show: false } },
       ],
       series: [
         { name: tr('Total Cost ($)'), type: 'bar', data: rows.map(r => r.total_cost),
@@ -266,12 +266,12 @@ export default function PurchasesOverview() {
         {([
           { label: 'Total Vouchers',    value: fmt(kpi?.vou_count      ?? 0), sub: 'purchase orders in period',      color: C.blue,   icon: 'ti-file-invoice' },
           { label: 'Total Cost',   value: fmtC0(kpi?.total_cost   ?? 0), sub: 'sum of voucher totals',          color: C.purple, icon: 'ti-coin'          },
-          { label: 'Received Vouchers', value: fmt(kpi?.received_count ?? 0), sub: `${kpi?.recv_pct ?? 0}% of total`, color: C.green,  icon: 'ti-circle-check'  },
+          { label: 'Received Vouchers', value: fmt(kpi?.received_count ?? 0), sub: trf('{{n}}% of total', { n: kpi?.recv_pct ?? 0 }), color: C.green,  icon: 'ti-circle-check'  },
           { label: 'Pending Vouchers',  value: fmt(kpi?.pending_count  ?? 0), sub: 'awaiting receipt',               color: C.amber,  icon: 'ti-clock'         },
           { label: 'Suppliers',    value: fmt(kpi?.vendor_count   ?? 0), sub: 'purchased from in period',       color: C.sky,    icon: 'ti-building-store'},
           { label: 'Line Items',   value: fmt(kpi?.line_count     ?? 0), sub: 'voucher detail rows',            color: C.rose,   icon: 'ti-list'          },
           { label: 'Ordered Qty',  value: fmt(kpi?.ord_qty        ?? 0), sub: 'units on order',                 color: '#64748b', icon: 'ti-package' },
-          { label: 'Received Qty', value: fmt(kpi?.recv_qty       ?? 0), sub: `Disc: ${fmtC0(kpi?.total_disc ?? 0)}`, color: '#64748b', icon: 'ti-inbox' },
+          { label: 'Received Qty', value: fmt(kpi?.recv_qty       ?? 0), sub: trf('Disc: {{v}}', { v: fmtC0(kpi?.total_disc ?? 0) }), color: '#64748b', icon: 'ti-inbox' },
         ] as const).map(k => (
           <KpiCard key={k.label} {...k} />
         ))}
@@ -291,7 +291,7 @@ export default function PurchasesOverview() {
         <Grid item xs={12} md={6}>
           <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
             <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{tr('Top Suppliers by Cost')}</Typography>
-            <Typography sx={{ fontSize: 11, color: '#94a3b8', mb: 1.5 }}>Supplier on the purchase voucher</Typography>
+            <Typography sx={{ fontSize: 11, color: '#94a3b8', mb: 1.5 }}>{tr('Supplier on the purchase voucher')}</Typography>
             {vendQ.isLoading
               ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
               : <ReactECharts option={vendorOpt} style={{ height: 300 }} />

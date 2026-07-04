@@ -11,7 +11,7 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import axios from 'axios'
 import { useRef } from 'react'
 import { moneyPrefix } from '../../utils/formatters'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
@@ -145,7 +145,7 @@ export default function DimCustomers() {
     { field: 'segment',       headerName: 'CRM Segment',  width: 120,
       cellRenderer: (p: any) => {
         const c = SEG_META[p.value]?.color ?? C_SLATE
-        return <span style={{background:`${c}18`,color:c,border:`1px solid ${c}55`,borderRadius:'12px',padding:'2px 10px',fontSize:'11px',fontWeight:700}}>{p.value ?? '—'}</span>
+        return <span style={{background:`${c}18`,color:c,border:`1px solid ${c}55`,borderRadius:'12px',padding:'2px 10px',fontSize:'11px',fontWeight:700}}>{p.value ? tr(p.value) : '—'}</span>
       }},
     { field: 'primary_store',  headerName: 'Home Store',  width: 150 },
     { field: 'first_visit',    headerName: 'Active From',  width: 110 },
@@ -164,9 +164,9 @@ export default function DimCustomers() {
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
         <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('CRM — Customer Intelligence')}</Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
-          <TextField size="small" label="From" type="date" value={dateFrom}
+          <TextField size="small" label={tr('From')} type="date" value={dateFrom}
             onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
-          <TextField size="small" label="To" type="date" value={dateTo}
+          <TextField size="small" label={tr('To')} type="date" value={dateTo}
             onChange={e => setDateTo(e.target.value)} InputLabelProps={{ shrink: true }} />
           <Autocomplete multiple disableCloseOnSelect size="small" options={storeList} value={stores}
             onChange={(_, v) => setStores(v)} sx={{ minWidth: 240 }}
@@ -182,17 +182,17 @@ export default function DimCustomers() {
         <KpiCard label="Avg LTV / Customer" value={num(kpi.avgLtv)}    icon="ti-coin"        color={C_GREEN}  />
         <KpiCard label="At Risk + Dormant"  value={fmtN(kpi.atRisk)}   icon="ti-alert-triangle"
           color={kpi.atRisk > 0 ? C_AMBER : C_GREEN}
-          sub={`${kpi.count > 0 ? ((kpi.atRisk / kpi.count)*100).toFixed(0) : 0}% of base`} />
+          sub={trf('{{n}}% of base',{n: kpi.count > 0 ? ((kpi.atRisk / kpi.count)*100).toFixed(0) : 0})} />
       </Box>
 
       {/* Segment pill bar */}
       <Stack direction="row" spacing={1} mb={2.5} flexWrap="wrap">
         {Object.entries(SEG_META).map(([seg, { color, desc }]) => (
-          <Tooltip key={seg} title={desc} arrow>
+          <Tooltip key={seg} title={tr(desc)} arrow>
             <Box sx={{ display:'flex', alignItems:'center', gap:0.6, px:1.5, py:0.5,
                        bgcolor:`${color}12`, border:`1px solid ${color}40`, borderRadius:2, cursor:'default' }}>
               <Box sx={{ width:7, height:7, borderRadius:'50%', bgcolor: color }} />
-              <Typography sx={{ fontSize:11, fontWeight:700, color }}>{seg}</Typography>
+              <Typography sx={{ fontSize:11, fontWeight:700, color }}>{tr(seg)}</Typography>
               <Typography sx={{ fontSize:11, color, opacity:0.8 }}>·</Typography>
               <Typography sx={{ fontSize:11, fontWeight:600, color }}>{segCounts[seg] ?? 0}</Typography>
             </Box>
@@ -201,14 +201,14 @@ export default function DimCustomers() {
       </Stack>
 
       <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2, mb:2.5 }}>
-        <Typography sx={{ fontWeight:700, fontSize:13, mb:0.5 }}>Top 15 by Lifetime Value</Typography>
-        <Typography sx={{ fontSize:11, color: C_SLATE, mb:1.5 }}>Bar colour = CRM segment</Typography>
+        <Typography sx={{ fontWeight:700, fontSize:13, mb:0.5 }}>{tr('Top 15 by Lifetime Value')}</Typography>
+        <Typography sx={{ fontSize:11, color: C_SLATE, mb:1.5 }}>{tr('Bar colour = CRM segment')}</Typography>
         <ReactECharts option={chartOpt} style={{ height: 360 }} />
       </Box>
 
       <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-          <Typography sx={{ fontWeight:700, fontSize:13 }}>Customer Detail — {rows.length} customers</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Customer Detail — {{n}} customers',{n:rows.length})}</Typography>
           <GridExportBar gridRef={gridRef} filename="customers_crm" title="CRM — Customer Intelligence"
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>

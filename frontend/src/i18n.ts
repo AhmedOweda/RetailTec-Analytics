@@ -248,6 +248,110 @@ const ar_strings: Record<string, string> = {
   'vs': 'مقابل',
   'Sold': 'المباع', 'Returned': 'المرتجع',
   'Net Sales': 'صافي المبيعات', 'Return Rate %': 'نسبة المرتجعات %',
+  // ── Performance grids / charts ──
+  'Associate': 'البائع', 'Disc %': 'الخصم %', 'Return %': 'المرتجعات %',
+  'Net Spend': 'صافي الإنفاق', 'Last Visit': 'آخر زيارة',
+  'Cash': 'نقدًا', 'Card': 'بطاقة', 'Deposit': 'عربون', 'No data': 'لا بيانات',
+  'Current Period': 'الفترة الحالية', 'Same Period LY': 'نفس الفترة العام الماضي',
+  'Avg Basket': 'متوسط السلة',
+  '{{n}} stores': '{{n}} فروع',
+  // ── Products page ──
+  'Departments': 'الأقسام', 'active in period': 'نشط في الفترة',
+  '% Blended GP': '% إجمالي الربح المخلوط', 'Healthy margin': 'هامش صحي',
+  'Total GP': 'إجمالي الربح', 'Total Revenue': 'إجمالي الإيرادات',
+  'Revenue by Department': 'الإيرادات حسب القسم',
+  'Block size = revenue · hover for GP%': 'حجم المربع = الإيراد · مرّر للربح %',
+  'Department › Class › Subclass · click segment to drill down · click centre to go up':
+    'القسم › الفئة › الفئة الفرعية · انقر على الجزء للتفصيل · انقر على المركز للرجوع',
+  'Department Hierarchy': 'التسلسل الهرمي للأقسام',
+  'Showing': 'يعرض', 'code · change in Settings': 'الرمز · يتغير من الإعدادات',
+  'Blended GP %': 'نسبة الربح الإجمالية %',
+  'Excellent margin': 'هامش ممتاز', 'Healthy margin': 'هامش صحي', 'Low margin': 'هامش منخفض',
+  'DCS = Department · Class · Subclass': 'DCS = قسم · فئة · فئة فرعية',
+  // ── Transactions page ──
+  'Doc No': 'رقم المستند', 'Tax': 'الضريبة', 'Total W/Tax': 'الإجمالي مع الضريبة',
+  'Quick search…': 'بحث سريع…',
+  'Export PNG': 'تصدير PNG', 'Fullscreen': 'ملء الشاشة',
+  // ── Period chips ──
+  '7D': '7 أيام', '30D': '30 يومًا', '90D': '90 يومًا',
+  'MTD': 'الشهر الحالي', 'YTD': 'منذ بداية السنة',
+  // ── Stores page ──
+  'Active Stores': 'الفروع النشطة', 'Period Revenue': 'إيرادات الفترة',
+  'Lifetime Revenue': 'الإيرادات التراكمية', 'Avg Return Rate': 'متوسط نسبة المرتجعات',
+  'all-time chain total': 'إجمالي السلسلة منذ البداية',
+  'Revenue Ranking by Store': 'ترتيب الإيرادات حسب الفرع',
+  'Bar colour = lifecycle stage': 'لون العمود = مرحلة دورة الحياة',
+  'Store Detail — {{n}} stores': 'تفاصيل الفروع — {{n}} فرعًا',
+  'Stage': 'المرحلة', 'Active From': 'نشط منذ', 'Days Active': 'أيام النشاط',
+  'Chain Share %': 'حصة السلسلة %', 'Lifetime Rev': 'الإيراد التراكمي',
+  'Mature': 'ناضج', 'Growing': 'في نمو', 'New': 'جديد',
+  // ── Customers (CRM) page ──
+  'At Risk + Dormant': 'معرّض للفقد + خامل', 'of base {{n}}%': '{{n}}% من القاعدة',
+  'Avg LTV / Customer': 'متوسط القيمة الدائمة للعميل', 'Total LTV': 'إجمالي القيمة الدائمة',
+  'all-time lifetime value': 'القيمة الدائمة منذ البداية', 'Total Customers': 'إجمالي العملاء',
+  'Top 15 by Lifetime Value': 'أعلى 15 حسب القيمة الدائمة',
+  'Customer Detail — {{n}} customers': 'تفاصيل العملاء — {{n}} عميلًا',
+  'Dormant': 'خامل', 'At Risk': 'معرّض للفقد', 'Active': 'نشط',
+  'Loyal': 'وفيّ', 'Champion': 'مميز',
+  // ── Employees page ──
+  'Top Performer': 'الأفضل أداءً', '% Avg Disc': '% متوسط الخصم',
+  'Avg Rev / Invoice': 'متوسط الإيراد للفاتورة', 'team productivity index': 'مؤشر إنتاجية الفريق',
+  'Head Count': 'عدد الموظفين', 'Below': 'دون المتوسط', 'Average': 'متوسط',
+  'Good': 'جيد', 'Top': 'الأعلى',
+  'Revenue Ranking — Top 12': 'ترتيب الإيرادات — أفضل 12',
+  'Bar colour = performance tier vs team average': 'لون العمود = فئة الأداء مقابل متوسط الفريق',
+  'Associate Detail — {{n}}': 'تفاصيل البائعين — {{n}}',
+  'Rev / Invoice': 'الإيراد / فاتورة', 'Avg Disc %': 'متوسط الخصم %',
+  '{{n}}% of base': '{{n}}% من القاعدة', '{{n}}% of portfolio': '{{n}}% من المحفظة',
+  'vs team avg rev/invoice': 'مقابل متوسط الإيراد للفاتورة',
+  'All stores': 'كل الفروع',
+  // ── Items page ──
+  'Item / SKU Intelligence': 'ذكاء الأصناف',
+  'Loss-Making SKUs': 'أصناف خاسرة', 'of portfolio {{n}}%': '{{n}}% من المحفظة',
+  '% Avg GP': '% متوسط الربح', 'Avg GP %': 'متوسط الربح %',
+  'Top 15 SKUs by Revenue': 'أعلى 15 صنفًا حسب الإيراد',
+  'Bar colour = GP tier': 'لون العمود = فئة الربح',
+  'Item Detail — {{n}} SKUs': 'تفاصيل الأصناف — {{n}} صنفًا',
+  'Loss': 'خاسر', 'Low Margin': 'هامش منخفض', 'Standard': 'قياسي', 'Premium': 'مرتفع الربح',
+  // ── Vendors (SRM) page ──
+  'Ranked by purchase vouchers (supplier bought from) — item catalogs elsewhere use the item-master vendor':
+    'مرتب حسب سندات الشراء (المورد الذي تم الشراء منه) — بقية الصفحات تستخدم مورد الصنف من ملف الأصناف',
+  'Top 12 by Purchase Value': 'أعلى 12 حسب قيمة المشتريات',
+  'Bar colour = SRM tier': 'لون العمود = فئة المورد',
+  'Supplier Detail — {{n}} suppliers': 'تفاصيل الموردين — {{n}} موردًا',
+  'Preferred': 'مفضل', 'Strategic': 'استراتيجي',
+  // ── Purchases overview leftovers ──
+  'Cost': 'التكلفة', 'POs': 'أوامر الشراء',
+  'of total {{n}}%': '{{n}}% من الإجمالي',
+  '{{n}}% of total': '{{n}}% من الإجمالي', 'Disc: {{v}}': 'الخصم: {{v}}',
+  'Supplier on the purchase voucher': 'المورد على سند الشراء',
+  // ── Settings page ──
+  'Settings': 'الإعدادات',
+  'Configure Oracle connection and data model refresh behaviour.':
+    'إعداد اتصال أوراكل وسلوك تحديث نموذج البيانات.',
+  'Product Code Field': 'حقل رمز المنتج', 'Currency': 'العملة',
+  'Show sign on money values': 'إظهار رمز العملة مع القيم',
+  'Number Format': 'تنسيق الأرقام', 'No decimals': 'بدون كسور', '2 decimals': 'كسران عشريان',
+  'Abbreviate large numbers (1.2M / 340K)': 'اختصار الأرقام الكبيرة (1.2M / 340K)',
+  'Language': 'اللغة', 'English': 'English',
+  'Arabic flips the whole layout right-to-left': 'العربية تقلب الواجهة كاملة من اليمين لليسار',
+  'Item Grid Columns': 'أعمدة جداول الأصناف',
+  'Analytics Thresholds': 'حدود التحليلات',
+  'Customer dormant after (days)': 'اعتبار العميل خاملًا بعد (يوم)',
+  'DOH red above (days)': 'تغطية حمراء فوق (يوم)',
+  'DOH amber above (days)': 'تغطية برتقالية فوق (يوم)',
+  'Good margin at (%)': 'هامش جيد عند (%)',
+  'Low margin below (%)': 'هامش منخفض تحت (%)',
+  'Quiet hours (no background sync)': 'ساعات الهدوء (بدون مزامنة بالخلفية)',
+  'Incremental Refresh': 'تحديث تزايدي',
+  'Manual load — one-time pull from Oracle': 'تحميل يدوي — سحب لمرة واحدة من أوراكل',
+  'Applies connection, data model and schedule changes': 'يطبّق تغييرات الاتصال ونموذج البيانات والجداول',
+  'Refresh window': 'نافذة التحديث', 'Timezone': 'المنطقة الزمنية',
+  'Last 7 days': 'آخر 7 أيام', 'Last 30 days': 'آخر 30 يومًا', 'Last 90 days': 'آخر 90 يومًا',
+  'Purchases': 'المشتريات', 'Inventory': 'المخزون', 'Sales': 'المبيعات',
+  'Transactions': 'الفواتير',
+  'Sun': 'الأحد', 'Mon': 'الاثنين', 'Tue': 'الثلاثاء', 'Wed': 'الأربعاء',
+  'Thu': 'الخميس', 'Fri': 'الجمعة', 'Sat': 'السبت',
 
   // ── Performance page ──
   'Store Rankings': 'ترتيب الفروع', 'Payment Mix': 'مزيج طرق الدفع',
@@ -331,4 +435,20 @@ export function tr(s?: string): string {
 }
 
 /** Translate a template with values, e.g. trf('across {{n}} stores', { n: 23 }).
- *  Falls back to simple substitution in English / when untranslate
+ *  Falls back to simple substitution in English / when untranslated. */
+export function trf(s: string, params: Record<string, string | number>): string {
+  if (i18n.language === 'ar') {
+    const out = i18n.t(s, { ...params, defaultValue: s }) as string
+    if (out !== s) return out
+  }
+  return Object.entries(params).reduce(
+    (acc, [k, v]) => acc.replace(`{{${k}}}`, String(v)), s)
+}
+
+/** Translate AG Grid column headers (headerName) in a colDefs array. */
+export function trCols<T extends { headerName?: string }>(cols: T[]): T[] {
+  if (i18n.language !== 'ar') return cols
+  return cols.map(c => c.headerName ? { ...c, headerName: tr(c.headerName) } : c)
+}
+
+export default i18n

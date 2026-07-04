@@ -11,7 +11,7 @@ import axios from 'axios'
 import { useRef } from 'react'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
@@ -155,7 +155,7 @@ export default function DimItems() {
     { field: 'gp_tier',      headerName: 'GP Tier',     width: 110,
       cellRenderer: (p: any) => {
         const c = GP_META[p.value]?.color ?? C_SLATE
-        return <span style={{background:`${c}18`,color:c,border:`1px solid ${c}55`,borderRadius:'12px',padding:'2px 9px',fontSize:'11px',fontWeight:700}}>{p.value ?? '—'}</span>
+        return <span style={{background:`${c}18`,color:c,border:`1px solid ${c}55`,borderRadius:'12px',padding:'2px 9px',fontSize:'11px',fontWeight:700}}>{p.value ? tr(p.value) : '—'}</span>
       }},
     { field: 'DESCRIPTION1', headerName: 'Description', flex: 2, minWidth: 160 },
     { field: 'VEND_NAME',    headerName: 'Item Vendor', width: 150,
@@ -174,11 +174,11 @@ export default function DimItems() {
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h5" fontWeight={700} mb={1.5}>Item / SKU Intelligence</Typography>
+        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('Item / SKU Intelligence')}</Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
-          <TextField size="small" label="From" type="date" value={dateFrom}
+          <TextField size="small" label={tr('From')} type="date" value={dateFrom}
             onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
-          <TextField size="small" label="To" type="date" value={dateTo}
+          <TextField size="small" label={tr('To')} type="date" value={dateTo}
             onChange={e => setDateTo(e.target.value)} InputLabelProps={{ shrink: true }} />
           <Autocomplete multiple disableCloseOnSelect size="small" options={storeList} value={stores}
             onChange={(_, v) => setStores(v)} sx={{ minWidth: 240 }}
@@ -194,17 +194,17 @@ export default function DimItems() {
         <KpiCard label="Total GP"      value={num(kpi.totalGP)}    icon="ti-trending-up" color={C_GREEN}  />
         <KpiCard label="Loss-Making SKUs" value={fmtN(kpi.lossItems)} icon="ti-alert-triangle"
           color={kpi.lossItems > 0 ? C_ROSE : C_GREEN}
-          sub={`${kpi.count > 0 ? ((kpi.lossItems / kpi.count)*100).toFixed(0) : 0}% of portfolio`} />
+          sub={trf('{{n}}% of portfolio',{n: kpi.count > 0 ? ((kpi.lossItems / kpi.count)*100).toFixed(0) : 0})} />
       </Box>
 
       {/* GP tier legend */}
       <Stack direction="row" spacing={1} mb={2.5} flexWrap="wrap">
         {Object.entries(GP_META).map(([tier, { color, desc }]) => (
-          <Tooltip key={tier} title={desc} arrow>
+          <Tooltip key={tier} title={tr(desc)} arrow>
             <Box sx={{ display:'flex', alignItems:'center', gap:0.6, px:1.5, py:0.5,
                        bgcolor:`${color}12`, border:`1px solid ${color}40`, borderRadius:2, cursor:'default' }}>
               <Box sx={{ width:7, height:7, borderRadius:'50%', bgcolor: color }} />
-              <Typography sx={{ fontSize:11, fontWeight:700, color }}>{tier}</Typography>
+              <Typography sx={{ fontSize:11, fontWeight:700, color }}>{tr(tier)}</Typography>
               <Typography sx={{ fontSize:11, color, opacity:0.8 }}>·</Typography>
               <Typography sx={{ fontSize:11, fontWeight:600, color }}>{gpCounts[tier] ?? 0}</Typography>
             </Box>
@@ -221,14 +221,14 @@ export default function DimItems() {
       </Stack>
 
       <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2, mb:2.5 }}>
-        <Typography sx={{ fontWeight:700, fontSize:13, mb:0.5 }}>Top 15 SKUs by Revenue</Typography>
-        <Typography sx={{ fontSize:11, color: C_SLATE, mb:1.5 }}>Bar colour = GP tier</Typography>
+        <Typography sx={{ fontWeight:700, fontSize:13, mb:0.5 }}>{tr('Top 15 SKUs by Revenue')}</Typography>
+        <Typography sx={{ fontSize:11, color: C_SLATE, mb:1.5 }}>{tr('Bar colour = GP tier')}</Typography>
         <ReactECharts option={chartOpt} style={{ height: 380 }} />
       </Box>
 
       <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-          <Typography sx={{ fontWeight:700, fontSize:13 }}>Item Detail — {rows.length} SKUs</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Item Detail — {{n}} SKUs',{n:rows.length})}</Typography>
           <GridExportBar gridRef={gridRef} filename="items_sku_analysis" title="Item / SKU Intelligence"
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
