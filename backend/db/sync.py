@@ -982,6 +982,13 @@ def _run_sync(mode: str, date_from: str, date_to: str,
         finally:
             ora.close()
 
+        # Step 6 — data validation: join coverage. The float64 SID corruption
+        # (2026-07) was invisible for weeks; this makes any repeat loud.
+        try:
+            _validate_sync(duck)
+        except Exception as e:
+            log.warning(f"Post-sync validation failed to run: {e}")
+
         if progress_cb:
             progress_cb("Done", 100, 100)
         _update_watermarks(duck, tables, date_from, date_to, _run_id)
@@ -1000,6 +1007,47 @@ def _run_sync(mode: str, date_from: str, date_to: str,
         _log_finish(duck, _run_id, "error", str(e)[:500])
         log.error(f"Sync failed: {e}")
         raise
+
+
+# ── Post-sync data validation ──────────────────────────────────────────────────
+# Join-coverage checks: what fraction of fact-side SIDs resolve in their dim.
+# Thresholds: >=99% ok · >=90% warn · below fail. Results are kept in
+# SYNC_VALIDATION (latest run only) and surfaced as a red banner in the app.
+
+_VALIDATION_CHECKS = [
+    ("sales items → items",        "FACT_SALES_ITEMS",    "ITEM_SID",  "DIM_ITEM",     "SID"),
+    ("sales invoices → customers", "FACT_SALES_INVOICES", "BT_CUID",   "DIM_CUSTOMER", "SID"),
+    ("sales invoices → stores",    "FACT_SALES_INVOICES", "STORE_SID", "DIM_STORE",    "SID"),
+    ("items → vendors",            "DIM_ITEM",            "VEND_SID",  "DIM_VENDOR",   "SID"),
+    ("purchases → suppliers",      "FACT_PURCHASES",      "VEND_SID",  "DIM_VENDOR",   "SID"),
+    ("adjustments → stores",       "FACT_ADJUSTMENTS",    "STORE_SID", "DIM_STORE",    "SID"),
+]
+
+
+def _validate_sync(duck) -> None:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    rows = []
+    for name, fact, fk, dim, pk in _VALIDATION_CHECKS:
+        try:
+            total, matched = duck.execute(f"""
+                SELECT COUNT(*), COUNT(d.{pk})
+                FROM {fact} f LEFT JOIN {dim} d ON d.{pk} = f.{fk}
+                WHERE f.{fk} IS NOT NULL
+            """).fetchone()
+        except Exception as e:
+            log.warning(f"Validation '{name}' skipped: {e}")
+            continue
+        pct = round(matched / total * 100, 2) if total else 100.0
+        status = "ok" if pct >= 99 else "warn" if pct >= 90 else "fail"
+        if status != "ok":
+            log.warning(f"VALIDATION {status.upper()}: {name} — {matched:,}/{total:,} ({pct}%)")
+        rows.append((now, name, total, matched, pct, status))
+    duck.execute("DELETE FROM SYNC_VALIDATION")
+    if rows:
+        duck.executemany("INSERT INTO SYNC_VALIDATION VALUES (?,?,?,?,?,?)", rows)
+    duck.commit()
+    log.info("Post-sync validation: " +
+             ", ".join(f"{r[1]}={r[4]}%" for r in rows))
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────

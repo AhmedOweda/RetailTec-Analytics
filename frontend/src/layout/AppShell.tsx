@@ -71,6 +71,28 @@ const INVENTORY_NAV = [
   { to: '/inventory/coverage',   icon: <CalendarViewWeekIcon  />, label: 'Coverage'  },
 ]
 
+// ── Data-quality badge: red when a post-sync join-coverage check fails ─────
+function ValidationBadge() {
+  const { data = [] } = useQuery<any[]>({
+    queryKey: ['sync-validation'],
+    queryFn:  () => axios.get('/api/sync/validation').then(r => r.data),
+    refetchInterval: 60_000,
+  })
+  const bad = data.filter(r => (r.status ?? r.STATUS) === 'fail')
+  if (!bad.length) return null
+  const worst = bad[0]
+  return (
+    <Tooltip title={bad.map(b => `${b.check_name ?? b.CHECK_NAME}: ${b.pct ?? b.PCT}% matched`).join(' · ')}>
+      <Box sx={{ display:'flex', alignItems:'center', gap:0.5, px:1, py:0.3,
+                 bgcolor:'rgba(239,68,68,0.12)', borderRadius:1, cursor:'default' }}>
+        <Typography variant="caption" sx={{ color:'#dc2626', fontWeight:700, fontSize:10 }}>
+          ⚠ Data check failed ({worst.pct ?? worst.PCT}%)
+        </Typography>
+      </Box>
+    </Tooltip>
+  )
+}
+
 // ── Sync status badge ──────────────────────────────────────────────────────
 function SyncBadge() {
   const { data } = useQuery({
@@ -345,6 +367,7 @@ export default function AppShell() {
             </Box>
           </Box>
           <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
+            <ValidationBadge />
             <SyncBadge />
             <Box sx={{
               display:'flex', alignItems:'center', gap:0.8,
