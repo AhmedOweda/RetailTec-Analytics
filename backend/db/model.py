@@ -547,6 +547,17 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     # Migration: per-user page permissions (CSV of page keys; NULL = all pages)
     con.execute("ALTER TABLE DIM_USERS ADD COLUMN IF NOT EXISTS pages VARCHAR")
 
+    # Per-user UI preferences (grid layouts etc.) — follow the user across machines
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS USER_PREFS (
+            user_id    INTEGER,
+            pref_key   VARCHAR,
+            pref_value VARCHAR,
+            updated_at VARCHAR,
+            PRIMARY KEY (user_id, pref_key)
+        )
+    """)
+
     from datetime import datetime
     count = con.execute("SELECT COUNT(*) FROM DIM_USERS").fetchone()[0]
     if count == 0:
