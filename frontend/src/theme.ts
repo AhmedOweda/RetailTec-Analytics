@@ -71,6 +71,15 @@ export function createAppTheme(mode: 'light' | 'dark',
     ] as any,
 
     components: {
+      // Single default for every Paper: drop MUI's elevation-overlay tint so
+      // paper backgrounds stay consistent. Intentionally no border/shadow here
+      // so existing inline elevation/border/sx on cards still win (no regression).
+      MuiPaper: {
+        styleOverrides: {
+          root: { backgroundImage: 'none' },
+        },
+      },
+
       MuiCssBaseline: {
         styleOverrides: {
           body: {
