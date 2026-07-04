@@ -26,6 +26,10 @@ _DEFAULTS = {
                      "background_refresh_minutes": 30},
     "last_sync":    None,
     "model_status": "empty",
+    # Whitelabel branding (optional; safe defaults). brand_logo is an optional
+    # base64 data-URL or file path shown in the app header/sidebar.
+    "brand_name":   "RetailTec Analytics",
+    "brand_logo":   "",
 }
 
 

@@ -138,6 +138,10 @@ class SettingsPayload(BaseModel):
     # Validated explicitly in update_settings: a dict with `domains`/`schema_version`
     # MUST be valid v2 (no silent fallback to the lenient legacy model).
     data_model:  dict
+    # Optional whitelabel branding — safe strings, don't break existing clients
+    # that omit them (they simply keep the stored / default values).
+    brand_name:  Optional[str] = None
+    brand_logo:  Optional[str] = None
 
 
 def _validate_data_model(raw: dict) -> Union["DataModelV2", "DataModelSettings"]:
@@ -211,6 +215,14 @@ def update_settings(payload: SettingsPayload, _admin: dict = Depends(require_adm
     else:
         # legacy flat shape: keep old behaviour (scheduler migrates on read)
         current["data_model"] = dm_obj.model_dump()
+
+    # Whitelabel branding (optional). Only overwrite when explicitly provided so
+    # older clients that omit these fields keep the existing values.
+    if payload.brand_name is not None:
+        current["brand_name"] = payload.brand_name.strip() or "RetailTec Analytics"
+    if payload.brand_logo is not None:
+        current["brand_logo"] = payload.brand_logo
+
     save_settings(current)
 
     # If host changed: cancel running sync + switch DB file

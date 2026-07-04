@@ -218,6 +218,14 @@ const ar_strings: Record<string, string> = {
   '{{n}} days remaining': 'متبقٍ {{n}} يومًا',
   'Copy diagnostics': 'نسخ التشخيص',
   'Copied!': 'تم النسخ',
+  // Branding (whitelabel)
+  'Branding': 'العلامة التجارية',
+  'Override the product name and logo shown in the header and sidebar. Leave blank to use the RetailTec defaults. Saved with Save Settings.':
+    'تجاوز اسم المنتج والشعار الظاهرين في الرأس والشريط الجانبي. اتركه فارغًا لاستخدام إعدادات ريتيل تك الافتراضية. يُحفظ مع حفظ الإعدادات.',
+  'Logo': 'الشعار',
+  'Default logo': 'الشعار الافتراضي',
+  'Upload': 'رفع',
+  'Remove': 'إزالة',
   'Database Connection': 'اتصال قاعدة البيانات',
   'Display Settings': 'إعدادات العرض',
   'Data Model': 'نموذج البيانات',

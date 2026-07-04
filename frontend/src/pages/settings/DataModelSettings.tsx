@@ -188,12 +188,16 @@ export default function DataModelSettings() {
   const [rangeFrom, setRangeFrom]     = useState('')
   const [rangeTo,   setRangeTo]       = useState('')
   const [tab, setTab]                 = useState(0)   // Settings tab (UI grouping only)
+  const [brandName, setBrandName]     = useState('')  // whitelabel product name
+  const [brandLogo, setBrandLogo]     = useState('')  // base64 data-URL or empty
 
   useEffect(() => {
     if (settings) {
       setConn({ ...settings.connection })   // keep masked password so it persists
       // Backend GET always returns the migrated v2 shape; fall back defensively
       if (settings.data_model?.domains) setDm(settings.data_model)
+      setBrandName(settings.brand_name ?? '')
+      setBrandLogo(settings.brand_logo ?? '')
     }
   }, [settings])
 
@@ -213,7 +217,8 @@ export default function DataModelSettings() {
   })
 
   const saveSettings = useMutation({
-    mutationFn: () => axios.put('/api/settings', { connection: conn, data_model: dm }),
+    mutationFn: () => axios.put('/api/settings', { connection: conn, data_model: dm,
+      brand_name: brandName, brand_logo: brandLogo }),
     onSuccess: (res) => {
       setSaveErr('')
       qc.invalidateQueries({ queryKey:['settings'] })
@@ -479,6 +484,54 @@ export default function DataModelSettings() {
                   onChange={e => setThreshold({ [f.k]: Math.max(0, +e.target.value) })} />
               </LabeledCtl>
             ))}
+          </Box>
+        </Box>
+
+        {/* ── Branding (whitelabel) ── */}
+        <Box sx={{ mt:3, pt:2.5, borderTop:'1px solid #e2e8f0' }}>
+          <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', mb:0.3 }}>
+            {tr('Branding')}
+          </Typography>
+          <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1.5 }}>
+            {tr('Override the product name and logo shown in the header and sidebar. Leave blank to use the RetailTec defaults. Saved with Save Settings.')}
+          </Typography>
+          <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
+            <LabeledCtl label="Product name">
+              <TextField size="small" sx={{ minWidth:260 }}
+                placeholder="RetailTec Analytics"
+                value={brandName} onChange={e => setBrandName(e.target.value)} />
+            </LabeledCtl>
+            <Box sx={{ display:'flex', flexDirection:'column', gap:0.4 }}>
+              <Typography sx={{ fontSize:10.5, fontWeight:700, color:'#94a3b8',
+                                textTransform:'uppercase', letterSpacing:0.6, lineHeight:1 }}>
+                {tr('Logo')}
+              </Typography>
+              <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
+                {brandLogo
+                  ? <Box component="img" src={brandLogo} alt="logo"
+                      sx={{ height:32, maxWidth:120, objectFit:'contain',
+                            bgcolor:'#160b33', px:1, borderRadius:1 }} />
+                  : <Typography sx={{ fontSize:12, color:'#94a3b8' }}>{tr('Default logo')}</Typography>}
+                <Button component="label" variant="outlined" size="small"
+                  sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
+                  {tr('Upload')}
+                  <input hidden type="file" accept="image/*"
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (!f) return
+                      const reader = new FileReader()
+                      reader.onload = () => setBrandLogo(String(reader.result || ''))
+                      reader.readAsDataURL(f)
+                    }} />
+                </Button>
+                {brandLogo && (
+                  <Button size="small" onClick={() => setBrandLogo('')}
+                    sx={{ textTransform:'none', color:'#94a3b8' }}>
+                    {tr('Remove')}
+                  </Button>
+                )}
+              </Box>
+            </Box>
           </Box>
         </Box>
       </SectionCard>

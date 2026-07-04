@@ -236,6 +236,16 @@ export default function AppShell() {
   const [purchasesOpen,  setPurchasesOpen ] = useState(true)
   const [dimensionsOpen, setDimensionsOpen] = useState(true)
 
+  // ── Whitelabel branding (falls back to the hardcoded defaults) ──
+  const { data: brandSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn:  () => axios.get('/api/settings').then(r => r.data),
+    staleTime: 60_000,
+    retry: false,
+  })
+  const brandName: string = brandSettings?.brand_name || 'RetailTec Analytics'
+  const brandLogo: string = brandSettings?.brand_logo || ''
+
   return (
     <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
 
@@ -251,8 +261,8 @@ export default function AppShell() {
         {/* Logo */}
         <Box sx={{ px:2.5, py:2, display:'flex', alignItems:'center', gap:1.5,
                    borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
-          <Box component="img" src="/logo-white.png" alt="RetailTec"
-               sx={{ height:36, objectFit:'contain' }} />
+          <Box component="img" src={brandLogo || '/logo-white.png'} alt={brandName}
+               sx={{ height:36, maxWidth:180, objectFit:'contain' }} />
         </Box>
 
         {/* ── Scrollable nav area ─────────────────────────────────────── */}
@@ -418,13 +428,23 @@ export default function AppShell() {
             <Box sx={{ minWidth:0 }}>
               <Typography component="div" noWrap
                 sx={{ fontSize:15, fontWeight:800, letterSpacing:0.2, lineHeight:'18px' }}>
-                <Box component="span" sx={{ color:'#0f172a' }}>RetailTec&nbsp;</Box>
-                <Box component="span" sx={{
-                  background:'linear-gradient(90deg, #7c3aed, #22d3ee)',
-                  WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent',
-                }}>
-                  Analytics
-                </Box>
+                {(() => {
+                  // Two-tone wordmark: first word dark, remainder gradient.
+                  // Custom brand names render the same way; single-word names
+                  // fall back to an all-gradient wordmark.
+                  const parts = brandName.trim().split(/\s+/)
+                  const first = parts.length > 1 ? parts[0] : ''
+                  const rest  = parts.length > 1 ? parts.slice(1).join(' ') : brandName
+                  return (<>
+                    {first && <Box component="span" sx={{ color:'#0f172a' }}>{first}&nbsp;</Box>}
+                    <Box component="span" sx={{
+                      background:'linear-gradient(90deg, #7c3aed, #22d3ee)',
+                      WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent',
+                    }}>
+                      {rest}
+                    </Box>
+                  </>)
+                })()}
               </Typography>
               <Typography noWrap sx={{ fontSize:10, color:'#94a3b8', fontWeight:600,
                                        letterSpacing:1, textTransform:'uppercase', lineHeight:'13px' }}>
