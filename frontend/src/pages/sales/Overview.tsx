@@ -2,6 +2,7 @@
  * Overview — KPI cards with period-over-period comparisons + Sales Trend chart
  */
 import { useState, useMemo, useRef } from 'react'
+import i18n from 'i18next'
 import { tr, trCols } from '../../i18n'
 import {
   Box, Card, CardContent, Typography, Divider,
@@ -85,7 +86,7 @@ function ChangeBadge({ curr, prev, label }: { curr: number; prev: number; label:
         {up ? '+' : ''}{p.toFixed(1)}%
       </Typography>
       <Typography sx={{ fontSize:11, color:'#94a3b8', lineHeight:1 }}>
-        vs {label}
+        {tr('vs')} {label}
       </Typography>
     </Box>
   )
@@ -171,7 +172,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
               {num(net)}
             </Typography>
             <Typography sx={{ fontSize:11, color:'#94a3b8', mt:0.3, mb:1.2 }}>
-              Net Sales (excl. tax)
+              {tr('Net Sales (excl. tax)')}
             </Typography>
 
             {/* Comparison badge */}
@@ -191,7 +192,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
               <Box>
                 <Typography sx={{ fontSize:10, color:'#94a3b8', fontWeight:700,
                                   textTransform:'uppercase', letterSpacing:0.8 }}>
-                  Invoices
+                  {tr('Invoices')}
                 </Typography>
                 <Box sx={{ display:'flex', alignItems:'center', gap:0.6, mt:0.15 }}>
                   <Typography sx={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>
@@ -204,7 +205,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
               <Box>
                 <Typography sx={{ fontSize:10, color:'#94a3b8', fontWeight:700,
                                   textTransform:'uppercase', letterSpacing:0.8 }}>
-                  Returns
+                  {tr('Returns')}
                 </Typography>
                 {/* Count */}
                 <Typography sx={{ fontSize:13, fontWeight:700, mt:0.15,
@@ -238,7 +239,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
               <Box>
                 <Typography sx={{ fontSize:10, color:'#94a3b8', fontWeight:700,
                                   textTransform:'uppercase', letterSpacing:0.8 }}>
-                  Discount
+                  {tr('Discount')}
                 </Typography>
                 <Box sx={{ display:'flex', alignItems:'center', gap:0.6, mt:0.15 }}>
                   <Typography sx={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>
@@ -318,8 +319,8 @@ function MiniChart({ title, subtitle, option, loading }: {
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xl" fullWidth
         PaperProps={{ sx:{ borderRadius:3, m:2 } }}>
         <DialogTitle sx={{ fontWeight:800, color:'#0f172a', fontSize:16, pr:6, pb:0.5 }}>
-          {title}
-          {subtitle && <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.3 }}>{subtitle}</Typography>}
+          {tr(title)}
+          {subtitle && <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.3 }}>{tr(subtitle)}</Typography>}
         </DialogTitle>
         <IconButton onClick={() => setOpen(false)}
           sx={{ position:'absolute', right:12, top:12, color:'#64748b' }}>
@@ -416,8 +417,8 @@ export default function Overview() {
         formatter: (params: any[]) => {
           const day   = params[0]?.axisValue ?? ''
           const lines = params.map((p: any) => {
-            const isRet = p.seriesName === 'Return Rate %'
-            const isInv = p.seriesName === 'Invoices'
+            const isRet = p.seriesName === tr('Return Rate %')
+            const isInv = p.seriesName === tr('Invoices')
             let valStr: string
             if (isRet)       valStr = `${p.value}%`
             else if (isInv)  valStr = String(p.value)
@@ -478,7 +479,7 @@ export default function Overview() {
       ],
       series: [
         {
-          name: 'Net Sales',
+          name: tr('Net Sales'),
           type: 'line',
           yAxisIndex: 0,
           data: netSales,
@@ -499,7 +500,7 @@ export default function Overview() {
           itemStyle: { color: ACCENT },
         },
         {
-          name: 'Invoices',
+          name: tr('Invoices'),
           type: 'bar',
           yAxisIndex: 1,
           data: invCount,
@@ -516,7 +517,7 @@ export default function Overview() {
           },
         },
         {
-          name: 'Return Rate %',
+          name: tr('Return Rate %'),
           type: 'line',
           yAxisIndex: 2,
           data: returnRates,
@@ -631,13 +632,13 @@ export default function Overview() {
       yAxis:{ type:'value', axisLabel:{ color:'#94a3b8', fontSize:10, formatter:(v:number)=>v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
       series:[
         {
-          name:'This Month', type:'line', data:currCum, smooth:0.3, showSymbol:false,
+          name:tr('This Month'), type:'line', data:currCum, smooth:0.3, showSymbol:false,
           lineStyle:{ color:ACCENT, width:2.5 },
           areaStyle:{ color:{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{offset:0,color:'rgba(124,58,237,0.20)'},{offset:1,color:'rgba(124,58,237,0.0)'}] } },
           itemStyle:{ color:ACCENT },
         },
         {
-          name:'Last Month', type:'line', data:prevCum, smooth:0.3, showSymbol:false,
+          name:tr('Last Month'), type:'line', data:prevCum, smooth:0.3, showSymbol:false,
           lineStyle:{ color:'#94a3b8', width:1.5, type:'dashed' as const },
           itemStyle:{ color:'#94a3b8' },
         },
@@ -670,9 +671,9 @@ export default function Overview() {
     }
   }, [assocMtd])
 
-  const todayStr = new Date().toLocaleDateString('en-GB', {
-    weekday:'long', day:'numeric', month:'long', year:'numeric',
-  })
+  const todayStr = new Date().toLocaleDateString(
+    i18n.language === 'ar' ? 'ar-u-nu-latn' : 'en-GB',
+    { weekday:'long', day:'numeric', month:'long', year:'numeric' })
 
   return (
     <Box sx={{ p:3, display:'flex', flexDirection:'column', gap:3 }}>
@@ -680,7 +681,7 @@ export default function Overview() {
       {/* ── Page header ── */}
       <Box>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px' }}>
-          Sales Overview
+          {tr('Sales Overview')}
         </Typography>
         <Typography sx={{ fontSize:13, color:'#94a3b8', mt:0.3 }}>
           {todayStr}
@@ -705,7 +706,7 @@ export default function Overview() {
       <Box sx={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:2 }}>
         <MiniChart
           title="Top Products (7D)"
-          subtitle={`Revenue by item · ${productCodeField.toUpperCase()} | Description`}
+          subtitle={`${tr('Revenue by item')} · ${productCodeField.toUpperCase()} | ${tr('Description')}`}
           option={productsOpt}
           loading={productsLoading}
         />
@@ -731,7 +732,7 @@ export default function Overview() {
                 {tr('Sales Trend')}
               </Typography>
               <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.2 }}>
-                Net sales · invoices · return rate by day
+                {tr('Net sales · invoices · return rate by day')}
               </Typography>
             </Box>
 
@@ -781,20 +782,11 @@ export default function Overview() {
       <Dialog open={trendOpen} onClose={() => setTrendOpen(false)} maxWidth="xl" fullWidth
         PaperProps={{ sx:{ borderRadius:3, m:2 } }}>
         <DialogTitle sx={{ fontWeight:800, color:'#0f172a', fontSize:16, pr:6, pb:0.5 }}>
-          Sales Trend
+          {tr('Sales Trend')}
           <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.3 }}>
-            Net sales · invoices · return rate by day
+            {tr('Net sales · invoices · return rate by day')}
           </Typography>
         </DialogTitle>
         <IconButton onClick={() => setTrendOpen(false)}
           sx={{ position:'absolute', right:12, top:12, color:'#64748b' }}>
-          <CloseIcon />
-        </IconButton>
-        <DialogContent sx={{ pt:1 }}>
-          <EChart option={chartOption} style={{ height:'72vh' }} />
-        </DialogContent>
-      </Dialog>
-
-    </Box>
-  )
-}
+          <Clo

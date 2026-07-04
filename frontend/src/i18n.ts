@@ -239,6 +239,15 @@ const ar_strings: Record<string, string> = {
   'Top Associates (MTD)': 'أفضل البائعين (الشهر)',
   'Cumulative net sales · day by day': 'صافي مبيعات تراكمي · يومًا بيوم',
   'Net sales · month to date': 'صافي المبيعات · الشهر حتى تاريخه',
+  'Sales Overview': 'نظرة عامة على المبيعات',
+  'Net Sales (excl. tax)': 'صافي المبيعات (بدون ضريبة)',
+  'This Month': 'الشهر الحالي',
+  'Invoices': 'الفواتير', 'Discount': 'الخصم',
+  'Revenue by item': 'الإيرادات حسب الصنف',
+  'Net sales · invoices · return rate by day': 'صافي المبيعات · الفواتير · نسبة المرتجعات باليوم',
+  'vs': 'مقابل',
+  'Sold': 'المباع', 'Returned': 'المرتجع',
+  'Net Sales': 'صافي المبيعات', 'Return Rate %': 'نسبة المرتجعات %',
 
   // ── Performance page ──
   'Store Rankings': 'ترتيب الفروع', 'Payment Mix': 'مزيج طرق الدفع',
@@ -322,20 +331,4 @@ export function tr(s?: string): string {
 }
 
 /** Translate a template with values, e.g. trf('across {{n}} stores', { n: 23 }).
- *  Falls back to simple substitution in English / when untranslated. */
-export function trf(s: string, params: Record<string, string | number>): string {
-  if (i18n.language === 'ar') {
-    const out = i18n.t(s, { ...params, defaultValue: s }) as string
-    if (out !== s) return out
-  }
-  return Object.entries(params).reduce(
-    (acc, [k, v]) => acc.replace(`{{${k}}}`, String(v)), s)
-}
-
-/** Translate AG Grid column headers (headerName) in a colDefs array. */
-export function trCols<T extends { headerName?: string }>(cols: T[]): T[] {
-  if (i18n.language !== 'ar') return cols
-  return cols.map(c => c.headerName ? { ...c, headerName: tr(c.headerName) } : c)
-}
-
-export default i18n
+ *  Falls back to simple substitution in English / when untranslate
