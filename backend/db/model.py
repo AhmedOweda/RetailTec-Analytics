@@ -41,6 +41,12 @@ from pathlib import Path
 # IndexError 500s / bogus 401s under parallel page loads).
 DB_LOCK = threading.Lock()
 
+# Product + warehouse schema versions (surfaced by /api/admin/diagnostics).
+# APP_VERSION mirrors the FastAPI app version in main.py; SCHEMA_VERSION is the
+# DuckDB star-schema revision (bump when _ensure_schema changes shape).
+APP_VERSION = "3.0.0"
+SCHEMA_VERSION = 2
+
 
 def record_audit(username: str, action: str, detail: str = "") -> None:
     """Append an audit row. Best-effort — never raises into the caller."""
