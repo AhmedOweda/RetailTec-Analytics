@@ -210,6 +210,28 @@ const ar_strings: Record<string, string> = {
   // ── Users page ──
   'Add User': 'إضافة مستخدم', 'User': 'المستخدم', 'Role': 'الدور',
   'Pages': 'الصفحات', 'Created': 'تاريخ الإنشاء', 'Actions': 'إجراءات',
+
+  // ── Chart subtitles ("comments") ──
+  'Block size = cost value · colour = dept': 'حجم المربع = قيمة التكلفة · اللون = القسم',
+  'Dept › Class › Subclass · click a department to zoom in (labels get readable) · click centre to go back · hover for details':
+    'قسم › فئة › فئة فرعية · انقر على قسم للتكبير · انقر على المركز للرجوع · مرّر المؤشر للتفاصيل',
+  'Item-master (catalog) vendor · cost value · GM% annotated': 'مورد الصنف (الكتالوج) · قيمة التكلفة · مع نسبة الهامش',
+  'Cost value distribution': 'توزيع قيمة التكلفة',
+  'Units sold & returns over time': 'الوحدات المباعة والمرتجعات عبر الزمن',
+  'Pareto · dashed line = 80% threshold': 'باريتو · الخط المتقطع = حد 80%',
+  'Revenue · GM% annotated · sorted by revenue': 'الإيرادات · مع نسبة الهامش · مرتبة حسب الإيراد',
+  'Item-master (catalog) vendor · revenue ranking · GP% annotated': 'مورد الصنف (الكتالوج) · ترتيب حسب الإيراد · مع نسبة الربح',
+  'Supplier on the purchase voucher': 'المورد في سند الشراء',
+  'Bar colour = SRM tier': 'لون العمود = تصنيف المورد',
+  'Bar colour = CRM segment': 'لون العمود = شريحة العميل',
+  'Revenue ranking · GP% annotated on each bar': 'ترتيب حسب الإيراد · نسبة الربح على كل عمود',
+
+  // ── Dynamic KPI subs (templates) ──
+  'across {{n}} stores': 'في {{n}} فرعًا',
+  '{{n}} departments': '{{n}} أقسام',
+  '{{n}} returned': '{{n}} مرتجع',
+  '{{n}} lines': '{{n}} بندًا',
+  '{{n}}% of total': '{{n}}% من الإجمالي',
 }
 
 i18n.use(initReactI18next).init({
@@ -230,6 +252,17 @@ export function tr(s?: string): string {
   if (!s) return s ?? ''
   if (i18n.language !== 'ar') return s
   return (i18n.t(s) as string) || s
+}
+
+/** Translate a template with values, e.g. trf('across {{n}} stores', { n: 23 }).
+ *  Falls back to simple substitution in English / when untranslated. */
+export function trf(s: string, params: Record<string, string | number>): string {
+  if (i18n.language === 'ar') {
+    const out = i18n.t(s, { ...params, defaultValue: s }) as string
+    if (out !== s) return out
+  }
+  return Object.entries(params).reduce(
+    (acc, [k, v]) => acc.replace(`{{${k}}}`, String(v)), s)
 }
 
 /** Translate AG Grid column headers (headerName) in a colDefs array. */
