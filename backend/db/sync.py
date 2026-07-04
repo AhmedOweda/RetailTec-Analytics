@@ -544,13 +544,13 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
     # referenced by facts but not touched in the window missing -> '(unknown item)'
     # in product analytics. The whole table is small enough to pull every sync.
     _r("Items")
-    # RP9 has TWO vendor link spaces (confirmed with schema owner):
-    #   * item-vendor link:    RPS.INVN_SBS_VENDOR (INVN_SBS_ITEM_SID -> VEND_SID -> RPS.VENDOR)
-    #   * voucher vendor link: VOUCHER.VEND_SID -> RPS.VENDOR (purchases only)
-    # INVN_SBS_ITEM.VEND_SID is a DIFFERENT (orphaned) SID space — 0 of its values
-    # resolve against RPS.VENDOR or INVN_SBS_VENDOR.SID, which collapsed vendor
-    # analytics into '(Unknown)'. Resolve the item's vendor through the link table
-    # instead (latest link wins when an item has several).
+    # Item vendor resolution (semantics confirmed with schema owner 2026-07-03):
+    #   * PRIMARY: INVN_SBS_ITEM.VEND_SID -> RPS.VENDOR (21,075/21,075 resolve).
+    #     (It looked orphaned earlier only because float64 staging corrupted the
+    #     SIDs in OUR warehouse — fixed with dtype=object.)
+    #   * INVN_SBS_VENDOR stores vendor-specific ALU/UPC ALIASES for an item;
+    #     when an item has alias rows, the vendor comes from there (latest wins).
+    # => COALESCE(alias vendor, item vendor). Purchases use VOUCHER.VEND_SID.
     # NOTE: column list must match DIM_ITEM's DDL order (incl. the optional
     # item-master fields appended by the model.py migration) — _bulk_upsert_dim
     # maps rows to table columns positionally.
@@ -558,7 +558,7 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
         SELECT I.SID, I.SBS_SID, I.ALU, I.UPC,
                I.DESCRIPTION1, I.DESCRIPTION2,
                I.ATTRIBUTE, I.ITEM_SIZE,
-               I.DCS_SID, ISV.VEND_SID,
+               I.DCS_SID, NVL(ISV.VEND_SID, I.VEND_SID) AS VEND_SID,
                NVL(I.ACTIVE, 1),
                I.DESCRIPTION3, I.DESCRIPTION4, I.LONG_DESCRIPTION,
                {', '.join(f'I.TEXT{i}' for i in range(1, 11))},
