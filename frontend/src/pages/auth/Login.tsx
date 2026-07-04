@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { tr } from '../../i18n'
 import { useNavigate }   from 'react-router-dom'
 import { useAuth }       from '../../contexts/AuthContext'
 
@@ -215,14 +216,14 @@ export default function Login() {
           <img src="/logo-white.png" alt="RetailTec"
             style={{ height: 40, objectFit: 'contain', marginBottom: 28 }} />
 
-          <div style={S.heading}>Welcome back</div>
-          <div style={S.sub}>Sign in to your RetailTec workspace</div>
+          <div style={S.heading}>{tr('Welcome back')}</div>
+          <div style={S.sub}>{tr('Sign in to your RetailTec workspace')}</div>
 
           {error && <div style={S.error}>⚠ {error}</div>}
 
           <form onSubmit={handleSubmit} autoComplete="on">
             <div style={S.inputWrap}>
-              <label style={S.label} htmlFor="username">USERNAME</label>
+              <label style={S.label} htmlFor="username">{tr('USERNAME')}</label>
               <input
                 id="username"
                 autoFocus
@@ -238,7 +239,7 @@ export default function Login() {
             </div>
 
             <div style={{ ...S.inputWrap, marginBottom: 28 }}>
-              <label style={S.label} htmlFor="password">PASSWORD</label>
+              <label style={S.label} htmlFor="password">{tr('PASSWORD')}</label>
               <div style={{ position: 'relative' }}>
                 <input
                   id="password"
@@ -270,7 +271,7 @@ export default function Login() {
             >
               {loading
                 ? '⏳  Signing in…'
-                : 'Sign In →'
+                : tr('Sign In →')
               }
             </button>
           </form>

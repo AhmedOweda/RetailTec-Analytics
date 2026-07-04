@@ -5,6 +5,7 @@
  * Year-over-year per-store comparison
  */
 import { useState, useMemo, useRef } from 'react'
+import { tr, trCols } from '../../i18n'
 import {
   Box, Card, CardContent, Typography, Chip, Skeleton,
   TextField, Button, Divider, Autocomplete,
@@ -96,8 +97,8 @@ function ChartPanel({
       <CardContent sx={{ p:2.5, '&:last-child':{ pb:2.5 } }}>
         <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', mb:1.5 }}>
           <Box>
-            <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:14 }}>{title}</Typography>
-            {subtitle && <Typography sx={{ fontSize:12, color:C_SLATE, mt:0.2 }}>{subtitle}</Typography>}
+            <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:14 }}>{tr(title)}</Typography>
+            {subtitle && <Typography sx={{ fontSize:12, color:C_SLATE, mt:0.2 }}>{tr(subtitle)}</Typography>}
           </Box>
           {toolbar}
         </Box>
@@ -500,7 +501,7 @@ export default function Performance() {
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#ffffff',
           borderBottom:'1px solid #e9e4ff', px:3, pt:3, pb:2, mx:0 }}>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
-          Performance
+          {tr('Performance')}
         </Typography>
         <Typography sx={{ fontSize:12, color:C_SLATE, mb:1.5 }}>{from} â†’ {to}</Typography>
 
@@ -575,7 +576,7 @@ export default function Performance() {
         <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:2 }}>
           <TableSection title="Top Associates" subtitle="Ranked by net sales Â· disc % amber >10% Â· return % red >5%" loading={assocLoad} height={320}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
-              <AgGridReact rowData={(assocData??[]) as any[]} columnDefs={assocCols}
+              <AgGridReact rowData={(assocData??[]) as any[]} columnDefs={trCols(assocCols as any[])}
                 onGridReady={colsAssoc.onGridReady} onColumnMoved={colsAssoc.onColumnChanged}
                 onColumnResized={colsAssoc.onColumnChanged} onColumnVisible={colsAssoc.onColumnChanged}
                 onColumnPinned={colsAssoc.onColumnChanged}
@@ -585,7 +586,7 @@ export default function Performance() {
           </TableSection>
           <TableSection title="Top Customers" subtitle="Ranked by net spend for the selected period" loading={custLoad} height={320}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
-              <AgGridReact rowData={(custData??[]) as any[]} columnDefs={custCols}
+              <AgGridReact rowData={(custData??[]) as any[]} columnDefs={trCols(custCols as any[])}
                 onGridReady={colsCust.onGridReady} onColumnMoved={colsCust.onColumnChanged}
                 onColumnResized={colsCust.onColumnChanged} onColumnVisible={colsCust.onColumnChanged}
                 onColumnPinned={colsCust.onColumnChanged}

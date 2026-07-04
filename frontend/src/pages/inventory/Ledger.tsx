@@ -284,12 +284,12 @@ export default function InventoryLedger() {
       {/* ── Colour legend ── */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         {[
-          { label: 'Opening Balance', color: C_OPEN  },
-          { label: 'Sales / COGS',    color: C_SALES },
-          { label: 'Transfers In',    color: C_RECV  },
-          { label: 'Transfers Out',   color: C_SENT  },
-          { label: 'Adjustments',     color: C_ADJ_NEG },
-          { label: 'Ending Balance',  color: C_END   },
+          { label: tr('Opening Balance'), color: C_OPEN  },
+          { label: tr('Sales / COGS'),    color: C_SALES },
+          { label: tr('Transfers In'),    color: C_RECV  },
+          { label: tr('Transfers Out'),   color: C_SENT  },
+          { label: tr('Adjustments'),     color: C_ADJ_NEG },
+          { label: tr('Ending Balance'),  color: C_END   },
         ].map(({ label, color }) => (
           <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color }} />

@@ -3,6 +3,7 @@
  *                          *  custom column show/hide picker
  */
 import { useState, useRef, useCallback, useMemo } from 'react'
+import { tr, trCols } from '../../i18n'
 import {
   Box, Typography, Chip, TextField, LinearProgress,
   Button, CircularProgress, Stack,
@@ -267,7 +268,7 @@ export default function Transactions() {
         </Box>
 
         {/* Quick search */}
-        <TextField size="small" placeholder="Quick search..." value={search}
+        <TextField size="small" placeholder={tr('Quick search...')} value={search}
           onChange={e => setSearch(e.target.value)}
           InputProps={{
             startAdornment:(
@@ -401,7 +402,7 @@ export default function Transactions() {
           onColumnPinned={colState.onColumnChanged}
           rowData={rows}
           pinnedBottomRowData={totalsRow}
-          columnDefs={COL_DEFS}
+          columnDefs={trCols(COL_DEFS as any[])}
           defaultColDef={DEFAULT_COL}
           onGridReady={onGridReady}
           pagination={true}

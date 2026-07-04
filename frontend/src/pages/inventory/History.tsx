@@ -98,7 +98,7 @@ export default function InventoryHistory() {
       {/* ── Sticky filter bar ── */}
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h5" fontWeight={700} mb={1.5}>Inventory History</Typography>
+        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('Inventory History')}</Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap">
         <TextField size="small" label="From" type="date" value={dateFrom}
           onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
@@ -123,7 +123,7 @@ export default function InventoryHistory() {
 
       <Card variant="outlined" sx={{ borderRadius: 2, mb: 3 }}>
         <CardContent>
-          <Typography variant="subtitle1" fontWeight={600} mb={1}>Daily Inventory Changes</Typography>
+          <Typography variant="subtitle1" fontWeight={600} mb={1}>{tr('Daily Inventory Changes')}</Typography>
           <ReactECharts option={trendOpt} style={{ height: 280 }} />
         </CardContent>
       </Card>
@@ -131,7 +131,7 @@ export default function InventoryHistory() {
       <Card variant="outlined" sx={{ borderRadius: 2, mb: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Typography variant="subtitle1" fontWeight={600}>Most Active Items</Typography>
+            <Typography variant="subtitle1" fontWeight={600}>{tr('Most Active Items')}</Typography>
             <GridExportBar gridRef={byItemGridRef} filename="history_by_item" title="Inventory History — Most Active Items" />
           </Box>
           <Box className="ag-theme-alpine" sx={{ height: 300 }}>
