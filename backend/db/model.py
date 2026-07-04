@@ -547,6 +547,18 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     # Migration: per-user page permissions (CSV of page keys; NULL = all pages)
     con.execute("ALTER TABLE DIM_USERS ADD COLUMN IF NOT EXISTS pages VARCHAR")
 
+    # Post-sync data validation results (join coverage per check, latest run)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS SYNC_VALIDATION (
+            checked_at VARCHAR,
+            check_name VARCHAR,
+            total      BIGINT,
+            matched    BIGINT,
+            pct        DOUBLE,
+            status     VARCHAR      -- 'ok' | 'warn' | 'fail'
+        )
+    """)
+
     # Per-user UI preferences (grid layouts etc.) — follow the user across machines
     con.execute("""
         CREATE TABLE IF NOT EXISTS USER_PREFS (

@@ -403,6 +403,16 @@ async def sync_range(req: RangeLoadReq, _admin: dict = Depends(require_admin)):
                                     rebuild=req.rebuild)
 
 
+@router.get("/api/sync/validation")
+def sync_validation():
+    """Latest post-sync join-coverage checks (ok/warn/fail per relationship)."""
+    from routers.common import qdf as _vqdf
+    try:
+        return _vqdf("SELECT * FROM SYNC_VALIDATION ORDER BY pct ASC")
+    except Exception:
+        return []
+
+
 @router.get("/api/sync/coverage")
 def sync_coverage():
     """Actual loaded date span + row counts per domain, read from the fact tables."""
