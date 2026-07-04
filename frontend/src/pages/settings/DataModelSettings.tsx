@@ -25,6 +25,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
 import { ITEM_FIELDS, itemFieldLabel } from '../../utils/itemFields'
+import { tr } from '../../i18n'
 
 const ACCENT = '#7c3aed'
 
@@ -106,7 +107,7 @@ function LabeledCtl({ label, children }:
     <Box sx={{ display:'flex', flexDirection:'column', gap:0.4 }}>
       <Typography sx={{ fontSize:10.5, fontWeight:700, color:'#94a3b8',
                         textTransform:'uppercase', letterSpacing:0.6, lineHeight:1 }}>
-        {label}
+        {tr(label)}
       </Typography>
       {children}
     </Box>
@@ -133,7 +134,7 @@ function SectionCard({ title, icon, children }:
                 cursor:'pointer', userSelect:'none',
                 '&:hover .sc-chevron': { color:'#0f172a' } }}>
           <Box sx={{ color:ACCENT }}>{icon}</Box>
-          <Typography sx={{ fontWeight:700, fontSize:15, color:'#0f172a', flex:1 }}>{title}</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:15, color:'#0f172a', flex:1 }}>{tr(title)}</Typography>
           <ExpandMoreIcon className="sc-chevron"
             sx={{ color:'#94a3b8', transition:'transform 0.2s',
                   transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
@@ -806,7 +807,7 @@ export default function DataModelSettings() {
           disabled={saveSettings.isPending}
           sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, boxShadow:'none',
                 px:3, '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
-          {saveSettings.isPending ? 'Saving…' : 'Save Settings'}
+          {saveSettings.isPending ? 'Saving…' : tr('Save Settings')}
         </Button>
         <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
           Applies connection, data model and schedule changes

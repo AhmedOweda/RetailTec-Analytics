@@ -193,13 +193,13 @@ export default function InventoryMovement() {
       yAxis: { type: 'value', axisLabel: { color: C_SLATE, fontSize: 10 }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       series: [
         {
-          name: 'Units Sold', type: 'line', data: sold, smooth: true,
+          name: tr('Units Sold'), type: 'line', data: sold, smooth: true,
           lineStyle: { color: C_PURPLE, width: 2 },
           areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(124,58,237,0.18)' }, { offset: 1, color: 'rgba(124,58,237,0.02)' }] } },
           itemStyle: { color: C_PURPLE }, symbol: 'none',
         },
         {
-          name: 'Returns', type: 'bar', data: ret, barMaxWidth: 6,
+          name: tr('Returns'), type: 'bar', data: ret, barMaxWidth: 6,
           itemStyle: { color: 'rgba(225,29,72,0.55)', borderRadius: [2, 2, 0, 0] },
         },
       ],
@@ -262,9 +262,9 @@ export default function InventoryMovement() {
         { type: 'value', max: 100, axisLabel: { color: C_CYAN, fontSize: 10, formatter: (v: number) => `${v}%` } },
       ],
       series: [
-        { name: 'Revenue', type: 'bar', data: revs, barMaxWidth: 30,
+        { name: tr('Revenue'), type: 'bar', data: revs, barMaxWidth: 30,
           itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: C_PURPLE }, { offset: 1, color: 'rgba(124,58,237,0.3)' }] }, borderRadius: [4, 4, 0, 0] } },
-        { name: 'Cumulative %', type: 'line', yAxisIndex: 1, data: cumPct, smooth: false,
+        { name: tr('Cumulative %'), type: 'line', yAxisIndex: 1, data: cumPct, smooth: false,
           lineStyle: { color: C_CYAN, width: 2, type: 'dashed' },
           itemStyle: { color: C_CYAN }, symbol: 'circle', symbolSize: 6,
           markLine: { silent: true, lineStyle: { color: C_AMBER, type: 'dashed' }, data: [{ yAxis: 80, name: '80%' }],
@@ -355,7 +355,7 @@ export default function InventoryMovement() {
         {/* Period chips */}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
           {PERIODS.map(p => (
-            <Chip key={p.label} label={p.label} size="small" onClick={() => applyPeriod(p.days)}
+            <Chip key={p.label} label={tr(p.label)} size="small" onClick={() => applyPeriod(p.days)}
               sx={{ fontWeight: 700, cursor: 'pointer',
                     bgcolor: period === p.days ? C_PURPLE : 'transparent',
                     color: period === p.days ? '#fff' : C_SLATE,
@@ -374,7 +374,7 @@ export default function InventoryMovement() {
             multiple disableCloseOnSelect size="small"
             options={storeList} value={stores}
             onChange={(_, v) => setStores(v)}
-            renderInput={params => <TextField {...params} placeholder="All Stores" size="small" sx={{ minWidth: 200 }} />}
+            renderInput={params => <TextField {...params} placeholder={tr('All Stores')} size="small" sx={{ minWidth: 200 }} />}
             renderTags={(value, getTagProps) =>
               value.map((opt, i) => <Chip label={opt} size="small" {...getTagProps({ index: i })} key={opt} />)
             }

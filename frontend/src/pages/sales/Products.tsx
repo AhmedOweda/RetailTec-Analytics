@@ -564,7 +564,7 @@ export default function Products() {
           {/* Period chips */}
           <Box sx={{ display: 'flex', gap: 0.75, p: 0.5, bgcolor: '#f1f5f9', borderRadius: 2 }}>
             {PERIODS.map(p => (
-              <Chip key={p.label} label={p.label} size="small" onClick={() => selectPeriod(p.label)}
+              <Chip key={p.label} label={tr(p.label)} size="small" onClick={() => selectPeriod(p.label)}
                 sx={{
                   fontWeight: 700, fontSize: 12, height: 28, px: 0.5, transition: 'all .18s ease',
                   bgcolor:    period === p.label ? ACCENT  : 'transparent',
