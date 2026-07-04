@@ -41,6 +41,21 @@ from pathlib import Path
 # IndexError 500s / bogus 401s under parallel page loads).
 DB_LOCK = threading.Lock()
 
+
+def record_audit(username: str, action: str, detail: str = "") -> None:
+    """Append an audit row. Best-effort — never raises into the caller."""
+    from datetime import datetime
+    try:
+        with DB_LOCK:
+            con = get_db()
+            con.execute("INSERT INTO AUDIT_LOG VALUES (?, ?, ?, ?)",
+                        [datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                         (username or "?")[:80], action[:80], (detail or "")[:500]])
+            con.commit()
+    except Exception:
+        pass
+
+
 # ── Password hashing ──────────────────────────────────────────────────────────
 def hash_password(plain: str) -> str:
     salt = secrets.token_hex(16)
@@ -546,6 +561,16 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     """)
     # Migration: per-user page permissions (CSV of page keys; NULL = all pages)
     con.execute("ALTER TABLE DIM_USERS ADD COLUMN IF NOT EXISTS pages VARCHAR")
+
+    # Audit trail: who did what, when (logins, user changes, settings, loads)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS AUDIT_LOG (
+            ts       VARCHAR,
+            username VARCHAR,
+            action   VARCHAR,
+            detail   VARCHAR
+        )
+    """)
 
     # Post-sync data validation results (join coverage per check, latest run)
     con.execute("""

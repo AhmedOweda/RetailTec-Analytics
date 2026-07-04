@@ -21,7 +21,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-from db.model import DB_LOCK, get_db, hash_password, verify_password
+from db.model import DB_LOCK, get_db, hash_password, verify_password, record_audit
 # Note: hash_password/verify_password now use stdlib hashlib — no passlib needed
 
 router = APIRouter(tags=["auth"])
@@ -195,6 +195,7 @@ def login(req: LoginRequest):
 
     user = _get_user_by_username(req.username)
     if not user or not verify_password(req.password, user["password_hash"]):
+        record_audit(req.username, "login_failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -205,6 +206,7 @@ def login(req: LoginRequest):
         "stores": user["stores"],
         "id":     user["id"],
     })
+    record_audit(user["username"], "login")
     # Flag accounts still on the seeded default password so the UI can force a change
     must_change = verify_password(_DEFAULT_ADMIN_PASSWORD, user["password_hash"])
     return {
@@ -245,6 +247,7 @@ def change_password(req: ChangePasswordRequest,
             [hash_password(req.new_password), current["id"]]
         )
         get_db().commit()
+    record_audit(current["username"], "change_password")
     return {"ok": True}
 
 
@@ -295,6 +298,7 @@ def create_user(req: UserCreate, current: dict = Depends(require_admin)):
         )
         get_db().commit()
 
+    record_audit(current["username"], "user_created", f"{req.username} ({req.role})")
     return {"id": new_id, "username": req.username, "role": req.role}
 
 
@@ -331,6 +335,7 @@ def update_user(user_id: int, req: UserUpdate, current: dict = Depends(require_a
             get_db().execute(f"UPDATE DIM_USERS SET {', '.join(sets)} WHERE id = ?", vals)
             get_db().commit()
 
+    record_audit(current["username"], "user_updated", f"id={user_id}")
     return {"ok": True}
 
 
@@ -343,4 +348,5 @@ def delete_user(user_id: int, current: dict = Depends(require_admin)):
     with _db_lock:
         get_db().execute("DELETE FROM DIM_USERS WHERE id = ?", [user_id])
         get_db().commit()
+    record_audit(current["username"], "user_deleted", f"id={user_id}")
     return {"ok": True}

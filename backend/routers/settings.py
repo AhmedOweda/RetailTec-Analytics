@@ -13,6 +13,7 @@ import re
 from typing import Dict, List, Literal, Optional, Union
 
 import oracledb
+from db.model import record_audit
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
@@ -397,6 +398,7 @@ class RangeLoadReq(BaseModel):
 @router.post("/api/sync/range")
 async def sync_range(req: RangeLoadReq, _admin: dict = Depends(require_admin)):
     """Trigger a load of an explicit date range. Append (non-destructive) by default."""
+    record_audit(_admin["username"], "range_load", f"{req.date_from}->{req.date_to} rebuild={req.rebuild}")
     from services.scheduler import trigger_range_load
     tables = set(req.domains) if req.domains else None
     return await trigger_range_load(req.date_from, req.date_to, tables=tables,
