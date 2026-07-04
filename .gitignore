@@ -27,6 +27,11 @@ backend/*.db.wal
 backend/settings.json
 backend/sql_reports/
 
+# ── License (per-customer signed file + private signing keys) ────────────────
+backend/license.json
+*license_private_key*.pem
+*.private.pem
+
 # Editor
 .vscode/
 .idea/
