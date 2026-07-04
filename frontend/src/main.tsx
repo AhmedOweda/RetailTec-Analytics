@@ -1,14 +1,13 @@
-import React, { useState, useMemo } from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
-import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { router } from './router'
-import { createAppTheme } from './theme'
 import { AppSettingsProvider } from './context/AppSettings'
 import { AuthProvider } from './contexts/AuthContext'
+import DirectionProvider from './DirectionProvider'
 import api from './api/client'   // installs global axios auth interceptors
+import './i18n'                  // EN/AR translations + language persistence
 
 // Trigger incremental sync on app open — only when already logged in
 // (the endpoint now requires a valid token)
@@ -20,23 +19,15 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 })
 
-function Root() {
-  const [mode] = useState<'light' | 'dark'>('light')
-  const theme  = useMemo(() => createAppTheme(mode), [mode])
-
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <RouterProvider router={router} />
-    </ThemeProvider>
-  )
-}
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <AppSettingsProvider>
-        <Root />
+        {/* DirectionProvider owns the MUI theme: flips to RTL for Arabic */}
+        <DirectionProvider>
+          <CssBaseline />
+          <RouterProvider router={router} />
+        </DirectionProvider>
       </AppSettingsProvider>
     </AuthProvider>
   </QueryClientProvider>

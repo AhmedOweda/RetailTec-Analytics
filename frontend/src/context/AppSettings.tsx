@@ -47,6 +47,9 @@ interface AppSettings {
   /** DIM_ITEM columns to add to every item grid (keys from utils/itemFields) */
   itemFields:          string[]
   setItemFields:       (v: string[]) => void
+  /** UI language: 'en' | 'ar' — 'ar' also flips the whole layout to RTL */
+  language:            string
+  setLanguage:         (v: string) => void
 }
 
 const DEFAULT_CURRENCY = CURRENCIES[0]
@@ -67,6 +70,8 @@ const AppSettingsContext = createContext<AppSettings>({
   setThreshold:        () => {},
   itemFields:          [],
   setItemFields:       () => {},
+  language:            'en',
+  setLanguage:         () => {},
 })
 
 function loadThresholds(): Thresholds {
@@ -139,6 +144,15 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('itemFields', JSON.stringify(v)); setItemFieldsState(v)
   }
 
+  // ── Language (drives i18n + RTL direction) ─────────────────────────────────
+  const [language, setLanguageState] = useState<string>(
+    () => localStorage.getItem('language') ?? 'en')
+  const setLanguage = (v: string) => {
+    localStorage.setItem('language', v)
+    setLanguageState(v)
+    import('../i18n').then(m => m.default.changeLanguage(v))
+  }
+
   const moneyPrefix = showCurrency ? currency.symbol + ' ' : ''
 
   // keep the module-level helpers (used by page formatters) in sync
@@ -155,7 +169,8 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
                                           moneyDecimals, setMoneyDecimals,
                                           abbreviateNumbers, setAbbreviateNumbers,
                                           thresholds, setThreshold,
-                                          itemFields, setItemFields }}>
+                                          itemFields, setItemFields,
+                                          language, setLanguage }}>
       {children}
     </AppSettingsContext.Provider>
   )

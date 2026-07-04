@@ -151,7 +151,8 @@ export default function DataModelSettings() {
           moneyDecimals, setMoneyDecimals,
           abbreviateNumbers, setAbbreviateNumbers,
           thresholds, setThreshold,
-          itemFields, setItemFields } = useAppSettings()
+          itemFields, setItemFields,
+          language, setLanguage } = useAppSettings()
 
   const { data: settings, isLoading: loadingSettings } = useQuery({
     queryKey: ['settings'],
@@ -390,6 +391,26 @@ export default function DataModelSettings() {
           />
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
             {abbreviateNumbers ? 'e.g. 1.23M' : `e.g. 1,234,${moneyDecimals === 2 ? '567.89' : '568'}`}
+          </Typography>
+        </Box>
+
+        {/* ── Language / direction ── */}
+        <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5 }}>
+          <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
+            Language
+          </Typography>
+          <ToggleButtonGroup
+            value={language} exclusive size="small"
+            onChange={(_, v) => { if (v) setLanguage(v) }}
+            sx={{ '& .MuiToggleButton-root': { px:2.5, fontWeight:700, fontSize:12, textTransform:'none' },
+                  '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important`, borderColor:`${ACCENT} !important` } }}>
+            <ToggleButton value="en">English</ToggleButton>
+            <ToggleButton value="ar">العربية</ToggleButton>
+          </ToggleButtonGroup>
+          <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
+            {language === 'ar'
+              ? 'Arabic flips the whole layout right-to-left'
+              : 'Arabic flips the whole layout right-to-left'}
           </Typography>
         </Box>
 

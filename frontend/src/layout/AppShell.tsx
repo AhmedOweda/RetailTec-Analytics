@@ -32,6 +32,7 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
 import { useAuth }       from '../contexts/AuthContext'
+import { useTranslation } from 'react-i18next'
 import { parsePages, pageAllowed, firstAllowedPage } from '../utils/pages'
 
 // ── Brand colours ──────────────────────────────────────────────────────────
@@ -174,6 +175,8 @@ function SyncBadge() {
 
 // ── Reusable NavLink renderer ──────────────────────────────────────────────
 function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) {
+  const { t } = useTranslation()
+  label = t(`nav.${to}`, label)   // falls back to the English label
   return (
     <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
       {({ isActive }) => (
@@ -204,6 +207,7 @@ function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label
 // ── AppShell ───────────────────────────────────────────────────────────────
 export default function AppShell() {
   const { user, isAdmin, logout } = useAuth()
+  const { t } = useTranslation()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -264,7 +268,7 @@ export default function AppShell() {
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
           }}>
             <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
-                              letterSpacing:1.2, textTransform:'uppercase' }}>Sales</Typography>
+                              letterSpacing:1.2, textTransform:'uppercase' }}>{t('nav.sales')}</Typography>
             <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
               transform: salesOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
               transition:'transform 0.2s' }} />
@@ -286,7 +290,7 @@ export default function AppShell() {
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
           }}>
             <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
-                              letterSpacing:1.2, textTransform:'uppercase' }}>Inventory</Typography>
+                              letterSpacing:1.2, textTransform:'uppercase' }}>{t('nav.inventory')}</Typography>
             <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
               transform: inventoryOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
               transition:'transform 0.2s' }} />
@@ -308,7 +312,7 @@ export default function AppShell() {
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
           }}>
             <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
-                              letterSpacing:1.2, textTransform:'uppercase' }}>Purchasing</Typography>
+                              letterSpacing:1.2, textTransform:'uppercase' }}>{t('nav.purchasing')}</Typography>
             <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
               transform: purchasesOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
               transition:'transform 0.2s' }} />
@@ -330,7 +334,7 @@ export default function AppShell() {
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
           }}>
             <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
-                              letterSpacing:1.2, textTransform:'uppercase' }}>Dimensions</Typography>
+                              letterSpacing:1.2, textTransform:'uppercase' }}>{t('nav.dimensions')}</Typography>
             <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
               transform: dimensionsOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
               transition:'transform 0.2s' }} />
