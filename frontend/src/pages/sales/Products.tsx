@@ -370,44 +370,49 @@ export default function Products() {
           {},
           /* Level 1 — Departments (inner ring) */
           {
-            r0: '18%', r: '42%',
+            r0: '15%', r: '45%',
             label: {
-              rotate:     'tangential',
-              fontSize:   10,
+              rotate:     'radial',
+              fontSize:   11,
               color:      '#fff',
               fontWeight: 700,
               overflow:   'truncate',
+              minAngle:   4,          // hide labels on slivers too thin to read
             },
             itemStyle: { borderWidth: 2, borderColor: '#fff' },
           },
           /* Level 2 — Classes (middle ring) */
           {
-            r0: '43%', r: '68%',
+            r0: '46%', r: '72%',
             label: {
-              fontSize:  9,
+              rotate:    'radial',
+              fontSize:  10,
               color:     '#fff',
+              fontWeight: 600,
               overflow:  'truncate',
-              minAngle:  6,
+              minAngle:  14,          // only label classes with a meaningful slice
             },
             itemStyle: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)' },
           },
           /* Level 3 — Subclasses (outer ring) */
           {
-            r0: '69%', r: '92%',
+            r0: '73%', r: '98%',
             label: {
-              position: 'outside',
-              fontSize:  8,
-              color:    '#475569',
-              overflow: 'truncate',
-              minAngle: 8,
+              position:  'inside',    // radial inside labels instead of messy outside spokes
+              rotate:    'radial',
+              fontSize:  9,
+              color:     '#fff',
+              overflow:  'truncate',
+              minAngle:  22,          // most subclasses stay unlabelled until you drill in
             },
-            itemStyle: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
+            itemStyle: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.45)' },
           },
         ],
 
         label: {
           color:           '#fff',
-          textBorderColor: 'transparent',
+          textBorderColor: 'rgba(0,0,0,0.35)',   // halo keeps text legible on light fills
+          textBorderWidth: 2,
         },
       }],
     }
@@ -635,14 +640,14 @@ export default function Products() {
           title="Revenue by Department"
           subtitle="Block size = revenue · hover for GP%"
           option={deptOpt}
-          height={320}
+          height={440}
           loading={deptLoad}
         />
         <ChartCard
           title="DCS Hierarchy — Drill-down Sunburst"
           subtitle="Department › Class › Subclass · click segment to drill down · click centre to go up"
           option={sunburstOpt}
-          height={320}
+          height={440}
           loading={dcsLoad}
         />
       </Box>
