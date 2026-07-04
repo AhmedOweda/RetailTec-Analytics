@@ -17,6 +17,10 @@ interface AuthContextValue {
   logout:  () => void
   isAdmin: boolean
   isMgr:   boolean
+  /** true while the account is still on the seeded default password —
+   *  the app blocks with a change-password dialog until cleared */
+  mustChangePassword: boolean
+  clearMustChange:    () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -34,6 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const stored = _loadStored()
   const [user,  setUser]  = useState<AuthUser | null>(stored.user)
   const [token, setToken] = useState<string | null>(stored.token)
+  const [mustChangePassword, setMustChange] = useState<boolean>(
+    () => localStorage.getItem('rt_must_change') === '1')
 
   const login = useCallback(async (username: string, password: string) => {
     const { data } = await api.post('/api/auth/login', { username, password })
@@ -41,12 +47,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('rt_user',  JSON.stringify(data.user))
     setToken(data.access_token)
     setUser(data.user)
+    // Backend flags accounts still on the seeded default password —
+    // the app blocks with a forced change-password dialog until changed.
+    if (data.must_change_password) {
+      localStorage.setItem('rt_must_change', '1'); setMustChange(true)
+    } else {
+      localStorage.removeItem('rt_must_change'); setMustChange(false)
+    }
     // Fire the on-open incremental sync now that we have a token
     api.get('/api/sync/trigger').catch(() => {})
-    if (data.must_change_password) {
-      // Backend flags accounts still on the seeded default password
-      alert('You are using the default password — please change it from the Users screen.')
-    }
+  }, [])
+
+  const clearMustChange = useCallback(() => {
+    localStorage.removeItem('rt_must_change'); setMustChange(false)
   }, [])
 
   const logout = useCallback(() => {
@@ -63,6 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     isAdmin: user?.role === 'admin',
     isMgr:   user?.role === 'admin' || user?.role === 'manager',
+    mustChangePassword,
+    clearMustChange,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

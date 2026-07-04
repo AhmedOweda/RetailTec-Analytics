@@ -6,7 +6,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Box, Tooltip, Typography, Divider, CircularProgress,
-  IconButton, Collapse,
+  IconButton, Collapse, Dialog, TextField, Button,
 } from '@mui/material'
 import DashboardIcon        from '@mui/icons-material/Dashboard'
 import TrendingUpIcon       from '@mui/icons-material/TrendingUp'
@@ -70,6 +70,65 @@ const INVENTORY_NAV = [
   { to: '/inventory/ledger',      icon: <AssessmentIcon        />, label: 'Ledger'    },
   { to: '/inventory/coverage',   icon: <CalendarViewWeekIcon  />, label: 'Coverage'  },
 ]
+
+// ── Forced password change: blocks the app while on the default password ───
+function ForcePasswordDialog() {
+  const { mustChangePassword, clearMustChange, logout } = useAuth()
+  const [cur,  setCur]  = useState('')
+  const [pw1,  setPw1]  = useState('')
+  const [pw2,  setPw2]  = useState('')
+  const [err,  setErr]  = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  if (!mustChangePassword) return null
+
+  const submit = async () => {
+    setErr(null)
+    if (pw1.length < 8)  { setErr('New password must be at least 8 characters'); return }
+    if (pw1 !== pw2)     { setErr('Passwords do not match'); return }
+    setBusy(true)
+    try {
+      await axios.post('/api/auth/change-password', { current_password: cur, new_password: pw1 })
+      clearMustChange()
+    } catch (e: any) {
+      setErr(e?.response?.data?.detail ?? 'Failed to change password')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open disableEscapeKeyDown maxWidth="xs" fullWidth
+      PaperProps={{ sx: { borderRadius: 3, p: 1 } }}>
+      <Box sx={{ p: 3 }}>
+        <Typography sx={{ fontWeight: 800, fontSize: 17, mb: 0.5 }}>Set a new password</Typography>
+        <Typography sx={{ fontSize: 13, color: '#64748b', mb: 2 }}>
+          This account is still using the default password. For security you
+          must change it before using RetailTec Analytics.
+        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <TextField label="Current password" type="password" size="small"
+            value={cur} onChange={e => setCur(e.target.value)} autoFocus />
+          <TextField label="New password (min 8 chars)" type="password" size="small"
+            value={pw1} onChange={e => setPw1(e.target.value)} />
+          <TextField label="Repeat new password" type="password" size="small"
+            value={pw2} onChange={e => setPw2(e.target.value)} />
+          {err && <Typography sx={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>{err}</Typography>}
+          <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
+            <Button variant="contained" fullWidth disabled={busy} onClick={submit}
+              sx={{ bgcolor: ACCENT, textTransform: 'none', fontWeight: 700,
+                    '&:hover': { bgcolor: '#6d28d9' } }}>
+              {busy ? 'Saving…' : 'Change Password'}
+            </Button>
+            <Button onClick={logout} sx={{ textTransform: 'none', color: '#64748b' }}>
+              Log out
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+    </Dialog>
+  )
+}
 
 // ── Data-quality badge: red when a post-sync join-coverage check fails ─────
 function ValidationBadge() {
@@ -175,6 +234,9 @@ export default function AppShell() {
 
   return (
     <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
+
+      {/* Blocks everything while the account is on the default password */}
+      <ForcePasswordDialog />
 
       {/* ── Sidebar ──────────────────────────────────────────────────── */}
       <Box sx={{

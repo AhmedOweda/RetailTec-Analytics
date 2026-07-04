@@ -17,7 +17,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from db.model import DB_LOCK, get_db, _db_path, _current_settings_host
+from db.model import DB_LOCK, get_db, _db_path, _current_settings_host, record_audit
 from routers.auth import require_admin
 from services.config import load_settings, save_settings
 
@@ -63,6 +63,7 @@ def backup(req: BackupReq, _admin: dict = Depends(require_admin)):
                 cur.close()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Backup failed: {e}")
+    record_audit(_admin["username"], "backup", str(dest))
     return {"ok": True, "path": str(dest),
             "size_mb": round(dest.stat().st_size / 1_048_576, 1)}
 
@@ -74,6 +75,7 @@ def compact(_admin: dict = Depends(require_admin)):
     with DB_LOCK:
         get_db().execute("CHECKPOINT")
     after = src.stat().st_size if src.exists() else 0
+    record_audit(_admin["username"], "compact_db")
     return {"ok": True,
             "before_mb": round(before / 1_048_576, 1),
             "after_mb":  round(after  / 1_048_576, 1)}
@@ -117,6 +119,7 @@ def put_email(cfg: EmailCfg, _admin: dict = Depends(require_admin)):
         email["password"] = cfg.password
     s["email"] = email
     save_settings(s)                       # encrypts password at rest (DPAPI)
+    record_audit(_admin["username"], "email_settings_saved", cfg.host)
     return {"ok": True}
 
 
@@ -150,6 +153,7 @@ def put_reports(req: ReportsPut, _admin: dict = Depends(require_admin)):
         if r.type not in REPORT_TYPES:
             raise HTTPException(status_code=400, detail=f"Unknown report type: {r.type}")
     save_reports([r.dict() for r in req.reports])
+    record_audit(_admin["username"], "report_schedules_saved", f"{len(req.reports)} report(s)")
     return {"ok": True}
 
 
@@ -193,3 +197,19 @@ def test_email(req: TestEmailReq, _admin: dict = Depends(require_admin)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Send failed: {e}")
     return {"ok": True, "message": f"Test email sent to {req.to}"}
+
+
+# ── Audit log viewer ───────────────────────────────────────────────────────────
+
+@router.get("/api/admin/audit")
+def get_audit(limit: int = 500, _admin: dict = Depends(require_admin)):
+    limit = max(1, min(int(limit), 5000))
+    with DB_LOCK:
+        cur = get_db().cursor()
+    try:
+        rel = cur.execute(
+            f"SELECT ts, username, action, detail FROM AUDIT_LOG ORDER BY ts DESC LIMIT {limit}")
+        cols = [d[0] for d in rel.description]
+        return [dict(zip(cols, r)) for r in rel.fetchall()]
+    finally:
+        cur.close()
