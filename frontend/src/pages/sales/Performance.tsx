@@ -58,7 +58,7 @@ const GRID_SX = {
   '& .ag-row:hover':        { bgcolor: '#f3f0ff !important' },
   '& .ag-paging-panel':     { borderTop: '1px solid #e9e4ff', color: '#475569' },
 }
-const DEF_COL: ColDef = { sortable: true, resizable: true, filter: true, cellStyle: { display:'flex', alignItems:'center' } }
+const DEF_COL: ColDef = { sortable: true, resizable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true, cellStyle: { display:'flex', alignItems:'center' } }
 
 /* ── ChartPanel — ECharts wrapper with fullscreen + PNG export ───── */
 function ChartPanel({
@@ -391,8 +391,12 @@ export default function Performance() {
     const names   = rows.map(r => r.store_name ?? '(Unknown)')
     const current = rows.map(r => +(r.current_sales ?? 0))
     const prev    = rows.map(r => +(r.prev_year_sales ?? 0))
+    const yoyPct  = rows.map(r => {
+      const c = +(r.current_sales ?? 0), p = +(r.prev_year_sales ?? 0)
+      return p > 0 ? ((c - p) / p * 100) : null
+    })
     return {
-      grid:{ top:36, right:16, bottom:60, left:12, containLabel:true },
+      grid:{ top:46, right:16, bottom:60, left:12, containLabel:true },
       legend:{ top:4, textStyle:{ color:'#475569', fontSize:11 }, itemWidth:12, itemHeight:8, itemGap:16 },
       tooltip:{
         trigger:'axis', axisPointer:{ type:'shadow' },
@@ -415,6 +419,10 @@ export default function Performance() {
         {
           name:tr('Current Period'), type:'bar', data:current, barGap:'0%', barMaxWidth:28,
           itemStyle:{ borderRadius:[4,4,0,0], color:{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{ offset:0, color:'rgba(124,58,237,0.95)' },{ offset:1, color:'rgba(124,58,237,0.3)' }] } },
+          // YoY %% change above each store's current bar — green up / red down
+          label:{ show:true, position:'top', distance:3,
+            formatter:(pp:any) => { const v = yoyPct[pp.dataIndex]; if (v==null) return ''; const s = `${v>=0?'+':''}${v.toFixed(0)}%`; return v>=0?`{up|${s}}`:`{down|${s}}` },
+            rich:{ up:{ color:C_GREEN, fontSize:9, fontWeight:700 }, down:{ color:C_ROSE, fontSize:9, fontWeight:700 } } },
         },
         {
           name:tr('Same Period LY'), type:'bar', data:prev, barMaxWidth:28,

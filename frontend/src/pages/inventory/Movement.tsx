@@ -427,7 +427,7 @@ export default function InventoryMovement() {
               rowData={tableData as any[]}
               columnDefs={trCols(tableCols as any[])}
               pagination paginationPageSize={25}
-              defaultColDef={{ sortable: true, resizable: true, filter: true, cellStyle: { display: 'flex', alignItems: 'center' } }}
+              defaultColDef={{ sortable: true, resizable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true, cellStyle: { display: 'flex', alignItems: 'center' } }}
               rowHeight={36}
               headerHeight={38}
               suppressCellFocus

@@ -28,6 +28,8 @@ export default function TransactionsGrid({ rows }: { rows: TxnRow[] }) {
     resizable: true,
     sortable: true,
     suppressMovable: false,
+    wrapHeaderText: true,
+    autoHeaderHeight: true,
   }), [])
 
   return (

@@ -312,7 +312,7 @@ export default function InventoryLedger() {
             ref={gridRef}
             rowData={rows}
             columnDefs={trCols(columns as any[])}
-            defaultColDef={{ resizable: true, sortable: true, filter: true }}
+            defaultColDef={{ resizable: true, sortable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true }}
             rowHeight={36}
             headerHeight={40}
             suppressCellFocus
