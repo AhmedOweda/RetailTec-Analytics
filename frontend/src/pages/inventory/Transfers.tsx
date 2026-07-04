@@ -328,17 +328,19 @@ export default function Transfers() {
 
       {/* ── AG Grid ── */}
       <Paper elevation={0} sx={{ borderRadius:2, border:'1px solid #e2e8f0', overflow:'hidden', flex:1, minHeight:340 }}>
-        <Box sx={{ display:'flex', justifyContent:'flex-end', px:1.5, pt:1 }}>
-          <GridExportBar gridRef={gridRef} filename="transfers" title="Transfers" />
+        <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+                   gap:1, px:1.5, borderBottom:'1px solid #e2e8f0', flexWrap:'wrap' }}>
+          <Tabs value={tab} onChange={(_, v) => setTab(v)}
+            sx={{ minHeight:40,
+                  '& .MuiTab-root':{ fontSize:12, fontWeight:600, minHeight:40, textTransform:'none' } }}>
+            <Tab label={tr('By Sending Store')} />
+            <Tab label={tr('By Receiving Store')} />
+            <Tab label={tr('By Department')} />
+            <Tab label={tr('Details')} />
+          </Tabs>
+          <GridExportBar gridRef={gridRef} filename="transfers" title="Transfers"
+            colDefs={tabCols[tab]} />
         </Box>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)}
-          sx={{ borderBottom:'1px solid #e2e8f0', minHeight:40,
-                '& .MuiTab-root':{ fontSize:12, fontWeight:600, minHeight:40, textTransform:'none' } }}>
-          <Tab label="By Sending Store" />
-          <Tab label="By Receiving Store" />
-          <Tab label="By Department" />
-          <Tab label="Details" />
-        </Tabs>
         <Box className="ag-theme-alpine" sx={{ height:360 }}>
           <AgGridReact
             key={`tab-${tab}`}

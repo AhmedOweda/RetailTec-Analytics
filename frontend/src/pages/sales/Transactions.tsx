@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Transactions - AG Grid  *  server-side search  *  Excel / PDF export above grid
  *                          *  custom column show/hide picker
  */
@@ -298,7 +298,7 @@ export default function Transactions() {
       {/* == Status bar == */}
       <Box sx={{ display:'flex', alignItems:'center', gap:1.5, minHeight:20 }}>
         <Typography variant="caption" sx={{ color:'#64748b', fontWeight:500 }}>
-          {busy ? 'Loading...' : `${total.toLocaleString()} transaction${total!==1?'s':''}  Â·  ${from}  ->  ${today}`}
+          {busy ? 'Loading...' : `${total.toLocaleString()} transaction${total!==1?'s':''}  ·  ${from}  ->  ${today}`}
         </Typography>
         {busy && (
           <LinearProgress sx={{ flex:1, height:3, borderRadius:2, bgcolor:'#ede9fe',

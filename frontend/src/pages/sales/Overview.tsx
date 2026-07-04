@@ -740,7 +740,7 @@ export default function Overview() {
             <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
               <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor:'#f8f7ff', borderRadius:2 }}>
                 {TREND_PERIODS.map(tp => (
-                  <Chip key={tp.label} label={tp.label} size="small"
+                  <Chip key={tp.label} label={tr(tp.label)} size="small"
                     onClick={() => setTrendPeriod(tp.label)}
                     sx={{
                       fontWeight:700, fontSize:12, height:28, px:0.5,
@@ -789,4 +789,13 @@ export default function Overview() {
         </DialogTitle>
         <IconButton onClick={() => setTrendOpen(false)}
           sx={{ position:'absolute', right:12, top:12, color:'#64748b' }}>
-          <Clo
+          <CloseIcon />
+        </IconButton>
+        <DialogContent sx={{ pt:1 }}>
+          <EChart option={chartOption} style={{ height:'72vh' }} />
+        </DialogContent>
+      </Dialog>
+
+    </Box>
+  )
+}
