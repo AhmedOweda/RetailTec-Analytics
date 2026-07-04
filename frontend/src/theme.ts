@@ -46,6 +46,7 @@ export function createAppTheme(mode: 'light' | 'dark',
 
     typography: {
       fontFamily: '"Inter", "Manrope", sans-serif',
+      fontFeatureSettings: '"tnum"',
       fontWeightLight:   400,
       fontWeightRegular: 400,
       fontWeightMedium:  600,

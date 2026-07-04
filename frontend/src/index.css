@@ -7,9 +7,15 @@
 ::-webkit-scrollbar-thumb { background: #C8A8E8; border-radius: 10px; }
 
 * { box-sizing: border-box; }
-body { margin: 0; font-family: 'Manrope', sans-serif; background: #F5F3FB; color: #1A0D45; -webkit-font-smoothing: antialiased; }
+body { margin: 0; font-family: 'Manrope', sans-serif; background: #F5F3FB; color: #1A0D45; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
-.tabnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+.tabnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1, 'cv01' 1; }
+
+/* ── Tabular figures on numeric surfaces so digits align in columns ── */
+.ag-cell, .ag-header-cell, .rt-tooltip, .data-table td, .kpi-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'cv01' 1;
+}
 
 .kpi-card { transition: box-shadow .18s ease, transform .15s ease; }
 .kpi-card:hover { box-shadow: 0 8px 28px rgba(45,27,107,0.16) !important; transform: translateY(-2px); }
