@@ -254,7 +254,6 @@ const ar_strings: Record<string, string> = {
   'Net Spend': 'صافي الإنفاق', 'Last Visit': 'آخر زيارة',
   'Cash': 'نقدًا', 'Card': 'بطاقة', 'Deposit': 'عربون', 'No data': 'لا بيانات',
   'Current Period': 'الفترة الحالية', 'Same Period LY': 'نفس الفترة العام الماضي',
-  'Avg Basket': 'متوسط السلة',
   '{{n}} stores': '{{n}} فروع',
   // ── Products page ──
   'Departments': 'الأقسام', 'active in period': 'نشط في الفترة',
@@ -267,15 +266,12 @@ const ar_strings: Record<string, string> = {
   'Department Hierarchy': 'التسلسل الهرمي للأقسام',
   'Showing': 'يعرض', 'code · change in Settings': 'الرمز · يتغير من الإعدادات',
   'Blended GP %': 'نسبة الربح الإجمالية %',
-  'Excellent margin': 'هامش ممتاز', 'Healthy margin': 'هامش صحي', 'Low margin': 'هامش منخفض',
+  'Excellent margin': 'هامش ممتاز', 'Low margin': 'هامش منخفض',
   'DCS = Department · Class · Subclass': 'DCS = قسم · فئة · فئة فرعية',
   // ── Transactions page ──
   'Doc No': 'رقم المستند', 'Tax': 'الضريبة', 'Total W/Tax': 'الإجمالي مع الضريبة',
   'Quick search…': 'بحث سريع…',
   'Export PNG': 'تصدير PNG', 'Fullscreen': 'ملء الشاشة',
-  // ── Period chips ──
-  '7D': '7 أيام', '30D': '30 يومًا', '90D': '90 يومًا',
-  'MTD': 'الشهر الحالي', 'YTD': 'منذ بداية السنة',
   // ── Stores page ──
   'Active Stores': 'الفروع النشطة', 'Period Revenue': 'إيرادات الفترة',
   'Lifetime Revenue': 'الإيرادات التراكمية', 'Avg Return Rate': 'متوسط نسبة المرتجعات',
@@ -283,16 +279,15 @@ const ar_strings: Record<string, string> = {
   'Revenue Ranking by Store': 'ترتيب الإيرادات حسب الفرع',
   'Bar colour = lifecycle stage': 'لون العمود = مرحلة دورة الحياة',
   'Store Detail — {{n}} stores': 'تفاصيل الفروع — {{n}} فرعًا',
-  'Stage': 'المرحلة', 'Active From': 'نشط منذ', 'Days Active': 'أيام النشاط',
+  'Stage': 'المرحلة', 'Days Active': 'أيام النشاط',
   'Chain Share %': 'حصة السلسلة %', 'Lifetime Rev': 'الإيراد التراكمي',
   'Mature': 'ناضج', 'Growing': 'في نمو', 'New': 'جديد',
   // ── Customers (CRM) page ──
   'At Risk + Dormant': 'معرّض للفقد + خامل', 'of base {{n}}%': '{{n}}% من القاعدة',
   'Avg LTV / Customer': 'متوسط القيمة الدائمة للعميل', 'Total LTV': 'إجمالي القيمة الدائمة',
   'all-time lifetime value': 'القيمة الدائمة منذ البداية', 'Total Customers': 'إجمالي العملاء',
-  'Top 15 by Lifetime Value': 'أعلى 15 حسب القيمة الدائمة',
   'Customer Detail — {{n}} customers': 'تفاصيل العملاء — {{n}} عميلًا',
-  'Dormant': 'خامل', 'At Risk': 'معرّض للفقد', 'Active': 'نشط',
+  'Dormant': 'خامل', 'At Risk': 'معرّض للفقد',
   'Loyal': 'وفيّ', 'Champion': 'مميز',
   // ── Employees page ──
   'Top Performer': 'الأفضل أداءً', '% Avg Disc': '% متوسط الخصم',
@@ -317,20 +312,16 @@ const ar_strings: Record<string, string> = {
   // ── Vendors (SRM) page ──
   'Ranked by purchase vouchers (supplier bought from) — item catalogs elsewhere use the item-master vendor':
     'مرتب حسب سندات الشراء (المورد الذي تم الشراء منه) — بقية الصفحات تستخدم مورد الصنف من ملف الأصناف',
-  'Top 12 by Purchase Value': 'أعلى 12 حسب قيمة المشتريات',
-  'Bar colour = SRM tier': 'لون العمود = فئة المورد',
   'Supplier Detail — {{n}} suppliers': 'تفاصيل الموردين — {{n}} موردًا',
   'Preferred': 'مفضل', 'Strategic': 'استراتيجي',
   // ── Purchases overview leftovers ──
   'Cost': 'التكلفة', 'POs': 'أوامر الشراء',
   'of total {{n}}%': '{{n}}% من الإجمالي',
   '{{n}}% of total': '{{n}}% من الإجمالي', 'Disc: {{v}}': 'الخصم: {{v}}',
-  'Supplier on the purchase voucher': 'المورد على سند الشراء',
   // ── Settings page ──
-  'Settings': 'الإعدادات',
   'Configure Oracle connection and data model refresh behaviour.':
     'إعداد اتصال أوراكل وسلوك تحديث نموذج البيانات.',
-  'Product Code Field': 'حقل رمز المنتج', 'Currency': 'العملة',
+  'Currency': 'العملة',
   'Show sign on money values': 'إظهار رمز العملة مع القيم',
   'Number Format': 'تنسيق الأرقام', 'No decimals': 'بدون كسور', '2 decimals': 'كسران عشريان',
   'Abbreviate large numbers (1.2M / 340K)': 'اختصار الأرقام الكبيرة (1.2M / 340K)',
@@ -350,7 +341,6 @@ const ar_strings: Record<string, string> = {
   'Refresh window': 'نافذة التحديث', 'Timezone': 'المنطقة الزمنية',
   'Last 7 days': 'آخر 7 أيام', 'Last 30 days': 'آخر 30 يومًا', 'Last 90 days': 'آخر 90 يومًا',
   'Purchases': 'المشتريات', 'Inventory': 'المخزون', 'Sales': 'المبيعات',
-  'Transactions': 'الفواتير',
   'Sun': 'الأحد', 'Mon': 'الاثنين', 'Tue': 'الثلاثاء', 'Wed': 'الأربعاء',
   'Thu': 'الخميس', 'Fri': 'الجمعة', 'Sat': 'السبت',
 
@@ -395,13 +385,10 @@ const ar_strings: Record<string, string> = {
   'Send Now': 'إرسال الآن',
   'Background sync': 'مزامنة تلقائية بالخلفية', 'Enabled': 'مفعل',
   'Name': 'الاسم', 'Report type': 'نوع التقرير', 'Send at': 'وقت الإرسال',
-  'Language': 'اللغة', 'Product Code Field': 'حقل رمز الصنف', 'Currency': 'العملة',
-  'Number Format': 'تنسيق الأرقام', 'Analytics Thresholds': 'حدود التحليلات',
-  'Item Grid Columns': 'أعمدة جداول الأصناف',
-  'Timezone': 'المنطقة الزمنية', 'Incremental overlap': 'نافذة التحديث',
+  'Product Code Field': 'حقل رمز الصنف',
+  'Incremental overlap': 'نافذة التحديث',
   'Load window': 'نافذة التحميل', 'Detail retention': 'الاحتفاظ بالتفاصيل',
   'Times': 'الأوقات',
-  'Sales': 'المبيعات', 'Inventory': 'المخزون', 'Purchases': 'المشتريات',
 
   // ── Users page ──
   'Manage who can access RetailTec Analytics and what they can see.':
@@ -412,7 +399,6 @@ const ar_strings: Record<string, string> = {
   '{{n}} departments': '{{n}} أقسام',
   '{{n}} returned': '{{n}} مرتجع',
   '{{n}} lines': '{{n}} بندًا',
-  '{{n}}% of total': '{{n}}% من الإجمالي',
 
   // ── Transactions page ──
   'hidden': 'مخفي',
