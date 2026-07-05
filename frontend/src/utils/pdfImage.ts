@@ -1,0 +1,116 @@
+/**
+ * pdfImage — render an Arabic data table to PDF via the BROWSER, not jsPDF fonts.
+ *
+ * jsPDF cannot reliably render the Amiri Arabic presentation-form glyphs, so
+ * Arabic tables come out corrupted even after correct reshape + bidi. The fix:
+ * build the table as an off-screen HTML element (dir="rtl"), let the browser
+ * shape Arabic natively (which it always does correctly), rasterise it with
+ * html2canvas, and drop that image into the jsPDF document — paginated so long
+ * tables span multiple pages.
+ *
+ * This path is used ONLY for Arabic exports. The English/Latin autoTable path is
+ * left untouched.
+ */
+import type jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
+
+const ACCENT = '#7c3aed'
+const HEADER_BAND = '#160b33'
+
+/** Escape a cell value for safe HTML insertion. */
+function esc(v: string | number): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/** True if the string contains any Arabic-block character. */
+const AR_RE = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/
+
+export interface ArabicTableOpts {
+  title:     string
+  subtitle?: string
+  head:      string[]
+  body:      (string | number)[][]
+  filename:  string
+}
+
+/**
+ * Render an Arabic table to the given jsPDF doc as a browser-rasterised image,
+ * paginate it across pages, and save it as `filename`.
+ */
+export async function arabicTableToPdf(doc: jsPDF, opts: ArabicTableOpts): Promise<void> {
+  const { title, subtitle, head, body, filename } = opts
+
+  /* ── Build the off-screen table markup ─────────────────────────── */
+  const headHtml = head.map(h =>
+    `<th style="background:${ACCENT};color:#fff;font-weight:700;font-size:18px;padding:10px 14px;text-align:right;border:1px solid #6d28d9;white-space:nowrap">${esc(h)}</th>`
+  ).join('')
+
+  const bodyHtml = body.map((row, i) => {
+    const bg = i % 2 === 0 ? '#ffffff' : '#f4f2ff'
+    const cells = row.map(cell => {
+      const s = String(cell ?? '')
+      // Right-align Arabic text; numbers/Latin read naturally left-to-right.
+      const isAr = AR_RE.test(s)
+      const align = isAr ? 'right' : 'left'
+      return `<td style="background:${bg};color:#1e293b;font-size:16px;padding:8px 14px;border:1px solid #e2e8f0;text-align:${align};white-space:nowrap">${esc(s)}</td>`
+    }).join('')
+    return `<tr>${cells}</tr>`
+  }).join('')
+
+  const el = document.createElement('div')
+  el.style.cssText = [
+    'position:absolute', 'left:-10000px', 'top:0',
+    'width:1600px', 'background:#ffffff', 'padding:24px',
+    'direction:rtl',
+    "font-family:'Cairo','Segoe UI','Tahoma','Arial',sans-serif",
+    'box-sizing:border-box',
+  ].join(';')
+
+  const subHtml = subtitle
+    ? `<div style="font-size:15px;color:#c4b5fd;margin-top:6px">${esc(subtitle)}</div>`
+    : ''
+
+  el.innerHTML = `
+    <div style="background:${HEADER_BAND};border-radius:10px;padding:18px 22px;margin-bottom:18px">
+      <div style="font-size:26px;font-weight:800;color:#ffffff">${esc(title)}</div>
+      ${subHtml}
+    </div>
+    <table dir="rtl" style="width:100%;border-collapse:collapse;table-layout:auto">
+      <thead><tr>${headHtml}</tr></thead>
+      <tbody>${bodyHtml}</tbody>
+    </table>`
+
+  document.body.appendChild(el)
+
+  try {
+    const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
+    const imgData = canvas.toDataURL('image/png')
+
+    /* ── Paginate the image into the existing PDF page geometry ────── */
+    const pageW = doc.internal.pageSize.getWidth()
+    const pageH = doc.internal.pageSize.getHeight()
+    const margin = pageW * 0.03
+    const imgW = pageW - margin * 2
+    const imgH = (canvas.height * imgW) / canvas.width
+
+    let heightLeft = imgH
+    let position = margin
+    doc.addImage(imgData, 'PNG', margin, position, imgW, imgH)
+    heightLeft -= (pageH - margin * 2)
+
+    while (heightLeft > 0) {
+      position = position - (pageH - margin * 2)
+      doc.addPage()
+      doc.addImage(imgData, 'PNG', margin, position, imgW, imgH)
+      heightLeft -= (pageH - margin * 2)
+    }
+
+    doc.save(filename)
+  } finally {
+    document.body.removeChild(el)
+  }
+}

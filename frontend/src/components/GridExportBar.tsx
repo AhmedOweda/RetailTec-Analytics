@@ -27,6 +27,7 @@ import jsPDF     from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { tr }    from '../i18n'
 import { isArabic, registerArabicFont, shapeAr, ARABIC_FONT_NAME } from '../utils/pdfArabic'
+import { arabicTableToPdf } from '../utils/pdfImage'
 
 const ACCENT = '#7c3aed'
 
@@ -141,6 +142,21 @@ export default function GridExportBar({
 
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' })
       const ar = isArabic()
+
+      /* Arabic: render via the browser (html2canvas) so Arabic shapes correctly.
+         Same columns/rows/formatters as the autoTable path; only the header
+         labels are translated the way the grid translates them. */
+      if (ar) {
+        await arabicTableToPdf(doc, {
+          title:    title ?? filename,
+          subtitle: subtitle ?? `Generated ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`,
+          head:     cols.map(c => tr(c.label)),
+          body:     bodyRows,
+          filename: `${filename}_${new Date().toISOString().slice(0, 10)}.pdf`,
+        })
+        return
+      }
+
       if (ar) registerArabicFont(doc)
       const W = 420
       doc.setFillColor(22, 11, 51)
