@@ -34,7 +34,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 from routers.common import (csv_in, q as _q, qdf as _qdf, scoped_stores,
-                            store_filter, trans_store_filter, item_fields_sql)
+                            store_filter, trans_store_filter, item_fields_sql,
+                            scoped_subsidiaries, subsidiary_filter,
+                            trans_subsidiary_filter)
 
 router = APIRouter(tags=["inventory"])
 
@@ -50,26 +52,30 @@ def list_stores(stores: Optional[str] = Depends(scoped_stores)):
 
 # ── Stock snapshot base (FACT_INVENTORY) ──────────────────────────────────────
 
-def _inv_base_join(sf: str) -> str:
+def _inv_base_join(sf: str, subf: str = "") -> str:
     """FROM + JOINs for inventory snapshot queries, with optional store filter.
     DIM_STORE is ALWAYS joined: group_by=store/item_store SELECT S.STORE_NAME
-    regardless of filter (conditional join caused 500s without ?stores=)."""
+    regardless of filter (conditional join caused 500s without ?stores=).
+    Subsidiary filter (subf) is applied via the DIM_STORE alias S — FACT_INVENTORY
+    has no SUBSIDIARY_SID of its own."""
     return f"""
         FROM FACT_INVENTORY FI
         LEFT JOIN DIM_ITEM    I  ON I.SID   = FI.ITEM_SID
         LEFT JOIN DIM_DCS     D  ON D.SID   = I.DCS_SID
         LEFT JOIN DIM_VENDOR  V  ON V.SID   = I.VEND_SID
         LEFT JOIN DIM_STORE   S  ON S.SID   = FI.STORE_SID
-        WHERE FI.ON_HAND_QTY > 0 {sf}
+        WHERE FI.ON_HAND_QTY > 0 {sf} {subf}
     """
 
 
 # ── Inventory Overview KPIs ────────────────────────────────────────────────────
 
 @router.get("/api/inventory/overview")
-def inventory_overview(stores: Optional[str] = Depends(scoped_stores)):
+def inventory_overview(stores: Optional[str] = Depends(scoped_stores),
+                       subsidiaries: Optional[str] = Depends(scoped_subsidiaries)):
     sf, sp = store_filter(stores)
-    base = _inv_base_join(sf)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    base = _inv_base_join(sf, subf)
     rows = _q(f"""
         SELECT
             COUNT(DISTINCT FI.ITEM_SID)                                          AS sku_count,
@@ -85,7 +91,7 @@ def inventory_overview(stores: Optional[str] = Depends(scoped_stores)):
             COUNT(DISTINCT FI.STORE_SID)                                         AS store_count,
             COUNT(CASE WHEN FI.ON_HAND_QTY < 0 THEN 1 END)                      AS neg_stock
         {base}
-    """, sp)
+    """, sp + subp)
     if not rows:
         return {"sku_count": 0, "total_qty": 0, "stock_cost": 0, "stock_retail": 0,
                 "gm_pct": 0, "dept_count": 0, "store_count": 0, "neg_stock": 0}
@@ -105,20 +111,22 @@ def inventory_overview(stores: Optional[str] = Depends(scoped_stores)):
 # ── Inventory Turnover KPIs ───────────────────────────────────────────────────
 
 @router.get("/api/inventory/turnover-kpi")
-def inventory_turnover_kpi(stores: Optional[str] = Depends(scoped_stores)):
+def inventory_turnover_kpi(stores: Optional[str] = Depends(scoped_stores),
+                           subsidiaries: Optional[str] = Depends(scoped_subsidiaries)):
     """
     Inventory Turnover = COGS (12m) / Current Stock Cost
     Days on Hand       = 365 / Turnover
     Stock-to-Sales     = Stock Cost / (COGS / 12)  (months of supply)
     """
     sf, sp   = store_filter(stores)
-    inv_base = _inv_base_join(sf)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    inv_base = _inv_base_join(sf, subf)
 
     # Current stock cost
     stock_rows = _q(f"""
         SELECT ROUND(COALESCE(SUM(FI.ON_HAND_QTY * FI.COST), 0), 2) AS stock_cost
         {inv_base}
-    """, sp)
+    """, sp + subp)
     stock_cost = float(stock_rows[0][0] or 0)
 
     # COGS last 365 days
@@ -126,6 +134,7 @@ def inventory_turnover_kpi(stores: Optional[str] = Depends(scoped_stores)):
     yr_ago = today - timedelta(days=365)
 
     sf_sales, sp_sales = csv_in("SS.STORE_NAME", stores)
+    subf_sales, subp_sales = subsidiary_filter(subsidiaries, alias="SS")
 
     cogs_rows = _q(f"""
         SELECT ROUND(COALESCE(SUM(FSI.TOTAL_COST), 0), 2) AS cogs_12m
@@ -133,8 +142,8 @@ def inventory_turnover_kpi(stores: Optional[str] = Depends(scoped_stores)):
         LEFT JOIN DIM_STORE SS ON SS.SID = FSI.STORE_SID
         WHERE FSI.INVC_POST_DATE::DATE BETWEEN ? AND ?
           AND FSI.ITEM_TYPE = 'Sale'
-        {sf_sales}
-    """, [yr_ago, today] + sp_sales)
+        {sf_sales} {subf_sales}
+    """, [yr_ago, today] + sp_sales + subp_sales)
     cogs_12m = float(cogs_rows[0][0] or 0)
 
     turnover = round(cogs_12m / stock_cost, 2) if stock_cost > 0 else 0
@@ -153,9 +162,11 @@ def inventory_turnover_kpi(stores: Optional[str] = Depends(scoped_stores)):
 # ── Stock by Department ────────────────────────────────────────────────────────
 
 @router.get("/api/inventory/by-dept")
-def inv_by_dept(stores: Optional[str] = Depends(scoped_stores)):
+def inv_by_dept(stores: Optional[str] = Depends(scoped_stores),
+                subsidiaries: Optional[str] = Depends(scoped_subsidiaries)):
     sf, sp = store_filter(stores)
-    base = _inv_base_join(sf)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    base = _inv_base_join(sf, subf)
     return _qdf(f"""
         SELECT
             COALESCE(D.D_NAME, '(Unknown)') AS department,
@@ -170,17 +181,19 @@ def inv_by_dept(stores: Optional[str] = Depends(scoped_stores)):
         {base}
         GROUP BY D.D_NAME
         ORDER BY cost_value DESC
-    """, sp)
+    """, sp + subp)
 
 
 # ── Stock DCS Hierarchy (for sunburst) ────────────────────────────────────────
 
 @router.get("/api/inventory/by-dcs")
 def inv_by_dcs(stores: Optional[str] = Depends(scoped_stores),
+               subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
                limit: Optional[int] = Query(None, ge=1)):   # no cap unless the caller asks
     lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores)
-    base = _inv_base_join(sf)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    base = _inv_base_join(sf, subf)
     return _qdf(f"""
         SELECT
             COALESCE(D.D_NAME, '(Unknown)')  AS department,
@@ -195,16 +208,18 @@ def inv_by_dcs(stores: Optional[str] = Depends(scoped_stores),
         GROUP BY D.D_NAME, D.C_NAME, D.S_NAME, D.DCS_CODE
         ORDER BY cost_value DESC
         {lim}
-    """, sp)
+    """, sp + subp)
 
 
 # ── Stock by Vendor ────────────────────────────────────────────────────────────
 
 @router.get("/api/inventory/by-vendor")
 def inv_by_vendor(stores: Optional[str] = Depends(scoped_stores),
+                  subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
                   limit: int = Query(15, ge=1, le=1000)):
     sf, sp = store_filter(stores)
-    base = _inv_base_join(sf)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    base = _inv_base_join(sf, subf)
     return _qdf(f"""
         SELECT
             COALESCE(V.VEND_NAME, '(Unknown)') AS vendor,
@@ -220,14 +235,16 @@ def inv_by_vendor(stores: Optional[str] = Depends(scoped_stores),
         GROUP BY V.VEND_NAME
         ORDER BY cost_value DESC
         LIMIT {limit}
-    """, sp)
+    """, sp + subp)
 
 
 # ── Stock by Store ─────────────────────────────────────────────────────────────
 
 @router.get("/api/inventory/by-store")
-def inv_by_store(stores: Optional[str] = Depends(scoped_stores)):
+def inv_by_store(stores: Optional[str] = Depends(scoped_stores),
+                 subsidiaries: Optional[str] = Depends(scoped_subsidiaries)):
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     return _qdf(f"""
         SELECT
             COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
@@ -238,10 +255,10 @@ def inv_by_store(stores: Optional[str] = Depends(scoped_stores)):
         FROM FACT_INVENTORY FI
         LEFT JOIN DIM_ITEM   I ON I.SID = FI.ITEM_SID
         LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
-        WHERE FI.ON_HAND_QTY > 0 {sf}
+        WHERE FI.ON_HAND_QTY > 0 {sf} {subf}
         GROUP BY S.STORE_NAME
         ORDER BY cost_value DESC
-    """, sp)
+    """, sp + subp)
 
 
 # ── Item-level stock ───────────────────────────────────────────────────────────
@@ -249,12 +266,14 @@ def inv_by_store(stores: Optional[str] = Depends(scoped_stores)):
 @router.get("/api/inventory/items")
 def inv_items(
     stores: Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     group_by: str = Query("dept", pattern="^(dept|dcs|vendor|store|item|item_store)$"),
     limit: Optional[int] = Query(None, ge=1),
     item_fields: Optional[str] = Query(None),   # csv of whitelisted DIM_ITEM cols
 ):
     sf, sp = store_filter(stores)
-    base = _inv_base_join(sf)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    base = _inv_base_join(sf, subf)
     # No hardcoded cap: LIMIT applies only when the caller asks for one.
     # `limit` is validated as int by FastAPI, safe to interpolate.
     lim = f"LIMIT {int(limit)}" if limit else ""
@@ -285,7 +304,7 @@ def inv_items(
             GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, V.VEND_NAME, D.DCS_CODE, D.D_NAME
             ORDER BY cost_value DESC
             {lim}
-        """, sp)
+        """, sp + subp)
 
     if group_by == "item_store":
         return _qdf(f"""
@@ -307,7 +326,7 @@ def inv_items(
             {base}
             ORDER BY cost_value DESC
             {lim}
-        """, sp)
+        """, sp + subp)
 
     if group_by == "dcs":
         return _qdf(f"""
@@ -328,7 +347,7 @@ def inv_items(
             GROUP BY D.DCS_CODE, D.D_NAME, D.C_NAME, D.S_NAME
             ORDER BY cost_value DESC
             {lim}
-        """, sp)
+        """, sp + subp)
 
     if group_by == "vendor":
         return _qdf(f"""
@@ -346,7 +365,7 @@ def inv_items(
             GROUP BY V.VEND_NAME
             ORDER BY cost_value DESC
             {lim}
-        """, sp)
+        """, sp + subp)
 
     if group_by == "store":
         return _qdf(f"""
@@ -360,7 +379,7 @@ def inv_items(
             GROUP BY S.STORE_NAME
             ORDER BY cost_value DESC
             {lim}
-        """, sp)
+        """, sp + subp)
 
     # default: by department
     return _qdf(f"""
@@ -378,24 +397,30 @@ def inv_items(
         GROUP BY D.D_NAME
         ORDER BY cost_value DESC
         {lim}
-    """, sp)
+    """, sp + subp)
 
 
 # ── Movement KPIs (from FACT_SALES_ITEMS) ─────────────────────────────────────
 
-def _mv_base(stores: Optional[str]) -> tuple[str, list]:
-    """FROM/JOIN/WHERE fragment with date placeholders; caller prepends dates."""
+def _mv_base(stores: Optional[str],
+             subsidiaries: Optional[str] = None) -> tuple[str, list]:
+    """FROM/JOIN/WHERE fragment with date placeholders; caller prepends dates.
+    FACT_SALES_ITEMS has no SUBSIDIARY_SID, so subsidiary filtering goes through
+    the DIM_STORE alias S — the store join is forced on whenever a store OR a
+    subsidiary filter is present."""
     sf, sp = store_filter(stores, alias="S")
-    store_join = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    store_join = ("LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID"
+                  if (sf or subf) else "")
     frag = f"""
         FROM FACT_SALES_ITEMS F
         LEFT JOIN DIM_ITEM   I ON I.SID  = F.ITEM_SID
         LEFT JOIN DIM_DCS    D ON D.SID  = I.DCS_SID
         LEFT JOIN DIM_VENDOR V ON V.SID  = I.VEND_SID
         {store_join}
-        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf}
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {subf}
     """
-    return frag, sp
+    return frag, sp + subp
 
 
 @router.get("/api/inventory/movement")
@@ -403,8 +428,9 @@ def inv_movement(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores: Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
-    base, sp = _mv_base(stores)
+    base, sp = _mv_base(stores, subsidiaries)
     rows = _q(f"""
         SELECT
             COUNT(DISTINCT F.ITEM_SID)                                               AS sku_count,
@@ -440,9 +466,12 @@ def inv_trend(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores: Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     sf, sp = store_filter(stores, alias="S")
-    store_join = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    store_join = ("LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID"
+                  if (sf or subf) else "")
     return _qdf(f"""
         SELECT
             F.INVC_POST_DATE::DATE                                               AS post_date,
@@ -451,10 +480,10 @@ def inv_trend(
             ROUND(SUM(F.TOTAL_PRICE_WOTAX), 2)                                   AS revenue
         FROM FACT_SALES_ITEMS F
         {store_join}
-        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf}
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {subf}
         GROUP BY F.INVC_POST_DATE::DATE
         ORDER BY post_date
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Movement grouped by dimension ─────────────────────────────────────────────
@@ -464,11 +493,12 @@ def inv_movement_by(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores: Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     group_by: str = Query("dept", pattern="^(dept|dcs|vendor|store|item)$"),
     limit: Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
     lim = f"LIMIT {int(limit)}" if limit else ""
-    base, sp = _mv_base(stores)
+    base, sp = _mv_base(stores, subsidiaries)
     params = [date_from, date_to] + sp
 
     if group_by == "item":
@@ -537,6 +567,7 @@ def inv_movement_by(
 
     if group_by == "store":
         sf2, sp2 = store_filter(stores, alias="S")
+        subf2, subp2 = subsidiary_filter(subsidiaries, alias="S")
         return _qdf(f"""
             SELECT
                 COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
@@ -546,11 +577,11 @@ def inv_movement_by(
                 ROUND(SUM(F.TOTAL_PRICE_WOTAX), 2) AS revenue
             FROM FACT_SALES_ITEMS F
             LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
-            WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf2}
+            WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf2} {subf2}
             GROUP BY S.STORE_NAME
             ORDER BY revenue DESC
             {lim}
-        """, [date_from, date_to] + sp2)
+        """, [date_from, date_to] + sp2 + subp2)
 
     # default: by department
     return _qdf(f"""
@@ -576,9 +607,13 @@ def inv_movement_by(
 # TRANSFERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _trans_base(stores: Optional[str]) -> tuple[str, list]:
-    """Caller prepends [date_from, date_to] to the returned params."""
+def _trans_base(stores: Optional[str],
+                subsidiaries: Optional[str] = None) -> tuple[str, list]:
+    """Caller prepends [date_from, date_to] to the returned params.
+    Subsidiary filter matches EITHER the OUT or IN store's subsidiary (both
+    DIM_STORE aliases are already joined), mirroring trans_store_filter."""
     sf, sp = trans_store_filter(stores)
+    subf, subp = trans_subsidiary_filter(subsidiaries)
     frag = f"""
         FROM FACT_TRANSFERS FT
         LEFT JOIN DIM_STORE  DS_OUT ON DS_OUT.SID = FT.OUT_STORE_SID
@@ -586,9 +621,9 @@ def _trans_base(stores: Optional[str]) -> tuple[str, list]:
         LEFT JOIN DIM_ITEM   I      ON I.SID       = FT.ITEM_SID
         LEFT JOIN DIM_DCS    DC     ON DC.SID      = I.DCS_SID
         LEFT JOIN DIM_VENDOR V      ON V.SID       = I.VEND_SID
-        WHERE FT.SLIP_DATE BETWEEN ? AND ? {sf}
+        WHERE FT.SLIP_DATE BETWEEN ? AND ? {sf} {subf}
     """
-    return frag, sp
+    return frag, sp + subp
 
 
 def _vou_status_label() -> str:
@@ -605,8 +640,9 @@ def transfers_kpi(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
-    base, sp = _trans_base(stores)
+    base, sp = _trans_base(stores, subsidiaries)
     rows = _q(f"""
         SELECT
             COUNT(DISTINCT FT.SLIP_SID)                           AS total_slips,
@@ -638,8 +674,9 @@ def transfers_trend(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
-    base, sp = _trans_base(stores)
+    base, sp = _trans_base(stores, subsidiaries)
     return _qdf(f"""
         SELECT
             FT.SLIP_DATE                                AS slip_date,
@@ -658,10 +695,11 @@ def transfers_by_store(
     date_from:  date = Query(...),
     date_to:    date = Query(...),
     stores:     Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     direction:  str = Query("out", pattern="^(out|in)$"),
     limit:      int = Query(15, ge=1, le=1000),
 ):
-    base, sp = _trans_base(stores)
+    base, sp = _trans_base(stores, subsidiaries)
     store_col = "DS_OUT.STORE_NAME" if direction == "out" else "DS_IN.STORE_NAME"
     return _qdf(f"""
         SELECT
@@ -682,9 +720,10 @@ def transfers_by_dept(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     int = Query(20, ge=1, le=1000),
 ):
-    base, sp = _trans_base(stores)
+    base, sp = _trans_base(stores, subsidiaries)
     return _qdf(f"""
         SELECT
             COALESCE(DC.D_NAME, '(Unknown)') AS department,
@@ -704,10 +743,11 @@ def transfers_details(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
     lim = f"LIMIT {int(limit)}" if limit else ""
-    base, sp = _trans_base(stores)
+    base, sp = _trans_base(stores, subsidiaries)
     status_label = _vou_status_label()
     return _qdf(f"""
         SELECT
@@ -736,9 +776,13 @@ def transfers_details(
 # ADJUSTMENTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _adj_base(stores: Optional[str]) -> tuple[str, list]:
-    """Caller prepends [date_from, date_to] to the returned params."""
+def _adj_base(stores: Optional[str],
+              subsidiaries: Optional[str] = None) -> tuple[str, list]:
+    """Caller prepends [date_from, date_to] to the returned params.
+    FACT_ADJUSTMENTS has no SUBSIDIARY_SID → filter via the DIM_STORE alias S
+    (always joined)."""
     sf, sp = store_filter(stores, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     frag = f"""
         FROM FACT_ADJUSTMENTS FA
         LEFT JOIN DIM_STORE S ON S.SID = FA.STORE_SID
@@ -746,9 +790,9 @@ def _adj_base(stores: Optional[str]) -> tuple[str, list]:
         LEFT JOIN DIM_ITEM     I  ON I.SID  = FA.ITEM_SID
         LEFT JOIN DIM_DCS      DC ON DC.SID = I.DCS_SID
         LEFT JOIN DIM_VENDOR   V  ON V.SID  = I.VEND_SID
-        WHERE FA.ADJ_DATE BETWEEN ? AND ? {sf}
+        WHERE FA.ADJ_DATE BETWEEN ? AND ? {sf} {subf}
     """
-    return frag, sp
+    return frag, sp + subp
 
 
 def _doc_type_label() -> str:
@@ -776,8 +820,9 @@ def adjustments_kpi(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
-    base, sp = _adj_base(stores)
+    base, sp = _adj_base(stores, subsidiaries)
     rows = _q(f"""
         SELECT
             COUNT(DISTINCT FA.ADJ_SID)                                     AS total_adjs,
@@ -808,8 +853,9 @@ def adjustments_trend(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
-    base, sp = _adj_base(stores)
+    base, sp = _adj_base(stores, subsidiaries)
     return _qdf(f"""
         SELECT
             FA.ADJ_DATE,
@@ -831,8 +877,9 @@ def adjustments_by_type(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
-    base, sp = _adj_base(stores)
+    base, sp = _adj_base(stores, subsidiaries)
     doc_lbl = _doc_type_label()
     return _qdf(f"""
         SELECT
@@ -854,9 +901,10 @@ def adjustments_by_store(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     int = Query(15, ge=1, le=1000),
 ):
-    base, sp = _adj_base(stores)
+    base, sp = _adj_base(stores, subsidiaries)
     return _qdf(f"""
         SELECT
             COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
@@ -878,10 +926,11 @@ def adjustments_details(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
     lim = f"LIMIT {int(limit)}" if limit else ""
-    base, sp = _adj_base(stores)
+    base, sp = _adj_base(stores, subsidiaries)
     doc_lbl = _doc_type_label()
     return _qdf(f"""
         SELECT
@@ -909,19 +958,24 @@ def adjustments_details(
 # INVENTORY HISTORY  (from FACT_INVENTORY_HISTORY)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _invh_base(stores: Optional[str]) -> tuple[str, list]:
-    """Caller prepends [date_from, date_to] to the returned params."""
+def _invh_base(stores: Optional[str],
+               subsidiaries: Optional[str] = None) -> tuple[str, list]:
+    """Caller prepends [date_from, date_to] to the returned params.
+    FACT_INVENTORY_HISTORY has no SUBSIDIARY_SID → filter via DIM_STORE alias S;
+    the store join is forced on when a store OR subsidiary filter is present."""
     sf, sp = store_filter(stores, alias="S")
-    store_join = "LEFT JOIN DIM_STORE S ON S.SID = FH.STORE_SID" if sf else ""
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    store_join = ("LEFT JOIN DIM_STORE S ON S.SID = FH.STORE_SID"
+                  if (sf or subf) else "")
     frag = f"""
         FROM FACT_INVENTORY_HISTORY FH
         LEFT JOIN DIM_ITEM    I  ON I.SID  = FH.ITEM_SID
         LEFT JOIN DIM_DCS     D  ON D.SID  = I.DCS_SID
         LEFT JOIN DIM_VENDOR  V  ON V.SID  = I.VEND_SID
         {store_join}
-        WHERE FH.ACTION_DATE BETWEEN ? AND ? {sf}
+        WHERE FH.ACTION_DATE BETWEEN ? AND ? {sf} {subf}
     """
-    return frag, sp
+    return frag, sp + subp
 
 
 @router.get("/api/inventory/history/kpi")
@@ -929,8 +983,9 @@ def invh_kpi(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
-    base, sp = _invh_base(stores)
+    base, sp = _invh_base(stores, subsidiaries)
     rows = _q(f"""
         SELECT
             COUNT(*)                                                                  AS total_events,
@@ -961,9 +1016,10 @@ def invh_trend(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     """Daily inventory change trend — total qty inserted and updated per day."""
-    base, sp = _invh_base(stores)
+    base, sp = _invh_base(stores, subsidiaries)
     return _qdf(f"""
         SELECT
             FH.ACTION_DATE                                                            AS action_date,
@@ -982,10 +1038,11 @@ def invh_by_item(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     int = Query(50, ge=1, le=10000),
 ):
     """Top items by number of inventory change events in the period."""
-    base, sp = _invh_base(stores)
+    base, sp = _invh_base(stores, subsidiaries)
     return _qdf(f"""
         SELECT
             I.ALU,
@@ -1010,10 +1067,12 @@ def invh_details(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     int = Query(1000, ge=1, le=100000),
 ):
     """Raw inventory history rows for AG Grid."""
     sf, sp = store_filter(stores, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     return _qdf(f"""
         SELECT
             FH.ACTION_DATE,
@@ -1032,10 +1091,10 @@ def invh_details(
         LEFT JOIN DIM_ITEM    I  ON I.SID  = FH.ITEM_SID
         LEFT JOIN DIM_DCS     D  ON D.SID  = I.DCS_SID
         LEFT JOIN DIM_VENDOR  V  ON V.SID  = I.VEND_SID
-        WHERE FH.ACTION_DATE BETWEEN ? AND ? {sf}
+        WHERE FH.ACTION_DATE BETWEEN ? AND ? {sf} {subf}
         ORDER BY FH.ACTION_DATE DESC, FH.HISTORY_SID DESC
         LIMIT {limit}
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 
@@ -1293,6 +1352,7 @@ def inventory_ledger_kpi(
 @router.get("/api/inventory/coverage")
 def inv_coverage(
     stores:  Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     vendors: Optional[str] = Query(None),
     dcs:     Optional[str] = Query(None),
     limit:   int = Query(100000, ge=1, le=1000000),
@@ -1309,11 +1369,14 @@ def inv_coverage(
     d90 = today - timedelta(days=90)
 
     sf, sp = store_filter(stores)
+    # FACT_INVENTORY has no SUBSIDIARY_SID → filter the snapshot via DIM_STORE (S)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     df, dp = csv_in("DC.D_NAME", dcs)
 
     # Params follow placeholder order: s30, s60, s90 CTEs, then WHERE filters
-    params = [d30, today, d60, today, d90, today] + sp + vp + dp
+    # (store, subsidiary, vendor, dcs — matching the ? order in the WHERE clause)
+    params = [d30, today, d60, today, d90, today] + sp + subp + vp + dp
 
     return _qdf(f"""
         WITH
@@ -1359,7 +1422,7 @@ def inv_coverage(
         LEFT JOIN s30 ON s30.ITEM_SID = FI.ITEM_SID AND s30.STORE_SID = FI.STORE_SID
         LEFT JOIN s60 ON s60.ITEM_SID = FI.ITEM_SID AND s60.STORE_SID = FI.STORE_SID
         LEFT JOIN s90 ON s90.ITEM_SID = FI.ITEM_SID AND s90.STORE_SID = FI.STORE_SID
-        WHERE FI.ON_HAND_QTY > 0 {sf} {vf} {df}
+        WHERE FI.ON_HAND_QTY > 0 {sf} {subf} {vf} {df}
         ORDER BY S.STORE_NAME, sales_90 DESC, FI.ON_HAND_QTY DESC
         LIMIT {limit}
     """, params)

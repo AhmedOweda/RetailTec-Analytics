@@ -24,7 +24,8 @@ from db.model import get_db
 from routers.auth import get_current_user, require_admin
 from routers.common import (DB_LOCK, allowed_store_set, allowed_subsidiary_set,
                             q as _q, qdf as _qdf,
-                            scoped_stores, store_filter, item_fields_sql)
+                            scoped_stores, store_filter, item_fields_sql,
+                            scoped_subsidiaries, subsidiary_filter)
 from services.scheduler import on_open_sync, trigger_full_load, get_sync_state
 
 router = APIRouter(tags=["sales"])
@@ -134,8 +135,11 @@ def customers_list():
 # ── Overview KPIs ──────────────────────────────────────────────────────────────
 
 @router.get("/api/sales/overview")
-def overview(stores: Optional[str] = Depends(scoped_stores)):
+def overview(stores: Optional[str] = Depends(scoped_stores),
+             subsidiaries: Optional[str] = Depends(scoped_subsidiaries)):
     sf, sp = store_filter(stores)
+    # Sales facts carry SUBSIDIARY_SID directly → filter on the fact alias F
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     today = date.today()
     yest  = today - timedelta(days=1)
     mtd_s = today.replace(day=1)
@@ -151,8 +155,8 @@ def overview(stores: Optional[str] = Depends(scoped_stores)):
                    COALESCE(SUM(F.RETURN_COUNT),0),
                    COALESCE(SUM(F.TOTAL_TAX),0)
             FROM FACT_SALES_DAILY F {join}
-            WHERE F.POST_DATE BETWEEN ? AND ? {sf}
-        """, [date_from, date_to] + sp)[0]
+            WHERE F.POST_DATE BETWEEN ? AND ? {sf} {subf}
+        """, [date_from, date_to] + sp + subp)[0]
         net_sales   = round(r[0] or 0, 2)
         total_wtax  = round(r[1] or 0, 2)
         sales_count = int(r[2] or 0)
@@ -175,8 +179,8 @@ def overview(stores: Optional[str] = Depends(scoped_stores)):
                     CASE WHEN F.RECEIPT_TYPE = 1 THEN F.NET_SALES_WOTAX ELSE 0 END
                 ), 0))                                                        AS return_amt
             FROM FACT_SALES_INVOICES F {join2}
-            WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf}
-        """, [date_from, date_to] + sp)[0]
+            WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {subf}
+        """, [date_from, date_to] + sp + subp)[0]
         total_disc  = round(r2[0] or 0, 2)
         gross_sales = round(r2[1] or 0, 2)
         return_amt  = round(r2[2] or 0, 2)
@@ -238,8 +242,10 @@ def trend(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     join = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
     return _qdf(f"""
         SELECT F.POST_DATE::VARCHAR            AS day,
@@ -248,10 +254,10 @@ def trend(
                SUM(F.SALES_COUNT)               AS sales_count,
                SUM(F.RETURN_COUNT)              AS return_count
         FROM FACT_SALES_DAILY F {join}
-        WHERE F.POST_DATE BETWEEN ? AND ? {sf}
+        WHERE F.POST_DATE BETWEEN ? AND ? {sf} {subf}
         GROUP BY F.POST_DATE
         ORDER BY F.POST_DATE
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Per-store breakdown ────────────────────────────────────────────────────────
@@ -261,8 +267,10 @@ def stores_breakdown(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     return _qdf(f"""
         SELECT S.STORE_NAME AS store_name,
                ROUND(SUM(F.NET_SALES_WOTAX),2) AS net_sales,
@@ -272,10 +280,10 @@ def stores_breakdown(
                ROUND(SUM(F.INVOICE_DISC),2)     AS invoice_disc
         FROM FACT_SALES_DAILY F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
-        WHERE F.POST_DATE BETWEEN ? AND ? {sf}
+        WHERE F.POST_DATE BETWEEN ? AND ? {sf} {subf}
         GROUP BY S.STORE_NAME
         ORDER BY net_sales DESC
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Top employees ──────────────────────────────────────────────────────────────
@@ -285,9 +293,11 @@ def employees(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     int = Query(15, ge=1, le=1000),
 ):
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     return _qdf(f"""
         SELECT COALESCE(E.FULL_NAME, '(Unknown)')                    AS employee_name,
                ROUND(SUM(F.NET_SALES_WOTAX),2)                       AS net_sales,
@@ -297,11 +307,11 @@ def employees(
         LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
         LEFT JOIN DIM_EMPLOYEE E ON E.SID = F.EMPLOYEE1_SID
         WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
-          AND F.RECEIPT_TYPE = 0 {sf}
+          AND F.RECEIPT_TYPE = 0 {sf} {subf}
         GROUP BY COALESCE(E.FULL_NAME, '(Unknown)')
         ORDER BY net_sales DESC
         LIMIT {limit}
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Top products ───────────────────────────────────────────────────────────────
@@ -311,6 +321,7 @@ def products(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     group_by:  str = Query("item", pattern="^(item|dcs|vendor|department)$"),
     limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
     item_fields: Optional[str] = Query(None),       # csv of whitelisted DIM_ITEM cols
@@ -318,6 +329,8 @@ def products(
     lim = f"LIMIT {int(limit)}" if limit else ""
     xf  = item_fields_sql(item_fields, agg=True)
     sf, sp  = store_filter(stores)
+    # FACT_SALES_ITEMS has no SUBSIDIARY_SID → filter via the store's subsidiary (alias S)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     base    = f"""
         FROM FACT_SALES_ITEMS F
         LEFT JOIN DIM_STORE  S ON S.SID = F.STORE_SID
@@ -325,9 +338,9 @@ def products(
         LEFT JOIN DIM_DCS    D ON D.SID = I.DCS_SID  AND D.SBS_SID = I.SBS_SID
         LEFT JOIN DIM_VENDOR V ON V.SID = I.VEND_SID
         WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
-          AND F.ITEM_TYPE = 'Sale' {sf}
+          AND F.ITEM_TYPE = 'Sale' {sf} {subf}
     """
-    params = [date_from, date_to] + sp
+    params = [date_from, date_to] + sp + subp
     measures = """
                ROUND(SUM(F.QTY),2)                                                       AS qty,
                ROUND(SUM(F.TOTAL_PRICE_WOTAX),2)                                         AS revenue,
@@ -392,12 +405,14 @@ def transactions(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     search:    str  = Query(""),
     limit:     Optional[int] = Query(None, ge=0),   # 0 = all rows (frontend sends limit=0); None = no cap
     offset:    int  = Query(0, ge=0),
 ):
     lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     # Server-side search across doc_no, store, associate, customer (bound param)
     sf2, search_params = "", []
     if search.strip():
@@ -409,14 +424,15 @@ def transactions(
             " OR COALESCE(C.FULL_NAME,'')  ILIKE ?)"
         )
         search_params = [pat, pat, pat, pat]
-    params = [date_from, date_to] + sp + search_params
+    # subsidiary params go with {subf} (placed before {sf2}) to keep ? order correct
+    params = [date_from, date_to] + sp + subp + search_params
     total = _q(f"""
         SELECT COUNT(*)
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
         LEFT JOIN DIM_EMPLOYEE E ON E.SID = F.EMPLOYEE1_SID
         LEFT JOIN DIM_CUSTOMER C ON C.SID = F.BT_CUID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {sf2}
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {subf} {sf2}
     """, params)[0][0]
     rows = _qdf(f"""
         SELECT F.DOC_NO                       AS doc_no,
@@ -439,7 +455,7 @@ def transactions(
         LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
         LEFT JOIN DIM_EMPLOYEE E ON E.SID = F.EMPLOYEE1_SID
         LEFT JOIN DIM_CUSTOMER C ON C.SID = F.BT_CUID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {sf2}
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {subf} {sf2}
         ORDER BY F.INVC_POST_DATE DESC
         {"" if limit == 0 else f"{lim} OFFSET {offset}"}
     """, params)
@@ -455,8 +471,13 @@ def perf_stores(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     sf, sp = store_filter(stores)
+    # Filter the main period aggregate on the fact's SUBSIDIARY_SID. The lifetime
+    # CTEs (first_sale/store_ltv) are intentionally left global, matching how the
+    # store filter is not applied to them either.
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     return _qdf(f"""
         WITH first_sale AS (
             SELECT COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
@@ -498,10 +519,10 @@ def perf_stores(
         LEFT JOIN DIM_STORE S   ON S.SID = F.STORE_SID
         LEFT JOIN first_sale FS ON FS.store_name = COALESCE(S.STORE_NAME, '(Unknown)')
         LEFT JOIN store_ltv LTV ON LTV.store_name = COALESCE(S.STORE_NAME, '(Unknown)')
-        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf}
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {subf}
         GROUP BY COALESCE(S.STORE_NAME, '(Unknown)'), FS.first_sale_date, LTV.lifetime_revenue
         ORDER BY net_sales DESC
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Performance: Payment mix ────────────────────────────────────────────────────
@@ -511,8 +532,10 @@ def perf_payment(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     return _qdf(f"""
         SELECT
             ROUND(SUM(COALESCE(F.CASH_AMT,0)),2)    AS cash,
@@ -522,8 +545,8 @@ def perf_payment(
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
         WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
-          AND F.RECEIPT_TYPE = 0 {sf}
-    """, [date_from, date_to] + sp)
+          AND F.RECEIPT_TYPE = 0 {sf} {subf}
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Performance: Hourly heatmap (hour x day-of-week) ───────────────────────────
@@ -533,8 +556,10 @@ def perf_hourly(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     return _qdf(f"""
         SELECT
             EXTRACT(HOUR FROM F.INVC_POST_DATE::TIMESTAMP)       AS hour,
@@ -544,10 +569,10 @@ def perf_hourly(
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
         WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
-          AND F.RECEIPT_TYPE = 0 {sf}
+          AND F.RECEIPT_TYPE = 0 {sf} {subf}
         GROUP BY hour, dow
         ORDER BY dow, hour
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Performance: Associates (enhanced with disc% + return rate%) ────────────────
@@ -557,9 +582,11 @@ def perf_associates(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     int = Query(25, ge=1, le=1000),
 ):
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     return _qdf(f"""
         SELECT
             COALESCE(E.FULL_NAME, '(Unknown)')                                        AS employee_name,
@@ -583,11 +610,11 @@ def perf_associates(
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
         LEFT JOIN DIM_EMPLOYEE E ON E.SID = F.EMPLOYEE1_SID
-        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf}
+        WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {subf}
         GROUP BY COALESCE(E.FULL_NAME,'(Unknown)'), COALESCE(S.STORE_NAME,'(Unknown)')
         ORDER BY net_sales DESC
         LIMIT {limit}
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Performance: Day-of-week pattern ───────────────────────────────────────────
@@ -597,8 +624,10 @@ def perf_dow(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     join = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
     return _qdf(f"""
         SELECT
@@ -606,10 +635,10 @@ def perf_dow(
             ROUND(SUM(F.NET_SALES_WOTAX),2)                  AS total_net_sales,
             SUM(F.SALES_COUNT)                               AS total_invoices
         FROM FACT_SALES_DAILY F {join}
-        WHERE F.POST_DATE BETWEEN ? AND ? {sf}
+        WHERE F.POST_DATE BETWEEN ? AND ? {sf} {subf}
         GROUP BY dow
         ORDER BY dow
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Performance: Basket size distribution ──────────────────────────────────────
@@ -619,8 +648,10 @@ def perf_basket(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     return _qdf(f"""
         SELECT
             CASE
@@ -642,10 +673,10 @@ def perf_basket(
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
         WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
-          AND F.RECEIPT_TYPE = 0 {sf}
+          AND F.RECEIPT_TYPE = 0 {sf} {subf}
         GROUP BY bucket, sort_order
         ORDER BY sort_order
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Performance: Year-over-Year per store ──────────────────────────────────────
@@ -657,9 +688,11 @@ def perf_yoy_stores(
     py_from:   date = Query(...),
     py_to:     date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     """Compare current period vs same window last year, per store."""
     sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     df, dt, pf, pt = date_from, date_to, py_from, py_to
     return _qdf(f"""
         SELECT
@@ -685,11 +718,11 @@ def perf_yoy_stores(
         WHERE (
             F.INVC_POST_DATE::DATE BETWEEN ? AND ?
          OR F.INVC_POST_DATE::DATE BETWEEN ? AND ?
-        ) {sf}
+        ) {sf} {subf}
         GROUP BY COALESCE(S.STORE_NAME, '(Unknown)')
         ORDER BY current_sales DESC
         LIMIT 15
-    """, [df, dt, pf, pt, df, dt, pf, pt, df, dt, pf, pt] + sp)
+    """, [df, dt, pf, pt, df, dt, pf, pt, df, dt, pf, pt] + sp + subp)
 
 
 # ── Performance: Top customers ─────────────────────────────────────────────────
@@ -699,10 +732,14 @@ def perf_customers(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
     lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores)
+    # Main aggregate filtered on the fact's SUBSIDIARY_SID; lifetime CTEs left
+    # global (they carry no store filter either).
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     return _qdf(f"""
         WITH cust_ltv AS (
             SELECT F.BT_CUID,
@@ -743,11 +780,11 @@ def perf_customers(
         LEFT JOIN primary_store PS ON PS.BT_CUID  = F.BT_CUID
         WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
           AND F.RECEIPT_TYPE = 0
-          AND C.FULL_NAME IS NOT NULL AND TRIM(C.FULL_NAME) <> '' {sf}
+          AND C.FULL_NAME IS NOT NULL AND TRIM(C.FULL_NAME) <> '' {sf} {subf}
         GROUP BY C.FULL_NAME
         ORDER BY net_sales DESC
         {lim}
-    """, [date_from, date_to] + sp)
+    """, [date_from, date_to] + sp + subp)
 
 
 # ── Sync endpoints ─────────────────────────────────────────────────────────────

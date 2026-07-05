@@ -17,7 +17,8 @@ from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
-from routers.common import csv_in, q as _q, qdf as _qdf, scoped_stores, store_filter
+from routers.common import (csv_in, q as _q, qdf as _qdf, scoped_stores,
+                            store_filter, scoped_subsidiaries, subsidiary_filter)
 
 router = APIRouter(tags=["purchases"])
 
@@ -34,23 +35,27 @@ def _status_filter(status: Optional[str]) -> str:
 
 
 def _pur_base(df: date, dt: date, stores: Optional[str],
-              vendors: Optional[str] = None, status: Optional[str] = None
-              ) -> tuple[str, list]:
+              vendors: Optional[str] = None, status: Optional[str] = None,
+              subsidiaries: Optional[str] = None) -> tuple[str, list]:
+    # FACT_PURCHASES has no SUBSIDIARY_SID → filter via the DIM_STORE alias S.
     sf, sp   = store_filter(stores, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     vf, vp   = csv_in("V.VEND_NAME", vendors)
     stf      = _status_filter(status)
     frag = f"""
         FROM FACT_PURCHASES FP
         LEFT JOIN DIM_STORE  S ON S.SID  = FP.STORE_SID
         LEFT JOIN DIM_VENDOR V ON V.SID  = FP.VEND_SID
-        WHERE FP.VOU_DATE BETWEEN ? AND ? {sf} {vf} {stf}
+        WHERE FP.VOU_DATE BETWEEN ? AND ? {sf} {subf} {vf} {stf}
     """
-    return frag, [df, dt] + sp + vp
+    return frag, [df, dt] + sp + subp + vp
 
 
 def _pur_items_base(df: date, dt: date, stores: Optional[str],
-                    vendors: Optional[str] = None) -> tuple[str, list]:
+                    vendors: Optional[str] = None,
+                    subsidiaries: Optional[str] = None) -> tuple[str, list]:
     sf, sp = store_filter(stores, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     frag = f"""
         FROM FACT_PURCHASE_ITEMS FPI
@@ -58,9 +63,9 @@ def _pur_items_base(df: date, dt: date, stores: Optional[str],
         LEFT JOIN DIM_VENDOR V  ON V.SID  = FPI.VEND_SID
         LEFT JOIN DIM_ITEM   I  ON I.SID  = FPI.ITEM_SID
         LEFT JOIN DIM_DCS    DC ON DC.SID = I.DCS_SID
-        WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {vf}
+        WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {subf} {vf}
     """
-    return frag, [df, dt] + sp + vp
+    return frag, [df, dt] + sp + subp + vp
 
 
 # ── Status label ───────────────────────────────────────────────────────────────
@@ -79,10 +84,12 @@ def purchases_kpi(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
 ):
-    base, params = _pur_base(date_from, date_to, stores, vendors, status)
+    base, params = _pur_base(date_from, date_to, stores, vendors, status,
+                             subsidiaries)
     rows = _q(f"""
         SELECT
             COUNT(DISTINCT FP.VOU_SID)                          AS vou_count,
@@ -103,6 +110,7 @@ def purchases_kpi(
     # Line-item metrics come from FACT_PURCHASE_ITEMS: RP9's VOUCHER header has
     # no LINE_COUNT/ORD_QTY/RECV_QTY, so the header fact stores 0 for them.
     sf, sp = store_filter(stores, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     stf = _status_filter(status).replace("FP.STATUS", "FPH.STATUS")
     li = _q(f"""
@@ -115,8 +123,8 @@ def purchases_kpi(
         JOIN FACT_PURCHASES FPH ON FPH.VOU_SID = FPI.VOU_SID
         LEFT JOIN DIM_STORE  S ON S.SID = FPI.STORE_SID
         LEFT JOIN DIM_VENDOR V ON V.SID = FPI.VEND_SID
-        WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {vf} {stf}
-    """, [date_from, date_to] + sp + vp)[0]
+        WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {subf} {vf} {stf}
+    """, [date_from, date_to] + sp + subp + vp)[0]
 
     total = float(r[0] or 0)
     recv  = float(r[9] or 0)
@@ -144,10 +152,12 @@ def purchases_trend(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
 ):
-    base, params = _pur_base(date_from, date_to, stores, vendors, status)
+    base, params = _pur_base(date_from, date_to, stores, vendors, status,
+                             subsidiaries)
     return _qdf(f"""
         SELECT
             FP.VOU_DATE                          AS vou_date,
@@ -168,11 +178,13 @@ def purchases_by_vendor(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
     limit:     int = Query(15, ge=1, le=1000),
 ):
-    base, params = _pur_base(date_from, date_to, stores, vendors, status)
+    base, params = _pur_base(date_from, date_to, stores, vendors, status,
+                             subsidiaries)
     return _qdf(f"""
         SELECT
             COALESCE(V.VEND_NAME, '(Unknown)')   AS vendor_name,
@@ -195,10 +207,12 @@ def purchases_by_dept(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     vendors:   Optional[str] = Query(None),
     limit:     int = Query(15, ge=1, le=1000),
 ):
-    base, params = _pur_items_base(date_from, date_to, stores, vendors)
+    base, params = _pur_items_base(date_from, date_to, stores, vendors,
+                                   subsidiaries)
     return _qdf(f"""
         SELECT
             COALESCE(DC.D_NAME, '(Unknown)')     AS department,
@@ -221,10 +235,12 @@ def purchases_by_store(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
 ):
-    base, params = _pur_base(date_from, date_to, stores, vendors, status)
+    base, params = _pur_base(date_from, date_to, stores, vendors, status,
+                             subsidiaries)
     return _qdf(f"""
         SELECT
             COALESCE(S.STORE_NAME, '(Unknown)')  AS store_name,
@@ -245,9 +261,11 @@ def purchases_by_status(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     vendors:   Optional[str] = Query(None),
 ):
     sf, sp = store_filter(stores, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     status_lbl = _status_label()
     return _qdf(f"""
@@ -260,10 +278,10 @@ def purchases_by_status(
         FROM FACT_PURCHASES FP
         LEFT JOIN DIM_STORE  S ON S.SID = FP.STORE_SID
         LEFT JOIN DIM_VENDOR V ON V.SID = FP.VEND_SID
-        WHERE FP.VOU_DATE BETWEEN ? AND ? {sf} {vf}
+        WHERE FP.VOU_DATE BETWEEN ? AND ? {sf} {subf} {vf}
         GROUP BY FP.STATUS
         ORDER BY FP.STATUS
-    """, [date_from, date_to] + sp + vp)
+    """, [date_from, date_to] + sp + subp + vp)
 
 
 # ── Detail lines ───────────────────────────────────────────────────────────────
@@ -273,12 +291,14 @@ def purchases_details(
     date_from: date = Query(...),
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     vendors:   Optional[str] = Query(None),
     status:    Optional[str] = Query(None),
     limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
     lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     stf    = _status_filter(status)
 
@@ -306,10 +326,10 @@ def purchases_details(
         LEFT JOIN DIM_VENDOR     V  ON V.SID        = FPI.VEND_SID
         LEFT JOIN DIM_ITEM       I  ON I.SID        = FPI.ITEM_SID
         LEFT JOIN DIM_DCS        DC ON DC.SID       = I.DCS_SID
-        WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {vf} {stf}
+        WHERE FPI.VOU_DATE BETWEEN ? AND ? {sf} {subf} {vf} {stf}
         ORDER BY FPI.VOU_DATE DESC, FP.VOU_NO
         {lim}
-    """, [date_from, date_to] + sp + vp)
+    """, [date_from, date_to] + sp + subp + vp)
 
 
 # ── Vendor list (for filter dropdown) ─────────────────────────────────────────

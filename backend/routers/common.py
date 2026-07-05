@@ -148,6 +148,21 @@ def subsidiary_filter(subs: Optional[str], alias: str = "S") -> tuple[str, list]
     return f" AND {alias}.SUBSIDIARY_SID IN ({ph})", vals
 
 
+def trans_subsidiary_filter(subs: Optional[str]) -> tuple[str, list]:
+    """Transfers analogue of trans_store_filter: matches when EITHER the OUT or
+    the IN store belongs to one of the given subsidiary SIDs. Mirrors the
+    DS_OUT / DS_IN aliases used by the transfers queries."""
+    if not subs:
+        return "", []
+    vals = [s.strip() for s in subs.split(",") if s.strip()]
+    if not vals:
+        return "", []
+    ph = ",".join(["?"] * len(vals))
+    return (f" AND (DS_OUT.SUBSIDIARY_SID IN ({ph})"
+            f" OR DS_IN.SUBSIDIARY_SID IN ({ph}))",
+            vals + vals)
+
+
 def allowed_subsidiary_set(current: dict) -> Optional[set]:
     """Subsidiary SIDs this user may read; None = unrestricted."""
     allowed = (current.get("subsidiaries") or "").strip()
