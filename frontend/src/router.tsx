@@ -8,6 +8,7 @@ import Products              from './pages/sales/Products'
 import Transactions          from './pages/sales/Transactions'
 import DataModelSettings     from './pages/settings/DataModelSettings'
 import UsersManagement       from './pages/settings/UsersManagement'
+import AuditLog              from './pages/settings/AuditLog'
 import InventoryOverview     from './pages/inventory/Overview'
 import InventoryMovement     from './pages/inventory/Movement'
 import InventoryTransfers    from './pages/inventory/Transfers'
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       { path: 'dimensions/vendors',      element: <DimVendors />            },
       { path: 'settings',               element: <ProtectedRoute adminOnly><DataModelSettings /></ProtectedRoute> },
       { path: 'settings/users',         element: <ProtectedRoute adminOnly><UsersManagement /></ProtectedRoute>   },
+      { path: 'settings/audit',         element: <ProtectedRoute adminOnly><AuditLog /></ProtectedRoute>          },
     ],
   },
 ])
