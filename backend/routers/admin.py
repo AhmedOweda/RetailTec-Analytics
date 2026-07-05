@@ -9,12 +9,12 @@ POST /api/admin/email/test   — send a test email to a given address (admin)
 """
 import shutil
 import smtplib
-from datetime import datetime
+from datetime import datetime, date
 from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from db.model import DB_LOCK, get_db, _db_path, _current_settings_host, record_audit
@@ -202,13 +202,24 @@ def test_email(req: TestEmailReq, _admin: dict = Depends(require_admin)):
 # ── Audit log viewer ───────────────────────────────────────────────────────────
 
 @router.get("/api/admin/audit")
-def get_audit(limit: int = 500, _admin: dict = Depends(require_admin)):
+def get_audit(limit: int = 500,
+              date_from: Optional[date] = Query(None),
+              date_to:   Optional[date] = Query(None),
+              _admin: dict = Depends(require_admin)):
     limit = max(1, min(int(limit), 5000))
+    where, params = "", []
+    if date_from is not None:
+        where += " AND CAST(ts AS DATE) >= ?"
+        params.append(date_from)
+    if date_to is not None:
+        where += " AND CAST(ts AS DATE) <= ?"
+        params.append(date_to)
     with DB_LOCK:
         cur = get_db().cursor()
     try:
         rel = cur.execute(
-            f"SELECT ts, username, action, detail FROM AUDIT_LOG ORDER BY ts DESC LIMIT {limit}")
+            f"SELECT ts, username, action, detail FROM AUDIT_LOG WHERE 1=1 {where} "
+            f"ORDER BY ts DESC LIMIT {limit}", params)
         cols = [d[0] for d in rel.description]
         return [dict(zip(cols, r)) for r in rel.fetchall()]
     finally:

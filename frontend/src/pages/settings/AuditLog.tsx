@@ -6,7 +6,7 @@
  * the analytics pages (AG Grid + GridExportBar).
  */
 import { useRef, useMemo, useState } from 'react'
-import { Box, Typography, Stack, Button, Select, MenuItem, FormControl, InputLabel, Alert } from '@mui/material'
+import { Box, Typography, Stack, Button, Select, MenuItem, FormControl, InputLabel, Alert, TextField } from '@mui/material'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AgGridReact } from 'ag-grid-react'
@@ -78,10 +78,17 @@ export default function AuditLog() {
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('audit-log')
   const [limit, setLimit] = useState(500)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo,   setDateTo]   = useState('')
 
   const { data: rows = [], isLoading, error } = useQuery<AuditRow[]>({
-    queryKey: ['audit', limit],
-    queryFn:  () => api.get('/api/admin/audit?limit=' + limit).then(r => r.data),
+    queryKey: ['audit', limit, dateFrom, dateTo],
+    queryFn:  () => {
+      const qs = new URLSearchParams({ limit: String(limit) })
+      if (dateFrom) qs.set('date_from', dateFrom)
+      if (dateTo)   qs.set('date_to',   dateTo)
+      return api.get('/api/admin/audit?' + qs.toString()).then(r => r.data)
+    },
   })
 
   const colDefs = useMemo<any[]>(() => [
@@ -119,6 +126,16 @@ export default function AuditLog() {
               ))}
             </Select>
           </FormControl>
+          <TextField type="date" size="small" label={tr('From')} value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }} />
+          <TextField type="date" size="small" label={tr('To')} value={dateTo}
+            onChange={e => setDateTo(e.target.value)} InputLabelProps={{ shrink: true }}
+            sx={{ width: 150 }} />
+          {(dateFrom || dateTo) && (
+            <Button size="small" onClick={() => { setDateFrom(''); setDateTo('') }}
+              sx={{ textTransform:'none', color:'#64748b', minWidth:0 }}>{tr('Clear')}</Button>
+          )}
           <Button size="small" variant="outlined" startIcon={<RefreshIcon sx={{ fontSize: '17px !important' }} />}
             onClick={() => qc.invalidateQueries({ queryKey: ['audit'] })}
             sx={{ textTransform:'none', borderRadius:2, fontWeight:600, height:32,
