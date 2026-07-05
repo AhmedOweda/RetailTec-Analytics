@@ -12,6 +12,7 @@ import axios from 'axios'
 import { useRef } from 'react'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
@@ -162,7 +163,7 @@ export default function DimCustomers() {
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('CRM — Customer Intelligence')}</Typography>
+        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('CRM — Customer Intelligence')}<TitleLoader /></Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
           <TextField size="small" label={tr('From')} type="date" value={dateFrom}
             onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />

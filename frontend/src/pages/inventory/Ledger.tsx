@@ -19,6 +19,7 @@ import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 
 // ── Colours ─────────────────────────────────────────────────────────────────
 const ACCENT    = '#7c3aed'
@@ -219,6 +220,7 @@ export default function InventoryLedger() {
       }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Inventory Ledger')}
+          <TitleLoader />
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
           {dateFrom} — {dateTo}

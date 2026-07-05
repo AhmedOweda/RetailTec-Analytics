@@ -18,6 +18,7 @@ import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -201,6 +202,7 @@ export default function PurchasesTransactions() {
       }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Purchase Transactions')}
+          <TitleLoader />
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
           {dateFrom} — {dateTo}

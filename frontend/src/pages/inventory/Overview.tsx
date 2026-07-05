@@ -24,6 +24,7 @@ import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
@@ -432,6 +433,7 @@ export default function InventoryOverview() {
                  borderBottom: '1px solid #e9e4ff', px: 3, pt: 3, pb: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Stock Levels')}
+          <TitleLoader />
         </Typography>
         <Typography sx={{ fontSize: 12, color: C_SLATE, mb: 1.5 }}>
           {tr('Current on-hand snapshot · refreshed on each data sync')}

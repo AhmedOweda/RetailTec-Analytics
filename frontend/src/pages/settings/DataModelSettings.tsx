@@ -28,6 +28,7 @@ import axios from 'axios'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
 import { ITEM_FIELDS, itemFieldLabel } from '../../utils/itemFields'
 import { tr, trf } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 
 const ACCENT = '#7c3aed'
 
@@ -274,7 +275,7 @@ export default function DataModelSettings() {
                // for every shrunk label on this page.
                '& .MuiInputLabel-shrink ~ .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline legend':
                  { maxWidth: '100%' } }}>
-      <Typography variant="h6" sx={{ fontWeight:700, color:'#0f172a', mb:0.5 }}>{tr('Settings')}</Typography>
+      <Typography variant="h6" sx={{ fontWeight:700, color:'#0f172a', mb:0.5 }}>{tr('Settings')}<TitleLoader /></Typography>
       <Typography sx={{ fontSize:13, color:'#64748b', mb:3 }}>
         {tr('Configure Oracle connection and data model refresh behaviour.')}
       </Typography>
