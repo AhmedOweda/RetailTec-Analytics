@@ -32,6 +32,7 @@ interface User {
   is_active:  boolean
   created_at: string
   pages:      string | null
+  subsidiaries: string | null
 }
 
 interface UserForm {
@@ -42,11 +43,12 @@ interface UserForm {
   stores:    string
   is_active: boolean
   pages:     string   // CSV of page keys; '' = all pages
+  subsidiaries: string   // CSV of subsidiary SIDs; '' = all subsidiaries
 }
 
 const emptyForm = (): UserForm => ({
   username: '', password: '', role: 'viewer',
-  full_name: '', stores: '', is_active: true, pages: '',
+  full_name: '', stores: '', is_active: true, pages: '', subsidiaries: '',
 })
 
 const ROLE_COLORS: Record<string, string> = {
@@ -181,6 +183,13 @@ export default function UsersManagement() {
     staleTime: Infinity,
   })
 
+  const { data: subsidiaryList = [] } = useQuery<{ sid: string; name: string }[]>({
+    queryKey: ['subsidiaries-list'],
+    queryFn:  () => axios.get('/api/sales/subsidiaries-list').then(r => r.data),
+    staleTime: Infinity,
+    retry: false,
+  })
+
   // ── Dialog state ───────────────────────────────────────────────────────────
   const [open,          setOpen]          = useState(false)
   const [editId,        setEditId]        = useState<number | null>(null)
@@ -195,6 +204,12 @@ export default function UsersManagement() {
     [form.stores]
   )
 
+  // Selected subsidiary SIDs (CSV ↔ string[]). Empty = all subsidiaries.
+  const selectedSubs = useMemo(
+    () => form.subsidiaries ? form.subsidiaries.split(',').map(s => s.trim()).filter(Boolean) : [],
+    [form.subsidiaries]
+  )
+
   // ── Create ─────────────────────────────────────────────────────────────────
   const createMut = useMutation({
     mutationFn: (f: UserForm) => api.post('/api/auth/users', {
@@ -204,6 +219,7 @@ export default function UsersManagement() {
       full_name: f.full_name.trim(),
       stores:    f.stores.trim() || null,
       pages:     f.role === 'admin' ? null : (f.pages.trim() || null),
+      subsidiaries: f.subsidiaries.trim() || null,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['auth-users'] }); closeDialog() },
     onError:   (e: any) => setFormErr(e?.response?.data?.detail ?? tr('Error creating user')),
@@ -218,6 +234,7 @@ export default function UsersManagement() {
       stores:    f.stores.trim() || null,
       is_active: f.is_active,
       pages:     f.role === 'admin' ? '' : f.pages.trim(),   // '' = all pages
+      subsidiaries: f.subsidiaries.trim(),   // '' = all subsidiaries
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['auth-users'] }); closeDialog() },
     onError:   (e: any) => setFormErr(e?.response?.data?.detail ?? tr('Error updating user')),
@@ -238,7 +255,8 @@ export default function UsersManagement() {
     setEditId(u.id)
     setForm({ username: u.username, password: '', role: u.role,
               full_name: u.full_name ?? '', stores: u.stores ?? '',
-              is_active: u.is_active, pages: u.pages ?? '' })
+              is_active: u.is_active, pages: u.pages ?? '',
+              subsidiaries: u.subsidiaries ?? '' })
     setFormErr(null); setOpen(true)
   }
 
@@ -457,6 +475,61 @@ export default function UsersManagement() {
               ))}
             </Box>
           </Box>
+
+          {/* ── Subsidiary Access ────────────────────────────────────── */}
+          {subsidiaryList.length > 1 && (
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
+                <Typography fontSize={12} fontWeight={600} color="#475569"
+                  sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <StorefrontIcon sx={{ fontSize: 15 }} /> {tr('Subsidiaries')}
+                </Typography>
+                <Typography fontSize={11} fontWeight={600}
+                  color={selectedSubs.length === 0 ? '#10b981' : '#6366f1'}>
+                  {selectedSubs.length === 0
+                    ? tr('All subsidiaries (no restriction)')
+                    : trf('{{n}} of {{b}} subsidiaries', { n: selectedSubs.length, b: subsidiaryList.length })}
+                </Typography>
+              </Box>
+              <FormControl size="small" fullWidth>
+                <Select
+                  multiple
+                  displayEmpty
+                  value={selectedSubs}
+                  onChange={e => {
+                    const val = e.target.value
+                    const arr = typeof val === 'string' ? val.split(',') : val
+                    setForm(f => ({ ...f, subsidiaries: arr.filter(Boolean).join(',') }))
+                  }}
+                  renderValue={(sel) => {
+                    const arr = sel as string[]
+                    if (arr.length === 0) {
+                      return <em style={{ color: '#94a3b8' }}>{tr('All subsidiaries (no restriction)')}</em>
+                    }
+                    return (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4 }}>
+                        {arr.map(sid => {
+                          const s = subsidiaryList.find(x => x.sid === sid)
+                          return (
+                            <Chip key={sid} label={s?.name ?? sid} size="small"
+                              sx={{ fontSize: 10, height: 18, bgcolor: '#ede9fe', color: '#6366f1', fontWeight: 600 }} />
+                          )
+                        })}
+                      </Box>
+                    )
+                  }}
+                >
+                  {subsidiaryList.map(s => (
+                    <MenuItem key={s.sid} value={s.sid} sx={{ fontSize: 13 }}>
+                      <Checkbox checked={selectedSubs.includes(s.sid)} size="small"
+                        sx={{ p: 0.3, mr: 1, color: '#6366f1', '&.Mui-checked': { color: '#6366f1' } }} />
+                      {s.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          )}
 
           {/* ── Page Access (per domain) — admins always see everything ── */}
           {form.role !== 'admin' && (() => {

@@ -7,6 +7,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Box, Tooltip, Typography, Divider, CircularProgress,
   IconButton, Collapse, Dialog, TextField, Button,
+  Select, MenuItem,
 } from '@mui/material'
 import DashboardIcon        from '@mui/icons-material/Dashboard'
 import TrendingUpIcon       from '@mui/icons-material/TrendingUp'
@@ -30,8 +31,10 @@ import ExpandMoreIcon      from '@mui/icons-material/ExpandMore'
 import LogoutIcon         from '@mui/icons-material/Logout'
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import HistoryIcon        from '@mui/icons-material/History'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios             from 'axios'
+import api               from '../api/client'
+import { getSubsidiary, setSubsidiary } from '../state/subsidiary'
 import { useAuth }       from '../contexts/AuthContext'
 import { useTranslation } from 'react-i18next'
 import { tr } from '../i18n'
@@ -182,6 +185,54 @@ function SyncBadge() {
         {data.step || 'Syncing'}…
       </Typography>
     </Box>
+  )
+}
+
+// ── Global subsidiary selector ─────────────────────────────────────────────
+// Shown only when the user has access to MORE THAN ONE subsidiary. Changing it
+// stores the SID in the module store and invalidates ALL queries, so every
+// active page refetches — and the axios interceptor then appends the new
+// `subsidiaries` param to each sales/inventory/purchases request.
+function SubsidiarySelect() {
+  const qc = useQueryClient()
+  const [sid, setSid] = useState<string>(getSubsidiary())
+
+  const { data: subs = [] } = useQuery<{ sid: string; name: string }[]>({
+    queryKey: ['subsidiaries-list'],
+    queryFn:  () => api.get('/api/sales/subsidiaries-list').then(r => r.data),
+    staleTime: Infinity,
+    retry: false,
+  })
+
+  // Hidden for single-subsidiary / no-subsidiary customers.
+  if (subs.length <= 1) return null
+
+  const onChange = (next: string) => {
+    setSid(next)
+    setSubsidiary(next)
+    qc.invalidateQueries()   // refetch every active query with the new filter
+  }
+
+  return (
+    <Select
+      value={sid}
+      onChange={e => onChange(e.target.value)}
+      size="small"
+      displayEmpty
+      MenuProps={{ disableScrollLock: true }}
+      sx={{
+        minWidth: 140, height: 30, fontSize: 12, fontWeight: 600,
+        color: '#475569', bgcolor: 'rgba(124,58,237,0.06)', borderRadius: 99,
+        '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(124,58,237,0.12)' },
+        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(124,58,237,0.30)' },
+        '& .MuiSelect-select': { py: 0.5, pl: 1.5 },
+      }}
+    >
+      <MenuItem value="" sx={{ fontSize: 12 }}>{tr('All Subsidiaries')}</MenuItem>
+      {subs.map(s => (
+        <MenuItem key={s.sid} value={s.sid} sx={{ fontSize: 12 }}>{s.name}</MenuItem>
+      ))}
+    </Select>
   )
 }
 
@@ -490,6 +541,7 @@ export default function AppShell() {
             </Box>
           </Box>
           <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
+            <SubsidiarySelect />
             <ValidationBadge />
             <SyncBadge />
             <Box sx={{
