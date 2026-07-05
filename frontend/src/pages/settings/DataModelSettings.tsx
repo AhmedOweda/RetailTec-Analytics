@@ -192,6 +192,7 @@ export default function DataModelSettings() {
   const [brandName, setBrandName]     = useState('')  // whitelabel product name
   const [brandLogo, setBrandLogo]     = useState('')  // base64 data-URL or empty
   const [autoMaint, setAutoMaint]     = useState(true) // weekly auto-maintenance
+  const [backupKeep, setBackupKeep]   = useState(6)    // monthly backups to keep
 
   useEffect(() => {
     if (settings) {
@@ -201,6 +202,7 @@ export default function DataModelSettings() {
       setBrandName(settings.brand_name ?? '')
       setBrandLogo(settings.brand_logo ?? '')
       setAutoMaint(settings.auto_maintenance !== false)
+      setBackupKeep(Number(settings.backup_retention ?? 6) || 6)
     }
   }, [settings])
 
@@ -221,7 +223,8 @@ export default function DataModelSettings() {
 
   const saveSettings = useMutation({
     mutationFn: () => axios.put('/api/settings', { connection: conn, data_model: dm,
-      brand_name: brandName, brand_logo: brandLogo, auto_maintenance: autoMaint }),
+      brand_name: brandName, brand_logo: brandLogo, auto_maintenance: autoMaint,
+      backup_retention: backupKeep }),
     onSuccess: (res) => {
       setSaveErr('')
       qc.invalidateQueries({ queryKey:['settings'] })
@@ -892,6 +895,15 @@ export default function DataModelSettings() {
         <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.5 }}>
           {tr('Runs a weekly CHECKPOINT to flush pending writes and reclaim space. Safe to leave on. Remember to Save Settings.')}
         </Typography>
+        <Box sx={{ mt:1.75, display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
+          <TextField type="number" size="small" label={tr('Monthly backups to keep')}
+            value={backupKeep} disabled={!autoMaint}
+            onChange={e => setBackupKeep(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+            InputLabelProps={{ shrink:true }} inputProps={{ min:1, max:60 }} sx={{ width:190 }} />
+          <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
+            {tr('A backup runs monthly; older backups beyond this count are deleted.')}
+          </Typography>
+        </Box>
       </SectionCard>
       {/* ── About & Diagnostics (read-only) ──────────────────────── */}
       <AboutCard />
