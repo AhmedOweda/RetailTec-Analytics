@@ -108,6 +108,8 @@ const ar_strings: Record<string, string> = {
   'Stock by Department': 'المخزون حسب القسم',
   'DCS Hierarchy — Drill-down Sunburst': 'التسلسل الهرمي للأقسام',
   'Top Departments by Revenue': 'أعلى الأقسام حسب الإيرادات',
+  'Department Margin vs Volume': 'هامش الأقسام مقابل الحجم',
+  'Revenue × GP% · bubble size = units sold': 'الإيرادات × نسبة الربح · حجم الفقاعة = عدد الوحدات المباعة',
   'Loading…': 'جارٍ التحميل…',
   'Top Item Vendors by Stock Value': 'أعلى موردي الأصناف حسب قيمة المخزون',
   'Stock by Store': 'المخزون حسب الفرع',
