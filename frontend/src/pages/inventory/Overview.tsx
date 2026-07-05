@@ -200,39 +200,84 @@ export default function InventoryOverview() {
 
   const noData = kpi.skus === 0 && kpi.stockCost === 0
 
-  // ── Department treemap option ──────────────────────────────────────────────
-  const treemapOpt = useMemo(() => {
-    const rows = (deptData as any[])
-    if (!rows.length) return {}
-    const data = rows.map((r, i) => ({
-      name:  r.department ?? '(Unknown)',
-      value: +(r.cost_value ?? 0),
-      label: { show: true },
-      itemStyle: { color: DEPT_COLORS[i % 10] },
-      gm_pct: r.gm_pct,
-    }))
+  // ── Department Cost vs Margin bubble option ────────────────────────────────
+  //  x = cost value, y = GM%, bubble size = units on-hand, colour = margin tier.
+  //  Replaces the old "Stock by Department" treemap (redundant with the DCS
+  //  treemap below); this reveals which departments tie up cost at high vs low
+  //  margin. A dashed line marks the cost-weighted average GM%.
+  const deptBubbleOpt = useMemo(() => {
+    const all = (deptData as any[])
+    if (!all.length) return {}
+
+    const tierColor = (gm: number) => gm >= 30 ? C_GREEN : gm >= 10 ? C_AMBER : C_ROSE
+
+    const qtys   = all.map(r => +(r.total_qty ?? 0))
+    const maxQty = Math.max(1, ...qtys)
+
+    // Cost-weighted average GM% across departments for the reference line.
+    const totCost   = all.reduce((s, r) => s + +(r.cost_value ?? 0), 0)
+    const totRetail = all.reduce((s, r) => s + +(r.retail_value ?? 0), 0)
+    const avgGm     = totRetail > 0 ? ((totRetail - totCost) / totRetail * 100) : 0
+
+    const data = all.map(r => {
+      const gm = +(r.gm_pct ?? 0)
+      return {
+        value: [+(r.cost_value ?? 0), gm],
+        name:  r.department ?? '(Unknown)',
+        _cost: +(r.cost_value ?? 0), _retail: +(r.retail_value ?? 0),
+        _gm: gm, _qty: +(r.total_qty ?? 0), _skus: +(r.sku_count ?? 0),
+        symbolSize: 14 + Math.sqrt((+(r.total_qty ?? 0)) / maxQty) * 46,
+        itemStyle: { color: tierColor(gm), opacity: 0.82, borderColor: '#fff', borderWidth: 1.5 },
+      }
+    })
+
     return {
+      grid: { top: 16, right: 24, bottom: 44, left: 8, containLabel: true },
       tooltip: {
+        trigger: 'item',
         formatter: (p: any) => {
-          const d = p.data
-          return `<b>${d.name}</b><br/>Cost Value: <b>${num(d.value)}</b><br/>GM: <b>${d.gm_pct ?? 0}%</b>`
+          const d  = p.data ?? {}
+          const gc = gmColorOf(+(d._gm ?? 0))
+          return `<div style="min-width:180px">
+            <b>${d.name}</b><br/>
+            Cost Value: <b>${num(+(d._cost ?? 0))}</b><br/>
+            Retail Value: ${num(+(d._retail ?? 0))}<br/>
+            GM%: <b style="color:${gc}">${(+(d._gm ?? 0)).toFixed(1)}%</b><br/>
+            Units: ${num(+(d._qty ?? 0))}<br/>
+            SKUs: ${(+(d._skus ?? 0)).toLocaleString('en-US')}
+          </div>`
         },
       },
+      xAxis: {
+        type: 'value', name: 'Cost Value', nameLocation: 'middle', nameGap: 28,
+        nameTextStyle: { color: C_SLATE, fontSize: 11 },
+        axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => num(v) },
+        splitLine: { lineStyle: { color: '#f1f5f9' } },
+      },
+      yAxis: {
+        type: 'value', name: 'GM %', nameLocation: 'middle', nameGap: 36,
+        nameTextStyle: { color: C_SLATE, fontSize: 11 },
+        axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => `${v}%` },
+        splitLine: { lineStyle: { color: '#f1f5f9' } },
+      },
       series: [{
-        type: 'treemap',
+        type: 'scatter',
         data,
-        roam: false,
-        nodeClick: false,
-        breadcrumb: { show: false },
-        label: { show: true, fontSize: 11, color: '#fff', fontWeight: 700, overflow: 'truncate',
-                 formatter: (p: any) => `${p.name}\n${num(p.value)}` },
-        itemStyle: { borderWidth: 2, borderColor: '#fff', gapWidth: 2 },
-        levels: [{ itemStyle: { borderWidth: 2, borderColor: '#fff', gapWidth: 2 } }],
+        label: {
+          show: true, position: 'top', fontSize: 10, color: '#475569', fontWeight: 600,
+          formatter: (p: any) => p.data?.name ?? '',
+        },
+        emphasis: { focus: 'self', label: { fontWeight: 800, color: '#1e293b' } },
+        markLine: {
+          silent: true, symbol: 'none',
+          lineStyle: { color: C_AMBER, type: 'dashed', width: 1.5 },
+          data: [{ yAxis: avgGm, label: { formatter: `Avg GM ${avgGm.toFixed(1)}%`, color: C_AMBER, fontSize: 10, position: 'insideEndTop' } }],
+        },
       }],
     }
   }, [deptData])
 
-  // ── DCS Sunburst option ────────────────────────────────────────────────────
+  // ── DCS Treemap option (drill-down: Dept → Class → Subclass) ───────────────
   const sunburstOpt = useMemo(() => {
     const rows = (dcsData as any[])
     if (!rows.length) return {}
@@ -248,6 +293,10 @@ export default function InventoryOverview() {
       deptMap[dept].classMap[cls].value += val
       deptMap[dept].classMap[cls].subMap[sub] = (deptMap[dept].classMap[cls].subMap[sub] || 0) + val
     })
+
+    // Grand total across all leaves — for share-of-total in the tooltip.
+    const grandTotal = rows.reduce((s, r) => s + +(r.cost_value ?? 0), 0)
+
     const data = Object.entries(deptMap).map(([dname, d]) => ({
       name: dname, value: d.value, itemStyle: { color: d.color },
       children: Object.entries(d.classMap).map(([cname, c]) => ({
@@ -258,31 +307,62 @@ export default function InventoryOverview() {
     return {
       tooltip: {
         formatter: (p: any) => {
-          const path = (p.treePathInfo as any[] ?? []).slice(1).map((n: any) => n.name).join(' › ')
-          return `<div style="min-width:170px"><b>${path || p.name}</b><br/>Cost Value: <b>${num(p.value)}</b><br/><span style="font-size:10px;color:#94a3b8">Click to drill · Click center to go up</span></div>`
+          const trail = (p.treePathInfo as any[] ?? []).slice(1)
+          const path  = trail.map((n: any) => n.name).join(' › ')
+          const level = ['Department', 'Class', 'Subclass'][trail.length - 1] ?? ''
+          const shr   = grandTotal > 0 ? (+p.value / grandTotal * 100).toFixed(1) : '0'
+          return `<div style="min-width:200px">
+            ${level ? `<div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px">${level}</div>` : ''}
+            <b>${path || p.name}</b><br/>
+            Cost Value: <b>${num(+p.value)}</b><br/>
+            Share of total: ${shr}%<br/>
+            <span style="font-size:10px;color:#94a3b8">Click a box to drill down · breadcrumb to go back</span>
+          </div>`
         },
       },
       series: [{
-        // Readability: labels only on slices wide enough to read (minAngle);
-        // the outer subclass ring is unlabeled at root — click a department
-        // to zoom in and its class/subclass labels become large and readable.
-        // Everything is always available in the tooltip.
-        type: 'sunburst', data, radius: ['20%', '90%'], sort: 'desc', nodeClick: 'rootToNode',
-        emphasis: { focus: 'ancestor', itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' } },
-        label: { minAngle: 14 },
+        type:          'treemap',
+        data,
+        roam:          false,
+        nodeClick:     'zoomToNode',
+        leafDepth:     2,            // show Dept → Class at once; click to drill into Subclass
+        drillDownIcon: '▸',
+        width:  '100%', height: '100%',
+        top: 4, left: 4, right: 4, bottom: 26,
+        visibleMin: 300,            // suppress unreadable slivers; still reachable via drill
+        label: {
+          show:            true,
+          formatter:       '{b}',
+          color:           '#fff',
+          fontSize:        12,
+          fontWeight:      600,
+          overflow:        'truncate',
+          textBorderColor: 'rgba(0,0,0,0.35)',
+          textBorderWidth: 2,
+        },
+        upperLabel: {                // parent-name band when a level contains children
+          show:            true,
+          height:          22,
+          color:           '#fff',
+          fontSize:        12,
+          fontWeight:      700,
+          textBorderColor: 'rgba(0,0,0,0.30)',
+          textBorderWidth: 2,
+        },
+        itemStyle: { borderColor: '#fff', borderWidth: 2, gapWidth: 2 },
+        emphasis:  { upperLabel: { color: '#fff' } },
+        breadcrumb: {
+          show: true, height: 22, bottom: 0,
+          itemStyle: { color: '#ede9fe', borderColor: '#ddd6fe',
+                       textStyle: { color: '#5b21b6', fontSize: 11 } },
+          emphasis:  { itemStyle: { color: '#ddd6fe' } },
+        },
         levels: [
-          {},
-          { r0: '20%', r: '50%',
-            label: { rotate: 'tangential', fontSize: 11, color: '#fff', fontWeight: 700,
-                     minAngle: 10, overflow: 'truncate', width: 80 },
-            itemStyle: { borderWidth: 2, borderColor: '#fff' } },
-          { r0: '51%', r: '74%',
-            label: { rotate: 'radial', fontSize: 10, color: '#fff',
-                     minAngle: 14, overflow: 'truncate', width: 70 },
-            itemStyle: { borderWidth: 1.5, borderColor: '#fff' } },
-          { r0: '75%', r: '90%',
-            label: { show: false },
-            itemStyle: { borderWidth: 1, borderColor: '#fff', opacity: 0.85 } },
+          { itemStyle: { borderColor: '#fff', borderWidth: 3, gapWidth: 3 } },
+          { colorSaturation: [0.32, 0.55],
+            itemStyle: { borderColor: '#fff', borderColorSaturation: 0.6, borderWidth: 2, gapWidth: 2 } },
+          { colorSaturation: [0.25, 0.48],
+            itemStyle: { borderColorSaturation: 0.5, borderWidth: 1, gapWidth: 1 } },
         ],
       }],
     }
@@ -491,9 +571,11 @@ export default function InventoryOverview() {
 
         {/* ── Row 1: Treemap + Sunburst ── */}
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 2 }}>
-          <ChartCard title="Stock by Department" subtitle="Block size = cost value · colour = dept" option={treemapOpt} height={340} />
-          <ChartCard title="DCS Hierarchy — Drill-down Sunburst"
-            subtitle="Dept › Class › Subclass · click a department to zoom in (labels get readable) · click centre to go back · hover for details"
+          <ChartCard title="Department Cost vs Margin"
+            subtitle="x = cost value · y = GM% · bubble size = units on-hand · colour = margin tier"
+            option={deptBubbleOpt} height={340} />
+          <ChartCard title="DCS Hierarchy — Treemap"
+            subtitle="Dept › Class › Subclass · click a box to drill down · breadcrumb to go back"
             option={sunburstOpt} height={340} />
         </Box>
 

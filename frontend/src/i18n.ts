@@ -107,6 +107,12 @@ const ar_strings: Record<string, string> = {
   // ── Chart titles / subtitles ──
   'Stock by Department': 'المخزون حسب القسم',
   'DCS Hierarchy — Drill-down Sunburst': 'التسلسل الهرمي للأقسام',
+  'DCS Hierarchy — Treemap': 'التسلسل الهرمي للأقسام — خريطة شجرية',
+  'Dept › Class › Subclass · click a box to drill down · breadcrumb to go back':
+    'قسم › فئة › فئة فرعية · انقر على المربع للتعمق · مسار التنقل للرجوع',
+  'Department Cost vs Margin': 'تكلفة القسم مقابل الهامش',
+  'x = cost value · y = GM% · bubble size = units on-hand · colour = margin tier':
+    'المحور الأفقي = قيمة التكلفة · العمودي = نسبة الهامش · حجم الفقاعة = الوحدات المتوفرة · اللون = فئة الهامش',
   'Top Departments by Revenue': 'أعلى الأقسام حسب الإيرادات',
   'Department Margin vs Volume': 'هامش الأقسام مقابل الحجم',
   'Revenue × GP% · bubble size = units sold': 'الإيرادات × نسبة الربح · حجم الفقاعة = عدد الوحدات المباعة',
