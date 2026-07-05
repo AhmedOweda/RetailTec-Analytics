@@ -22,6 +22,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import TitleLoader from '../../components/TitleLoader'
 import { format, subDays, startOfMonth } from 'date-fns'
 import { num }           from '../../utils/formatters'
 import * as XLSX         from 'xlsx'
@@ -264,6 +265,7 @@ export default function Transactions() {
                  display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mr:'auto' }}>
           {tr('Transactions')}
+          <TitleLoader />
         </Typography>
 
         {/* Period selector */}
@@ -418,10 +420,6 @@ export default function Transactions() {
       {/* == AG Grid == */}
       <Box className="ag-theme-alpine" sx={{
         flex:1, width:'100%', minHeight:0,
-        borderRadius:2, overflow:'hidden',
-        boxShadow:'0 1px 4px rgba(15,23,42,.08)',
-        border:'1px solid #e2e8f0',
-        '& .ag-root-wrapper':{ borderRadius:2 },
         '& .ag-header':{ bgcolor:'#f8f7ff !important', borderBottom:'1px solid #e9e4ff' },
         '& .ag-header-cell-text':{ fontWeight:700, color:'#374151', fontSize:12 },
         '& .ag-row-even':{ bgcolor:'#ffffff' },
