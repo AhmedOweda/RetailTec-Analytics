@@ -243,6 +243,9 @@ const ar_strings: Record<string, string> = {
   // Automatic maintenance
   'Automatic Maintenance': 'الصيانة التلقائية',
   'Weekly automatic maintenance': 'صيانة تلقائية أسبوعية',
+  'Monthly backups to keep': 'عدد النسخ الاحتياطية الشهرية المحتفظ بها',
+  'A backup runs monthly; older backups beyond this count are deleted.':
+    'تُنشأ نسخة احتياطية شهريًا، وتُحذف النسخ الأقدم بعد هذا العدد.',
   'Runs a weekly CHECKPOINT to flush pending writes and reclaim space. Safe to leave on. Remember to Save Settings.':
     'تشغّل نقطة تحقق أسبوعية لتفريغ الكتابات المعلّقة واستعادة المساحة. آمنة لتركها مفعّلة. تذكّر حفظ الإعدادات.',
   // First-run wizard
