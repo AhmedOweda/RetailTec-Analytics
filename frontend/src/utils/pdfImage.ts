@@ -70,15 +70,17 @@ export async function arabicTableToPdf(doc: jsPDF, opts: ArabicTableOpts): Promi
       // and read right-to-left even inside an LTR (English) table.
       const isAr = AR_RE.test(s)
       const align = isAr ? 'right' : 'left'
-      return `<td style="background:${bg};color:#1e293b;font-size:16px;padding:8px 14px;border:1px solid #e2e8f0;text-align:${align};unicode-bidi:plaintext;white-space:nowrap">${esc(s)}</td>`
+      return `<td style="background:${bg};color:#1e293b;font-size:16px;padding:8px 14px;border:1px solid #e2e8f0;text-align:${align};unicode-bidi:plaintext;white-space:normal;word-break:break-word">${esc(s)}</td>`
     }).join('')
     return `<tr>${cells}</tr>`
   }).join('')
 
   const el = document.createElement('div')
+  // Widen the render canvas for wide tables so no right-edge columns get clipped.
+  const canvasWidth = Math.max(1600, head.length * 145)
   el.style.cssText = [
     'position:absolute', 'left:-10000px', 'top:0',
-    'width:1600px', 'background:#ffffff', 'padding:24px',
+    `width:${canvasWidth}px`, 'background:#ffffff', 'padding:24px',
     `direction:${rtl ? 'rtl' : 'ltr'}`,
     "font-family:'Cairo','Segoe UI','Tahoma','Arial',sans-serif",
     'box-sizing:border-box',
