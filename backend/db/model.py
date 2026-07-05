@@ -551,6 +551,27 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     con.execute("CREATE INDEX IF NOT EXISTS idx_date_year     ON DIM_DATE(YEAR)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_date_month    ON DIM_DATE(YEAR, MONTH_NUM)")
 
+    # ── Multi-subsidiary: give DIM_STORE a subsidiary link ────────────────────
+    # The source store load carries no subsidiary column, so derive each store's
+    # subsidiary from the sales facts (a store belongs to one subsidiary). This
+    # lets the subsidiary filter/scope compose with the existing DIM_STORE joins
+    # on every fact. Best-effort + idempotent; never breaks startup.
+    con.execute("ALTER TABLE DIM_STORE ADD COLUMN IF NOT EXISTS SUBSIDIARY_SID BIGINT")
+    try:
+        con.execute("""
+            UPDATE DIM_STORE SET SUBSIDIARY_SID = m.sbs
+            FROM (
+                SELECT STORE_SID, mode(SUBSIDIARY_SID) AS sbs
+                FROM FACT_SALES_DAILY
+                WHERE SUBSIDIARY_SID IS NOT NULL AND SUBSIDIARY_SID <> 0
+                GROUP BY STORE_SID
+            ) m
+            WHERE DIM_STORE.SID = m.STORE_SID
+              AND (DIM_STORE.SUBSIDIARY_SID IS NULL OR DIM_STORE.SUBSIDIARY_SID = 0)
+        """)
+    except Exception:
+        pass   # facts not loaded yet — populated on a later startup/sync
+
     # ── Users table (application auth — kept in same DB for now) ──────────────
     con.execute("""
         CREATE TABLE IF NOT EXISTS DIM_USERS (
@@ -567,6 +588,8 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     """)
     # Migration: per-user page permissions (CSV of page keys; NULL = all pages)
     con.execute("ALTER TABLE DIM_USERS ADD COLUMN IF NOT EXISTS pages VARCHAR")
+    # Migration: per-user subsidiary scope (CSV of subsidiary SIDs; NULL = all)
+    con.execute("ALTER TABLE DIM_USERS ADD COLUMN IF NOT EXISTS subsidiaries VARCHAR")
 
     # Audit trail: who did what, when (logins, user changes, settings, loads)
     con.execute("""
