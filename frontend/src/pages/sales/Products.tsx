@@ -24,6 +24,7 @@ import axios             from 'axios'
 import { format, subDays, startOfMonth, startOfYear } from 'date-fns'
 import { num }           from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
@@ -588,6 +589,7 @@ export default function Products() {
       }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Products')}
+          <TitleLoader />
         </Typography>
         <Typography sx={{ fontSize: 12, color: C_SLATE, mb: 1.5 }}>{from} → {to}</Typography>
 

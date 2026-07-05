@@ -4,6 +4,7 @@
  */
 import { useState, useMemo } from 'react'
 import { tr, trf } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 import {
   Box, Typography, Button, Dialog, DialogTitle, DialogContent,
   DialogActions, TextField, Select, MenuItem, FormControl, InputLabel,
@@ -262,7 +263,7 @@ export default function UsersManagement() {
     <Box sx={{ p: 3, maxWidth: 960, mx: 'auto' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Box>
-          <Typography variant="h5" fontWeight={700} color="#0f172a">{tr('Users Management')}</Typography>
+          <Typography variant="h5" fontWeight={700} color="#0f172a">{tr('Users Management')}<TitleLoader /></Typography>
           <Typography variant="body2" color="#64748b" mt={0.5}>
             {tr('Manage who can access RetailTec Analytics and what they can see.')}
           </Typography>

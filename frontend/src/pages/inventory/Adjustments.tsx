@@ -27,6 +27,7 @@ import GridExportBar            from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 
 // ── Colours ────────────────────────────────────────────────────────────────
 const ACCENT   = '#7c3aed'
@@ -289,6 +290,7 @@ export default function Adjustments() {
                  mx:-3, px:3, pt:3, pb:2, borderBottom:'1px solid #e9e4ff' }}>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
           {tr('Adjustments')}
+          <TitleLoader />
         </Typography>
         <Typography sx={{ fontSize:12, color:'#64748b', mb:1.5 }}>
           {dateFrom} — {dateTo}

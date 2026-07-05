@@ -12,6 +12,7 @@ import { useRef } from 'react'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
@@ -174,7 +175,7 @@ export default function DimItems() {
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('Item / SKU Intelligence')}</Typography>
+        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('Item / SKU Intelligence')}<TitleLoader /></Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
           <TextField size="small" label={tr('From')} type="date" value={dateFrom}
             onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />

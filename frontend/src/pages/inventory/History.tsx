@@ -13,6 +13,7 @@ import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
@@ -98,7 +99,7 @@ export default function InventoryHistory() {
       {/* ── Sticky filter bar ── */}
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('Inventory History')}</Typography>
+        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('Inventory History')}<TitleLoader /></Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap">
         <TextField size="small" label="From" type="date" value={dateFrom}
           onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />

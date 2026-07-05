@@ -6,6 +6,7 @@
  */
 import { useState, useMemo, useRef } from 'react'
 import { tr, trf, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 import {
   Box, Card, CardContent, Typography, Chip, Skeleton,
   TextField, Button, Divider, Autocomplete,
@@ -510,6 +511,7 @@ export default function Performance() {
           borderBottom:'1px solid #e9e4ff', px:3, pt:3, pb:2, mx:0 }}>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
           {tr('Performance')}
+          <TitleLoader />
         </Typography>
         <Typography sx={{ fontSize:12, color:C_SLATE, mb:1.5 }}>{from} → {to}</Typography>
 

@@ -4,6 +4,7 @@
 import { useState, useMemo, useRef } from 'react'
 import i18n from 'i18next'
 import { tr, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 import {
   Box, Card, CardContent, Typography, Divider,
   Skeleton, Alert, Chip,
@@ -682,6 +683,7 @@ export default function Overview() {
       <Box>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px' }}>
           {tr('Sales Overview')}
+          <TitleLoader />
         </Typography>
         <Typography sx={{ fontSize:13, color:'#94a3b8', mt:0.3 }}>
           {todayStr}

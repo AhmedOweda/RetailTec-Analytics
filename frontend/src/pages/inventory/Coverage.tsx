@@ -22,6 +22,7 @@ import axios from 'axios'
 import { useAppSettings } from '../../context/AppSettings'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { tr, trf, trCols } from '../../i18n'
+import TitleLoader from '../../components/TitleLoader'
 
 // ── Colours ────────────────────────────────────────────────────────────────────
 const C_PURPLE = '#7c3aed'
@@ -222,6 +223,7 @@ export default function InventoryCoverage() {
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5}>
           <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px' }}>
             {tr('Coverage & Replenishment Planning')}
+            <TitleLoader />
           </Typography>
           {isFetching && (
             <Typography sx={{ fontSize: 11, color: C_PURPLE, fontWeight: 600 }}>
