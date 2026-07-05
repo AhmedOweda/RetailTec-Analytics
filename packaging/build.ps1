@@ -31,6 +31,8 @@ Push-Location "$root\backend"
 & $py -m PyInstaller run_server.py `
     --name RetailTecAnalytics `
     --onedir --noconfirm --clean `
+    --noconsole `
+
     --distpath "$root\packaging\out" `
     --workpath "$root\packaging\work" `
     --specpath "$root\packaging" `

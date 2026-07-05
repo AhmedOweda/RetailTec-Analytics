@@ -15,6 +15,18 @@ if getattr(sys, "frozen", False):
     BASE = os.path.dirname(sys.executable)
     os.chdir(BASE)                 # settings.json, warehouse, backups live here
     sys.path.insert(0, BASE)
+    # Built as a windowed app (console=False) → there is NO console, so
+    # sys.stdout / sys.stderr are None. uvicorn and the logging module would
+    # crash writing to them. Redirect both to a rolling log file next to the exe.
+    try:
+        _logf = open(os.path.join(BASE, "retailtec.log"), "a",
+                     buffering=1, encoding="utf-8", errors="replace")
+        sys.stdout = _logf
+        sys.stderr = _logf
+    except Exception:
+        # Last resort: swallow output so a None stream never crashes the app.
+        import io
+        sys.stdout = sys.stderr = io.StringIO()
 
 PORT = int(os.environ.get("RETAILTEC_PORT", "3001"))
 
