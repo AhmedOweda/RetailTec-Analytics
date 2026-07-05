@@ -373,7 +373,7 @@ def transactions(
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
     search:    str  = Query(""),
-    limit:     Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
+    limit:     Optional[int] = Query(None, ge=0),   # 0 = all rows (frontend sends limit=0); None = no cap
     offset:    int  = Query(0, ge=0),
 ):
     lim = f"LIMIT {int(limit)}" if limit else ""
