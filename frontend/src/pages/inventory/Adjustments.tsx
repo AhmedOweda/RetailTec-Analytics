@@ -23,6 +23,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { EChartHandle } from '../../components/EChart'
 import KpiCard                  from '../../components/KpiCard'
+import { noRowsOverlay }         from '../../utils/gridOverlay'
 import GridExportBar            from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
@@ -370,6 +371,7 @@ export default function Adjustments() {
           <AgGridReact
             key={`tab-${tab}`}
             ref={gridRef}
+            overlayNoRowsTemplate={noRowsOverlay()}
             onGridReady={onColGridReady}
             onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged}

@@ -30,6 +30,7 @@ import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
 import { CHART_CATEGORICAL } from '../../theme/chartPalette'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 
 /* ── Theme ─────────────────────────────────────────────────────────── */
 const ACCENT  = '#7c3aed'
@@ -736,6 +737,7 @@ export default function Products() {
                   <AgGridReact
                     ref={gridRef}
                     key={`view-${view}`}
+                    overlayNoRowsTemplate={noRowsOverlay()}
                     onGridReady={onColGridReady}
                     onColumnMoved={onColumnChanged}
                     onColumnResized={onColumnChanged}

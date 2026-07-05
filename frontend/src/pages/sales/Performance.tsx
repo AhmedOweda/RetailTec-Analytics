@@ -23,6 +23,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery }       from '@tanstack/react-query'
 import axios              from 'axios'
+import { noRowsOverlay }  from '../../utils/gridOverlay'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar      from '../../components/GridExportBar'
 import { format, subDays, startOfMonth, startOfYear, subYears } from 'date-fns'
@@ -595,6 +596,7 @@ export default function Performance() {
               colDefs={assocCols as any} onResetColumns={colsAssoc.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
               <AgGridReact ref={assocGridRef} rowData={(assocData??[]) as any[]} columnDefs={trCols(assocCols as any[])}
+                overlayNoRowsTemplate={noRowsOverlay()}
                 onGridReady={colsAssoc.onGridReady} onColumnMoved={colsAssoc.onColumnChanged}
                 onColumnResized={colsAssoc.onColumnChanged} onColumnVisible={colsAssoc.onColumnChanged}
                 onColumnPinned={colsAssoc.onColumnChanged}
@@ -607,6 +609,7 @@ export default function Performance() {
               colDefs={custCols as any} onResetColumns={colsCust.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
               <AgGridReact ref={custGridRef} rowData={(custData??[]) as any[]} columnDefs={trCols(custCols as any[])}
+                overlayNoRowsTemplate={noRowsOverlay()}
                 onGridReady={colsCust.onGridReady} onColumnMoved={colsCust.onColumnChanged}
                 onColumnResized={colsCust.onColumnChanged} onColumnVisible={colsCust.onColumnChanged}
                 onColumnPinned={colsCust.onColumnChanged}

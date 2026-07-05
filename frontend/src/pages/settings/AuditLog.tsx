@@ -15,6 +15,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import api from '../../api/client'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -159,6 +160,7 @@ export default function AuditLog() {
         <div className="ag-theme-alpine" style={{ height: 560 }}>
           <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
             loading={isLoading}
+            overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             rowHeight={36} headerHeight={38} suppressCellFocus
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
