@@ -29,6 +29,7 @@ import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
+import { CHART_CATEGORICAL } from '../../theme/chartPalette'
 
 /* ── Theme ─────────────────────────────────────────────────────────── */
 const ACCENT  = '#7c3aed'
@@ -39,10 +40,8 @@ const C_ROSE  = '#f43f5e'
 const C_SLATE = '#94a3b8'
 const C_CYAN  = '#06b6d4'
 
-const DEPT_COLORS = [
-  ACCENT, C_CYAN, '#f97316', C_GREEN, '#8b5cf6',
-  '#ec4899', '#84cc16', '#14b8a6', C_AMBER, '#0ea5e9',
-]
+// Unified with the shared brand palette so department colours match app-wide.
+const DEPT_COLORS = CHART_CATEGORICAL
 
 /* ── Period presets ─────────────────────────────────────────────────── */
 const PERIODS = [

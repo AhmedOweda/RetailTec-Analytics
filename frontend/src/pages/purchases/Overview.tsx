@@ -15,6 +15,7 @@ import KpiCard      from '../../components/KpiCard'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
+import { CHART_CATEGORICAL } from '../../theme/chartPalette'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -181,6 +182,7 @@ export default function PurchasesOverview() {
   }, [deptQ.data])
 
   const storeOpt = useMemo(() => ({
+    color: CHART_CATEGORICAL,
     tooltip: { trigger: 'item', formatter: (p: any) => `${p.name}<br/>${fmtC(p.value)} (${p.percent}%)` },
     series: [{ type: 'pie', radius: ['42%', '68%'],
       data: (storeQ.data ?? []).map(r => ({ name: r.store_name, value: r.total_cost })),

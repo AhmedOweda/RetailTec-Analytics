@@ -7,6 +7,14 @@
  */
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import * as echarts from 'echarts'
+import { CHART_CATEGORICAL } from '../theme/chartPalette'
+
+// Inject the shared brand palette as a DEFAULT only. An option's own top-level
+// `color` always wins (spread last), so deliberate single-accent / semantic
+// charts are untouched; auto-coloured multi-series charts pick up the palette.
+function withPalette(option: echarts.EChartsCoreOption): echarts.EChartsCoreOption {
+  return { color: CHART_CATEGORICAL, ...(option as object) } as echarts.EChartsCoreOption
+}
 
 export interface EChartHandle {
   getEchartsInstance: () => echarts.ECharts | null
@@ -36,7 +44,7 @@ const EChart = forwardRef<EChartHandle, Props>(function EChart(
     if (!divRef.current) return
     const instance = echarts.init(divRef.current, undefined, opts)
     instRef.current = instance
-    instance.setOption(option, notMerge)
+    instance.setOption(withPalette(option), notMerge)
 
     // Resize when container dimensions change
     const ro = new ResizeObserver(() => instance.resize())
@@ -52,7 +60,7 @@ const EChart = forwardRef<EChartHandle, Props>(function EChart(
 
   // Re-apply option whenever it changes (data arrives or date range changes)
   useEffect(() => {
-    instRef.current?.setOption(option, notMerge)
+    instRef.current?.setOption(withPalette(option), notMerge)
   }, [option, notMerge])
 
   return <div ref={divRef} style={{ width: '100%', ...style }} />
