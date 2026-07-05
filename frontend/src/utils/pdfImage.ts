@@ -102,25 +102,36 @@ export async function arabicTableToPdf(doc: jsPDF, opts: ArabicTableOpts): Promi
 
   try {
     const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
-    const imgData = canvas.toDataURL('image/png')
 
-    /* ── Paginate the image into the existing PDF page geometry ────── */
-    const pageW = doc.internal.pageSize.getWidth()
-    const pageH = doc.internal.pageSize.getHeight()
-    const margin = pageW * 0.03
-    const imgW = pageW - margin * 2
-    const imgH = (canvas.height * imgW) / canvas.width
+    /* ── Paginate by SLICING the canvas per page and embedding each slice as a
+       compressed JPEG. The naive pattern (adding the full bitmap to every page
+       with a shifted Y) duplicates the whole image N times and produced ~400 MB
+       files that viewers then downsampled to a blurry mess. ── */
+    const pageW   = doc.internal.pageSize.getWidth()
+    const pageH   = doc.internal.pageSize.getHeight()
+    const margin  = pageW * 0.03
+    const imgW    = pageW - margin * 2
+    const usableH = pageH - margin * 2
+    // How many source-canvas pixels fit into one PDF page's usable height.
+    const pxPerPage = Math.max(1, Math.floor((usableH * canvas.width) / imgW))
 
-    let heightLeft = imgH
-    let position = margin
-    doc.addImage(imgData, 'PNG', margin, position, imgW, imgH)
-    heightLeft -= (pageH - margin * 2)
-
-    while (heightLeft > 0) {
-      position = position - (pageH - margin * 2)
-      doc.addPage()
-      doc.addImage(imgData, 'PNG', margin, position, imgW, imgH)
-      heightLeft -= (pageH - margin * 2)
+    let srcY  = 0
+    let first = true
+    while (srcY < canvas.height) {
+      const sliceH = Math.min(pxPerPage, canvas.height - srcY)
+      const slice  = document.createElement('canvas')
+      slice.width  = canvas.width
+      slice.height = sliceH
+      const ctx = slice.getContext('2d')!
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, slice.width, slice.height)
+      ctx.drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH)
+      const sliceData = slice.toDataURL('image/jpeg', 0.85)
+      const sliceImgH = (sliceH * imgW) / canvas.width
+      if (!first) doc.addPage()
+      doc.addImage(sliceData, 'JPEG', margin, margin, imgW, sliceImgH)
+      first = false
+      srcY += sliceH
     }
 
     doc.save(filename)
