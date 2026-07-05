@@ -29,7 +29,7 @@ import LocalShippingIcon   from '@mui/icons-material/LocalShipping'
 import ExpandMoreIcon      from '@mui/icons-material/ExpandMore'
 import LogoutIcon         from '@mui/icons-material/Logout'
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
-import { useQuery }      from '@tanstack/react-query'
+import { useQuery, useIsFetching } from '@tanstack/react-query'
 import axios             from 'axios'
 import { useAuth }       from '../contexts/AuthContext'
 import { useTranslation } from 'react-i18next'
@@ -161,6 +161,21 @@ function ValidationBadge() {
         </Typography>
       </Box>
     </Tooltip>
+  )
+}
+
+// ── Global fetching badge: shows whenever any React Query fetch is in flight ─
+function FetchingBadge() {
+  const n = useIsFetching()
+  if (!n) return null
+  return (
+    <Box sx={{ display:'flex', alignItems:'center', gap:0.5, px:1, py:0.3,
+               bgcolor:'rgba(124,58,237,0.10)', borderRadius:1, cursor:'default' }}>
+      <CircularProgress size={12} thickness={5} sx={{ color: ACCENT }} />
+      <Typography variant="caption" sx={{ color: ACCENT, fontWeight:600, fontSize:10 }}>
+        {tr('Loading…')}
+      </Typography>
+    </Box>
   )
 }
 
@@ -488,6 +503,7 @@ export default function AppShell() {
             </Box>
           </Box>
           <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
+            <FetchingBadge />
             <ValidationBadge />
             <SyncBadge />
             <Box sx={{

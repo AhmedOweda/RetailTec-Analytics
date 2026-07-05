@@ -107,6 +107,8 @@ const ar_strings: Record<string, string> = {
   // ── Chart titles / subtitles ──
   'Stock by Department': 'المخزون حسب القسم',
   'DCS Hierarchy — Drill-down Sunburst': 'التسلسل الهرمي للأقسام',
+  'Top Departments by Revenue': 'أعلى الأقسام حسب الإيرادات',
+  'Loading…': 'جارٍ التحميل…',
   'Top Item Vendors by Stock Value': 'أعلى موردي الأصناف حسب قيمة المخزون',
   'Stock by Store': 'المخزون حسب الفرع',
   'Stock Detail': 'تفاصيل المخزون',
@@ -266,6 +268,8 @@ const ar_strings: Record<string, string> = {
   'Pages': 'الصفحات', 'Created': 'تاريخ الإنشاء', 'Actions': 'إجراءات',
 
   // ── Chart subtitles ("comments") ──
+  'Ranked by revenue · GP% coloured green (healthy) / amber / red (low)':
+    'مرتبة حسب الإيرادات · نسبة الربح ملوّنة أخضر (جيدة) / كهرماني / أحمر (منخفضة)',
   'Block size = cost value · colour = dept': 'حجم المربع = قيمة التكلفة · اللون = القسم',
   'Dept › Class › Subclass · click a department to zoom in (labels get readable) · click centre to go back · hover for details':
     'قسم › فئة › فئة فرعية · انقر على قسم للتكبير · انقر على المركز للرجوع · مرّر المؤشر للتفاصيل',
