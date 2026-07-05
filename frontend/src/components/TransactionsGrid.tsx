@@ -4,6 +4,7 @@ import { ModuleRegistry, ClientSideRowModelModule } from 'ag-grid-community'
 import type { ColDef } from 'ag-grid-community'
 import type { TxnRow } from '../types'
 import { fmt } from '../utils/formatters'
+import { noRowsOverlay } from '../utils/gridOverlay'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 
@@ -55,6 +56,7 @@ export default function TransactionsGrid({ rows }: { rows: TxnRow[] }) {
       } as React.CSSProperties}
     >
       <AgGridReact<TxnRow>
+        overlayNoRowsTemplate={noRowsOverlay()}
         rowData={rows}
         columnDefs={COL_DEFS}
         defaultColDef={defaultColDef}

@@ -16,6 +16,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
@@ -291,6 +292,7 @@ export default function PurchasesTransactions() {
         }}>
           <AgGridReact
             ref={gridRef}
+            overlayNoRowsTemplate={noRowsOverlay()}
             rowData={rows}
             columnDefs={trCols(colDefs as any[])}
             defaultColDef={defaultColDef}

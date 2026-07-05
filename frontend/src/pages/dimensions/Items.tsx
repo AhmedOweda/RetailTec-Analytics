@@ -7,6 +7,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
@@ -235,6 +236,7 @@ export default function DimItems() {
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 460 }}>
           <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
+            overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             pagination paginationPageSize={25}
             rowHeight={36} headerHeight={38} suppressCellFocus

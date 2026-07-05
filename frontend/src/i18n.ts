@@ -47,6 +47,8 @@ const nav_ar = {
 
 /* Flat English → Arabic. Missing entries simply stay English. */
 const ar_strings: Record<string, string> = {
+  // ── Grid empty state ──
+  'No data to display': 'لا توجد بيانات',
   // ── Page titles / subtitles ──
   'Stock Levels': 'مستويات المخزون',
   'Current on-hand snapshot · refreshed on each data sync': 'لقطة المخزون الحالي · تُحدَّث مع كل مزامنة',

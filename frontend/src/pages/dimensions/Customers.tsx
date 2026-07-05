@@ -8,6 +8,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
 import { moneyPrefix } from '../../utils/formatters'
@@ -215,6 +216,7 @@ export default function DimCustomers() {
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 460 }}>
           <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
+            overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             pagination paginationPageSize={25}
             rowHeight={36} headerHeight={38} suppressCellFocus

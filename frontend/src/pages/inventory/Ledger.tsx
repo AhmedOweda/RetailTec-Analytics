@@ -17,6 +17,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
@@ -312,6 +313,7 @@ export default function InventoryLedger() {
         <Box className="ag-theme-alpine" sx={{ height: 560 }}>
           <AgGridReact
             ref={gridRef}
+            overlayNoRowsTemplate={noRowsOverlay()}
             rowData={rows}
             columnDefs={trCols(columns as any[])}
             defaultColDef={{ resizable: true, sortable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true }}

@@ -21,6 +21,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import TitleLoader from '../../components/TitleLoader'
 import { format, subDays, startOfMonth } from 'date-fns'
@@ -436,6 +437,7 @@ export default function Transactions() {
       }}>
         <AgGridReact
           ref={gridRef}
+          overlayNoRowsTemplate={noRowsOverlay()}
           onColumnMoved={colState.onColumnChanged}
           onColumnResized={colState.onColumnChanged}
           onColumnVisible={colState.onColumnChanged}

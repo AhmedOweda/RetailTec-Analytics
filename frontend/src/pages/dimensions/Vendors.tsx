@@ -8,6 +8,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
 import { moneyPrefix } from '../../utils/formatters'
@@ -223,7 +224,7 @@ export default function DimVendors() {
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 420 }}>
-          <AgGridReact ref={gridRef} rowData={merged} columnDefs={trCols(colDefs as any[])}
+          <AgGridReact ref={gridRef} overlayNoRowsTemplate={noRowsOverlay()} rowData={merged} columnDefs={trCols(colDefs as any[])}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             rowHeight={36} headerHeight={38} suppressCellFocus
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}

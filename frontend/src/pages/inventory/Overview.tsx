@@ -20,6 +20,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { type EChartHandle } from '../../components/EChart'
 import KpiCard                        from '../../components/KpiCard'
+import { noRowsOverlay }               from '../../utils/gridOverlay'
 import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
 import { moneyPrefix } from '../../utils/formatters'
@@ -614,6 +615,7 @@ export default function InventoryOverview() {
           <div className="ag-theme-alpine" style={{ height: 440 }}>
             <AgGridReact
               ref={gridRef}
+              overlayNoRowsTemplate={noRowsOverlay()}
               rowData={tableData as any[]}
               columnDefs={trCols(tableCols as any[])}
               pagination paginationPageSize={20}

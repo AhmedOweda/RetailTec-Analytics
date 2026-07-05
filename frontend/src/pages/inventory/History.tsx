@@ -11,6 +11,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 import { moneyPrefix } from '../../utils/formatters'
 import { tr } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
@@ -136,7 +137,7 @@ export default function InventoryHistory() {
             <GridExportBar gridRef={byItemGridRef} filename="history_by_item" title="Inventory History — Most Active Items" />
           </Box>
           <Box className="ag-theme-alpine" sx={{ height: 300 }}>
-            <AgGridReact ref={byItemGridRef} rowData={byItem} columnDefs={itemCols} defaultColDef={gridDefault} animateRows onGridReady={colsA.onGridReady} onColumnMoved={colsA.onColumnChanged} onColumnResized={colsA.onColumnChanged} onColumnVisible={colsA.onColumnChanged} onColumnPinned={colsA.onColumnChanged} />
+            <AgGridReact ref={byItemGridRef} overlayNoRowsTemplate={noRowsOverlay()} rowData={byItem} columnDefs={itemCols} defaultColDef={gridDefault} animateRows onGridReady={colsA.onGridReady} onColumnMoved={colsA.onColumnChanged} onColumnResized={colsA.onColumnChanged} onColumnVisible={colsA.onColumnChanged} onColumnPinned={colsA.onColumnChanged} />
           </Box>
         </CardContent>
       </Card>
@@ -150,7 +151,7 @@ export default function InventoryHistory() {
             <GridExportBar gridRef={detailsGridRef} filename="history_details" title="Inventory History — Change Log" />
           </Box>
           <Box className="ag-theme-alpine" sx={{ height: 450 }}>
-            <AgGridReact ref={detailsGridRef} rowData={details} columnDefs={detailCols} defaultColDef={gridDefault} animateRows onGridReady={colsB.onGridReady} onColumnMoved={colsB.onColumnChanged} onColumnResized={colsB.onColumnChanged} onColumnVisible={colsB.onColumnChanged} onColumnPinned={colsB.onColumnChanged} />
+            <AgGridReact ref={detailsGridRef} overlayNoRowsTemplate={noRowsOverlay()} rowData={details} columnDefs={detailCols} defaultColDef={gridDefault} animateRows onGridReady={colsB.onGridReady} onColumnMoved={colsB.onColumnChanged} onColumnResized={colsB.onColumnChanged} onColumnVisible={colsB.onColumnChanged} onColumnPinned={colsB.onColumnChanged} />
           </Box>
         </CardContent>
       </Card>

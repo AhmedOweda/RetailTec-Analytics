@@ -18,6 +18,7 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard       from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
+import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useAppSettings } from '../../context/AppSettings'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
@@ -348,6 +349,7 @@ export default function InventoryCoverage() {
         <div className="ag-theme-alpine" style={{ height: 520 }}>
           <AgGridReact
             ref={gridRef}
+            overlayNoRowsTemplate={noRowsOverlay()}
             rowData={rows}
             columnDefs={trCols(colDefs as any[])}
             defaultColDef={{ sortable: true, resizable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true }}
