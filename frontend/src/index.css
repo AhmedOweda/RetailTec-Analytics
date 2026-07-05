@@ -46,12 +46,20 @@ body { margin: 0; font-family: 'Manrope', sans-serif; background: #F5F3FB; color
    clipped to "Ret..." on numeric columns). Applies to every grid. ── */
 .ag-theme-alpine .ag-header-cell-text {
   white-space: normal !important;
-  overflow-wrap: normal !important;   /* !important: beat AG Grid wrapHeaderText */
-  word-break: keep-all !important;    /* wrap only at spaces, never inside a word */
+  overflow-wrap: normal !important;   /* !important: beat AG Grid word-break:break-word */
+  word-break: normal !important;      /* wrap only at spaces, never inside a word */
+  hyphens: none !important;
   line-height: 1.15;
   text-align: center;
+  font-size: 12px;                    /* a touch smaller so short single-word headers fit one line */
 }
 .ag-theme-alpine .ag-header-cell-label {
   justify-content: center;
   align-items: center;
+}
+/* Tighter header padding gives single-word headers more room before they wrap */
+.ag-theme-alpine .ag-header-cell,
+.ag-theme-alpine .ag-header-group-cell {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
 }
