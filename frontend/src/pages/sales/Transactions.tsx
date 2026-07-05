@@ -152,7 +152,9 @@ export default function Transactions() {
   const onGridReady = useCallback((e: GridReadyEvent) => {
     colState.onGridReady(e)
     gridApi.current = e.api
-    e.api.sizeColumnsToFit()
+    // No sizeColumnsToFit: it squeezes all 14 columns below their text width so
+    // headers like "Deposit"/"Other" break mid-word. Keep the defined widths
+    // (horizontal scroll when needed) — consistent with the other data grids.
   }, [])
 
   /* -- Column toggle -------------------------------------------- */
