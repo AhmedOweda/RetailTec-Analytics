@@ -24,6 +24,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery }       from '@tanstack/react-query'
 import axios              from 'axios'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import GridExportBar      from '../../components/GridExportBar'
 import { format, subDays, startOfMonth, startOfYear, subYears } from 'date-fns'
 import { num }            from '../../utils/formatters'
 
@@ -128,16 +129,19 @@ function ChartPanel({
 
 /* ── TableSection — wrapper for AG Grid sections ─────────────────── */
 function TableSection({
-  title, subtitle, children, loading, height = 340,
+  title, subtitle, children, loading, height = 340, toolbar,
 }: {
-  title: string; subtitle?: string; children: React.ReactNode; loading?: boolean; height?: number
+  title: string; subtitle?: string; children: React.ReactNode; loading?: boolean; height?: number; toolbar?: React.ReactNode
 }) {
   return (
     <Card elevation={0} sx={{ border:'1px solid #e9e4ff', borderRadius:2.5 }}>
       <CardContent sx={{ p:2.5, '&:last-child':{ pb:2.5 } }}>
-        <Box sx={{ mb:1.5 }}>
-          <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:14 }}>{tr(title)}</Typography>
-          {subtitle && <Typography sx={{ fontSize:12, color:C_SLATE, mt:0.2 }}>{tr(subtitle)}</Typography>}
+        <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', mb:1.5, gap:2 }}>
+          <Box>
+            <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:14 }}>{tr(title)}</Typography>
+            {subtitle && <Typography sx={{ fontSize:12, color:C_SLATE, mt:0.2 }}>{tr(subtitle)}</Typography>}
+          </Box>
+          {toolbar}
         </Box>
         {loading ? <Skeleton variant="rectangular" height={height} sx={{ borderRadius:1.5 }} /> : children}
       </CardContent>
@@ -149,6 +153,8 @@ function TableSection({
 export default function Performance() {
   const colsAssoc = useGridColumnState('perf-associates')
   const colsCust  = useGridColumnState('perf-customers')
+  const assocGridRef = useRef<AgGridReact>(null)
+  const custGridRef  = useRef<AgGridReact>(null)
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   /* ── Date range state ────────────────────────────────────────── */
@@ -584,9 +590,11 @@ export default function Performance() {
 
         {/* Row 3: Top Associates + Top Customers (side by side) */}
         <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:2 }}>
-          <TableSection title="Top Associates" subtitle="Ranked by net sales · disc % amber >10% · return % red >5%" loading={assocLoad} height={320}>
+          <TableSection title="Top Associates" subtitle="Ranked by net sales · disc % amber >10% · return % red >5%" loading={assocLoad} height={320}
+            toolbar={<GridExportBar gridRef={assocGridRef} filename="top_associates" title="Top Associates"
+              colDefs={assocCols as any} onResetColumns={colsAssoc.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
-              <AgGridReact rowData={(assocData??[]) as any[]} columnDefs={trCols(assocCols as any[])}
+              <AgGridReact ref={assocGridRef} rowData={(assocData??[]) as any[]} columnDefs={trCols(assocCols as any[])}
                 onGridReady={colsAssoc.onGridReady} onColumnMoved={colsAssoc.onColumnChanged}
                 onColumnResized={colsAssoc.onColumnChanged} onColumnVisible={colsAssoc.onColumnChanged}
                 onColumnPinned={colsAssoc.onColumnChanged}
@@ -594,9 +602,11 @@ export default function Performance() {
                 suppressCellFocus animateRows />
             </Box>
           </TableSection>
-          <TableSection title="Top Customers" subtitle="Ranked by net spend for the selected period" loading={custLoad} height={320}>
+          <TableSection title="Top Customers" subtitle="Ranked by net spend for the selected period" loading={custLoad} height={320}
+            toolbar={<GridExportBar gridRef={custGridRef} filename="top_customers" title="Top Customers"
+              colDefs={custCols as any} onResetColumns={colsCust.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
-              <AgGridReact rowData={(custData??[]) as any[]} columnDefs={trCols(custCols as any[])}
+              <AgGridReact ref={custGridRef} rowData={(custData??[]) as any[]} columnDefs={trCols(custCols as any[])}
                 onGridReady={colsCust.onGridReady} onColumnMoved={colsCust.onColumnChanged}
                 onColumnResized={colsCust.onColumnChanged} onColumnVisible={colsCust.onColumnChanged}
                 onColumnPinned={colsCust.onColumnChanged}

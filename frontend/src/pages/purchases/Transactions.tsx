@@ -271,12 +271,14 @@ export default function PurchasesTransactions() {
         </Box>
       )}
 
+      {/* ── Export toolbar row (separate row above the grid) ──────────── */}
+      <Stack direction="row" justifyContent="flex-end" alignItems="center" sx={{ mt: 2, mb: 1.5 }}>
+        <GridExportBar gridRef={gridRef} filename="purchases_transactions" title="Purchase Transactions"
+          colDefs={colDefs as any} onResetColumns={resetColumns} />
+      </Stack>
+
       {/* ── AG Grid ───────────────────────────────────────────────────── */}
       <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(15,23,42,.08)' }}>
-        <Box sx={{ display:'flex', justifyContent:'flex-end', px:1.5, pt:1, bgcolor: '#f8f7ff', borderBottom: '1px solid #e9e4ff' }}>
-          <GridExportBar gridRef={gridRef} filename="purchases_transactions" title="Purchase Transactions"
-            colDefs={colDefs as any} onResetColumns={resetColumns} />
-        </Box>
         <Box className="ag-theme-alpine" sx={{
           width: '100%', height: 580,
           '& .ag-root-wrapper': { borderRadius: 0 },

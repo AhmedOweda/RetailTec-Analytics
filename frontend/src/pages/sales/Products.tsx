@@ -15,6 +15,7 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import EChart, { type EChartHandle } from '../../components/EChart'
 import KpiCard                        from '../../components/KpiCard'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import GridExportBar      from '../../components/GridExportBar'
 import { AgGridReact }   from 'ag-grid-react'
 import type { ColDef }   from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
@@ -172,7 +173,8 @@ export default function Products() {
   const [appliedTo,      setAppliedTo     ] = useState(todayStr)
   const [selectedStores, setSelectedStores] = useState<string[]>([])
   const [view,           setView          ] = useState<View>('item')
-  const { onGridReady: onColGridReady, onColumnChanged } = useGridColumnState(`sales-products-${view}`)
+  const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState(`sales-products-${view}`)
+  const gridRef = useRef<AgGridReact>(null)
 
   const presetFrom = (p: Period) =>
     p === 'MTD' ? format(startOfMonth(new Date()), 'yyyy-MM-dd')
@@ -697,7 +699,8 @@ export default function Products() {
           <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
 
             {/* Tab row */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
               <Box sx={{ display: 'flex', gap: 0.75, p: 0.5, bgcolor: '#f1f5f9', borderRadius: 2 }}>
                 {VIEWS.map(v => (
                   <Chip key={v} label={tr(VIEW_LABELS[v])} size="small" onClick={() => setView(v)}
@@ -721,6 +724,9 @@ export default function Products() {
                   {tr('Showing')} <b style={{ color: ACCENT }}>{productCodeField.toUpperCase()}</b> {tr('code · change in Settings')}
                 </Typography>
               )}
+              </Box>
+              <GridExportBar gridRef={gridRef} filename="products_detail" title="Product Performance"
+                colDefs={tableCols as any} onResetColumns={resetColumns} />
             </Box>
 
             {/* AG Grid */}
@@ -729,6 +735,7 @@ export default function Products() {
               : (
                 <Box className="ag-theme-alpine" sx={{ height: 460, ...GRID_SX }}>
                   <AgGridReact
+                    ref={gridRef}
                     key={`view-${view}`}
                     onGridReady={onColGridReady}
                     onColumnMoved={onColumnChanged}
