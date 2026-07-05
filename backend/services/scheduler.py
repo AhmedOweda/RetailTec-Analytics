@@ -26,13 +26,15 @@ _domain_last_run: dict = {}
 # settings.auto_maintenance=False). Purely a housekeeping flush — never touches
 # the sync pipeline or schedules.
 _last_maintenance: datetime | None = None
-_MAINTENANCE_INTERVAL_SEC = 7 * 24 * 3600   # weekly
+_MAINTENANCE_INTERVAL_SEC = 7 * 24 * 3600    # weekly CHECKPOINT
+_BACKUP_INTERVAL_DAYS      = 30              # monthly backup
 
 
 def _maybe_auto_maintenance(cfg: dict) -> None:
-    """Weekly CHECKPOINT to flush the WAL / reclaim space. Best-effort and
-    fully guarded — any failure is logged and ignored. Skipped entirely when
-    auto_maintenance is disabled or a sync is running."""
+    """Weekly CHECKPOINT (flush WAL / reclaim space) + monthly warehouse backup
+    with keep-last-N retention. Best-effort and fully guarded — any failure is
+    logged and ignored. Skipped entirely when auto_maintenance is disabled or a
+    sync is running."""
     global _last_maintenance
     try:
         if not cfg.get("auto_maintenance", True):
@@ -40,16 +42,29 @@ def _maybe_auto_maintenance(cfg: dict) -> None:
         if _sync_state.get("running"):
             return
         now = datetime.utcnow()
-        if _last_maintenance is not None and \
-           (now - _last_maintenance).total_seconds() < _MAINTENANCE_INTERVAL_SEC:
-            return
-        from db.model import DB_LOCK, get_db
-        with DB_LOCK:
-            get_db().execute("CHECKPOINT")
-        _last_maintenance = now
-        log.info("Auto-maintenance: weekly CHECKPOINT completed")
-        # TODO(monthly backup): a monthly COPY-FROM-DATABASE backup could be
-        # wired here once a retention/rotation policy is agreed.
+
+        # Weekly CHECKPOINT
+        if _last_maintenance is None or \
+           (now - _last_maintenance).total_seconds() >= _MAINTENANCE_INTERVAL_SEC:
+            from db.model import DB_LOCK, get_db
+            with DB_LOCK:
+                get_db().execute("CHECKPOINT")
+            _last_maintenance = now
+            log.info("Auto-maintenance: weekly CHECKPOINT completed")
+
+        # Monthly backup + retention. Cadence is derived from the newest backup
+        # file's age, so it survives restarts and never double-backs-up.
+        try:
+            from services.backup import (create_backup, prune_backups,
+                                         newest_backup_age_days)
+            if newest_backup_age_days() >= _BACKUP_INTERVAL_DAYS:
+                dest = create_backup()
+                keep = int(cfg.get("backup_retention", 6) or 6)
+                removed = prune_backups(keep=keep)
+                log.info(f"Auto-maintenance: monthly backup -> {dest.name} "
+                         f"(kept {keep}, pruned {removed})")
+        except FileNotFoundError:
+            pass   # warehouse not populated yet
     except Exception as e:
         log.error(f"Auto-maintenance skipped: {e}")
 

@@ -34,6 +34,8 @@ _DEFAULTS = {
     # (i.e. when the key is absent); setup_complete gates the first-run wizard.
     "auto_maintenance": True,
     "setup_complete":   False,
+    # Monthly auto-backup retention: how many backup files to keep (oldest pruned).
+    "backup_retention": 6,
 }
 
 
