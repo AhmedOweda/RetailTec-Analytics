@@ -57,6 +57,7 @@ const ar_strings: Record<string, string> = {
   'Purchase Transactions': 'حركات الشراء',
   'Products': 'المنتجات',
   'Transactions': 'الفواتير',
+  'Transactions Report': 'تقرير الفواتير',
   'Performance': 'الأداء',
   'CRM — Customer Intelligence': 'ذكاء العملاء — CRM',
   'SRM — Supplier Intelligence': 'ذكاء الموردين — SRM',

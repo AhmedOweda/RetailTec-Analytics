@@ -27,6 +27,7 @@ import { num }           from '../../utils/formatters'
 import * as XLSX         from 'xlsx'
 import jsPDF             from 'jspdf'
 import autoTable         from 'jspdf-autotable'
+import { isArabic, registerArabicFont, shapeAr, ARABIC_FONT_NAME } from '../../utils/pdfArabic'
 
 /* -- Theme ------------------------------------------------------------ */
 const ACCENT  = '#7c3aed'
@@ -201,18 +202,34 @@ export default function Transactions() {
     setExporting('pdf')
     try {
       const vis = getVisibleRows()
+      const ar  = isArabic()
       const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a3' })
+      if (ar) registerArabicFont(doc)
       doc.setFontSize(14); doc.setTextColor(15,23,42)
-      doc.text('Transactions Report', 30, 38)
+      if (ar) doc.setFont(ARABIC_FONT_NAME, 'normal')
+      doc.text(ar ? shapeAr(tr('Transactions Report')) : 'Transactions Report', 30, 38)
       doc.setFontSize(9); doc.setTextColor(100,116,139)
-      doc.text(`Period: ${from}  ->  ${today}     Records: ${vis.length.toLocaleString()}`, 30, 54)
+      const periodLine = `Period: ${from}  ->  ${today}     Records: ${vis.length.toLocaleString()}`
+      doc.text(ar ? shapeAr(periodLine) : periodLine, 30, 54)
+      // In Arabic, translate the (English) headerName labels the same way the
+      // grid does, then let didParseCell reshape them.
+      const head = ar ? EXPORT_COLS.map(c => tr(c.label)) : EXPORT_COLS.map(c => c.label)
       autoTable(doc, {
-        head: [EXPORT_COLS.map(c => c.label)],
+        head: [head],
         body: vis.map((r:any) => EXPORT_COLS.map(c => r[c.key] ?? '')),
         startY: 66,
-        styles:            { fontSize:6.5, cellPadding:3, overflow:'ellipsis' },
-        headStyles:        { fillColor:[124,58,237], textColor:255, fontStyle:'bold', fontSize:7 },
+        styles:            { fontSize:6.5, cellPadding:3, overflow:'ellipsis',
+          ...(ar ? { font: ARABIC_FONT_NAME, halign: 'right' as const } : {}) },
+        headStyles:        { fillColor:[124,58,237], textColor:255, fontStyle:'bold', fontSize:7,
+          ...(ar ? { font: ARABIC_FONT_NAME, halign: 'right' as const } : {}) },
         alternateRowStyles:{ fillColor:[250,249,255] },
+        ...(ar ? {
+          didParseCell: (data: any) => {
+            if (Array.isArray(data.cell.text)) {
+              data.cell.text = data.cell.text.map((line: string) => shapeAr(line))
+            }
+          },
+        } : {}),
       })
       doc.save(`transactions_${from}_${to}.pdf`)
     } finally { setExporting(null) }

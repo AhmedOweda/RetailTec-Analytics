@@ -26,6 +26,7 @@ import * as XLSX from 'xlsx'
 import jsPDF     from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { tr }    from '../i18n'
+import { isArabic, registerArabicFont, shapeAr, ARABIC_FONT_NAME } from '../utils/pdfArabic'
 
 const ACCENT = '#7c3aed'
 
@@ -139,13 +140,17 @@ export default function GridExportBar({
       })
 
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' })
+      const ar = isArabic()
+      if (ar) registerArabicFont(doc)
       const W = 420
       doc.setFillColor(22, 11, 51)
       doc.rect(0, 0, W, 24, 'F')
-      doc.setTextColor(255, 255, 255); doc.setFontSize(13); doc.setFont('helvetica', 'bold')
-      doc.text(title ?? filename, 14, 10)
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(180, 160, 255)
-      doc.text(subtitle ?? `Generated ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`, 14, 17)
+      doc.setTextColor(255, 255, 255); doc.setFontSize(13)
+      if (ar) doc.setFont(ARABIC_FONT_NAME, 'normal'); else doc.setFont('helvetica', 'bold')
+      doc.text(shapeAr(title ?? filename), 14, 10)
+      doc.setFontSize(8); doc.setTextColor(180, 160, 255)
+      if (ar) doc.setFont(ARABIC_FONT_NAME, 'normal'); else doc.setFont('helvetica', 'normal')
+      doc.text(shapeAr(subtitle ?? `Generated ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`), 14, 17)
       doc.setTextColor(124, 58, 237); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
       doc.text('RetailTec · Prism Analytics', W - 14, 10, { align: 'right' })
       doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(160, 140, 200)
@@ -157,21 +162,36 @@ export default function GridExportBar({
         body:   bodyRows,
         theme: 'grid',
         styles: { fontSize: 6.5, cellPadding: { top: 2, bottom: 2, left: 3, right: 3 },
-          lineColor: [226, 232, 240], lineWidth: 0.3, textColor: [15, 23, 42], font: 'helvetica' },
+          lineColor: [226, 232, 240], lineWidth: 0.3, textColor: [15, 23, 42],
+          font: ar ? ARABIC_FONT_NAME : 'helvetica', ...(ar ? { halign: 'right' as const } : {}) },
         headStyles: { fillColor: [124, 58, 237], textColor: [255, 255, 255],
-          fontStyle: 'bold', fontSize: 7.5, halign: 'center' },
+          fontStyle: 'bold', fontSize: 7.5, halign: ar ? 'right' : 'center',
+          ...(ar ? { font: ARABIC_FONT_NAME } : {}) },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: cols.reduce((acc: any, c, i) => {
           if (c.type === 'numericColumn') acc[i] = { halign: 'right' }
           return acc
         }, {}),
+        ...(ar ? {
+          didParseCell: (data: any) => {
+            if (Array.isArray(data.cell.text)) {
+              data.cell.text = data.cell.text.map((line: string) => shapeAr(line))
+            }
+          },
+        } : {}),
         didDrawPage: (data: any) => {
           const pH = doc.internal.pageSize.getHeight()
           doc.setFillColor(248, 250, 252)
           doc.rect(0, pH - 10, W, 10, 'F')
           doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 116, 139)
           doc.text(`Page ${data.pageNumber}`, 14, pH - 3)
-          doc.text(`${title ?? filename}  ·  ${new Date().toLocaleString('en-GB')}`, W / 2, pH - 3, { align: 'center' })
+          if (ar) doc.setFont(ARABIC_FONT_NAME, 'normal')
+          doc.text(
+            ar
+              ? shapeAr(`${title ?? filename}  ·  ${new Date().toLocaleString('en-GB')}`)
+              : `${title ?? filename}  ·  ${new Date().toLocaleString('en-GB')}`,
+            W / 2, pH - 3, { align: 'center' })
+          if (ar) doc.setFont('helvetica', 'normal')
           doc.text(`Total rows: ${bodyRows.length}`, W - 14, pH - 3, { align: 'right' })
         },
       })
