@@ -237,45 +237,70 @@ export default function Products() {
     return { totalRev, totalGP, gpPct, totalQty, deptCount }
   }, [deptData])
 
-  /* ── Chart: Department Treemap ────────────────────────────────── */
+  /* ── Chart: Top Departments by Revenue (horizontal bars, GP% coloured) ──
+     Replaces the old treemap — two treemaps side by side was redundant. This
+     ranks departments by revenue and annotates each bar with its GP%, coloured
+     green (healthy ≥30%), amber (10–30%) or red (<10%) so margin health reads
+     at a glance alongside size. ── */
   const deptOpt = useMemo(() => {
-    const rows  = (deptData ?? []) as any[]
-    const total = rows.reduce((s, r) => s + +(r.revenue ?? 0), 0)
-    const data  = rows.map(r => ({
-      name:   r.name ?? '(Unknown)',
-      value:  +(r.revenue ?? 0),
-      gp_pct: +(r.gp_pct ?? 0),
-    }))
+    const all   = (deptData ?? []) as any[]
+    const total = all.reduce((s, r) => s + +(r.revenue ?? 0), 0)
+    // Sort desc by revenue, take top 12, reverse for horizontal bars (biggest on top)
+    const rows  = [...all]
+      .sort((a, b) => +(b.revenue ?? 0) - +(a.revenue ?? 0))
+      .slice(0, 12)
+      .reverse()
+    const names = rows.map(r => r.name ?? '(Unknown)')
+    const revs  = rows.map(r => +(r.revenue ?? 0))
     return {
+      grid: { top: 8, right: 130, bottom: 8, left: 8, containLabel: true },
       tooltip: {
-        formatter: (p: any) => {
-          const d   = p.data
-          const shr = total > 0 ? (d.value / total * 100).toFixed(1) : '0'
-          const gc  = gmColorOf(d.gp_pct)
+        trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (p: any[]) => {
+          const r   = rows[p[0]?.dataIndex] ?? {}
+          const shr = total > 0 ? (+(r.revenue ?? 0) / total * 100).toFixed(1) : '0'
+          const gc  = gmColorOf(+(r.gp_pct ?? 0))
           return `<div style="min-width:170px">
-            <b>${d.name}</b><br/>
-            Revenue: <b>${(+d.value).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
+            <b>${p[0].name}</b><br/>
+            Revenue: <b>${(+(r.revenue ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
             Share: ${shr}%<br/>
-            GP%: <b style="color:${gc}">${d.gp_pct}%</b>
+            GP: ${(+(r.gp ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}<br/>
+            GP%: <b style="color:${gc}">${r.gp_pct ?? 0}%</b>
           </div>`
         },
       },
+      xAxis: {
+        type: 'value',
+        axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : `${v}` },
+        splitLine: { lineStyle: { color: '#f1f5f9' } },
+      },
+      yAxis: {
+        type: 'category', data: names,
+        axisLabel: { color: '#374151', fontSize: 11 },
+      },
       series: [{
-        type: 'treemap', data, roam: false, nodeClick: false,
-        breadcrumb: { show: false },
-        color: DEPT_COLORS,
+        type: 'bar', data: revs, barMaxWidth: 18,
+        itemStyle: {
+          borderRadius: [0, 4, 4, 0],
+          color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: 'rgba(124,58,237,0.28)' }, { offset: 1, color: ACCENT }] },
+        },
         label: {
-          show: true, fontSize: 11, color: '#fff', fontWeight: 600,
+          show: true, position: 'right', fontSize: 10,
           formatter: (p: any) => {
-            const kb = p.value >= 1_000_000
-              ? `${(p.value / 1_000_000).toFixed(1)}M`
-              : `${(p.value / 1000).toFixed(0)}K`
-            return `${p.name}\n${kb}`
+            const r  = rows[p.dataIndex] ?? {}
+            const v  = +p.value
+            const kb = v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : `${(v / 1000).toFixed(0)}K`
+            const gp = +(r.gp_pct ?? 0)
+            const gk = gp >= 30 ? 'gpHi' : gp >= 10 ? 'gpMid' : 'gpLo'
+            return `{val|${kb}}  {${gk}|GP:${r.gp_pct ?? 0}%}`
+          },
+          rich: {
+            val:   { color: '#475569', fontSize: 10 },
+            gpHi:  { color: '#065f46', fontSize: 10, fontWeight: 700 },
+            gpMid: { color: '#78350f', fontSize: 10, fontWeight: 700 },
+            gpLo:  { color: '#7f1d1d', fontSize: 10, fontWeight: 700 },
           },
         },
-        upperLabel: { show: false },
-        itemStyle: { borderColor: 'rgba(255,255,255,0.7)', borderWidth: 2, gapWidth: 3 },
-        emphasis:  { itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,0.2)' } },
       }],
     }
   }, [deptData])
@@ -322,6 +347,9 @@ export default function Products() {
       deptMap[dept].classMap[cls].subMap[sub] += rev
     })
 
+    /* Grand total across all leaves — for share-of-total in the tooltip */
+    const grandTotal = rows.reduce((s, r) => s + +(r.revenue ?? 0), 0)
+
     /* Flatten to ECharts sunburst format */
     const data = Object.entries(deptMap).map(([dname, d]) => ({
       name:      dname,
@@ -342,13 +370,16 @@ export default function Products() {
     return {
       tooltip: {
         formatter: (p: any) => {
-          const path = (p.treePathInfo as any[] ?? [])
-            .slice(1)
-            .map((n: any) => n.name)
-            .join(' › ')
-          return `<div style="min-width:190px">
+          const trail = (p.treePathInfo as any[] ?? []).slice(1)
+          const path  = trail.map((n: any) => n.name).join(' › ')
+          // Depth-aware label: Dept / Class / Subclass
+          const level = ['Department', 'Class', 'Subclass'][trail.length - 1] ?? ''
+          const shr   = grandTotal > 0 ? (+p.value / grandTotal * 100).toFixed(1) : '0'
+          return `<div style="min-width:200px">
+            ${level ? `<div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px">${level}</div>` : ''}
             <b>${path || p.name}</b><br/>
             Revenue: <b>${(+p.value).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
+            Share of total: ${shr}%<br/>
             <span style="font-size:10px;color:#94a3b8">Click a box to drill down · breadcrumb to go back</span>
           </div>`
         },
@@ -620,8 +651,8 @@ export default function Products() {
       {/* ── Row 1: Treemap (left) + Sunburst (centre, wider) ───── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 2, px: 3 }}>
         <ChartCard
-          title="Revenue by Department"
-          subtitle="Block size = revenue · hover for GP%"
+          title="Top Departments by Revenue"
+          subtitle="Ranked by revenue · GP% coloured green (healthy) / amber / red (low)"
           option={deptOpt}
           height={440}
           loading={deptLoad}

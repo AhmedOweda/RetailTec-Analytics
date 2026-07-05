@@ -177,7 +177,7 @@ export default function Adjustments() {
     legend:  { bottom:0, textStyle:{ fontSize:11 } },
     grid:    { top:10, right:12, bottom:36, left:68 },
     xAxis:   { type:'category', data: trend.map(r => r.ADJ_DATE?.toString().slice(0,10) || ''), axisLabel:{ fontSize:10 } },
-    yAxis:   { type:'value', axisLabel:{ fontSize:10, formatter:(v:number) => v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` } },
+    yAxis:   { type:'value', splitNumber:4, axisLabel:{ fontSize:10, hideOverlap:true, formatter:(v:number) => Math.abs(v)>=1000?`${(v/1000).toFixed(0)}K`:`${v}` } },
     series: [
       {
         name:tr('+ Cost'), type:'bar',
@@ -199,7 +199,7 @@ export default function Adjustments() {
     return {
       tooltip: { trigger:'axis', axisPointer:{ type:'shadow' } },
       grid:    { top:6, right:80, bottom:4, left:4, containLabel:true },
-      xAxis:   { type:'value', axisLabel:{ fontSize:10 } },
+      xAxis:   { type:'value', splitNumber:4, axisLabel:{ fontSize:10, hideOverlap:true, formatter:(v:number) => Math.abs(v)>=1000?`${(v/1000).toFixed(0)}K`:`${v}` } },
       yAxis:   { type:'category', data: sorted.map(r => r.doc_type || '(Unknown)').reverse(), axisLabel:{ fontSize:10, width:110, overflow:'truncate' } },
       series:[{
         type:'bar',
@@ -217,7 +217,7 @@ export default function Adjustments() {
     return {
       tooltip: { trigger:'axis', axisPointer:{ type:'shadow' } },
       grid:    { top:6, right:90, bottom:4, left:4, containLabel:true },
-      xAxis:   { type:'value', axisLabel:{ fontSize:10, formatter:(v:number) => v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` } },
+      xAxis:   { type:'value', splitNumber:4, axisLabel:{ fontSize:10, hideOverlap:true, formatter:(v:number) => Math.abs(v)>=1000?`${(v/1000).toFixed(0)}K`:`${v}` } },
       yAxis:   { type:'category', data: sorted.map(r => r.store_name || '(Unknown)').reverse(), axisLabel:{ fontSize:10, width:110, overflow:'truncate' } },
       series:[{
         type:'bar',
