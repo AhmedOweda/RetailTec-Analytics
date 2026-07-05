@@ -129,7 +129,11 @@ export default function InventoryOverview() {
   // Store options from sales stores-list endpoint
   const { data: storeList = [] } = useQuery<string[]>({
     queryKey: ['inv-stores-list'],
-    queryFn:  () => axios.get('/api/sales/stores-list').then(r => r.data),
+    // Normalise to plain strings — the endpoint may return either bare strings
+    // or { STORE_NAME } row objects; rendering a raw object as a chip/option
+    // crashes React ("Objects are not valid as a React child").
+    queryFn:  () => axios.get('/api/sales/stores-list').then(r =>
+      (r.data as any[]).map(s => typeof s === 'string' ? s : (s?.STORE_NAME ?? s?.store_name ?? String(s)))),
     gcTime: 3_600_000, refetchOnMount: false,
   })
 
