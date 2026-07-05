@@ -237,69 +237,81 @@ export default function Products() {
     return { totalRev, totalGP, gpPct, totalQty, deptCount }
   }, [deptData])
 
-  /* ── Chart: Top Departments by Revenue (horizontal bars, GP% coloured) ──
-     Replaces the old treemap — two treemaps side by side was redundant. This
-     ranks departments by revenue and annotates each bar with its GP%, coloured
-     green (healthy ≥30%), amber (10–30%) or red (<10%) so margin health reads
-     at a glance alongside size. ── */
+  /* ── Chart: Department Margin vs Volume (scatter / bubble matrix) ──
+     Replaces the earlier "Top Departments by Revenue" bar — that repeated the
+     revenue ranking the DCS treemap beside it already shows. This adds a NEW
+     analytical dimension: each department is plotted by Revenue (x) vs GP% (y)
+     with bubble size = units sold, coloured by GP tier. It reveals the
+     high-revenue-but-low-margin vs high-margin-niche departments the treemap
+     cannot convey. A dashed line marks the average GP%. ── */
   const deptOpt = useMemo(() => {
-    const all   = (deptData ?? []) as any[]
-    const total = all.reduce((s, r) => s + +(r.revenue ?? 0), 0)
-    // Sort desc by revenue, take top 12, reverse for horizontal bars (biggest on top)
-    const rows  = [...all]
-      .sort((a, b) => +(b.revenue ?? 0) - +(a.revenue ?? 0))
-      .slice(0, 12)
-      .reverse()
-    const names = rows.map(r => r.name ?? '(Unknown)')
-    const revs  = rows.map(r => +(r.revenue ?? 0))
+    const all = (deptData ?? []) as any[]
+    if (!all.length) return {}
+
+    const tierColor = (gp: number) => gp >= 30 ? C_GREEN : gp >= 10 ? C_AMBER : C_ROSE
+
+    const qtys   = all.map(r => +(r.qty ?? 0))
+    const maxQty = Math.max(1, ...qtys)
+
+    // Weighted average GP% across departments (revenue-weighted) for the ref line
+    const totRev = all.reduce((s, r) => s + +(r.revenue ?? 0), 0)
+    const totGp  = all.reduce((s, r) => s + +(r.gp ?? 0), 0)
+    const avgGp  = totRev > 0 ? (totGp / totRev * 100) : 0
+
+    const data = all.map(r => {
+      const gp = +(r.gp_pct ?? 0)
+      return {
+        value: [+(r.revenue ?? 0), gp],
+        name:  r.name ?? '(Unknown)',
+        // stash raw fields for tooltip
+        _rev: +(r.revenue ?? 0), _gp: +(r.gp ?? 0), _gpPct: gp, _qty: +(r.qty ?? 0),
+        symbolSize: 14 + Math.sqrt((+(r.qty ?? 0)) / maxQty) * 46,
+        itemStyle: { color: tierColor(gp), opacity: 0.82, borderColor: '#fff', borderWidth: 1.5 },
+      }
+    })
+
+    const fmtK = (v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : `${v}`
+
     return {
-      grid: { top: 8, right: 130, bottom: 8, left: 8, containLabel: true },
+      grid: { top: 16, right: 24, bottom: 44, left: 8, containLabel: true },
       tooltip: {
-        trigger: 'axis', axisPointer: { type: 'shadow' },
-        formatter: (p: any[]) => {
-          const r   = rows[p[0]?.dataIndex] ?? {}
-          const shr = total > 0 ? (+(r.revenue ?? 0) / total * 100).toFixed(1) : '0'
-          const gc  = gmColorOf(+(r.gp_pct ?? 0))
+        trigger: 'item',
+        formatter: (p: any) => {
+          const d  = p.data ?? {}
+          const gc = gmColorOf(+(d._gpPct ?? 0))
           return `<div style="min-width:170px">
-            <b>${p[0].name}</b><br/>
-            Revenue: <b>${(+(r.revenue ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
-            Share: ${shr}%<br/>
-            GP: ${(+(r.gp ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}<br/>
-            GP%: <b style="color:${gc}">${r.gp_pct ?? 0}%</b>
+            <b>${d.name}</b><br/>
+            Revenue: <b>${(+(d._rev ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
+            GP%: <b style="color:${gc}">${(+(d._gpPct ?? 0)).toFixed(1)}%</b><br/>
+            GP: ${(+(d._gp ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}<br/>
+            Qty: ${(+(d._qty ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </div>`
         },
       },
       xAxis: {
-        type: 'value',
-        axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : `${v}` },
+        type: 'value', name: 'Revenue', nameLocation: 'middle', nameGap: 28,
+        nameTextStyle: { color: C_SLATE, fontSize: 11 },
+        axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => fmtK(v) },
         splitLine: { lineStyle: { color: '#f1f5f9' } },
       },
       yAxis: {
-        type: 'category', data: names,
-        axisLabel: { color: '#374151', fontSize: 11 },
+        type: 'value', name: 'GP %', nameLocation: 'middle', nameGap: 36,
+        nameTextStyle: { color: C_SLATE, fontSize: 11 },
+        axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => `${v}%` },
+        splitLine: { lineStyle: { color: '#f1f5f9' } },
       },
       series: [{
-        type: 'bar', data: revs, barMaxWidth: 18,
-        itemStyle: {
-          borderRadius: [0, 4, 4, 0],
-          color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: 'rgba(124,58,237,0.28)' }, { offset: 1, color: ACCENT }] },
-        },
+        type: 'scatter',
+        data,
         label: {
-          show: true, position: 'right', fontSize: 10,
-          formatter: (p: any) => {
-            const r  = rows[p.dataIndex] ?? {}
-            const v  = +p.value
-            const kb = v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : `${(v / 1000).toFixed(0)}K`
-            const gp = +(r.gp_pct ?? 0)
-            const gk = gp >= 30 ? 'gpHi' : gp >= 10 ? 'gpMid' : 'gpLo'
-            return `{val|${kb}}  {${gk}|GP:${r.gp_pct ?? 0}%}`
-          },
-          rich: {
-            val:   { color: '#475569', fontSize: 10 },
-            gpHi:  { color: '#065f46', fontSize: 10, fontWeight: 700 },
-            gpMid: { color: '#78350f', fontSize: 10, fontWeight: 700 },
-            gpLo:  { color: '#7f1d1d', fontSize: 10, fontWeight: 700 },
-          },
+          show: true, position: 'top', fontSize: 10, color: '#475569', fontWeight: 600,
+          formatter: (p: any) => p.data?.name ?? '',
+        },
+        emphasis: { focus: 'self', label: { fontWeight: 800, color: '#1e293b' } },
+        markLine: {
+          silent: true, symbol: 'none',
+          lineStyle: { color: C_AMBER, type: 'dashed', width: 1.5 },
+          data: [{ yAxis: avgGp, label: { formatter: `Avg GP ${avgGp.toFixed(1)}%`, color: C_AMBER, fontSize: 10, position: 'insideEndTop' } }],
         },
       }],
     }
@@ -651,8 +663,8 @@ export default function Products() {
       {/* ── Row 1: Treemap (left) + Sunburst (centre, wider) ───── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 2, px: 3 }}>
         <ChartCard
-          title="Top Departments by Revenue"
-          subtitle="Ranked by revenue · GP% coloured green (healthy) / amber / red (low)"
+          title="Department Margin vs Volume"
+          subtitle="Revenue × GP% · bubble size = units sold"
           option={deptOpt}
           height={440}
           loading={deptLoad}
