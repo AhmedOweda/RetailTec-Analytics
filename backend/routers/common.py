@@ -129,3 +129,48 @@ def scoped_stores(
         raise HTTPException(status_code=403,
                             detail="Not authorized for the requested store(s)")
     return ",".join(sorted(granted))
+
+
+# ── Subsidiary scope + filter (multi-subsidiary support) ──────────────────────
+# Subsidiary is resolved via the store's SUBSIDIARY_SID (DIM_STORE.SUBSIDIARY_SID,
+# populated from the sales facts), so these compose with the existing store joins
+# and work on every fact that already joins DIM_STORE.
+
+def subsidiary_filter(subs: Optional[str], alias: str = "S") -> tuple[str, list]:
+    """' AND <alias>.SUBSIDIARY_SID IN (?,...)' + params, from a CSV of subsidiary
+    SIDs. <alias> is the DIM_STORE alias used by the query."""
+    if not subs:
+        return "", []
+    vals = [s.strip() for s in subs.split(",") if s.strip()]
+    if not vals:
+        return "", []
+    ph = ",".join(["?"] * len(vals))
+    return f" AND {alias}.SUBSIDIARY_SID IN ({ph})", vals
+
+
+def allowed_subsidiary_set(current: dict) -> Optional[set]:
+    """Subsidiary SIDs this user may read; None = unrestricted."""
+    allowed = (current.get("subsidiaries") or "").strip()
+    if not allowed:
+        return None
+    return {s.strip() for s in allowed.split(",") if s.strip()}
+
+
+def scoped_subsidiaries(
+    subsidiaries: Optional[str] = Query(None),
+    current: dict = Depends(get_current_user),
+) -> Optional[str]:
+    """Mirror of scoped_stores for subsidiaries. Intersects the requested
+    subsidiary list with the user's `subsidiaries` claim; unrestricted users
+    (claim empty/null) pass through untouched."""
+    allowed = allowed_subsidiary_set(current)
+    if allowed is None:
+        return subsidiaries
+    if not subsidiaries:
+        return ",".join(sorted(allowed))
+    requested = {s.strip() for s in subsidiaries.split(",") if s.strip()}
+    granted = requested & allowed
+    if not granted:
+        raise HTTPException(status_code=403,
+                            detail="Not authorized for the requested subsidiary(ies)")
+    return ",".join(sorted(granted))

@@ -22,7 +22,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from db.model import get_db
 from routers.auth import get_current_user, require_admin
-from routers.common import (DB_LOCK, allowed_store_set, q as _q, qdf as _qdf,
+from routers.common import (DB_LOCK, allowed_store_set, allowed_subsidiary_set,
+                            q as _q, qdf as _qdf,
                             scoped_stores, store_filter, item_fields_sql)
 from services.scheduler import on_open_sync, trigger_full_load, get_sync_state
 
@@ -36,9 +37,10 @@ def _load_dims() -> None:
     """Cache all dimension tables in memory to avoid repeated DuckDB scans."""
     global _dim_cache, _dim_loaded_at
     _dim_cache = {
-        "stores":    _qdf("SELECT SID, STORE_NAME FROM DIM_STORE ORDER BY STORE_NAME"),
-        "employees": _qdf("SELECT SID, FULL_NAME   FROM DIM_EMPLOYEE ORDER BY FULL_NAME"),
-        "customers": _qdf("SELECT SID, FULL_NAME   FROM DIM_CUSTOMER ORDER BY FULL_NAME"),
+        "stores":       _qdf("SELECT SID, STORE_NAME FROM DIM_STORE ORDER BY STORE_NAME"),
+        "employees":    _qdf("SELECT SID, FULL_NAME   FROM DIM_EMPLOYEE ORDER BY FULL_NAME"),
+        "customers":    _qdf("SELECT SID, FULL_NAME   FROM DIM_CUSTOMER ORDER BY FULL_NAME"),
+        "subsidiaries": _qdf("SELECT SID, SBS_NO, SBS_NAME FROM DIM_SUBSIDIARY ORDER BY SBS_NAME"),
     }
     _dim_loaded_at = datetime.utcnow()
 
@@ -87,6 +89,24 @@ def stores_list(current: dict = Depends(get_current_user)):
     if allowed is None:
         return names
     return [n for n in names if n in allowed]
+
+
+@router.get("/api/sales/subsidiaries-list")
+def subsidiaries_list(current: dict = Depends(get_current_user)):
+    """Subsidiaries (SID + name) from the dimension cache, filtered to the user's
+    subsidiary scope. The frontend shows the global selector only when more than
+    one subsidiary is returned."""
+    _ensure_dims()
+    rows = _dim_cache.get("subsidiaries", [])
+    allowed = allowed_subsidiary_set(current)
+    out = [
+        {"sid": str(r.get("SID")),
+         "name": (r.get("SBS_NAME") or f"Subsidiary {r.get('SBS_NO')}")}
+        for r in rows if r.get("SID") is not None
+    ]
+    if allowed is not None:
+        out = [o for o in out if o["sid"] in allowed]
+    return out
 
 
 # ── Employees / Customers lists ────────────────────────────────────────────────
