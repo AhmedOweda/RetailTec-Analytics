@@ -86,7 +86,7 @@ def _decode_token(token: str) -> dict:
 def _get_user_by_username(username: str) -> Optional[dict]:
     # Case-insensitive: 'Oweda' and 'oweda' are the same account
     rows = _qdf(
-        "SELECT id, username, password_hash, role, stores, full_name, is_active, pages "
+        "SELECT id, username, password_hash, role, stores, full_name, is_active, pages, subsidiaries "
         "FROM DIM_USERS WHERE LOWER(username) = LOWER(?) AND is_active = true",
         [username]
     )
@@ -170,6 +170,7 @@ class UserCreate(BaseModel):
     full_name: str = ""
     stores:    Optional[str] = None
     pages:     Optional[str] = None   # CSV of page keys; None = all pages
+    subsidiaries: Optional[str] = None   # CSV of subsidiary SIDs; None = all
 
 
 class UserUpdate(BaseModel):
@@ -179,6 +180,7 @@ class UserUpdate(BaseModel):
     stores:    Optional[str] = None
     is_active: Optional[bool] = None
     pages:     Optional[str] = None   # CSV of page keys; '' clears to all pages
+    subsidiaries: Optional[str] = None   # CSV of subsidiary SIDs; '' clears to all
 
 
 # ── Login ─────────────────────────────────────────────────────────────────────
@@ -204,6 +206,7 @@ def login(req: LoginRequest):
         "sub":    user["username"],
         "role":   user["role"],
         "stores": user["stores"],
+        "subsidiaries": user["subsidiaries"],
         "id":     user["id"],
     })
     record_audit(user["username"], "login")
@@ -221,6 +224,7 @@ def login(req: LoginRequest):
             "stores":    user["stores"],
             # CSV of allowed page keys; NULL/admin = all pages
             "pages":     None if user["role"] == "admin" else user.get("pages"),
+            "subsidiaries": None if user["role"] == "admin" else user.get("subsidiaries"),
         },
     }
 
@@ -262,6 +266,7 @@ def me(current: dict = Depends(get_current_user)):
         "full_name": current["full_name"],
         "stores":    current["stores"],
         "pages":     None if current["role"] == "admin" else current.get("pages"),
+        "subsidiaries": None if current["role"] == "admin" else current.get("subsidiaries"),
     }
 
 
@@ -270,7 +275,7 @@ def me(current: dict = Depends(get_current_user)):
 @router.get("/api/auth/users")
 def list_users(current: dict = Depends(require_admin)):
     return _qdf(
-        "SELECT id, username, role, full_name, stores, is_active, created_at, pages "
+        "SELECT id, username, role, full_name, stores, is_active, created_at, pages, subsidiaries "
         "FROM DIM_USERS ORDER BY id"
     )
 
@@ -289,12 +294,12 @@ def create_user(req: UserCreate, current: dict = Depends(require_admin)):
     new_id = _next_id()
     with _db_lock:
         get_db().execute(
-            "INSERT INTO DIM_USERS (id, username, password_hash, role, full_name, stores, is_active, created_at, pages) "
-            "VALUES (?, ?, ?, ?, ?, ?, true, ?, ?)",
+            "INSERT INTO DIM_USERS (id, username, password_hash, role, full_name, stores, is_active, created_at, pages, subsidiaries) "
+            "VALUES (?, ?, ?, ?, ?, ?, true, ?, ?, ?)",
             [new_id, req.username, hash_password(req.password),
              req.role, req.full_name, req.stores,
              datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-             req.pages or None]
+             req.pages or None, req.subsidiaries or None]
         )
         get_db().commit()
 
@@ -328,6 +333,8 @@ def update_user(user_id: int, req: UserUpdate, current: dict = Depends(require_a
         sets.append("is_active = ?"); vals.append(req.is_active)
     if req.pages is not None:
         sets.append("pages = ?"); vals.append(req.pages or None)
+    if req.subsidiaries is not None:
+        sets.append("subsidiaries = ?"); vals.append(req.subsidiaries or None)
 
     if sets:
         vals.append(user_id)
