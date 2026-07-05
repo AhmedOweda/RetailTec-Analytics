@@ -64,6 +64,12 @@ def backup(req: BackupReq, _admin: dict = Depends(require_admin)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Backup failed: {e}")
     record_audit(_admin["username"], "backup", str(dest))
+    # Rotate: keep only the newest N backups (same retention as the auto-backup).
+    try:
+        from services.backup import prune_backups
+        prune_backups(dest.parent, keep=int(load_settings().get("backup_retention", 6) or 6))
+    except Exception:
+        pass
     return {"ok": True, "path": str(dest),
             "size_mb": round(dest.stat().st_size / 1_048_576, 1)}
 

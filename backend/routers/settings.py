@@ -145,6 +145,7 @@ class SettingsPayload(BaseModel):
     # First-run + maintenance flags (optional; omitted → unchanged)
     auto_maintenance: Optional[bool] = None
     setup_complete:   Optional[bool] = None
+    backup_retention: Optional[int]  = None   # monthly backups to keep
 
 
 def _validate_data_model(raw: dict) -> Union["DataModelV2", "DataModelSettings"]:
@@ -229,6 +230,8 @@ def update_settings(payload: SettingsPayload, _admin: dict = Depends(require_adm
         current["auto_maintenance"] = bool(payload.auto_maintenance)
     if payload.setup_complete is not None:
         current["setup_complete"] = bool(payload.setup_complete)
+    if payload.backup_retention is not None:
+        current["backup_retention"] = max(1, min(int(payload.backup_retention), 60))
 
     save_settings(current)
 
