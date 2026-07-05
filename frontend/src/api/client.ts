@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getSubsidiary } from '../state/subsidiary'
 
 /**
  * Single configured API client (EXPERT_REVIEW.md H3).
@@ -15,6 +16,25 @@ function attachToken(cfg: any) {
   return cfg
 }
 
+// Global subsidiary filter: when a subsidiary is selected, append
+// `subsidiaries=<sid>` to every sales/inventory/purchases data request. The
+// backend treats an empty/absent value as "no filter", so selecting All ('')
+// simply omits the param. Existing params are preserved; the selector's own
+// /subsidiaries-list lookup is skipped so it always returns the full list.
+function attachSubsidiary(cfg: any) {
+  const sid = getSubsidiary()
+  if (!sid) return cfg
+  const url: string = cfg.url || ''
+  const scoped =
+    url.startsWith('/api/sales') ||
+    url.startsWith('/api/inventory') ||
+    url.startsWith('/api/purchases')
+  if (!scoped) return cfg
+  if (url.includes('/subsidiaries-list')) return cfg
+  cfg.params = { ...(cfg.params || {}), subsidiaries: sid }
+  return cfg
+}
+
 function on401(err: any) {
   if (err.response?.status === 401) {
     localStorage.removeItem('rt_token')
@@ -27,6 +47,7 @@ function on401(err: any) {
 }
 
 api.interceptors.request.use(attachToken)
+api.interceptors.request.use(attachSubsidiary)
 api.interceptors.response.use(res => res, on401)
 
 // ── Global safety net ─────────────────────────────────────────────────────────
@@ -35,6 +56,7 @@ api.interceptors.response.use(res => res, on401)
 // EVERY request carries the Bearer token and handles 401 → logout.
 axios.defaults.baseURL = ''
 axios.interceptors.request.use(attachToken)
+axios.interceptors.request.use(attachSubsidiary)
 axios.interceptors.response.use(res => res, on401)
 
 export default api
