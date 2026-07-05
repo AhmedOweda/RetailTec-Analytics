@@ -7,3 +7,5 @@ python-multipart==0.0.9
 duckdb>=1.0.0
 tzdata
 python-jose[cryptography]==3.3.0
+pystray==0.19.5          # system-tray icon for the packaged (windowless) build
+pillow>=10.0.0           # tray icon image (pystray dependency)

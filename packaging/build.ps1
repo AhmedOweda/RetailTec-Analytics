@@ -26,7 +26,7 @@ Remove-Item "$root\backend\webapp" -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item "$root\frontend\dist" "$root\backend\webapp" -Recurse
 
 Write-Host "== 3/4 Freezing backend with PyInstaller =="
-& $py -m pip install pyinstaller --quiet
+& $py -m pip install pyinstaller pystray pillow --quiet
 Push-Location "$root\backend"
 & $py -m PyInstaller run_server.py `
     --name RetailTecAnalytics `
@@ -43,11 +43,23 @@ Push-Location "$root\backend"
     --hidden-import uvicorn.protocols.websockets.auto `
     --hidden-import uvicorn.lifespan.on `
     --collect-all duckdb `
-    --collect-all oracledb
+    --collect-all oracledb `
+    --collect-all pystray
 if ($LASTEXITCODE -ne 0) { throw "pyinstaller failed" }
 Pop-Location
 
-Write-Host "== 4/4 Done =="
-Write-Host "Package: $root\packaging\out\RetailTecAnalytics\RetailTecAnalytics.exe"
-Write-Host "Ship that folder (zip or wrap with Inno Setup). Customer needs only"
-Write-Host "Oracle Instant Client at C:\Oracle\instantclient."
+Write-Host "== 4/5 Building one-click installer (if Inno Setup is installed) =="
+$iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+if (Test-Path $iscc) {
+    & $iscc "$PSScriptRoot\installer.iss"
+    if ($LASTEXITCODE -ne 0) { throw "Inno Setup compile failed" }
+    Write-Host "Installer: $root\packaging\Output\RetailTecAnalytics-Setup.exe"
+} else {
+    Write-Host "Inno Setup not found (skipping). Install it from https://jrsoftware.org/isdl.php"
+    Write-Host "then run:  & '$iscc' '$PSScriptRoot\installer.iss'"
+}
+
+Write-Host "== 5/5 Done =="
+Write-Host "Portable folder: $root\packaging\out\RetailTecAnalytics\RetailTecAnalytics.exe"
+Write-Host "Installer (if built): $root\packaging\Output\RetailTecAnalytics-Setup.exe"
+Write-Host "Customer prerequisite: Oracle Instant Client at C:\Oracle\instantclient."
