@@ -35,6 +35,13 @@ export interface ArabicTableOpts {
   head:      string[]
   body:      (string | number)[][]
   filename:  string
+  /**
+   * Table direction. True (RTL) only when the UI language is Arabic; false
+   * (LTR) when the UI is English but the data contains Arabic — so English
+   * column order stays left-to-right while Arabic cell values still shape and
+   * read right-to-left via per-cell bidi. Defaults to true for back-compat.
+   */
+  rtl?:      boolean
 }
 
 /**
@@ -43,20 +50,27 @@ export interface ArabicTableOpts {
  */
 export async function arabicTableToPdf(doc: jsPDF, opts: ArabicTableOpts): Promise<void> {
   const { title, subtitle, head, body, filename } = opts
+  const rtl = opts.rtl !== false   // default RTL for back-compat
+
+  /* Header text-align follows the table direction so column headers sit on the
+     leading edge; when LTR (English UI + Arabic data) headers align left. */
+  const headAlign = rtl ? 'right' : 'left'
 
   /* ── Build the off-screen table markup ─────────────────────────── */
   const headHtml = head.map(h =>
-    `<th style="background:${ACCENT};color:#fff;font-weight:700;font-size:18px;padding:10px 14px;text-align:right;border:1px solid #6d28d9;white-space:nowrap">${esc(h)}</th>`
+    `<th style="background:${ACCENT};color:#fff;font-weight:700;font-size:18px;padding:10px 14px;text-align:${headAlign};border:1px solid #6d28d9;white-space:nowrap">${esc(h)}</th>`
   ).join('')
 
   const bodyHtml = body.map((row, i) => {
     const bg = i % 2 === 0 ? '#ffffff' : '#f4f2ff'
     const cells = row.map(cell => {
       const s = String(cell ?? '')
-      // Right-align Arabic text; numbers/Latin read naturally left-to-right.
+      // Align to match the Arabic-ness of the cell; `unicode-bidi:plaintext`
+      // makes each cell pick its own base direction, so Arabic values shape
+      // and read right-to-left even inside an LTR (English) table.
       const isAr = AR_RE.test(s)
       const align = isAr ? 'right' : 'left'
-      return `<td style="background:${bg};color:#1e293b;font-size:16px;padding:8px 14px;border:1px solid #e2e8f0;text-align:${align};white-space:nowrap">${esc(s)}</td>`
+      return `<td style="background:${bg};color:#1e293b;font-size:16px;padding:8px 14px;border:1px solid #e2e8f0;text-align:${align};unicode-bidi:plaintext;white-space:nowrap">${esc(s)}</td>`
     }).join('')
     return `<tr>${cells}</tr>`
   }).join('')
@@ -65,7 +79,7 @@ export async function arabicTableToPdf(doc: jsPDF, opts: ArabicTableOpts): Promi
   el.style.cssText = [
     'position:absolute', 'left:-10000px', 'top:0',
     'width:1600px', 'background:#ffffff', 'padding:24px',
-    'direction:rtl',
+    `direction:${rtl ? 'rtl' : 'ltr'}`,
     "font-family:'Cairo','Segoe UI','Tahoma','Arial',sans-serif",
     'box-sizing:border-box',
   ].join(';')
@@ -79,7 +93,7 @@ export async function arabicTableToPdf(doc: jsPDF, opts: ArabicTableOpts): Promi
       <div style="font-size:26px;font-weight:800;color:#ffffff">${esc(title)}</div>
       ${subHtml}
     </div>
-    <table dir="rtl" style="width:100%;border-collapse:collapse;table-layout:auto">
+    <table dir="${rtl ? 'rtl' : 'ltr'}" style="width:100%;border-collapse:collapse;table-layout:auto">
       <thead><tr>${headHtml}</tr></thead>
       <tbody>${bodyHtml}</tbody>
     </table>`

@@ -26,7 +26,7 @@ import * as XLSX from 'xlsx'
 import jsPDF     from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { tr }    from '../i18n'
-import { isArabic, registerArabicFont, shapeAr, ARABIC_FONT_NAME } from '../utils/pdfArabic'
+import { isArabic, hasArabic, registerArabicFont, shapeAr, ARABIC_FONT_NAME } from '../utils/pdfArabic'
 import { arabicTableToPdf } from '../utils/pdfImage'
 
 const ACCENT = '#7c3aed'
@@ -143,16 +143,23 @@ export default function GridExportBar({
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' })
       const ar = isArabic()
 
-      /* Arabic: render via the browser (html2canvas) so Arabic shapes correctly.
-         Same columns/rows/formatters as the autoTable path; only the header
-         labels are translated the way the grid translates them. */
-      if (ar) {
+      /* Use the browser (html2canvas) image path whenever the UI is Arabic OR
+         the export CONTENT contains any Arabic (data cells such as customer /
+         supplier / vendor names are Arabic regardless of UI language). jsPDF
+         cannot shape Arabic, so the autoTable path garbles those names. Only
+         pure-Latin/numeric exports keep the selectable-text autoTable path. */
+      const headLabels = cols.map(c => tr(c.label))
+      const bodyFlat   = bodyRows.flat()
+      const needImage  = ar || hasArabic([...headLabels, ...bodyFlat])
+
+      if (needImage) {
         await arabicTableToPdf(doc, {
           title:    title ?? filename,
           subtitle: subtitle ?? `Generated ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`,
-          head:     cols.map(c => tr(c.label)),
+          head:     headLabels,
           body:     bodyRows,
           filename: `${filename}_${new Date().toISOString().slice(0, 10)}.pdf`,
+          rtl:      ar,   // RTL table only in Arabic UI; LTR keeps English column order
         })
         return
       }
