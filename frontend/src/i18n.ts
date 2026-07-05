@@ -26,6 +26,7 @@ const nav_en = {
   'nav./dimensions/employees': 'Employees', 'nav./dimensions/items': 'Items',
   'nav./dimensions/vendors': 'Suppliers',
   'nav./settings': 'Settings', 'nav./settings/users': 'Users',
+  'nav./settings/audit': 'Audit Log',
 }
 
 const nav_ar = {
@@ -41,6 +42,7 @@ const nav_ar = {
   'nav./dimensions/employees': 'الموظفون', 'nav./dimensions/items': 'الأصناف',
   'nav./dimensions/vendors': 'الموردون',
   'nav./settings': 'الإعدادات', 'nav./settings/users': 'المستخدمون',
+  'nav./settings/audit': 'سجل التدقيق',
 }
 
 /* Flat English → Arabic. Missing entries simply stay English. */
@@ -694,6 +696,19 @@ const ar_strings: Record<string, string> = {
   'completed': 'مكتمل', 'running': 'قيد التشغيل', 'error': 'خطأ', 'aborted': 'متوقف', 'cancelled': 'ملغى',
   'Refreshing…': 'جارٍ التحديث…', 'Refresh': 'تحديث',
   'No runs match the selected filters.': 'لا عمليات تطابق عوامل التصفية المحددة.',
+
+  // ── Audit Log page ──
+  'Audit Log': 'سجل التدقيق',
+  'Logins, user changes, settings and data actions': 'عمليات تسجيل الدخول وتغييرات المستخدمين وإجراءات الإعدادات والبيانات',
+  'Failed to load audit log': 'تعذّر تحميل سجل التدقيق',
+  'Time': 'الوقت', 'Action': 'الإجراء', 'Detail': 'التفاصيل', 'Rows': 'عدد الصفوف',
+  'Last {{n}}': 'آخر {{n}}', '{{n}} events': '{{n}} حدثًا',
+  // Action labels
+  'Login': 'تسجيل الدخول', 'Login failed': 'فشل تسجيل الدخول',
+  'Change password': 'تغيير كلمة المرور',
+  'User created': 'إنشاء مستخدم', 'User updated': 'تعديل مستخدم', 'User deleted': 'حذف مستخدم',
+  'Backup': 'نسخ احتياطي', 'Compact database': 'ضغط قاعدة البيانات',
+  'Email settings saved': 'حفظ إعدادات البريد', 'Range load': 'تحميل فترة',
 }
 
 i18n.use(initReactI18next).init({

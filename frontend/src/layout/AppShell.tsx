@@ -29,6 +29,7 @@ import LocalShippingIcon   from '@mui/icons-material/LocalShipping'
 import ExpandMoreIcon      from '@mui/icons-material/ExpandMore'
 import LogoutIcon         from '@mui/icons-material/Logout'
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
+import HistoryIcon        from '@mui/icons-material/History'
 import { useQuery } from '@tanstack/react-query'
 import axios             from 'axios'
 import { useAuth }       from '../contexts/AuthContext'
@@ -398,6 +399,7 @@ export default function AppShell() {
             <>
               <NavItem to="/settings"       icon={<SettingsIcon />}       label="Settings"  />
               <NavItem to="/settings/users" icon={<ManageAccountsIcon />} label="Users"     />
+              <NavItem to="/settings/audit" icon={<HistoryIcon />}        label="Audit Log" />
             </>
           )}
 
