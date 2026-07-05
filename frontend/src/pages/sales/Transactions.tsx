@@ -28,7 +28,7 @@ import { num }           from '../../utils/formatters'
 import * as XLSX         from 'xlsx'
 import jsPDF             from 'jspdf'
 import autoTable         from 'jspdf-autotable'
-import { isArabic, registerArabicFont, shapeAr, ARABIC_FONT_NAME } from '../../utils/pdfArabic'
+import { isArabic, hasArabic, registerArabicFont, shapeAr, ARABIC_FONT_NAME } from '../../utils/pdfArabic'
 import { arabicTableToPdf } from '../../utils/pdfImage'
 
 /* -- Theme ------------------------------------------------------------ */
@@ -207,17 +207,24 @@ export default function Transactions() {
       const ar  = isArabic()
       const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a3' })
 
-      /* Arabic: render via the browser (html2canvas) for correct Arabic shaping.
-         Same columns/rows as the autoTable path; header labels translated the
-         same way the grid translates them. */
-      if (ar) {
+      /* Use the browser (html2canvas) image path whenever the UI is Arabic OR
+         the export CONTENT contains any Arabic (customer / vendor names are
+         Arabic regardless of UI language). jsPDF cannot shape Arabic, so the
+         autoTable path garbles those names. Pure-Latin/numeric exports keep the
+         selectable-text autoTable path below. */
+      const headLabels = EXPORT_COLS.map(c => tr(c.label))
+      const bodyRows   = vis.map((r:any) => EXPORT_COLS.map(c => r[c.key] ?? ''))
+      const needImage  = ar || hasArabic([...headLabels, ...bodyRows.flat()])
+
+      if (needImage) {
         const periodLine = `Period: ${from}  ->  ${today}     Records: ${vis.length.toLocaleString()}`
         await arabicTableToPdf(doc, {
           title:    tr('Transactions Report'),
           subtitle: periodLine,
-          head:     EXPORT_COLS.map(c => tr(c.label)),
-          body:     vis.map((r:any) => EXPORT_COLS.map(c => r[c.key] ?? '')),
+          head:     headLabels,
+          body:     bodyRows,
           filename: `transactions_${from}_${to}.pdf`,
+          rtl:      ar,   // RTL table only in Arabic UI; LTR keeps English column order
         })
         return
       }

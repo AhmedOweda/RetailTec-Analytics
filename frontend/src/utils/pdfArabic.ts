@@ -39,6 +39,17 @@ export function isArabic(): boolean {
   return i18n.language === 'ar'
 }
 
+/**
+ * True if ANY of the given parts contains an Arabic-block character. Used to
+ * decide whether an export's CONTENT (headers + cell values) needs the browser
+ * image path — regardless of the UI language, because data cells (customer /
+ * supplier / vendor names) can be Arabic even in the English UI.
+ */
+export function hasArabic(parts: (string | number)[]): boolean {
+  const re = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/
+  return parts.some(p => re.test(String(p ?? '')))
+}
+
 /** Register the embedded Arabic (Amiri) font on a jsPDF doc. Call once per doc. */
 export function registerArabicFont(doc: jsPDF): void {
   try {
