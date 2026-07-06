@@ -162,7 +162,7 @@ npm install
 npm run dev
 ```
 
-App runs at `http://localhost:3000`.  
+App runs at `http://localhost:7383`.  
 Backend runs at `http://localhost:8000`.
 
 ---

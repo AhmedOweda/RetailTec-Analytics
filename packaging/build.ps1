@@ -2,7 +2,7 @@
 # =======================================
 # Produces a self-contained folder (no Python/Node required on the customer
 # machine) at packaging\out\RetailTecAnalytics\:
-#   RetailTecAnalytics.exe   — starts API + web app on :3001, opens browser
+#   RetailTecAnalytics.exe   — starts API + web app on :7382, opens browser
 #   _internal\               — frozen Python runtime + bundled frontend
 #
 # Requirements on the BUILD machine only: Python 3.12 + Node 18+.
@@ -32,7 +32,6 @@ Push-Location "$root\backend"
     --name RetailTecAnalytics `
     --onedir --noconfirm --clean `
     --noconsole `
-
     --distpath "$root\packaging\out" `
     --workpath "$root\packaging\work" `
     --specpath "$root\packaging" `

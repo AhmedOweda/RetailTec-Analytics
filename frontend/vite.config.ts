@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',        // bind to all interfaces — enables VPN/remote access
-    port: 3000,
+    port: 7383,
     proxy: {
       '/api': {
         // 127.0.0.1 (not localhost): Node 17+ resolves localhost to ::1 first,

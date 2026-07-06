@@ -28,7 +28,7 @@ if getattr(sys, "frozen", False):
         import io
         sys.stdout = sys.stderr = io.StringIO()
 
-PORT = int(os.environ.get("RETAILTEC_PORT", "3001"))
+PORT = int(os.environ.get("RETAILTEC_PORT", "7382"))
 
 
 def _open_browser():
