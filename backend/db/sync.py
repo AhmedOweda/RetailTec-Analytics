@@ -420,7 +420,12 @@ def _load_dimensions(duck, ora, progress_cb=None):
     rows = cur.fetchall()
     duck.execute("DELETE FROM DIM_STORE")
     if rows:
-        duck.executemany("INSERT OR REPLACE INTO DIM_STORE VALUES (?,?,?)", rows)
+        # Explicit columns: DIM_STORE also has SUBSIDIARY_SID (added for the
+        # multi-subsidiary feature and populated by the schema migration from the
+        # sales facts), so a positional 3-value insert would fail on the 4-col table.
+        duck.executemany(
+            "INSERT OR REPLACE INTO DIM_STORE (SID, STORE_CODE, STORE_NAME) VALUES (?,?,?)",
+            rows)
     duck.commit()
     log.info(f"DIM_STORE: {len(rows)} rows")
 
