@@ -5,7 +5,7 @@ import { getSubsidiary } from '../state/subsidiary'
  * Single configured API client (EXPERT_REVIEW.md H3).
  *
  * Uses a RELATIVE base URL: in dev, Vite proxies /api → :8000; in production,
- * Electron's bundled HTTP server (:3001) does the same. This means the app also
+ * the packaged bundled HTTP server (:7382) does the same. This means the app also
  * works when opened from another machine (no hardcoded localhost).
  */
 const api = axios.create({ baseURL: '' })

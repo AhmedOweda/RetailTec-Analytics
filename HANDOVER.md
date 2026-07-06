@@ -42,7 +42,7 @@ sold as a commercial product to retail/pharmacy chains in the Gulf.
   (or `npm run build`). The build script is just `vite build` — it does NOT run
   `tsc`, and it tolerates the legacy `src/App.tsx` tsc errors (that file is
   orphaned). Build takes ~20-50s. Duplicate-i18n-key warnings are non-fatal.
-- **Frontend dev:** `cd frontend && npm run dev` (Vite on :3001 proxying /api →
+- **Frontend dev:** `cd frontend && npm run dev` (Vite on :7383 proxying /api →
   127.0.0.1:8000). Before `npm install`, set
   `$env:ComSpec='C:\WINDOWS\System32\cmd.exe'` or npm crashes.
 - **Backend run:** from `backend/`,
@@ -94,7 +94,7 @@ sold as a commercial product to retail/pharmacy chains in the Gulf.
   `scheduler` (background sync loop + weekly CHECKPOINT + monthly backup),
   `backup` (COPY-FROM-DATABASE backup + keep-last-N pruning), `license`
   (non-blocking Ed25519 license status), `report_email`, `schedule`.
-- `run_server.py` — packaged entry point (serves bundled SPA + API on :3001,
+- `run_server.py` — packaged entry point (serves bundled SPA + API on :7382,
   windowless, system-tray icon).
 
 **Star schema (DuckDB):** `FACT_SALES_DAILY`, `FACT_SALES_INVOICES`,

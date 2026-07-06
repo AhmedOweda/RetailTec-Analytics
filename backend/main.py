@@ -59,13 +59,13 @@ log = logging.getLogger(__name__)
 app = FastAPI(title="RetailTec Analytics API", version="3.0.0")
 
 # CORS: the app is always served same-origin through a proxy (Vite dev server on
-# :3000, Electron's bundled HTTP server on :3001) — only those origins are allowed
+# :7383, the packaged bundled HTTP server on :7382) — only those origins are allowed
 # for direct browser access to :8000. Never use "*" (EXPERT_REVIEW.md C1).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000", "http://127.0.0.1:3000",   # Vite dev
-        "http://localhost:3001", "http://127.0.0.1:3001",   # Electron prod proxy
+        "http://localhost:7383", "http://127.0.0.1:7383",   # Vite dev
+        "http://localhost:7382", "http://127.0.0.1:7382",   # packaged prod server
     ],
     allow_methods=["*"],
     allow_headers=["Authorization", "Content-Type"],
