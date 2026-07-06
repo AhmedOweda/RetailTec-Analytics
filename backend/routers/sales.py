@@ -148,22 +148,29 @@ def overview(stores: Optional[str] = Depends(scoped_stores),
     def kpi(date_from: date, date_to: date):
         # ── Daily aggregate (counts + tax + net) ─────────────────────────────
         join = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
+        # Returns are ITEM-based (ITEM_TYPE=2) and gross sales use the SAME
+        # item base (ITEM_TYPE=1) — a sale receipt can contain returned items,
+        # so document RECEIPT_TYPE alone under-counts returns.
         r = _q(f"""
             SELECT COALESCE(SUM(F.NET_SALES_WOTAX),0),
                    COALESCE(SUM(F.TOTAL_WTAX),0),
                    COALESCE(SUM(F.SALES_COUNT),0),
-                   COALESCE(SUM(F.RETURN_COUNT),0),
-                   COALESCE(SUM(F.TOTAL_TAX),0)
+                   COALESCE(SUM(F.RETURN_UNITS),0),
+                   COALESCE(SUM(F.TOTAL_TAX),0),
+                   COALESCE(SUM(F.GROSS_WOTAX),0),
+                   COALESCE(SUM(F.RETURN_WOTAX),0)
             FROM FACT_SALES_DAILY F {join}
             WHERE F.POST_DATE BETWEEN ? AND ? {sf} {subf}
         """, [date_from, date_to] + sp + subp)[0]
         net_sales   = round(r[0] or 0, 2)
         total_wtax  = round(r[1] or 0, 2)
         sales_count = int(r[2] or 0)
-        ret_count   = int(r[3] or 0)
+        ret_count   = int(round(r[3] or 0))          # returned units (item level)
         total_tax   = round(r[4] or 0, 2)
+        gross_sales = round(r[5] or 0, 2)
+        return_amt  = round(abs(r[6] or 0), 2)
 
-        # ── Invoice detail (real discounts + split gross/return amounts) ──────
+        # ── Invoice detail (real discounts) ──────────────────────────────────
         join2 = "LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID" if sf else ""
         r2 = _q(f"""
             SELECT
@@ -171,19 +178,11 @@ def overview(stores: Optional[str] = Depends(scoped_stores),
                     COALESCE(F.INVOICE_DISC,0)
                   + COALESCE(F.ITEM_DISC,0)
                   + COALESCE(F.LOYALTY_DISC,0)
-                ), 0)                                                         AS total_disc,
-                COALESCE(SUM(
-                    CASE WHEN F.RECEIPT_TYPE = 0 THEN F.NET_SALES_WOTAX ELSE 0 END
-                ), 0)                                                         AS gross_sales,
-                ABS(COALESCE(SUM(
-                    CASE WHEN F.RECEIPT_TYPE = 1 THEN F.NET_SALES_WOTAX ELSE 0 END
-                ), 0))                                                        AS return_amt
+                ), 0)                                                         AS total_disc
             FROM FACT_SALES_INVOICES F {join2}
             WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {subf}
         """, [date_from, date_to] + sp + subp)[0]
         total_disc  = round(r2[0] or 0, 2)
-        gross_sales = round(r2[1] or 0, 2)
-        return_amt  = round(r2[2] or 0, 2)
 
         avg_ticket  = round(net_sales / sales_count, 2) if sales_count > 0 else 0
         disc_ratio  = round(total_disc / gross_sales * 100, 1) if gross_sales > 0 else 0
@@ -252,7 +251,9 @@ def trend(
                ROUND(SUM(F.NET_SALES_WOTAX),2) AS net_sales,
                ROUND(SUM(F.TOTAL_WTAX),2)       AS total_wtax,
                SUM(F.SALES_COUNT)               AS sales_count,
-               SUM(F.RETURN_COUNT)              AS return_count
+               ROUND(SUM(COALESCE(F.RETURN_UNITS,0)),0) AS return_count,
+               ROUND(SUM(COALESCE(F.GROSS_WOTAX,0)),2)  AS gross_sales,
+               ROUND(SUM(COALESCE(F.RETURN_WOTAX,0)),2) AS return_amt
         FROM FACT_SALES_DAILY F {join}
         WHERE F.POST_DATE BETWEEN ? AND ? {sf} {subf}
         GROUP BY F.POST_DATE
@@ -276,7 +277,7 @@ def stores_breakdown(
                ROUND(SUM(F.NET_SALES_WOTAX),2) AS net_sales,
                ROUND(SUM(F.TOTAL_WTAX),2)       AS total_wtax,
                SUM(F.SALES_COUNT)               AS sales_count,
-               SUM(F.RETURN_COUNT)              AS return_count,
+               ROUND(SUM(COALESCE(F.RETURN_UNITS,0)),0) AS return_count,
                ROUND(SUM(F.INVOICE_DISC),2)     AS invoice_disc
         FROM FACT_SALES_DAILY F
         LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
@@ -498,10 +499,10 @@ def perf_stores(
             COALESCE(S.STORE_NAME, '(Unknown)')                                    AS store_name,
             ROUND(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),2) AS net_sales,
             COUNT(CASE WHEN F.RECEIPT_TYPE=0 THEN 1 END)                           AS invoice_count,
-            ABS(ROUND(SUM(CASE WHEN F.RECEIPT_TYPE=1 THEN F.NET_SALES_WOTAX ELSE 0 END),2)) AS return_amt,
+            ABS(ROUND(SUM(COALESCE(F.RETURN_WOTAX,0)),2))                          AS return_amt,
             ROUND(
-                ABS(SUM(CASE WHEN F.RECEIPT_TYPE=1 THEN F.NET_SALES_WOTAX ELSE 0 END))
-                / NULLIF(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),0)
+                ABS(SUM(COALESCE(F.RETURN_WOTAX,0)))
+                / NULLIF(SUM(COALESCE(F.GROSS_WOTAX,0)),0)
                 * 100, 1)                                                           AS return_rate,
             ROUND(SUM(COALESCE(F.INVOICE_DISC,0)+COALESCE(F.ITEM_DISC,0)+COALESCE(F.LOYALTY_DISC,0)),2) AS disc_amt,
             ROUND(
@@ -601,11 +602,11 @@ def perf_associates(
                 SUM(COALESCE(F.INVOICE_DISC,0)+COALESCE(F.ITEM_DISC,0)+COALESCE(F.LOYALTY_DISC,0))
                 / NULLIF(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),0)
                 * 100, 1)                                                              AS disc_rate,
-            COUNT(CASE WHEN F.RECEIPT_TYPE=1 THEN 1 END)                              AS return_count,
-            ABS(ROUND(SUM(CASE WHEN F.RECEIPT_TYPE=1 THEN F.NET_SALES_WOTAX ELSE 0 END),2)) AS return_amt,
+            ROUND(SUM(COALESCE(F.RETURN_UNITS,0)),0)                                  AS return_count,
+            ABS(ROUND(SUM(COALESCE(F.RETURN_WOTAX,0)),2))                             AS return_amt,
             ROUND(
-                ABS(SUM(CASE WHEN F.RECEIPT_TYPE=1 THEN F.NET_SALES_WOTAX ELSE 0 END))
-                / NULLIF(SUM(CASE WHEN F.RECEIPT_TYPE=0 THEN F.NET_SALES_WOTAX ELSE 0 END),0)
+                ABS(SUM(COALESCE(F.RETURN_WOTAX,0)))
+                / NULLIF(SUM(COALESCE(F.GROSS_WOTAX,0)),0)
                 * 100, 1)                                                              AS return_rate
         FROM FACT_SALES_INVOICES F
         LEFT JOIN DIM_STORE    S ON S.SID = F.STORE_SID
