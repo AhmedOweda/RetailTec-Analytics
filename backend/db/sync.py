@@ -866,7 +866,17 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
         # requires a PK (worked only once on a fresh DB, then Binder Error).
         if ALL or "inventory" in tables:
             _p("Inventory history", 5, 6)
-            _stream_insert(duck, ora, _sql_inventory_history(df, dt), "FACT_INVENTORY_HISTORY", 8, force_replace)
+            # RPS.INVENTORY_HISTORY is not present on every Prism installation
+            # (verified missing on the multi-subsidiary test server). Skip with a
+            # warning instead of failing the whole sync; Ledger/History pages
+            # simply stay empty on such servers.
+            try:
+                _stream_insert(duck, ora, _sql_inventory_history(df, dt), "FACT_INVENTORY_HISTORY", 8, force_replace)
+            except Exception as e:
+                if "ORA-00942" in str(e):
+                    log.warning("RPS.INVENTORY_HISTORY missing on this server - skipping inventory history")
+                else:
+                    raise
 
         log.info(f"Facts loaded: {df}->{dt}")
 
