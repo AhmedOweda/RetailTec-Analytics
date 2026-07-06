@@ -958,6 +958,10 @@ def _run_sync(mode: str, date_from: str, date_to: str,
     # root connection while API reader cursors run concurrently deadlocked
     # inside DuckDB (writer stuck in unregister, all readers timing out).
     duck = get_db().cursor()
+    # A DuckDB cursor is a SEPARATE session — settings on the root connection
+    # do not propagate. Re-apply the full-analyze setting here or DataFrame
+    # staging re-infers INT32 from 1000-row samples (see model.py get_db note).
+    duck.execute("SET pandas_analyze_sample=10000000")
     _domains_str = "all" if tables is None else str(sorted(tables))
     _run_id = _log_start(duck, mode, triggered_by, _domains_str, date_from, date_to, 100)
 
