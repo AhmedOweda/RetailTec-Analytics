@@ -132,6 +132,11 @@ def get_db() -> duckdb.DuckDBPyConnection:
         except Exception:
             pass
     _conn = duckdb.connect(str(_db_path(host)))
+    # Analyze ALL rows when inferring column types from object-dtype DataFrames
+    # (duck.register in sync staging). The default 1000-row sample inferred
+    # INT32 for DIM_ITEM.UPC on a server whose first 1000 UPCs were small, then
+    # a 13-digit barcode failed with Python Conversion Failure out of range.
+    _conn.execute("SET pandas_analyze_sample=10000000")
     _current_host = host
     _ensure_schema(_conn)
     return _conn
@@ -147,6 +152,7 @@ def switch_db(host: str):
         _conn = None
     _current_host = host
     _conn = duckdb.connect(str(_db_path(host)))
+    _conn.execute("SET pandas_analyze_sample=10000000")  # see get_db note
     _ensure_schema(_conn)
 
 
