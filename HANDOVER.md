@@ -73,6 +73,44 @@ sold as a commercial product to retail/pharmacy chains in the Gulf.
   by stopping the backend and running a script that does
   `from db.model import get_db, hash_password;
   con.execute("UPDATE DIM_USERS SET password_hash=? WHERE lower(username)='admin'",[hash_password(pw)])`.
+- **Test Oracle servers:** `34.78.79.51` (single subsidiary, production-like
+  volume, ~19M fact rows, the server Krunch was validated against) and
+  `217.154.181.17` (3 subsidiaries: Qahwa, Qahwa Riyadh, Sofa — small test data).
+  Same `reportuser` credentials on both; read them from the app settings
+  (`services/config.load_settings()` decrypts DPAPI). Service name `rproods`,
+  port 1521.
+- **Chrome DOES work on `127.0.0.1:<port>`** (verified July 2026) — the old
+  "Chrome can't load localhost" trap applies to the literal `localhost` name.
+- **Desktop Commander shell quirks (for AI sessions):** the inline PowerShell
+  wrapper mangles `$_`, nested quotes and sometimes `;` — for anything beyond a
+  trivial command, WRITE A .ps1 FILE and run it with
+  `powershell -ExecutionPolicy Bypass -File <path>`. Python REPL sessions can
+  get stuck in `...` continuation on multi-line pastes — prefer one-off script
+  files under `backend/tools/`.
+- **DuckDB Python gotchas (both bit us in production):**
+  1. `duck.register(df)` with `dtype=object` infers column types from a
+     1000-row sample; a column of small ints gets INT32 and a later 10-digit
+     UPC crashes with `Python Conversion Failure: Value out of range for type
+     INT`. Fixed with `SET pandas_analyze_sample=10000000` — set in
+     `model.py get_db/switch_db` AND on the sync writer cursor in
+     `sync.py trigger sync` because **`conn.cursor()` is a separate session
+     that does NOT inherit settings**.
+  2. A stale `.wal` next to a restored `.db` can fail startup with
+     `Failure while replaying WAL ... Conflict on tuple deletion` — delete the
+     `.wal` and restart (the .db is consistent; the next sync re-fills).
+- **Packaged exe layout:** `settings.json`, per-server warehouses
+  (`retailtec_<host>.db`), `.jwt_secret` and `backups/` live in
+  `packaging\out\RetailTecAnalytics\_internal\` (NOT next to the exe).
+  `retailtec.log` is next to the exe. PyInstaller `--clean --noconfirm` WIPES
+  the out dir — **always back up those state files before rebuilding**:
+  `packaging\backup_state_temp.ps1` saves them to
+  `C:\RetailTec Analytics\_appstate_backup`, `packaging\finish_deploy_temp.ps1`
+  restores them and launches. If `packaging\out\RetailTecAnalytics` is locked
+  ("cannot access the file... used by another process" — Explorer or an
+  indexer holding the dir handle), build to `out2` with
+  `packaging\build_out2_temp.ps1` and let `finish_deploy_temp.ps1` robocopy
+  /MIR it over (file deletes inside a locked dir still work; only the
+  top-level rmdir fails).
 
 ---
 
@@ -158,32 +196,74 @@ localhost. **Per-user scoping:** `DIM_USERS.stores` and `DIM_USERS.subsidiaries`
   build.ps1 when ISCC is present.
 - Charts, empty states, header polish; export toolbars standardized on all grids.
 
+**July 6-7 2026 session (commits e474d77..42a690d):**
+- **Ports rebranded:** packaged app :3001 → **:7382** (env `RETAILTEC_PORT`
+  still overrides), Vite dev :3000 → **:7383**. CORS allowlist updated.
+- **`build.ps1` fixed** — a blank line after `--noconsole` broke PowerShell
+  line continuation; the PyInstaller step never ran as written.
+- **Multi-subsidiary verified end-to-end** on 217.154.181.17: selector shows
+  the 3 subsidiaries, per-subsidiary filtering numbers reconcile (all = sum of
+  parts), on-open sync loads all domains.
+- **INVENTORY_HISTORY is optional:** not every Prism install has
+  `RPS.INVENTORY_HISTORY`; the sync now logs a warning and skips that step on
+  ORA-00942 instead of failing (Ledger/History pages stay empty on such
+  servers). The multi-sub server initially lacked it; the owner created it.
+- **Item-level returns (42a690d, owner-requested calculation change):**
+  returns = `ITEM_TYPE=2` lines, gross sales = `ITEM_TYPE=1` lines from
+  `FACT_SALES_ITEMS` — document `RECEIPT_TYPE` is NOT enough because a sale
+  receipt (type 0) can contain returned items (verified on 34.78.79.51: 1,017
+  such docs, 1,146 returned units invisible to the old doc-level calc;
+  item-level units reconcile EXACTLY with `SUM(DOCUMENT.RETURN_QTY)`).
+  Implementation: 3 derived columns on `FACT_SALES_INVOICES`
+  (`GROSS_WOTAX`, `RETURN_WOTAX`, `RETURN_UNITS`) populated by
+  `sync._apply_item_returns` per window after each items load (+ one-time
+  backfill migration in `model.py`), aggregated into `FACT_SALES_DAILY`.
+  The RETURNS KPI count now shows returned UNITS (owner's choice); rates use
+  the same item base on both sides. `_stream_insert` now inserts by explicit
+  column list (first N table columns) so locally-derived columns don't break
+  the count assert. Verification tools: `backend/tools/check_item_returns.py`,
+  `verify_item_returns.py`, `verify_net_window.py` (run with backend STOPPED).
+- **Known data caveat:** the insert-only warehouse retains documents later
+  voided in Oracle — DuckDB vs live Oracle differs ~3.9% on a June-2026 window
+  on the single-sub server (1,152 extra docs), for net sales AND returns alike.
+  Pre-existing behavior, not from the returns change. Reconciliation policy TBD.
+
 ---
 
-## 6. OPEN ISSUES / things to verify
+## 6. OPEN ISSUES / things to verify (updated 7 Jul 2026)
 
-1. **`DIM_STORE` can end up empty → store dropdowns break.** Root cause fixed in
-   `db/sync.py` (the store insert now names columns explicitly, since
-   `DIM_STORE` gained `SUBSIDIARY_SID` — a positional 3-into-4 insert failed and
-   left the table empty after the sync's `DELETE`). **To recover: refresh the app
-   (on-open sync reloads dims) or run Settings → Load All Data.** Verify
-   `SELECT COUNT(*) FROM DIM_STORE` > 0 after.
-2. **Subsidiary selector only shows when >1 subsidiary exists.** The current
-   warehouse has 1 subsidiary loaded, so the selector is (correctly) hidden. If
-   the business has more, confirm `RPS.SUBSIDIARY` and the sync loaded them.
-3. **`DIM_STORE.SUBSIDIARY_SID` population** is derived from sales facts via a
-   startup migration. If any stores are NULL, inventory/purchases subsidiary
-   filtering under-returns for that subsidiary. A cleaner fix is to pull the
-   subsidiary column authoritatively from `RPS.STORE` in `_load_dimensions`
-   (current query selects only SID, STORE_CODE, STORE_NAME).
-4. **Inventory Ledger** (`/api/inventory/ledger` + `/ledger/kpi`) does NOT apply
+1. **Word overlap in the UI (owner complaint, location NOT yet identified).**
+   The owner reported "overlapping in words" somewhere in the app but the exact
+   page was never pinned down. Ask him to point at the page/section (candidates:
+   grid headers in narrow columns — see item 5 — or chart labels like the
+   Top Associates marker line). Fix pending.
+2. **`DIM_STORE.SUBSIDIARY_SID` population** is derived from sales facts via a
+   startup migration; 3 of 25 stores were NULL on the single-sub warehouse
+   (stores with no sales stay NULL). The clean fix is to pull the subsidiary
+   column authoritatively from `RPS.STORE` in `_load_dimensions` (current query
+   selects only SID, STORE_CODE, STORE_NAME). Verify the column name on
+   `RPS.STORE` first via the test servers.
+3. **Inventory Ledger** (`/api/inventory/ledger` + `/ledger/kpi`) does NOT apply
    the subsidiary filter (intricate multi-CTE SQL, skipped for safety). A
    subsidiary-scoped user with an empty stores claim would see all-subsidiary
-   ledger data. Wire carefully with DB testing.
+   ledger data. Wire carefully with DB testing (multi-sub test server now has
+   inventory history data: 1,312 rows).
+4. **Warehouse vs Oracle drift** (voided/back-dated docs retained by the
+   insert-only design) — ~3.9% on a sample window; decide a reconciliation
+   policy (e.g. periodic re-scan with force_replace, or STATUS re-check job).
 5. **Single-word grid headers** in very narrow columns may still wrap oddly;
    mitigated (word-break normal + smaller header font + tighter padding) but a
    per-column minWidth would be more robust.
-6. **`sse-starlette`** keeps re-breaking startup (see §2). Consider removing it.
+6. **`sse-starlette`** keeps re-breaking startup (see §2). Consider
+   uninstalling it if nothing needs it (struck AGAIN on 6 Jul: starlette had
+   been silently upgraded to 1.3.1).
+7. **Inno Setup not installed** on this machine — `build.ps1` produces only the
+   portable folder, no `RetailTecAnalytics-Setup.exe`. Install Inno Setup 6 to
+   get the one-click installer.
+8. **RESOLVED:** DIM_STORE emptied by sync bug (fixed + verified, 25 rows);
+   subsidiary selector (verified with 3 subs); INVENTORY_HISTORY hard failure
+   (now optional); DuckDB INT32 inference crash (pandas_analyze_sample);
+   FACT_SALES_INVOICES column-count assert (named-column insert).
 
 ---
 
