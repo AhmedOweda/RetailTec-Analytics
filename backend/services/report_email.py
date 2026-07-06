@@ -91,7 +91,7 @@ def _build_daily_sales(stores: list[str]) -> tuple[str, str]:
     base = "FROM FACT_SALES_DAILY F LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID"
 
     k = _q(f"""SELECT COALESCE(SUM(F.NET_SALES_WOTAX),0), COALESCE(SUM(F.SALES_COUNT),0),
-                      COALESCE(SUM(F.RETURN_COUNT),0) {base}
+                      COALESCE(SUM(F.RETURN_UNITS),0) {base}
                WHERE F.POST_DATE = ? {sf}""", [d] + sp)[0]
     kp = _q(f"""SELECT COALESCE(SUM(F.NET_SALES_WOTAX),0) {base}
                 WHERE F.POST_DATE = ? {sf}""", [prev] + sp)[0]

@@ -328,9 +328,18 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             TOTAL_FEES      DECIMAL(18,4)   DEFAULT 0,
             SHIPPING_AMT    DECIMAL(18,4)   DEFAULT 0,
             TOTAL_WTAX      DECIMAL(18,4)   DEFAULT 0,
+            GROSS_WOTAX     DECIMAL(18,4)   DEFAULT 0,
+            RETURN_WOTAX    DECIMAL(18,4)   DEFAULT 0,
+            RETURN_UNITS    DECIMAL(12,3)   DEFAULT 0,
             PRIMARY KEY (POST_DATE, STORE_SID, SUBSIDIARY_SID)
         )
     """)
+    # Migration 2026-07: item-level sale/return base (a RECEIPT_TYPE=0 sale
+    # receipt can contain ITEM_TYPE=2 returned items, so returns must come
+    # from FACT_SALES_ITEMS, and gross sales from the same base).
+    for _c, _t in [("GROSS_WOTAX", "DECIMAL(18,4)"), ("RETURN_WOTAX", "DECIMAL(18,4)"),
+                   ("RETURN_UNITS", "DECIMAL(12,3)")]:
+        con.execute(f"ALTER TABLE FACT_SALES_DAILY ADD COLUMN IF NOT EXISTS {_c} {_t} DEFAULT 0")
     con.execute("""
         CREATE TABLE IF NOT EXISTS FACT_SALES_INVOICES (
             DOC_SID         BIGINT          PRIMARY KEY,
@@ -357,9 +366,55 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             CASH_AMT        DECIMAL(18,4)   DEFAULT 0,
             CARD_AMT        DECIMAL(18,4)   DEFAULT 0,
             DEPOSIT_AMT     DECIMAL(18,4)   DEFAULT 0,
-            OTHER_AMT       DECIMAL(18,4)   DEFAULT 0
+            OTHER_AMT       DECIMAL(18,4)   DEFAULT 0,
+            GROSS_WOTAX     DECIMAL(18,4),
+            RETURN_WOTAX    DECIMAL(18,4),
+            RETURN_UNITS    DECIMAL(12,3)
         )
     """)
+    # Migration 2026-07: item-level sale/return aggregates per invoice.
+    # When the columns are first added, backfill them from FACT_SALES_ITEMS
+    # (already loaded) and rebuild the daily aggregate so KPIs are correct
+    # before the next sync runs.
+    if "GROSS_WOTAX" not in _table_cols(con, "FACT_SALES_INVOICES"):
+        con.execute("ALTER TABLE FACT_SALES_INVOICES ADD COLUMN GROSS_WOTAX  DECIMAL(18,4)")
+        con.execute("ALTER TABLE FACT_SALES_INVOICES ADD COLUMN RETURN_WOTAX DECIMAL(18,4)")
+        con.execute("ALTER TABLE FACT_SALES_INVOICES ADD COLUMN RETURN_UNITS DECIMAL(12,3)")
+        con.execute("""
+            UPDATE FACT_SALES_INVOICES
+            SET GROSS_WOTAX  = A.G,
+                RETURN_WOTAX = A.R,
+                RETURN_UNITS = A.U
+            FROM (
+                SELECT DOC_SID,
+                       SUM(CASE WHEN ITEM_TYPE = 'Sale'   THEN TOTAL_PRICE_WOTAX ELSE 0 END) AS G,
+                       SUM(CASE WHEN ITEM_TYPE = 'Return' THEN TOTAL_PRICE_WOTAX ELSE 0 END) AS R,
+                       SUM(CASE WHEN ITEM_TYPE = 'Return' THEN QTY               ELSE 0 END) AS U
+                FROM FACT_SALES_ITEMS
+                GROUP BY DOC_SID
+            ) A
+            WHERE FACT_SALES_INVOICES.DOC_SID = A.DOC_SID
+        """)
+        con.execute("""
+            CREATE OR REPLACE TABLE FACT_SALES_DAILY AS
+            SELECT CAST(INVC_POST_DATE AS DATE) AS POST_DATE, STORE_SID,
+                   COALESCE(SUBSIDIARY_SID, 0) AS SUBSIDIARY_SID,
+                   SUM(CASE WHEN RECEIPT_TYPE=0 THEN 1 ELSE 0 END) AS SALES_COUNT,
+                   SUM(CASE WHEN RECEIPT_TYPE=1 THEN 1 ELSE 0 END) AS RETURN_COUNT,
+                   SUM(CASE WHEN RECEIPT_TYPE=2 THEN 1 ELSE 0 END) AS ORDER_COUNT,
+                   SUM(NET_SALES_WOTAX) AS NET_SALES_WOTAX,
+                   SUM(INVOICE_DISC)    AS INVOICE_DISC,
+                   SUM(TOTAL_TAX)       AS TOTAL_TAX,
+                   SUM(TOTAL_DEPOSIT)   AS TOTAL_DEPOSIT,
+                   SUM(TOTAL_FEES)      AS TOTAL_FEES,
+                   SUM(SHIPPING_AMT)    AS SHIPPING_AMT,
+                   SUM(TOTAL_WTAX)      AS TOTAL_WTAX,
+                   SUM(COALESCE(GROSS_WOTAX,  0)) AS GROSS_WOTAX,
+                   SUM(COALESCE(RETURN_WOTAX, 0)) AS RETURN_WOTAX,
+                   SUM(COALESCE(RETURN_UNITS, 0)) AS RETURN_UNITS
+            FROM FACT_SALES_INVOICES
+            GROUP BY CAST(INVC_POST_DATE AS DATE), STORE_SID, COALESCE(SUBSIDIARY_SID, 0)
+        """)
     con.execute("""
         CREATE TABLE IF NOT EXISTS FACT_SALES_ITEMS (
             DOC_ITEM_SID            BIGINT          PRIMARY KEY,

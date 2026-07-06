@@ -699,7 +699,13 @@ def _stream_insert(duck, ora, sql: str, table: str, ncols: int,
 
     pk   = _FACT_PK[table]
     cols = [r[1] for r in duck.execute(f"PRAGMA table_info('{table}')").fetchall()]
-    assert len(cols) == ncols, f"{table}: expected {ncols} cols, table has {len(cols)}"
+    # The Oracle SELECT maps positionally onto the FIRST ncols table columns;
+    # columns beyond ncols are derived locally (e.g. the item-level
+    # GROSS_WOTAX/RETURN_WOTAX/RETURN_UNITS on FACT_SALES_INVOICES) and are
+    # populated after the load, so they are excluded from the staged insert.
+    assert len(cols) >= ncols, f"{table}: expected at least {ncols} cols, table has {len(cols)}"
+    cols = cols[:ncols]
+    collist = ", ".join(cols)
 
     cur = ora.cursor()
     cur.arraysize    = _BATCH
@@ -721,10 +727,10 @@ def _stream_insert(duck, ora, sql: str, table: str, ncols: int,
         try:
             if force_replace:
                 duck.execute(f"DELETE FROM {table} WHERE {pk} IN (SELECT {pk} FROM _stage)")
-                duck.execute(f"INSERT INTO {table} SELECT * FROM _stage")
+                duck.execute(f"INSERT INTO {table} ({collist}) SELECT * FROM _stage")
             else:
                 duck.execute(f"""
-                    INSERT INTO {table}
+                    INSERT INTO {table} ({collist})
                     SELECT s.* FROM _stage s
                     WHERE NOT EXISTS (SELECT 1 FROM {table} f WHERE f.{pk} = s.{pk})
                 """)
@@ -737,6 +743,33 @@ def _stream_insert(duck, ora, sql: str, table: str, ncols: int,
         log.info(f"{table}: {total:,} rows")
     cur.close()
     return total
+
+
+def _apply_item_returns(duck, df: str, dt: str):
+    """Materialise ITEM-level sale/return aggregates onto FACT_SALES_INVOICES.
+    Returns are ITEM_TYPE=2 lines and gross sales are ITEM_TYPE=1 lines — the
+    document RECEIPT_TYPE is NOT enough because a sale receipt (type 0) can
+    contain returned items. Both sides use the same base (TOTAL_PRICE_WOTAX)
+    so return rates compare like-for-like. Verified against RPS: item-level
+    return units reconcile exactly with SUM(DOCUMENT.RETURN_QTY)."""
+    duck.execute("""
+        UPDATE FACT_SALES_INVOICES
+        SET GROSS_WOTAX  = A.G,
+            RETURN_WOTAX = A.R,
+            RETURN_UNITS = A.U
+        FROM (
+            SELECT DOC_SID,
+                   SUM(CASE WHEN ITEM_TYPE = 'Sale'   THEN TOTAL_PRICE_WOTAX ELSE 0 END) AS G,
+                   SUM(CASE WHEN ITEM_TYPE = 'Return' THEN TOTAL_PRICE_WOTAX ELSE 0 END) AS R,
+                   SUM(CASE WHEN ITEM_TYPE = 'Return' THEN QTY               ELSE 0 END) AS U
+            FROM FACT_SALES_ITEMS
+            WHERE INVC_POST_DATE::DATE BETWEEN ? AND ?
+            GROUP BY DOC_SID
+        ) A
+        WHERE FACT_SALES_INVOICES.DOC_SID = A.DOC_SID
+    """, [df, dt])
+    duck.commit()
+    log.info("Item-level sale/return aggregates applied to invoices")
 
 
 def _derive_daily(duck, df: str, dt: str):
@@ -755,7 +788,10 @@ def _derive_daily(duck, df: str, dt: str):
                SUM(TOTAL_DEPOSIT)   AS TOTAL_DEPOSIT,
                SUM(TOTAL_FEES)      AS TOTAL_FEES,
                SUM(SHIPPING_AMT)    AS SHIPPING_AMT,
-               SUM(TOTAL_WTAX)      AS TOTAL_WTAX
+               SUM(TOTAL_WTAX)      AS TOTAL_WTAX,
+               SUM(COALESCE(GROSS_WOTAX,  0)) AS GROSS_WOTAX,
+               SUM(COALESCE(RETURN_WOTAX, 0)) AS RETURN_WOTAX,
+               SUM(COALESCE(RETURN_UNITS, 0)) AS RETURN_UNITS
         FROM FACT_SALES_INVOICES
         GROUP BY CAST(INVC_POST_DATE AS DATE), STORE_SID, COALESCE(SUBSIDIARY_SID, 0)
     """)
@@ -841,6 +877,7 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
             _stream_insert(duck, ora, _sql_invoices(df, dt), "FACT_SALES_INVOICES", 25, force_replace)
             _p("Sales items", 1, 6)
             _stream_insert(duck, ora, _sql_items(df, dt), "FACT_SALES_ITEMS", 21, force_replace)
+            _apply_item_returns(duck, df, dt)
             _derive_daily(duck, df, dt)
 
         # ── Transfers ────────────────────────────────────────────────────────
