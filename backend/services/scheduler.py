@@ -170,6 +170,30 @@ async def trigger_full_load(tables: set | None = None):
     return {"ok": True, "message": "Full load started"}
 
 
+# ── Dimensions-only fresh reload (triggered from admin panel) ──────────────
+
+async def trigger_dimensions_load():
+    """Fresh reload of dimension tables only (no facts) — called from admin panel."""
+    if _sync_state["running"]:
+        return {"ok": False, "message": "Sync already running"}
+
+    async def _run():
+        async with _sync_lock:
+            _mark_start("full")
+            try:
+                await db_sync.dimensions_load(progress_cb=_progress)
+                _sync_state.update(
+                    running=False, step="Done (dimensions)", done=3,
+                    last_sync=datetime.now().isoformat()
+                )
+            except Exception as e:
+                log.error(f"trigger_dimensions_load failed: {e}")
+                _sync_state.update(running=False, error=str(e), step="Error")
+
+    asyncio.create_task(_run())
+    return {"ok": True, "message": "Dimensions load started"}
+
+
 # ── Custom range load (From → To, triggered from admin panel) ──────────────
 
 async def trigger_range_load(date_from: str, date_to: str,
