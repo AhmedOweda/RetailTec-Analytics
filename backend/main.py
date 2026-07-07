@@ -18,6 +18,9 @@ from pathlib import Path as _Path
 
 _IC_CANDIDATES = [
     os.environ.get("RETAILTEC_ORACLE_CLIENT"),          # explicit override
+    # bundled with the packaged app (PyInstaller onedir: _internal\instantclient)
+    (os.path.join(sys._MEIPASS, "instantclient")
+     if getattr(sys, "_MEIPASS", None) else None),
     r"C:\db_mcp\instantclient_23_0",                    # original laptop
     r"C:\Oracle\instantclient",                         # common local installs
     r"C:\oracle64\product\18.0.0\client_1\bin",
