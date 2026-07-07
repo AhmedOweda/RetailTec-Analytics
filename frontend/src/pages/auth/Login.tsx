@@ -118,6 +118,70 @@ const S = {
   },
 }
 
+/* ── Animated background: drifting gradient orbs + self-drawing sales line.
+   Pure CSS/SVG, sits behind both panels, disabled for reduced-motion users. ── */
+const AnimatedBg = () => (
+  <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+    <style>{`
+      @keyframes rtOrbA { 0%{transform:translate(0,0) scale(1)} 50%{transform:translate(120px,60px) scale(1.15)} 100%{transform:translate(0,0) scale(1)} }
+      @keyframes rtOrbB { 0%{transform:translate(0,0) scale(1)} 50%{transform:translate(-100px,-70px) scale(1.1)} 100%{transform:translate(0,0) scale(1)} }
+      @keyframes rtOrbC { 0%{transform:translate(0,0)} 50%{transform:translate(60px,-90px)} 100%{transform:translate(0,0)} }
+      @keyframes rtDraw {
+        0%   { stroke-dashoffset: 1; opacity: 0 }
+        6%   { opacity: .9 }
+        55%  { stroke-dashoffset: 0; opacity: .9 }
+        82%  { opacity: .9 }
+        100% { stroke-dashoffset: 0; opacity: 0 }
+      }
+      @keyframes rtDot {
+        0%, 55% { opacity: 0; transform: scale(.4) }
+        62%     { opacity: .9; transform: scale(1.25) }
+        70%     { opacity: .7; transform: scale(1) }
+        80%     { opacity: .7 }
+        100%    { opacity: 0 }
+      }
+      .rt-orb { position: absolute; border-radius: 50%; filter: blur(90px); will-change: transform; }
+      .rt-orb-a { width: 520px; height: 520px; left: -140px; top: -120px;
+                  background: rgba(124,58,237,0.40); animation: rtOrbA 14s ease-in-out infinite; }
+      .rt-orb-b { width: 460px; height: 460px; right: -120px; bottom: -140px;
+                  background: rgba(99,102,241,0.32); animation: rtOrbB 18s ease-in-out infinite; }
+      .rt-orb-c { width: 340px; height: 340px; left: 38%; top: 55%;
+                  background: rgba(6,182,212,0.20); animation: rtOrbC 22s ease-in-out infinite; }
+      .rt-line  { stroke-dasharray: 1; stroke-dashoffset: 1; animation: rtDraw 5.5s ease-in-out infinite; }
+      .rt-area  { opacity: 0; animation: rtArea 5.5s ease-in-out infinite; }
+      @keyframes rtArea { 0%,30%{opacity:0} 55%,84%{opacity:1} 100%{opacity:0} }
+      .rt-dot   { opacity: 0; transform-origin: center; transform-box: fill-box; animation: rtDot 5.5s ease-in-out infinite; }
+    `}</style>
+    <div className="rt-orb rt-orb-a" />
+    <div className="rt-orb rt-orb-b" />
+    <div className="rt-orb rt-orb-c" />
+    <svg viewBox="0 0 600 300" preserveAspectRatio="none"
+         style={{ position: 'absolute', left: '3%', bottom: '22%', width: '44%', height: '30%' }}>
+      <defs>
+        <linearGradient id="rtStroke" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#a78bfa" stopOpacity=".15" />
+          <stop offset="25%"  stopColor="#a78bfa" stopOpacity="1" />
+          <stop offset="100%" stopColor="#22d3ee" stopOpacity="1" />
+        </linearGradient>
+        <linearGradient id="rtFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#a78bfa" stopOpacity=".24" />
+          <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path className="rt-area" pathLength={1}
+        d="M 10 240 C 70 228, 110 232, 160 214 S 260 196, 320 172 S 440 128, 520 92 L 570 72 L 570 300 L 10 300 Z"
+        fill="url(#rtFill)" stroke="none" />
+      <path className="rt-line" pathLength={1}
+        d="M 10 240 C 70 228, 110 232, 160 214 S 260 196, 320 172 S 440 128, 520 92 L 570 72"
+        fill="none" stroke="url(#rtStroke)" strokeWidth="2.4"
+        strokeLinecap="round" strokeLinejoin="round" />
+      {[[160,214],[320,172],[520,92]].map(([x,y]) => (
+        <circle key={`${x}-${y}`} className="rt-dot" cx={x} cy={y} r="3.5" fill="#c4b5fd" />
+      ))}
+    </svg>
+  </div>
+)
+
 const GridBg = () => (
   <svg
     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
@@ -173,10 +237,11 @@ export default function Login() {
 
   return (
     <div style={{ ...S.page, position: 'relative', overflow: 'hidden' }}>
+      <AnimatedBg />
       <GridBg />
 
       {/* ── Left panel — brand messaging ─────────────────────────────── */}
-      <div style={S.left}>
+      <div style={{ ...S.left, position: 'relative', zIndex: 1 }}>
         {/* Logo */}
         <div>
           <div style={S.logoIcon}>
@@ -210,7 +275,7 @@ export default function Login() {
       </div>
 
       {/* ── Right panel — login card ──────────────────────────────────── */}
-      <div style={S.right}>
+      <div style={{ ...S.right, position: 'relative', zIndex: 1 }}>
         <div style={S.card}>
           {/* Logo in card */}
           <img src="/logo-white.png" alt="RetailTec"

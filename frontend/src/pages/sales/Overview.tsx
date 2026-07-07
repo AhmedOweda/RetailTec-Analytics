@@ -667,7 +667,9 @@ export default function Overview() {
         type:'bar', data:sales, barMaxWidth:16,
         itemStyle:{ borderRadius:[0,4,4,0], color:{ type:'linear', x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:'rgba(124,58,237,0.30)'},{offset:1,color:ACCENT}] } },
         label:{ show:true, position:'right', color:'#64748b', fontSize:9, formatter:(p:any)=>`${(+p.value).toLocaleString('en-US',{maximumFractionDigits:0})}` },
-        markLine:{ silent:true, lineStyle:{ color:'#f59e0b', type:'dashed' as const, width:1 }, data:[{ type:'average', name:'Avg' }] },
+        markLine:{ silent:true, lineStyle:{ color:'#f59e0b', type:'dashed' as const, width:1 },
+          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg {c}', color:'#f59e0b', fontSize:9,
+            backgroundColor:'rgba(255,255,255,0.85)', padding:[1,3], borderRadius:2 } }] },
       }],
     }
   }, [assocMtd])

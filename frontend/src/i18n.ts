@@ -388,8 +388,8 @@ const ar_strings: Record<string, string> = {
   'of total {{n}}%': '{{n}}% من الإجمالي',
   '{{n}}% of total': '{{n}}% من الإجمالي', 'Disc: {{v}}': 'الخصم: {{v}}',
   // ── Settings page ──
-  'Configure Oracle connection and data model refresh behaviour.':
-    'إعداد اتصال أوراكل وسلوك تحديث نموذج البيانات.',
+  'Manage database connection, data refresh, display, reports and maintenance.':
+    'إدارة اتصال قاعدة البيانات وتحديث البيانات والعرض والتقارير والصيانة.',
   'Currency': 'العملة',
   'Show sign on money values': 'إظهار رمز العملة مع القيم',
   'Number Format': 'تنسيق الأرقام', 'No decimals': 'بدون كسور', '2 decimals': 'كسران عشريان',

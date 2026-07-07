@@ -234,7 +234,8 @@ export default function Performance() {
         itemStyle:{ borderRadius:[0,4,4,0], color:{ type:'linear', x:0,y:0,x2:1,y2:0, colorStops:[{ offset:0, color:'rgba(124,58,237,0.45)' },{ offset:1, color:ACCENT }] } },
         label:{ show:true, position:'right', color:'#64748b', fontSize:10, formatter:(p:any) => (+p.value).toLocaleString('en-US',{maximumFractionDigits:0}) },
         markLine:{ silent:true, lineStyle:{ color:C_AMBER, type:'dashed', width:1.5 },
-          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg\n{c}', color:C_AMBER, fontSize:9 } }] },
+          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg\n{c}', color:C_AMBER, fontSize:9,
+            backgroundColor:'rgba(255,255,255,0.85)', padding:[1,3], borderRadius:2 } }] },
       }],
     }
   }, [storeData])
@@ -313,7 +314,8 @@ export default function Performance() {
         type:'bar', data:vals, barMaxWidth:44,
         itemStyle:{ borderRadius:[4,4,0,0], color:{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{ offset:0, color:'rgba(124,58,237,0.9)' },{ offset:1, color:'rgba(124,58,237,0.15)' }] } },
         markLine:{ silent:true, lineStyle:{ color:C_AMBER, type:'dashed', width:1.5 },
-          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg: {c}', color:C_AMBER, fontSize:9 } }] },
+          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg: {c}', color:C_AMBER, fontSize:9,
+            backgroundColor:'rgba(255,255,255,0.85)', padding:[1,3], borderRadius:2 } }] },
       }],
     }
   }, [dowData])
@@ -338,7 +340,8 @@ export default function Performance() {
         type:'bar', data:vals, barMaxWidth:44,
         itemStyle:{ borderRadius:[4,4,0,0], color:{ type:'linear', x:0,y:0,x2:0,y2:1, colorStops:[{ offset:0, color:'rgba(6,182,212,0.9)' },{ offset:1, color:'rgba(6,182,212,0.12)' }] } },
         markLine:{ silent:true, lineStyle:{ color:C_AMBER, type:'dashed', width:1.5 },
-          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg: {c}', color:C_AMBER, fontSize:9 } }] },
+          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg: {c}', color:C_AMBER, fontSize:9,
+            backgroundColor:'rgba(255,255,255,0.85)', padding:[1,3], borderRadius:2 } }] },
       }],
     }
   }, [basketData])
@@ -363,7 +366,8 @@ export default function Performance() {
         itemStyle:{ borderRadius:[0,4,4,0], color:C_ROSE },
         label:{ show:true, position:'right', color:C_ROSE, fontSize:10, formatter:(p:any) => `${p.value}%` },
         markLine:{ silent:true, lineStyle:{ color:'#64748b', type:'dashed', width:1.5 },
-          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg {c}%', color:'#64748b', fontSize:9 } }] },
+          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg {c}%', color:'#64748b', fontSize:9,
+            backgroundColor:'rgba(255,255,255,0.85)', padding:[1,3], borderRadius:2 } }] },
       }],
     }
   }, [storeData])
@@ -388,7 +392,8 @@ export default function Performance() {
         itemStyle:{ borderRadius:[0,4,4,0], color:C_AMBER },
         label:{ show:true, position:'right', color:C_AMBER, fontSize:10, formatter:(p:any) => `${p.value}%` },
         markLine:{ silent:true, lineStyle:{ color:'#64748b', type:'dashed', width:1.5 },
-          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg {c}%', color:'#64748b', fontSize:9 } }] },
+          data:[{ type:'average', name:'Avg', label:{ position:'insideEndTop', formatter:'Avg {c}%', color:'#64748b', fontSize:9,
+            backgroundColor:'rgba(255,255,255,0.85)', padding:[1,3], borderRadius:2 } }] },
       }],
     }
   }, [storeData])
