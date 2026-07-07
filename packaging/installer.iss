@@ -46,7 +46,9 @@ Name: "autostart";   Description: "Start {#AppName} automatically when I sign in
 
 [Files]
 ; The entire PyInstaller onedir output (exe + _internal + bundled web app).
-Source: "out\RetailTecAnalytics\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+; Excludes: runtime state that must NEVER ship to customers — connection
+; settings (DPAPI secrets), JWT secret, synced warehouses, logs, backups.
+Source: "out\RetailTecAnalytics\*"; DestDir: "{app}"; Excludes: "settings.json,.jwt_secret,retailtec_*.db,retailtec_*.db.wal,retailtec.log,\_internal\backups\*"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}";             Filename: "{app}\{#AppExe}"
