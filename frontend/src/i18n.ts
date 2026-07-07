@@ -390,6 +390,9 @@ const ar_strings: Record<string, string> = {
   // ── Settings page ──
   'Manage database connection, data refresh, display, reports and maintenance.':
     'إدارة اتصال قاعدة البيانات وتحديث البيانات والعرض والتقارير والصيانة.',
+  'Refresh Dimensions only': 'تحديث الأبعاد فقط',
+  'Fresh reload of stores, subsidiaries, employees, departments, vendors, customers and items. No sales or inventory data is loaded.':
+    'إعادة تحميل كاملة للمتاجر والشركات التابعة والموظفين والأقسام والموردين والعملاء والأصناف. لا يتم تحميل بيانات المبيعات أو المخزون.',
   'Currency': 'العملة',
   'Show sign on money values': 'إظهار رمز العملة مع القيم',
   'Number Format': 'تنسيق الأرقام', 'No decimals': 'بدون كسور', '2 decimals': 'كسران عشريان',

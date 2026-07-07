@@ -26,7 +26,8 @@ from routers.common import (DB_LOCK, allowed_store_set, allowed_subsidiary_set,
                             q as _q, qdf as _qdf,
                             scoped_stores, store_filter, item_fields_sql,
                             scoped_subsidiaries, subsidiary_filter)
-from services.scheduler import on_open_sync, trigger_full_load, get_sync_state
+from services.scheduler import (on_open_sync, trigger_full_load, get_sync_state,
+                                trigger_dimensions_load)
 
 router = APIRouter(tags=["sales"])
 
@@ -807,6 +808,12 @@ async def sync_full_load(
 ):
     tbl_set = {t.strip() for t in tables.split(",") if t.strip()} if tables else None
     return await trigger_full_load(tables=tbl_set)
+
+@router.post("/api/sync/dimensions-load")
+async def sync_dimensions_load(_admin: dict = Depends(require_admin)):
+    """Fresh reload of dimension tables only (stores, subsidiaries, employees,
+    DCS, vendors, customers, items). Fact data is untouched."""
+    return await trigger_dimensions_load()
 
 
 # ── Warm dim cache at import time (non-fatal if DB not ready yet) ──────────────

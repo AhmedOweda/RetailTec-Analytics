@@ -24,10 +24,13 @@ sold as a commercial product to retail/pharmacy chains in the Gulf.
 
 ## 2. Environment & tooling (Windows) — READ THIS
 
-- **Windows paths.** Repo at `C:\RetailTec Analytics\RetailTec-Analytics`
-  (note the SPACE). Python 3.12 at
-  `C:\Users\MODY\AppData\Local\Programs\Python\Python312\python.exe`
-  (`python`/`py` are NOT on PATH in some shells).
+- **Windows paths (updated 7 Jul 2026, Ahmed's machine).** Repo at
+  `C:\RetailTec\RetailTec-Analytics` (fresh clone — the old
+  `C:\RetailTec Analytics\...` path with the space is GONE). Python 3.14.2 is
+  `python` on PATH (`C:\Python314`); the old MODY 3.12 path does not exist here.
+- **npm skips dev deps on this machine:** global npm config has `omit=dev`, so
+  plain `npm install` in `frontend/` silently skips vite and the app won't
+  start. Always `npm install --include=dev`.
 - **STALE-MOUNT TRAP (critical for AI tools):** any Linux sandbox mount serves
   **stale/truncated** views of recently-written files. Do ALL file reads/writes,
   git, and builds with the **Windows-side tools** (Desktop Commander MCP:
@@ -228,6 +231,44 @@ localhost. **Per-user scoping:** `DIM_USERS.stores` and `DIM_USERS.subsidiaries`
   on the single-sub server (1,152 extra docs), for net sales AND returns alike.
   Pre-existing behavior, not from the returns change. Reconciliation policy TBD.
 
+**July 7 2026 — second session (commits 3bae1a4..latest):**
+- **Fresh clone + environment repairs:** start.bat rewritten (`%~dp0` relative,
+  port 7383, `127.0.0.1` instead of `localhost`); git identity set repo-local.
+- **Chart label overlap hardening:** all 9 "Avg" markLine labels
+  (sales Overview/Performance/Products, inventory Overview) got a white chip
+  (backgroundColor/padding/borderRadius) and both dept scatter charts got
+  `labelLayout:{hideOverlap:true}`. (Owner later deprioritized the original
+  overlap complaint; fix shipped anyway.)
+- **Login page:** animated background (drifting gradient orbs + self-drawing
+  gradient sales line, pure CSS/SVG, 5.5s cycle). NOTE: a prefers-reduced-motion
+  guard was removed on purpose — Windows "Animation effects: Off" froze it.
+- **Settings subtitle** reworded (old one only mentioned Oracle/data model).
+- **Email:** SMTP host must be `smtp.gmail.com` (was mistyped `smtp.google.com`);
+  Google Workspace needs an App Password. `backend/tools/test_smtp_login.py`
+  verifies login without sending.
+- **Packaging — all dependencies now bundled:** `cryptography` (fixes customer
+  DPY-3016 in thin mode) and **Oracle Instant Client Basic 23.26** are inside
+  the exe (`_internal\instantclient`; `main.py` tries `_MEIPASS\instantclient`
+  first; source dir configurable via `RETAILTEC_IC_DIR` in build.ps1).
+  **Customers no longer need Instant Client preinstalled.**
+- **Inno Setup installed** (per-user: `%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe`
+  — NOT Program Files x86). `installer.iss` now EXCLUDES runtime state
+  (settings.json, .jwt_secret, retailtec_*.db, backups) so customer installers
+  never ship credentials/data. Installer: `packaging\Output\RetailTecAnalytics-Setup.exe`
+  (~178 MB). `.iss` has no line continuation — keep entries on one line.
+- **Packaging scripts** (`backup_state_temp/finish_deploy_temp/build_out2_temp.ps1`)
+  made path-independent (`$PSScriptRoot`). The out\ "handle lock" cause is usually
+  just the packaged app RUNNING — `taskkill /F /IM RetailTecAnalytics.exe` first.
+  CAUTION: finish_deploy robocopy /MIR deletes state newer than the last backup —
+  re-run backup_state_temp.ps1 immediately before deploying.
+- **Dimensions-only fresh load:** new `POST /api/sync/dimensions-load`
+  (`sync.dimensions_load` → `_run_dimensions_load`) reloads ALL dims fresh
+  (small dims delete+reload, items full-refresh rebuild, customers upserted over
+  the warehouse's full fact range) without touching facts. UI: "Refresh
+  Dimensions only" button next to "Load All Data now" in Settings.
+- **Dev tools added:** `backend/tools/seed_demo_data.py` (synthetic sales data
+  for UI work — writes to the dev warehouse, run with backend stopped).
+
 ---
 
 ## 6. OPEN ISSUES / things to verify (updated 7 Jul 2026)
@@ -257,9 +298,8 @@ localhost. **Per-user scoping:** `DIM_USERS.stores` and `DIM_USERS.subsidiaries`
 6. **`sse-starlette`** keeps re-breaking startup (see §2). Consider
    uninstalling it if nothing needs it (struck AGAIN on 6 Jul: starlette had
    been silently upgraded to 1.3.1).
-7. **Inno Setup not installed** on this machine — `build.ps1` produces only the
-   portable folder, no `RetailTecAnalytics-Setup.exe`. Install Inno Setup 6 to
-   get the one-click installer.
+7. **RESOLVED 7 Jul 2026:** Inno Setup installed (per-user path — see §5);
+   one-click installer builds automatically via `build.ps1`.
 8. **RESOLVED:** DIM_STORE emptied by sync bug (fixed + verified, 25 rows);
    subsidiary selector (verified with 3 subs); INVENTORY_HISTORY hard failure
    (now optional); DuckDB INT32 inference crash (pandas_analyze_sample);

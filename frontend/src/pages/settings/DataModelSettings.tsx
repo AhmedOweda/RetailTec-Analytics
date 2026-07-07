@@ -253,6 +253,11 @@ export default function DataModelSettings() {
     onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
   })
 
+  const dimsLoad = useMutation({
+    mutationFn: () => axios.post('/api/sync/dimensions-load'),
+    onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
+  })
+
   const rangeLoad = useMutation({
     mutationFn: () => axios.post('/api/sync/range', {
       date_from: rangeFrom,
@@ -683,6 +688,17 @@ export default function DataModelSettings() {
                 ? trf('Load {{d}} now', { d: [...selDomains].join(' + ') })
                 : tr('Load All Data now')}
             </Button>
+          ) : null}
+          {!isRunning ? (
+            <Tooltip title={tr('Fresh reload of stores, subsidiaries, employees, departments, vendors, customers and items. No sales or inventory data is loaded.')}>
+              <Button variant="outlined" size="small"
+                onClick={() => dimsLoad.mutate()}
+                disabled={dimsLoad.isPending}
+                sx={{ borderColor:'#94a3b8', color:'#475569', textTransform:'none', fontWeight:600,
+                      '&:hover':{ borderColor:'#64748b', bgcolor:'rgba(100,116,139,0.04)' } }}>
+                {tr('Refresh Dimensions only')}
+              </Button>
+            </Tooltip>
           ) : (
             <Button variant="outlined" size="small"
               startIcon={<StopIcon />}

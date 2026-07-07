@@ -1138,6 +1138,52 @@ async def range_load(date_from: str, date_to: str, progress_cb=None,
         triggered_by, force_replace)
 
 
+def _run_dimensions_load(progress_cb, triggered_by):
+    """Fresh reload of ALL dimension tables only — no fact data touched.
+    Small dims (stores, subsidiaries, employees, DCS, vendors) are delete+reload;
+    items are a full-refresh rebuild; customers upsert over the warehouse's whole
+    fact date range (covers every referenced customer, updates names/phones)."""
+    _clear_cancel()
+    duck = get_db().cursor()
+    duck.execute("SET pandas_analyze_sample=10000000")
+    _run_id = _log_start(duck, "dimensions", triggered_by, "dimensions", None, None, 100)
+    try:
+        ora = _get_oracle_conn()
+        try:
+            if progress_cb:
+                progress_cb("Loading dimensions", 5, 100)
+            _load_dimensions(duck, ora, progress_cb)
+            row = duck.execute(
+                "SELECT CAST(MIN(INVC_POST_DATE) AS DATE), CAST(MAX(INVC_POST_DATE) AS DATE) "
+                "FROM FACT_SALES_INVOICES").fetchone()
+            df = str(row[0]) if row and row[0] else _date_range(730)[0]
+            dt = str(row[1]) if row and row[1] else str(datetime.now().date())
+            if progress_cb:
+                progress_cb("Loading customers & items", 50, 100)
+            _load_large_dims(duck, ora, df, dt, progress_cb)
+        finally:
+            ora.close()
+        if progress_cb:
+            progress_cb("Done", 100, 100)
+        _log_finish(duck, _run_id, "completed")
+        log.info("Dimensions fresh load complete")
+    except SyncCancelled:
+        _log_finish(duck, _run_id, "cancelled", "Cancelled by user")
+        log.info("Dimensions load cancelled by user")
+        raise
+    except Exception as e:
+        _log_finish(duck, _run_id, "failed", str(e))
+        raise
+
+
+async def dimensions_load(progress_cb=None, triggered_by: str = "user"):
+    """Dimensions-only fresh reload (stores, subsidiaries, employees, DCS,
+    vendors, customers, items). Facts are untouched."""
+    log.info("Dimensions load starting")
+    await asyncio.get_event_loop().run_in_executor(
+        _executor, _run_dimensions_load, progress_cb, triggered_by)
+
+
 # -- Retention (cap the largest tables) ----------------------------------------
 
 _RETENTION_COLS = {

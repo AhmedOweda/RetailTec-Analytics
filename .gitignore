@@ -64,6 +64,8 @@ package-lock.json
 backend/.jwt_secret
 backend/backups/
 packaging/out/
+packaging/out2/
+packaging/Output/
 packaging/work/
 packaging/*.spec
 backend/webapp/
