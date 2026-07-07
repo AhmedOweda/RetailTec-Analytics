@@ -26,7 +26,19 @@ Remove-Item "$root\backend\webapp" -Recurse -Force -ErrorAction SilentlyContinue
 Copy-Item "$root\frontend\dist" "$root\backend\webapp" -Recurse
 
 Write-Host "== 3/4 Freezing backend with PyInstaller =="
-& $py -m pip install pyinstaller pystray pillow --quiet
+& $py -m pip install pyinstaller pystray pillow cryptography --quiet
+
+# Oracle Instant Client to bundle (redistributable under its BASIC_LICENSE).
+# Override with RETAILTEC_IC_DIR; skipped with a warning if not found.
+$ic = $env:RETAILTEC_IC_DIR
+if (-not $ic) { $ic = 'C:\db_mcp\instantclient-basic-windows.x64-23.26.2.0.0\instantclient_23_0' }
+$icArgs = @()
+if (Test-Path "$ic\oci.dll") {
+    $icArgs = @('--add-data', "$ic;instantclient")
+    Write-Host "Bundling Oracle Instant Client from $ic"
+} else {
+    Write-Host "WARNING: Instant Client not found at $ic - exe will need it on the customer machine"
+}
 Push-Location "$root\backend"
 & $py -m PyInstaller run_server.py `
     --name RetailTecAnalytics `
@@ -36,6 +48,7 @@ Push-Location "$root\backend"
     --workpath "$root\packaging\work" `
     --specpath "$root\packaging" `
     --add-data "$root\backend\webapp;webapp" `
+    @icArgs `
     --hidden-import uvicorn.logging `
     --hidden-import uvicorn.loops.auto `
     --hidden-import uvicorn.protocols.http.auto `
@@ -43,6 +56,7 @@ Push-Location "$root\backend"
     --hidden-import uvicorn.lifespan.on `
     --collect-all duckdb `
     --collect-all oracledb `
+    --collect-all cryptography `
     --collect-all pystray
 if ($LASTEXITCODE -ne 0) { throw "pyinstaller failed" }
 Pop-Location
