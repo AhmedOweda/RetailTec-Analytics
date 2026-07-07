@@ -280,7 +280,7 @@ export default function DataModelSettings() {
                  { maxWidth: '100%' } }}>
       <Typography variant="h6" sx={{ fontWeight:700, color:'#0f172a', mb:0.5 }}>{tr('Settings')}<TitleLoader /></Typography>
       <Typography sx={{ fontSize:13, color:'#64748b', mb:3 }}>
-        {tr('Configure Oracle connection and data model refresh behaviour.')}
+        {tr('Manage database connection, data refresh, display, reports and maintenance.')}
       </Typography>
 
       {/* ── Tab bar (pure UI grouping — no settings logic changes) ── */}

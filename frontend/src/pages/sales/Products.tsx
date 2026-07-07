@@ -311,10 +311,12 @@ export default function Products() {
           formatter: (p: any) => p.data?.name ?? '',
         },
         emphasis: { focus: 'self', label: { fontWeight: 800, color: '#1e293b' } },
+        labelLayout: { hideOverlap: true },
         markLine: {
           silent: true, symbol: 'none',
           lineStyle: { color: C_AMBER, type: 'dashed', width: 1.5 },
-          data: [{ yAxis: avgGp, label: { formatter: `Avg GP ${avgGp.toFixed(1)}%`, color: C_AMBER, fontSize: 10, position: 'insideEndTop' } }],
+          data: [{ yAxis: avgGp, label: { formatter: `Avg GP ${avgGp.toFixed(1)}%`, color: C_AMBER, fontSize: 10, position: 'insideEndTop',
+            backgroundColor: 'rgba(255,255,255,0.85)', padding: [1,3], borderRadius: 2 } }],
         },
       }],
     }
@@ -494,7 +496,8 @@ export default function Products() {
         markLine: {
           silent: true,
           lineStyle: { color: C_AMBER, type: 'dashed', width: 1.5 },
-          data: [{ type: 'average', name: 'Avg', label: { formatter: 'Avg', color: C_AMBER, fontSize: 9 } }],
+          data: [{ type: 'average', name: 'Avg', label: { formatter: 'Avg', color: C_AMBER, fontSize: 9, position: 'insideEndTop',
+            backgroundColor: 'rgba(255,255,255,0.85)', padding: [1,3], borderRadius: 2 } }],
         },
       }],
     }

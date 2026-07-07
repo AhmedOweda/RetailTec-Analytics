@@ -269,10 +269,12 @@ export default function InventoryOverview() {
           formatter: (p: any) => p.data?.name ?? '',
         },
         emphasis: { focus: 'self', label: { fontWeight: 800, color: '#1e293b' } },
+        labelLayout: { hideOverlap: true },
         markLine: {
           silent: true, symbol: 'none',
           lineStyle: { color: C_AMBER, type: 'dashed', width: 1.5 },
-          data: [{ yAxis: avgGm, label: { formatter: `Avg GM ${avgGm.toFixed(1)}%`, color: C_AMBER, fontSize: 10, position: 'insideEndTop' } }],
+          data: [{ yAxis: avgGm, label: { formatter: `Avg GM ${avgGm.toFixed(1)}%`, color: C_AMBER, fontSize: 10, position: 'insideEndTop',
+            backgroundColor: 'rgba(255,255,255,0.85)', padding: [1,3], borderRadius: 2 } }],
         },
       }],
     }
