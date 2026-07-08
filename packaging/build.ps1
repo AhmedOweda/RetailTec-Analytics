@@ -63,6 +63,7 @@ Pop-Location
 
 Write-Host "== 4/5 Building one-click installer (if Inno Setup is installed) =="
 $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+if (-not (Test-Path $iscc)) { $iscc = "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" }
 if (Test-Path $iscc) {
     & $iscc "$PSScriptRoot\installer.iss"
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup compile failed" }
