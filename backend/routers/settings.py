@@ -36,6 +36,7 @@ class ConnectionSettings(BaseModel):
     sid:      str
     username: str
     password: str
+    alias:    str = ""   # friendly display name for this database connection
 
 class DataModelSettings(BaseModel):
     """Legacy flat shape — still accepted; migrated on read by the scheduler."""
@@ -235,12 +236,27 @@ def update_settings(payload: SettingsPayload, _admin: dict = Depends(require_adm
 
     save_settings(current)
 
-    # If host changed: cancel running sync + switch DB file
+    # If host changed: cancel running sync + switch DB file.
+    # The per-server warehouse may already hold data from a previous session —
+    # in that case keep the model usable instead of forcing a full reload.
     if new_host != old_host:
         cancel_sync()
         switch_db(new_host)
-        current["model_status"] = "empty"
-        current["last_sync"]    = None
+        from db.model import get_db
+        has_data, last_sync = False, None
+        try:
+            con = get_db()
+            has_data = con.execute(
+                "SELECT COUNT(*) FROM FACT_SALES_INVOICES").fetchone()[0] > 0
+            row = con.execute(
+                "SELECT MAX(finished_at) FROM SYNC_RUN WHERE status='completed'"
+            ).fetchone()
+            if row and row[0]:
+                last_sync = str(row[0])
+        except Exception:
+            pass
+        current["model_status"] = "ready" if has_data else "empty"
+        current["last_sync"]    = last_sync if has_data else None
         save_settings(current)
 
     return {"ok": True, "message": "Settings saved", "host_changed": new_host != old_host}
@@ -269,7 +285,10 @@ async def test_connection(conn: ConnectionSettings, _admin: dict = Depends(requi
 @router.get("/api/settings/status")
 def get_model_status():
     s = load_settings()
-    return {"model_status": s.get("model_status", "empty"), "last_sync": s.get("last_sync")}
+    c = s.get("connection", {})
+    return {"model_status": s.get("model_status", "empty"),
+            "last_sync": s.get("last_sync"),
+            "db_alias": (c.get("alias") or "").strip() or c.get("host", "")}
 
 
 @router.post("/api/sync/cancel")

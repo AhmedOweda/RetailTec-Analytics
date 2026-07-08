@@ -180,7 +180,7 @@ export default function DataModelSettings() {
     queryFn:  () => axios.get('/api/sync/history?limit=200').then(r => r.data.runs as any[]),
   })
 
-  const [conn, setConn] = useState({ host:'', port:1521, sid:'', username:'', password:'' })
+  const [conn, setConn] = useState({ host:'', port:1521, sid:'', username:'', password:'', alias:'' })
   const [dm, setDm]     = useState<DataModelV2>(DEFAULT_DM)
   const [saveMsg, setSaveMsg]         = useState('')
   const [saveErr, setSaveErr]         = useState('')
@@ -320,6 +320,9 @@ export default function DataModelSettings() {
           <TextField label={tr('Password')} size="small" type="password" fullWidth
             placeholder={tr('Enter to change password')}
             value={conn.password} onChange={e => setConn({ ...conn, password:e.target.value })} />
+          <TextField label={tr('Database Alias')} size="small" fullWidth
+            placeholder={tr('e.g. Main Branch DB')}
+            value={conn.alias ?? ''} onChange={e => setConn({ ...conn, alias:e.target.value })} />
         </Box>
 
         <Box sx={{ display:'flex', alignItems:'center', gap:2 }}>
