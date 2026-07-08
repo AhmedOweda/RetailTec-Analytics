@@ -393,6 +393,38 @@ const ar_strings: Record<string, string> = {
   'Refresh Dimensions only': 'تحديث الأبعاد فقط',
   'Database Alias': 'الاسم المستعار لقاعدة البيانات',
   'e.g. Main Branch DB': 'مثال: قاعدة الفرع الرئيسي',
+  // ── Unified Your Data settings (2026-07-08) ──
+  'Sync': 'المزامنة',
+  'Your Data': 'بياناتك',
+  'Each data type in one row: switch it on or off, choose how much history to keep, how it refreshes automatically, and how long line-level detail is kept (daily summaries are kept forever). Load now pulls just that data type. Times use the timezone above. Remember to Save Settings.':
+    'كل نوع بيانات في صف واحد: فعّله أو أوقفه، واختر مقدار التاريخ المحتفظ به، وطريقة التحديث التلقائي، ومدة الاحتفاظ بتفاصيل الأسطر (الملخصات اليومية تبقى دائمًا). زر التحميل الآن يجلب هذا النوع فقط. الأوقات حسب المنطقة الزمنية أعلاه. لا تنسَ حفظ الإعدادات.',
+  'Data type': 'نوع البيانات',
+  'Domain': 'النطاق',
+  'Your data': 'بياناتك',
+  'Everything about each data type in one row — how much history to keep, how it refreshes, and when old line-detail is cleaned up. Daily summaries are kept forever. Remember to Save Settings.':
+    'كل ما يخص كل نوع بيانات في صف واحد — مقدار التاريخ المحتفظ به، وطريقة التحديث، ومتى تُنظّف تفاصيل الأسطر القديمة. الملخصات اليومية تبقى دائمًا. لا تنسَ حفظ الإعدادات.',
+  'On': 'مفعّل', 'Off': 'موقوف',
+  'Timezone:': 'المنطقة الزمنية:', 'Re-check last:': 'إعادة فحص آخر:', 'Quiet hours:': 'ساعات الهدوء:',
+  '{{n}} days': '{{n}} يومًا', 'off': 'موقوفة',
+  'Daily {{t}}': 'يوميًا {{t}}',
+  'Load a date range…': 'تحميل فترة محددة…',
+  'Server online': 'الخادم يعمل',
+  'Server not reachable — is RetailTec Analytics running?': 'تعذّر الوصول إلى الخادم — هل تطبيق ريتيل تك يعمل؟',
+  'Checking server…': 'جارٍ فحص الخادم…',
+  'Cannot reach the server — it may still be starting. Try again in a moment.':
+    'تعذّر الوصول إلى الخادم — قد يكون في طور التشغيل. حاول مجددًا بعد لحظات.',
+  'Server error — please try again.': 'خطأ في الخادم — حاول مرة أخرى.',
+  'Last 30 days': 'آخر 30 يومًا', 'Last 3 months': 'آخر 3 أشهر', 'Last 6 months': 'آخر 6 أشهر',
+  'Last 1 year': 'آخر سنة', 'Last 2 years': 'آخر سنتين', 'Last 3 years': 'آخر 3 سنوات',
+  'Keep history': 'الاحتفاظ بالتاريخ',
+  'Auto refresh': 'تحديث تلقائي',
+  'Line detail': 'تفاصيل الأسطر',
+  'Manual only': 'يدوي فقط',
+  'Every {{n}} min': 'كل {{n}} دقيقة',
+  'At set times…': 'في أوقات محددة…',
+  'Load now': 'تحميل الآن',
+  'Load an explicit period (e.g. backfill older history) for all enabled data types. This appends to existing data — nothing is deleted.':
+    'تحميل فترة محددة (مثل استكمال تاريخ أقدم) لكل أنواع البيانات المفعّلة. يضاف إلى البيانات الموجودة — لا يُحذف شيء.',
   'Fresh reload of stores, subsidiaries, employees, departments, vendors, customers and items. No sales or inventory data is loaded.':
     'إعادة تحميل كاملة للمتاجر والشركات التابعة والموظفين والأقسام والموردين والعملاء والأصناف. لا يتم تحميل بيانات المبيعات أو المخزون.',
   'Currency': 'العملة',

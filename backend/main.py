@@ -117,6 +117,13 @@ def health():
     return {"status": "ok", "version": "3.0.0"}
 
 
+@app.get("/api/health")
+def api_health():
+    """Public liveness probe — used by the login page server indicator.
+    Under /api so the Vite dev proxy forwards it too."""
+    return {"status": "ok", "version": "3.0.0"}
+
+
 @app.get("/api/cache/status")
 def cache_status():
     """Kept for backward-compat (Electron health check uses this endpoint)."""

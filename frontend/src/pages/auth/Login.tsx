@@ -206,6 +206,24 @@ export default function Login() {
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState<string | null>(null)
   const [focused,  setFocused]  = useState<string | null>(null)
+  const [server,   setServer]   = useState<'checking' | 'online' | 'offline'>('checking')
+
+  // Server liveness probe: the packaged app runs windowless, so this is the
+  // user's only signal that the backend is (still) starting or down.
+  useEffect(() => {
+    let stop = false
+    async function ping() {
+      try {
+        const r = await fetch('/api/health', { cache: 'no-store' })
+        if (!stop) setServer(r.ok ? 'online' : 'offline')
+      } catch {
+        if (!stop) setServer('offline')
+      }
+    }
+    ping()
+    const id = setInterval(ping, 5000)
+    return () => { stop = true; clearInterval(id) }
+  }, [])
 
   // Navigate only after context actually has the user — avoids React 18 batching race
   useEffect(() => {
@@ -219,7 +237,15 @@ export default function Login() {
       await login(username.trim(), password)
       // nav() is handled by the useEffect above once user state commits
     } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Incorrect username or password')
+      if (!err?.response) {
+        // Network-level failure — the backend is unreachable, NOT a bad password
+        setError(tr('Cannot reach the server — it may still be starting. Try again in a moment.'))
+        setServer('offline')
+      } else if (err.response.status >= 500) {
+        setError(tr('Server error — please try again.'))
+      } else {
+        setError(err.response.data?.detail ?? tr('Incorrect username or password'))
+      }
     } finally {
       setLoading(false)
     }
@@ -341,7 +367,23 @@ export default function Login() {
             </button>
           </form>
 
-          <p style={{ textAlign: 'center', marginTop: 28, fontSize: 12,
+          {/* Server liveness indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        gap: 7, marginTop: 24 }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: server === 'online' ? '#22c55e' : server === 'offline' ? '#ef4444' : '#eab308',
+              boxShadow: server === 'online' ? '0 0 6px rgba(34,197,94,0.8)'
+                       : server === 'offline' ? '0 0 6px rgba(239,68,68,0.8)' : 'none',
+            }} />
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
+              {server === 'online'  ? tr('Server online')
+               : server === 'offline' ? tr('Server not reachable — is RetailTec Analytics running?')
+               : tr('Checking server…')}
+            </span>
+          </div>
+
+          <p style={{ textAlign: 'center', marginTop: 12, fontSize: 12,
                       color: 'rgba(255,255,255,0.2)' }}>
             RetailTec Analytics v3.0 · {new Date().getFullYear()}
           </p>

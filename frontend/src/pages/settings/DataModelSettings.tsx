@@ -54,6 +54,13 @@ const DOMAINS = [
 ] as const
 
 const LOAD_OPTIONS = [30, 90, 180, 365, 730, 1095]
+const DAYS_LABEL: Record<number, string> = {
+  30: 'Last 30 days', 90: 'Last 3 months', 180: 'Last 6 months',
+  365: 'Last 1 year', 730: 'Last 2 years', 1095: 'Last 3 years',
+}
+const daysLabel = (v: number) => DAYS_LABEL[v] ? tr(DAYS_LABEL[v]) : trf('Last {{n}} days', { n: v })
+// One shared template so the header and every row stay aligned
+const DATA_GRID_COLS = 'minmax(118px,150px) minmax(88px,1fr) minmax(96px,1.1fr) minmax(88px,1fr) auto'
 const INCR_OPTIONS = [1, 3, 7, 14, 30]
 const REFR_OPTIONS = [5, 10, 15, 30, 60, 120]
 
@@ -117,12 +124,16 @@ function LabeledCtl({ label, children }:
   )
 }
 
-function SectionCard({ title, icon, children }:
-  { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function SectionCard({ title, icon, children, headerRight, defaultClosed }:
+  { title: string; icon: React.ReactNode; children: React.ReactNode;
+    headerRight?: React.ReactNode; defaultClosed?: boolean }) {
   // Collapsible: state remembered per section
   const storageKey = `settings-card-${title.replace(/\W+/g, '-')}`
-  const [open, setOpen] = useState<boolean>(
-    () => localStorage.getItem(storageKey) !== 'closed')
+  const [open, setOpen] = useState<boolean>(() => {
+    const stored = localStorage.getItem(storageKey)
+    if (stored) return stored !== 'closed'
+    return !defaultClosed
+  })
   const toggle = () => {
     setOpen(o => {
       localStorage.setItem(storageKey, o ? 'closed' : 'open')
@@ -137,7 +148,9 @@ function SectionCard({ title, icon, children }:
                 cursor:'pointer', userSelect:'none',
                 '&:hover .sc-chevron': { color:'#0f172a' } }}>
           <Box sx={{ color:ACCENT }}>{icon}</Box>
-          <Typography sx={{ fontWeight:700, fontSize:15, color:'#0f172a', flex:1 }}>{tr(title)}</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:15, color:'#0f172a' }}>{tr(title)}</Typography>
+          <Box sx={{ flex:1, display:'flex', alignItems:'center', gap:1.5,
+                     justifyContent:'flex-end', minWidth:0 }}>{headerRight}</Box>
           <ExpandMoreIcon className="sc-chevron"
             sx={{ color:'#94a3b8', transition:'transform 0.2s',
                   transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
@@ -185,9 +198,9 @@ export default function DataModelSettings() {
   const [saveMsg, setSaveMsg]         = useState('')
   const [saveErr, setSaveErr]         = useState('')
   const [histOpen, setHistOpen]       = useState(false)
-  const [selDomains, setSelDomains]   = useState<Set<string>>(new Set())  // empty = all
   const [rangeFrom, setRangeFrom]     = useState('')
   const [rangeTo,   setRangeTo]       = useState('')
+  const [rangeOpen, setRangeOpen]     = useState(false)
   const [tab, setTab]                 = useState(0)   // Settings tab (UI grouping only)
   const [brandName, setBrandName]     = useState('')  // whitelabel product name
   const [brandLogo, setBrandLogo]     = useState('')  // base64 data-URL or empty
@@ -246,10 +259,13 @@ export default function DataModelSettings() {
   })
 
   const fullLoad = useMutation({
-    mutationFn: () => {
-      const tables = selDomains.size > 0 ? [...selDomains].join(',') : undefined
-      return axios.post('/api/sync/full-load', null, { params: tables ? { tables } : {} })
-    },
+    mutationFn: () => axios.post('/api/sync/full-load'),
+    onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
+  })
+
+  const loadOne = useMutation({
+    mutationFn: (domain: string) =>
+      axios.post('/api/sync/full-load', null, { params: { tables: domain } }),
     onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
   })
 
@@ -262,7 +278,7 @@ export default function DataModelSettings() {
     mutationFn: () => axios.post('/api/sync/range', {
       date_from: rangeFrom,
       date_to:   rangeTo,
-      domains:   selDomains.size > 0 ? [...selDomains] : null,
+      domains:   null,
     }),
     onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
   })
@@ -296,7 +312,6 @@ export default function DataModelSettings() {
               '& .Mui-selected': { color:`${ACCENT} !important` },
               '& .MuiTabs-indicator': { bgcolor:ACCENT } }}>
         <Tab label={tr('Connection & Data')} />
-        <Tab label={tr('Schedules')} />
         <Tab label={tr('Display')} />
         <Tab label={tr('Reports')} />
         <Tab label={tr('Maintenance')} />
@@ -354,8 +369,8 @@ export default function DataModelSettings() {
 
       </Box>{/* end Tab 0 (part 1) */}
 
-      {/* ── Tab 2: Display ── */}
-      <Box sx={{ display: tab === 2 ? 'block' : 'none' }}>
+      {/* ── Tab 1: Display ── */}
+      <Box sx={{ display: tab === 1 ? 'block' : 'none' }}>
 
       {/* ── Display Settings ────────────────────────────────────── */}
       <SectionCard title="Display Settings" icon={<TuneIcon />}>
@@ -555,8 +570,24 @@ export default function DataModelSettings() {
       {/* ── Tab 0: Connection & Data (part 2) ── */}
       <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
 
-      {/* ── Data Model ──────────────────────────────────────────── */}
-      <SectionCard title="Data Model" icon={<SyncIcon />}>
+      {/* ── Automatic sync — collapsed = summary strip, expanded = edit ── */}
+      <SectionCard title="Automatic sync" icon={<SyncIcon />} defaultClosed
+        headerRight={
+          <>
+            <Box sx={{ px:1.2, py:0.2, borderRadius:99, fontSize:11.5, fontWeight:700,
+                       bgcolor: dm.background_enabled ? 'rgba(22,163,74,0.12)' : 'rgba(148,163,184,0.15)',
+                       color: dm.background_enabled ? '#16a34a' : '#64748b' }}>
+              {dm.background_enabled ? tr('On') : tr('Off')}
+            </Box>
+            <Typography sx={{ fontSize:12.5, color:'#64748b', whiteSpace:'nowrap', overflow:'hidden',
+                              textOverflow:'ellipsis' }}>
+              {tr('Timezone:')} <b style={{ color:'#0f172a' }}>{dm.timezone}</b>
+              {'   ·   '}{tr('Re-check last:')} <b style={{ color:'#0f172a' }}>{trf('{{n}} days', { n: dm.default_incremental_days })}</b>
+              {'   ·   '}{tr('Quiet hours:')} <b style={{ color:'#0f172a' }}>
+                {dm.quiet_hours ? `${dm.quiet_hours.from}–${dm.quiet_hours.to}` : tr('off')}</b>
+            </Typography>
+          </>
+        }>
         <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap', mb:2.5 }}>
           <FormControlLabel
             control={
@@ -609,122 +640,30 @@ export default function DataModelSettings() {
           )}
         </Box>
 
-        {/* Sync progress */}
-        {isRunning && (
-          <Box sx={{ mb:2, p:1.5, bgcolor:'rgba(124,58,237,0.06)', borderRadius:1.5 }}>
-            <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:0.5 }}>
-              <Typography sx={{ fontSize:11, fontWeight:700, color:ACCENT, textTransform:'uppercase', letterSpacing:0.4 }}>
-                {tr(KIND_LABEL[syncState.kind] || 'Sync')}
-              </Typography>
-              <Box sx={{ flex:1 }} />
-              <Typography sx={{ fontSize:11, color:'#94a3b8' }}>{etaText(syncState)}</Typography>
-            </Box>
-            <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:0.8 }}>
-              <CircularProgress size={14} sx={{ color:ACCENT }} />
-              <Typography sx={{ fontSize:13, fontWeight:600, color:ACCENT, flex:1 }}>
-                {syncState.step}…
-              </Typography>
-              <Typography sx={{ fontSize:11, color:'#94a3b8' }}>
-                {syncState.total ? Math.round((syncState.done / syncState.total) * 100) : 0}%
-              </Typography>
-            </Box>
-            <LinearProgress variant="determinate"
-              value={syncState.total ? (syncState.done / syncState.total) * 100 : 0}
-              sx={{ height:4, borderRadius:2, '& .MuiLinearProgress-bar':{ bgcolor:ACCENT } }} />
-          </Box>
-        )}
-        {syncState?.error && (
-          <Alert severity="error" sx={{ mb:2, fontSize:12 }}>{syncState.error}</Alert>
-        )}
-        {syncState?.last_sync && !isRunning && (
-          <Typography sx={{ fontSize:12, color:'#94a3b8', mb:2 }}>
-            {trf('Last sync: {{t}}', { t: new Date(syncState.last_sync).toLocaleString() })}
-          </Typography>
-        )}
-
-        {/* Domain selector */}
-        <Box sx={{ mb:2 }}>
-          <Typography sx={{ fontSize:12, fontWeight:700, color:'#475569' }}>
-            {tr('Manual load — one-time pull from Oracle')}
-          </Typography>
-          <Typography sx={{ fontSize:11.5, color:'#94a3b8', mb:1 }}>
-            {tr('Runs once, right now. How far back each domain goes is its Load window in Refresh Schedules & Retention below. Tick domains to load only those — all unchecked = everything.')}
-          </Typography>
-          <FormGroup row sx={{ gap:1 }}>
-            {DOMAINS.map(d => (
-              <Tooltip key={d.key} title={tr(d.desc)} placement="top" arrow>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={selDomains.has(d.key)}
-                      onChange={e => {
-                        const next = new Set(selDomains)
-                        e.target.checked ? next.add(d.key) : next.delete(d.key)
-                        setSelDomains(next)
-                      }}
-                      sx={{ color: ACCENT, '&.Mui-checked': { color: ACCENT }, p:'4px' }}
-                    />
-                  }
-                  label={
-                    <Typography sx={{ fontSize:13, fontWeight: selDomains.has(d.key) ? 700 : 400,
-                                      color: selDomains.has(d.key) ? ACCENT : '#374151' }}>
-                      {tr(d.label)}
-                    </Typography>
-                  }
-                />
-              </Tooltip>
-            ))}
-          </FormGroup>
-        </Box>
-
-        {/* Load action (contextual to the domain selection above) — the global
-            Save Settings button lives in the sticky bar at the bottom */}
-        <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
-          {!isRunning ? (
-            <Button variant="outlined" size="small"
-              onClick={() => fullLoad.mutate()}
-              disabled={fullLoad.isPending}
-              sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
-                    '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
-              {selDomains.size > 0
-                ? trf('Load {{d}} now', { d: [...selDomains].join(' + ') })
-                : tr('Load All Data now')}
-            </Button>
-          ) : null}
-          {!isRunning ? (
-            <Tooltip title={tr('Fresh reload of stores, subsidiaries, employees, departments, vendors, customers and items. No sales or inventory data is loaded.')}>
-              <Button variant="outlined" size="small"
-                onClick={() => dimsLoad.mutate()}
-                disabled={dimsLoad.isPending}
-                sx={{ borderColor:'#94a3b8', color:'#475569', textTransform:'none', fontWeight:600,
-                      '&:hover':{ borderColor:'#64748b', bgcolor:'rgba(100,116,139,0.04)' } }}>
-                {tr('Refresh Dimensions only')}
-              </Button>
-            </Tooltip>
-          ) : (
-            <Button variant="outlined" size="small"
-              startIcon={<StopIcon />}
-              onClick={() => stopLoad.mutate()}
-              disabled={stopLoad.isPending}
-              sx={{ borderColor:'#ef4444', color:'#ef4444', textTransform:'none', fontWeight:600,
-                    '&:hover':{ borderColor:'#dc2626', bgcolor:'rgba(239,68,68,0.04)' } }}>
-              {tr('Stop Load')}
-            </Button>
-          )}
-        </Box>
       </SectionCard>
 
       </Box>{/* end Tab 0 (part 2) */}
 
-      {/* ── Tab 1: Schedules ── */}
-      <Box sx={{ display: tab === 1 ? 'block' : 'none' }}>
+      {/* ── Tab 0: Your Data (merged Data Model + Schedules, 2026-07-08) ── */}
+      <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
 
-      {/* ── Refresh Schedules & Retention (per domain) ───────────── */}
-      <SectionCard title="Refresh Schedules & Retention" icon={<ScheduleIcon />}>
+      {/* ── Your data — one row per domain ─────────────────────────── */}
+      <SectionCard title="Your data" icon={<ScheduleIcon />}>
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-          {tr('Controls the automatic refresh of each domain: at specific times on selected days, on a fixed interval, or manual only. The Load window here sets how far back that domain keeps data — it is also the period the manual Load now button above pulls. Retention prunes old line-item detail while keeping daily summaries forever. Times use the timezone selected above. Remember to Save Settings.')}
+          {tr('Everything about each data type in one row — how much history to keep, how it refreshes, and when old line-detail is cleaned up. Daily summaries are kept forever. Remember to Save Settings.')}
         </Typography>
+
+        {/* Column headers */}
+        <Box sx={{ display:'grid', alignItems:'center', gap:1, px:1.5, pb:0.5,
+                   gridTemplateColumns: DATA_GRID_COLS }}>
+          {['Domain', 'Keep history', 'Auto refresh', 'Line detail'].map(h => (
+            <Typography key={h} sx={{ fontSize:10.5, fontWeight:700, color:'#94a3b8',
+                                      textTransform:'uppercase', letterSpacing:0.6 }}>
+              {tr(h)}
+            </Typography>
+          ))}
+          <span />
+        </Box>
 
         {DOMAINS.map(d => {
           const cfg = dm.domains[d.key]
@@ -732,10 +671,11 @@ export default function DataModelSettings() {
           const sch = cfg.schedule ?? { mode: 'manual' as const }
           return (
             <Box key={d.key}
-              sx={{ border:'1px solid #e2e8f0', borderRadius:1.5, p:1.5, mb:1.5,
+              sx={{ border:'1px solid #e2e8f0', borderRadius:1.5, px:1.5, py:1, mb:1,
                     opacity: cfg.enabled ? 1 : 0.55 }}>
-              <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap', mb:1 }}>
-                <FormControlLabel sx={{ mr:0, minWidth:150 }}
+              <Box sx={{ display:'grid', alignItems:'center', gap:1,
+                         gridTemplateColumns: DATA_GRID_COLS }}>
+                <FormControlLabel sx={{ mr:0 }}
                   control={
                     <Switch size="small" checked={cfg.enabled}
                       onChange={e => setDomain(d.key, { enabled: e.target.checked })} />
@@ -748,105 +688,177 @@ export default function DataModelSettings() {
                     </Tooltip>
                   }
                 />
-                <LabeledCtl label="Load window">
-                  <FormControl size="small" sx={{ minWidth:150 }}>
-                    <Select value={cfg.load_days}
-                      onChange={e => setDomain(d.key, { load_days: +e.target.value })}>
-                      {[...new Set([cfg.load_days, ...LOAD_OPTIONS])].sort((a, b) => a - b)
-                        .map(v => <MenuItem key={v} value={v}>{trf('Last {{n}} days', { n: v })}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </LabeledCtl>
-                <LabeledCtl label="Detail retention">
-                  <FormControl size="small" sx={{ minWidth:165 }}>
-                    <Select
-                      value={cfg.retain_detail_months === null ? 'null' : cfg.retain_detail_months}
-                      onChange={e => setDomain(d.key, {
-                        retain_detail_months: e.target.value === 'null' ? null : +e.target.value })}>
-                      {RETAIN_OPTIONS.map(o =>
-                        <MenuItem key={String(o.v)} value={o.v === null ? 'null' : o.v}>{tr(o.l)}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                </LabeledCtl>
+                <FormControl size="small">
+                  <Select value={cfg.load_days}
+                    onChange={e => setDomain(d.key, { load_days: +e.target.value })}>
+                    {[...new Set([cfg.load_days, ...LOAD_OPTIONS])].sort((a, b) => a - b)
+                      .map(v => <MenuItem key={v} value={v}>{daysLabel(v)}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select
+                    value={sch.mode === 'manual' ? 'manual'
+                      : sch.mode === 'times' ? 'times' : `i${sch.every_minutes ?? 30}`}
+                    renderValue={v => v === 'manual' ? tr('Manual only')
+                      : v === 'times' ? trf('Daily {{t}}', { t: (sch.times ?? []).join(', ') || '…' })
+                      : trf('Every {{n}} min', { n: +String(v).slice(1) })}
+                    onChange={e => {
+                      const v = String(e.target.value)
+                      if (v === 'manual')     setSchedule(d.key, { mode:'manual' })
+                      else if (v === 'times') setSchedule(d.key, { mode:'times', times: sch.times ?? ['06:00'] })
+                      else                    setSchedule(d.key, { mode:'interval', every_minutes: +v.slice(1) })
+                    }}>
+                    <MenuItem value="manual">{tr('Manual only')}</MenuItem>
+                    {[...new Set([...(sch.mode === 'interval' ? [sch.every_minutes ?? 30] : []), ...REFR_OPTIONS])]
+                      .sort((a, b) => a - b)
+                      .map(m => <MenuItem key={m} value={`i${m}`}>{trf('Every {{n}} min', { n: m })}</MenuItem>)}
+                    <MenuItem value="times">{tr('At set times…')}</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <Select
+                    value={cfg.retain_detail_months === null ? 'null' : cfg.retain_detail_months}
+                    onChange={e => setDomain(d.key, {
+                      retain_detail_months: e.target.value === 'null' ? null : +e.target.value })}>
+                    {RETAIN_OPTIONS.map(o =>
+                      <MenuItem key={String(o.v)} value={o.v === null ? 'null' : o.v}>{tr(o.l)}</MenuItem>)}
+                  </Select>
+                </FormControl>
+                <Button variant="outlined" size="small"
+                  onClick={() => loadOne.mutate(d.key)}
+                  disabled={isRunning || !cfg.enabled || loadOne.isPending}
+                  sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
+                        whiteSpace:'nowrap', minWidth:0, px:1.2,
+                        '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
+                  {tr('Load now')}
+                </Button>
               </Box>
 
-              <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
-                <ToggleButtonGroup exclusive size="small" value={sch.mode}
-                  onChange={(_, v) => { if (v) setSchedule(d.key, { mode: v }) }}
-                  sx={{ '& .MuiToggleButton-root': { px:1.5, py:0.4, fontWeight:700, fontSize:11.5, textTransform:'none' },
-                        '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important` } }}>
-                  <ToggleButton value="manual">{tr('Manual')}</ToggleButton>
-                  <ToggleButton value="interval">{tr('Interval')}</ToggleButton>
-                  <ToggleButton value="times">{tr('Times')}</ToggleButton>
-                </ToggleButtonGroup>
-
-                {sch.mode === 'interval' && (
-                  <FormControl size="small" sx={{ minWidth:130 }}>
-                    <InputLabel>{tr('Every')}</InputLabel>
-                    <Select value={sch.every_minutes ?? 30} label={tr('Every')}
-                      onChange={e => setSchedule(d.key, { every_minutes: +e.target.value })}>
-                      {[...new Set([sch.every_minutes ?? 30, ...REFR_OPTIONS])].sort((a, b) => a - b)
-                        .map(m => <MenuItem key={m} value={m}>{trf('{{n}} min', { n: m })}</MenuItem>)}
-                    </Select>
-                  </FormControl>
-                )}
-
-                {sch.mode === 'times' && (
-                  <>
-                    <TextField size="small" sx={{ minWidth:230 }}
-                      placeholder={tr('Times — 06:00, 12:00, 18:00')}
-                      helperText={tr('HH:MM, comma-separated')}
-                      value={(sch.times ?? []).join(', ')}
-                      onChange={e => setSchedule(d.key, {
-                        times: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })} />
-                    <ToggleButtonGroup size="small" value={sch.days ?? [...WEEKDAYS]}
-                      onChange={(_, v: string[]) => setSchedule(d.key, {
-                        days: v.length === 0 || v.length === 7 ? null : v })}
-                      sx={{ flexWrap:'wrap',
-                            '& .MuiToggleButton-root': { px:1, py:0.3, fontSize:11, fontWeight:700, textTransform:'none' },
-                            '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important` } }}>
-                      {WEEKDAYS.map(w => <ToggleButton key={w} value={w}>{tr(w)}</ToggleButton>)}
-                    </ToggleButtonGroup>
-                  </>
-                )}
-
-                {sch.mode === 'manual' && (
-                  <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-                    {tr('No automatic refresh — use Sync buttons or a range load.')}
-                  </Typography>
-                )}
-              </Box>
+              {sch.mode === 'times' && (
+                <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap', mt:1.5 }}>
+                  <TextField size="small" sx={{ minWidth:230 }}
+                    placeholder={tr('Times — 06:00, 12:00, 18:00')}
+                    helperText={tr('HH:MM, comma-separated')}
+                    value={(sch.times ?? []).join(', ')}
+                    onChange={e => setSchedule(d.key, {
+                      times: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })} />
+                  <ToggleButtonGroup size="small" value={sch.days ?? [...WEEKDAYS]}
+                    onChange={(_, v: string[]) => setSchedule(d.key, {
+                      days: v.length === 0 || v.length === 7 ? null : v })}
+                    sx={{ flexWrap:'wrap',
+                          '& .MuiToggleButton-root': { px:1, py:0.3, fontSize:11, fontWeight:700, textTransform:'none' },
+                          '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important` } }}>
+                    {WEEKDAYS.map(w => <ToggleButton key={w} value={w}>{tr(w)}</ToggleButton>)}
+                  </ToggleButtonGroup>
+                </Box>
+              )}
             </Box>
           )
         })}
+
+        {/* Live progress + global actions */}
+        <Box sx={{ borderTop:'1px solid #e2e8f0', pt:2, mt:2 }}>
+          {isRunning && (
+            <Box sx={{ mb:2, p:1.5, bgcolor:'rgba(124,58,237,0.06)', borderRadius:1.5 }}>
+              <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:0.5 }}>
+                <Typography sx={{ fontSize:11, fontWeight:700, color:ACCENT, textTransform:'uppercase', letterSpacing:0.4 }}>
+                  {tr(KIND_LABEL[syncState.kind] || 'Sync')}
+                </Typography>
+                <Box sx={{ flex:1 }} />
+                <Typography sx={{ fontSize:11, color:'#94a3b8' }}>{etaText(syncState)}</Typography>
+              </Box>
+              <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:0.8 }}>
+                <CircularProgress size={14} sx={{ color:ACCENT }} />
+                <Typography sx={{ fontSize:13, fontWeight:600, color:ACCENT, flex:1 }}>
+                  {syncState.step}…
+                </Typography>
+                <Typography sx={{ fontSize:11, color:'#94a3b8' }}>
+                  {syncState.total ? Math.round((syncState.done / syncState.total) * 100) : 0}%
+                </Typography>
+              </Box>
+              <LinearProgress variant="determinate"
+                value={syncState.total ? (syncState.done / syncState.total) * 100 : 0}
+                sx={{ height:4, borderRadius:2, '& .MuiLinearProgress-bar':{ bgcolor:ACCENT } }} />
+            </Box>
+          )}
+          {syncState?.error && (
+            <Alert severity="error" sx={{ mb:2, fontSize:12 }}>{syncState.error}</Alert>
+          )}
+          {syncState?.last_sync && !isRunning && (
+            <Typography sx={{ fontSize:12, color:'#94a3b8', mb:2 }}>
+              {trf('Last sync: {{t}}', { t: new Date(syncState.last_sync).toLocaleString() })}
+            </Typography>
+          )}
+
+          <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
+            {!isRunning ? (
+              <Button variant="outlined" size="small"
+                onClick={() => fullLoad.mutate()}
+                disabled={fullLoad.isPending}
+                sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
+                      '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
+                {tr('Load All Data now')}
+              </Button>
+            ) : null}
+            {!isRunning ? (
+              <Tooltip title={tr('Fresh reload of stores, subsidiaries, employees, departments, vendors, customers and items. No sales or inventory data is loaded.')}>
+                <Button variant="outlined" size="small"
+                  onClick={() => dimsLoad.mutate()}
+                  disabled={dimsLoad.isPending}
+                  sx={{ borderColor:'#94a3b8', color:'#475569', textTransform:'none', fontWeight:600,
+                        '&:hover':{ borderColor:'#64748b', bgcolor:'rgba(100,116,139,0.04)' } }}>
+                  {tr('Refresh Dimensions only')}
+                </Button>
+              </Tooltip>
+            ) : (
+              <Button variant="outlined" size="small"
+                startIcon={<StopIcon />}
+                onClick={() => stopLoad.mutate()}
+                disabled={stopLoad.isPending}
+                sx={{ borderColor:'#ef4444', color:'#ef4444', textTransform:'none', fontWeight:600,
+                      '&:hover':{ borderColor:'#dc2626', bgcolor:'rgba(239,68,68,0.04)' } }}>
+                {tr('Stop Load')}
+              </Button>
+            )}
+            {!isRunning && (
+              <Button variant="outlined" size="small"
+                onClick={() => setRangeOpen(o => !o)}
+                sx={{ borderColor:'#94a3b8', color:'#475569', textTransform:'none', fontWeight:600,
+                      '&:hover':{ borderColor:'#64748b', bgcolor:'rgba(100,116,139,0.04)' } }}>
+                {tr('Load a date range…')}
+              </Button>
+            )}
+          </Box>
+
+          <Collapse in={rangeOpen && !isRunning} timeout={200}>
+            <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap', mt:2 }}>
+              <Typography sx={{ fontSize:12.5, color:'#64748b', width:'100%' }}>
+                {tr('Load an explicit period (e.g. backfill older history) for all enabled data types. This appends to existing data — nothing is deleted.')}
+              </Typography>
+              <TextField label={tr('From')} type="date" size="small"
+                InputLabelProps={{ shrink:true }}
+                value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
+              <TextField label={tr('To')} type="date" size="small"
+                InputLabelProps={{ shrink:true }}
+                value={rangeTo} onChange={e => setRangeTo(e.target.value)} />
+              <Button variant="outlined" size="small"
+                onClick={() => rangeLoad.mutate()}
+                disabled={isRunning || rangeLoad.isPending || !rangeFrom || !rangeTo}
+                sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
+                      '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
+                {tr('Load Range')}
+              </Button>
+            </Box>
+          </Collapse>
+        </Box>
       </SectionCard>
 
-      </Box>{/* end Tab 1 (part 1) */}
+      </Box>{/* end Your Data */}
 
       {/* ── Tab 0: Connection & Data (part 3) ── */}
       <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
 
-      {/* ── Load a specific date range ──────────────────────────── */}
-      <SectionCard title="Load a Date Range" icon={<SyncIcon />}>
-        <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
-          {tr('Load an explicit period (e.g. backfill older history). This appends to existing data — nothing is deleted. Respects the domain selection above.')}
-        </Typography>
-        <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap' }}>
-          <TextField label={tr('From')} type="date" size="small"
-            InputLabelProps={{ shrink:true }}
-            value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
-          <TextField label={tr('To')} type="date" size="small"
-            InputLabelProps={{ shrink:true }}
-            value={rangeTo} onChange={e => setRangeTo(e.target.value)} />
-          <Button variant="outlined" size="small"
-            onClick={() => rangeLoad.mutate()}
-            disabled={isRunning || rangeLoad.isPending || !rangeFrom || !rangeTo}
-            sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
-                  '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
-            {tr('Load Range')}
-          </Button>
-        </Box>
-      </SectionCard>
+      {/* Load a Date Range moved into the Your data card actions (2026-07-08) */}
 
       {/* ── Loaded data coverage ────────────────────────────────── */}
       <SectionCard title="Loaded Data" icon={<StorageIcon />}>
@@ -874,8 +886,8 @@ export default function DataModelSettings() {
 
       </Box>{/* end Tab 0 (part 3) */}
 
-      {/* ── Tab 1: Schedules (part 2 — Sync History) ── */}
-      <Box sx={{ display: tab === 1 ? 'block' : 'none' }}>
+      {/* ── Tab 0: Sync History ── */}
+      <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
 
       {/* ── Sync history — compact card + filterable dialog ─────── */}
       <SectionCard title="Sync History" icon={<SyncIcon />}>
@@ -896,8 +908,8 @@ export default function DataModelSettings() {
 
       </Box>{/* end Tab 1 (part 2) */}
 
-      {/* ── Tab 4: Maintenance ── */}
-      <Box sx={{ display: tab === 4 ? 'block' : 'none' }}>
+      {/* ── Tab 3: Maintenance ── */}
+      <Box sx={{ display: tab === 3 ? 'block' : 'none' }}>
       {/* ── Maintenance: backup & compact ─────────────────────────── */}
       <MaintenanceCard />
       {/* ── Automatic maintenance toggle (saved with Save Settings) ── */}
@@ -928,8 +940,8 @@ export default function DataModelSettings() {
       <AboutCard />
       </Box>{/* end Tab 4 */}
 
-      {/* ── Tab 3: Reports ── */}
-      <Box sx={{ display: tab === 3 ? 'block' : 'none' }}>
+      {/* ── Tab 2: Reports ── */}
+      <Box sx={{ display: tab === 2 ? 'block' : 'none' }}>
       {/* ── Email (SMTP) ──────────────────────────────────────────── */}
       <EmailCard />
 

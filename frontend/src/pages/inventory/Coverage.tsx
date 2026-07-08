@@ -226,11 +226,6 @@ export default function InventoryCoverage() {
             {tr('Coverage & Replenishment Planning')}
             <TitleLoader />
           </Typography>
-          {isFetching && (
-            <Typography sx={{ fontSize: 11, color: C_PURPLE, fontWeight: 600 }}>
-              ⟳ {tr('Loading…')}
-            </Typography>
-          )}
         </Stack>
 
         <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center">
