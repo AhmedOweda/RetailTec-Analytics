@@ -189,10 +189,11 @@ function SyncBadge() {
 }
 
 // ── Global subsidiary selector ─────────────────────────────────────────────
-// Shown only when the user has access to MORE THAN ONE subsidiary. Changing it
-// stores the SID in the module store and invalidates ALL queries, so every
-// active page refetches — and the axios interceptor then appends the new
-// `subsidiaries` param to each sales/inventory/purchases request.
+// Always shown when the warehouse has subsidiaries. Multi-subsidiary users can
+// switch (or pick All); single-subsidiary installs get their subsidiary
+// auto-selected so its name is always visible. Changing it stores the SID in
+// the module store and invalidates ALL queries, so every active page refetches
+// — the axios interceptor appends the `subsidiaries` param to each request.
 function SubsidiarySelect() {
   const qc = useQueryClient()
   const [sid, setSid] = useState<string>(getSubsidiary())
@@ -204,8 +205,16 @@ function SubsidiarySelect() {
     retry: false,
   })
 
-  // Hidden for single-subsidiary / no-subsidiary customers.
-  if (subs.length <= 1) return null
+  // Single subsidiary: auto-select it so its name always shows in the header.
+  useEffect(() => {
+    if (subs.length === 1 && sid !== subs[0].sid) {
+      setSid(subs[0].sid)
+      setSubsidiary(subs[0].sid)
+    }
+  }, [subs])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hidden only when the warehouse has no subsidiaries at all (empty install).
+  if (subs.length === 0) return null
 
   const onChange = (next: string) => {
     setSid(next)
@@ -228,7 +237,9 @@ function SubsidiarySelect() {
         '& .MuiSelect-select': { py: 0.5, pl: 1.5 },
       }}
     >
-      <MenuItem value="" sx={{ fontSize: 12 }}>{tr('All Subsidiaries')}</MenuItem>
+      {subs.length > 1 && (
+        <MenuItem value="" sx={{ fontSize: 12 }}>{tr('All Subsidiaries')}</MenuItem>
+      )}
       {subs.map(s => (
         <MenuItem key={s.sid} value={s.sid} sx={{ fontSize: 12 }}>{s.name}</MenuItem>
       ))}
