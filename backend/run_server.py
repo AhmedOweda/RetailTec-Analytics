@@ -178,7 +178,27 @@ def _run_with_tray(app):
         subprocess.Popen(args, cwd=os.getcwd(), close_fds=True)
 
 
+def _already_running() -> bool:
+    """True when another instance is already serving on PORT."""
+    try:
+        import urllib.request
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=3) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
 def main():
+    # Single-instance guard: double-clicking the app while it is already
+    # running must NOT start a second copy (the second one used to die on the
+    # locked warehouse file). Just bring up the dashboard instead.
+    if _already_running():
+        try:
+            webbrowser.open(f"http://127.0.0.1:{PORT}")
+        except Exception:
+            pass
+        return
+
     import uvicorn
     from main import app
     threading.Thread(target=_open_browser, daemon=True).start()
