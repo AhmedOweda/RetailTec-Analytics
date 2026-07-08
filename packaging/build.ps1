@@ -44,6 +44,8 @@ Push-Location "$root\backend"
     --name RetailTecAnalytics `
     --onedir --noconfirm --clean `
     --noconsole `
+    --icon "$root\packaging\app.ico" `
+    --add-data "$root\packaging\app.ico;." `
     --distpath "$root\packaging\out" `
     --workpath "$root\packaging\work" `
     --specpath "$root\packaging" `

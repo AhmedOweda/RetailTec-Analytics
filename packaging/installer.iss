@@ -34,6 +34,7 @@ SolidCompression=yes
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
+SetupIconFile=app.ico
 UninstallDisplayIcon={app}\{#AppExe}
 WizardStyle=modern
 

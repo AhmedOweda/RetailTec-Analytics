@@ -414,6 +414,7 @@ const ar_strings: Record<string, string> = {
   'Cannot reach the server — it may still be starting. Try again in a moment.':
     'تعذّر الوصول إلى الخادم — قد يكون في طور التشغيل. حاول مجددًا بعد لحظات.',
   'Server error — please try again.': 'خطأ في الخادم — حاول مرة أخرى.',
+  'Host changed — switched to that server\'s database.': 'تم تغيير الخادم — جرى التحويل إلى قاعدة بيانات ذلك الخادم.',
   'Last 30 days': 'آخر 30 يومًا', 'Last 3 months': 'آخر 3 أشهر', 'Last 6 months': 'آخر 6 أشهر',
   'Last 1 year': 'آخر سنة', 'Last 2 years': 'آخر سنتين', 'Last 3 years': 'آخر 3 سنوات',
   'Keep history': 'الاحتفاظ بالتاريخ',
