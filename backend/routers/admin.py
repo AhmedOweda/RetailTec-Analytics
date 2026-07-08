@@ -107,16 +107,29 @@ def restore(req: RestoreReq, _admin: dict = Depends(require_admin)):
     from db.sync import cancel_sync
     from services.config import load_settings as _ls
 
-    if not re.fullmatch(r"[A-Za-z0-9_.\-]+\.db", req.file or ""):
-        raise HTTPException(status_code=400, detail="Invalid backup file name")
-    src = (_BACKUP_DIR / req.file).resolve()
-    if src.parent != _BACKUP_DIR.resolve() or not src.exists():
+    name = (req.file or "").strip().strip('"')
+    if not name.lower().endswith(".db"):
+        raise HTTPException(status_code=400, detail="Backup must be a .db file")
+
+    if "\\" in name or "/" in name:
+        # Full path — restore from any folder (external drive, network share...)
+        src = Path(name).resolve()
+    else:
+        # Bare name — resolve inside the default backups folder only.
+        if not re.fullmatch(r"[A-Za-z0-9_.\-]+\.db", name):
+            raise HTTPException(status_code=400, detail="Invalid backup file name")
+        src = (_BACKUP_DIR / name).resolve()
+        if src.parent != _BACKUP_DIR.resolve():
+            raise HTTPException(status_code=400, detail="Invalid backup file name")
+    if not src.exists():
         raise HTTPException(status_code=404, detail="Backup file not found")
 
     target = _warehouse_file()
-    if not req.file.startswith(f"{target.stem}_backup_"):
+    # The file must belong to the currently connected database: backups are
+    # named <warehouse>_backup_<stamp>.db and manual copies keep the stem.
+    if not src.name.startswith(target.stem):
         raise HTTPException(status_code=400,
-                            detail="Backup belongs to a different database host")
+                            detail=f"Backup belongs to a different database host (expected a file starting with {target.stem})")
 
     host = _current_settings_host()
     cancel_sync()
