@@ -1065,6 +1065,7 @@ function MaintenanceCard() {
   const [err, setErr] = useState<string | null>(null)
   const [folder, setFolder] = useState('')
   const [restoreFile, setRestoreFile] = useState('')
+  const [restorePath, setRestorePath] = useState('')
   const qc = useQueryClient()
 
   const { data: backupList } = useQuery({
@@ -1081,7 +1082,7 @@ function MaintenanceCard() {
   })
 
   const restore = useMutation({
-    mutationFn: () => axios.post('/api/admin/restore', { file: restoreFile }),
+    mutationFn: () => axios.post('/api/admin/restore', { file: restorePath.trim() || restoreFile }),
     onSuccess: r => { setErr(null);
                       setMsg(trf('Restored {{file}} — {{n}} invoices in the warehouse', { file: r.data.restored, n: (r.data.invoices ?? 0).toLocaleString() }));
                       qc.invalidateQueries() },
@@ -1130,8 +1131,13 @@ function MaintenanceCard() {
               <MenuItem value="" disabled>{tr('No backups yet')}</MenuItem>}
           </Select>
         </FormControl>
+        <LabeledCtl label="Or full path to a backup file">
+          <TextField size="small" sx={{ minWidth:320 }}
+            placeholder="D:\\RetailTecBackups\\retailtec_..._backup_....db"
+            value={restorePath} onChange={e => setRestorePath(e.target.value)} />
+        </LabeledCtl>
         <Button variant="outlined" size="small" color="error"
-          disabled={!restoreFile || restore.isPending}
+          disabled={(!restoreFile && !restorePath.trim()) || restore.isPending}
           onClick={() => {
             if (window.confirm(tr('Replace the current database with this backup? Data loaded after the backup was taken will be lost. The current file is kept as a pre restore copy.')))
               restore.mutate()

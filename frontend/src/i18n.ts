@@ -733,6 +733,7 @@ const ar_strings: Record<string, string> = {
     'هل تريد استبدال قاعدة البيانات الحالية بهذه النسخة الاحتياطية؟ ستُفقد البيانات المحمّلة بعد إنشاء النسخة. يُحتفظ بالملف الحالي كنسخة ما قبل الاستعادة.',
   'Restores the currently connected database from one of its backups. A safety copy of the current file is kept.':
     'يستعيد قاعدة البيانات المتصلة حاليًا من إحدى نسخها الاحتياطية. يُحتفظ بنسخة أمان من الملف الحالي.',
+  'Or full path to a backup file': 'أو المسار الكامل لملف نسخة احتياطية',
   'Used for sending reports and alerts. Works with your company mail server or Gmail (smtp.gmail.com, port 587, app password). The password is stored encrypted.':
     'يُستخدم لإرسال التقارير والتنبيهات. يعمل مع خادم بريد شركتك أو Gmail (smtp.gmail.com، المنفذ 587، كلمة مرور تطبيق). تُخزَّن كلمة المرور مشفّرة.',
   'SMTP host': 'خادم SMTP', 'Username': 'اسم المستخدم', 'Password': 'كلمة المرور',
