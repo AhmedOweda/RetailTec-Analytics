@@ -295,9 +295,11 @@ localhost. **Per-user scoping:** `DIM_USERS.stores` and `DIM_USERS.subsidiaries`
 5. **Single-word grid headers** in very narrow columns may still wrap oddly;
    mitigated (word-break normal + smaller header font + tighter padding) but a
    per-column minWidth would be more robust.
-6. **`sse-starlette`** keeps re-breaking startup (see §2). Consider
-   uninstalling it if nothing needs it (struck AGAIN on 6 Jul: starlette had
-   been silently upgraded to 1.3.1).
+6. **RESOLVED 8 Jul 2026 (`sse-starlette`):** uninstalled, and
+   `backend/constraints.txt` (starlette==0.37.2, fastapi==0.111.0) is enforced
+   machine-wide via the `PIP_CONSTRAINT` user environment variable — every
+   `pip install` by any tool now refuses upgrades that would break these pins.
+   On a NEW machine: `setx PIP_CONSTRAINT <repo>\backend\constraints.txt`.
 7. **RESOLVED 7 Jul 2026:** Inno Setup installed (per-user path — see §5);
    one-click installer builds automatically via `build.ps1`.
 8. **RESOLVED:** DIM_STORE emptied by sync bug (fixed + verified, 25 rows);

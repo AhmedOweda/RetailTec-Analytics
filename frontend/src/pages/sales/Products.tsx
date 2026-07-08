@@ -23,7 +23,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
 import { format, subDays, startOfMonth, startOfYear } from 'date-fns'
-import { num }           from '../../utils/formatters'
+import { num, moneyPrefix } from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
@@ -657,8 +657,8 @@ export default function Products() {
 
       {/* ── KPI strip ──────────────────────────────────────────── */}
       <Box sx={{ display: 'flex', gap: 2, px: 3 }}>
-        <KpiCard label="Total Revenue"  value={num(kpi.totalRev)} icon="ti-cash" />
-        <KpiCard label="Total GP"       value={num(kpi.totalGP)}
+        <KpiCard label="Total Revenue"  value={moneyPrefix() + num(kpi.totalRev)} icon="ti-cash" />
+        <KpiCard label="Total GP"       value={moneyPrefix() + num(kpi.totalGP)}
           color={kpi.totalGP >= 0 ? '#065f46' : '#991b1b'} icon="ti-trending-up" />
         <KpiCard label="Blended GP %"   value={`${kpi.gpPct.toFixed(1)}%`}
           color={gpColor} sub={gpLabel} icon="ti-chart-pie-2" />
