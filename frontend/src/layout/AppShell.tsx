@@ -326,8 +326,8 @@ export default function AppShell() {
   return (
     <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
 
-      {/* Blocks everything while the account is on the default password */}
-      <ForcePasswordDialog />
+      {/* Forced-password-change disabled by owner request (2026-07-08).
+          <ForcePasswordDialog /> stays available if it's ever wanted back. */}
 
       {/* One-time first-run setup wizard (skippable, admins only) */}
       {showWizard && <FirstRunWizard onDone={() => setWizardDismissed(true)} />}
@@ -541,6 +541,21 @@ export default function AppShell() {
             </Box>
           </Box>
           <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
+            {(brandSettings?.connection?.alias || brandSettings?.connection?.host) && (
+              <Tooltip title={`${brandSettings?.connection?.host ?? ''}${brandSettings?.connection?.sid ? ' · ' + brandSettings.connection.sid : ''}`}>
+                <Box sx={{
+                  display:'flex', alignItems:'center', gap:0.8,
+                  px:1.5, py:0.5, borderRadius:99,
+                  bgcolor:'rgba(6,182,212,0.06)', border:'1px solid rgba(6,182,212,0.18)',
+                }}>
+                  <Box sx={{ width:6, height:6, borderRadius:'50%', bgcolor:'#06b6d4' }} />
+                  <Typography sx={{ fontSize:12, color:'#475569', fontWeight:600, maxWidth:180,
+                                    whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                    {brandSettings?.connection?.alias?.trim() || brandSettings?.connection?.host}
+                  </Typography>
+                </Box>
+              </Tooltip>
+            )}
             <SubsidiarySelect />
             <ValidationBadge />
             <SyncBadge />

@@ -391,6 +391,8 @@ const ar_strings: Record<string, string> = {
   'Manage database connection, data refresh, display, reports and maintenance.':
     'إدارة اتصال قاعدة البيانات وتحديث البيانات والعرض والتقارير والصيانة.',
   'Refresh Dimensions only': 'تحديث الأبعاد فقط',
+  'Database Alias': 'الاسم المستعار لقاعدة البيانات',
+  'e.g. Main Branch DB': 'مثال: قاعدة الفرع الرئيسي',
   'Fresh reload of stores, subsidiaries, employees, departments, vendors, customers and items. No sales or inventory data is loaded.':
     'إعادة تحميل كاملة للمتاجر والشركات التابعة والموظفين والأقسام والموردين والعملاء والأصناف. لا يتم تحميل بيانات المبيعات أو المخزون.',
   'Currency': 'العملة',

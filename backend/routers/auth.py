@@ -210,12 +210,12 @@ def login(req: LoginRequest):
         "id":     user["id"],
     })
     record_audit(user["username"], "login")
-    # Flag accounts still on the seeded default password so the UI can force a change
-    must_change = verify_password(_DEFAULT_ADMIN_PASSWORD, user["password_hash"])
+    # Forced-password-change disabled by owner request (2026-07-08): accounts on
+    # the seeded default password are no longer blocked by the UI.
     return {
         "access_token": token,
         "token_type":   "bearer",
-        "must_change_password": must_change,
+        "must_change_password": False,
         "user": {
             "id":        user["id"],
             "username":  user["username"],
