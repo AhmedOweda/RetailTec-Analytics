@@ -132,6 +132,14 @@ def _run_with_tray(app):
 
     def _restart_app(icon, item):
         _restart["want"] = True
+        # Abort any running sync FIRST: the sync writer thread holds the
+        # DuckDB file, and the freshly spawned instance dies with
+        # "file is being used by another process" if we leave it running.
+        try:
+            from db.sync import cancel_sync
+            cancel_sync()
+        except Exception:
+            pass
         server.should_exit = True
         icon.stop()
 
