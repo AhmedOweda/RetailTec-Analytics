@@ -17,6 +17,17 @@ body { margin: 0; font-family: 'Manrope', sans-serif; background: #F5F3FB; color
   font-feature-settings: 'tnum' 1, 'cv01' 1;
 }
 
+/* ── MUI outlined inputs: Tailwind preflight + late font load collapse the
+   notched-outline gap, so the field border strikes through shrunk labels
+   ("Restore from backup", "Monthly backups to keep", every Settings field).
+   A solid chip behind the label fixes it regardless of notch state. ── */
+label.MuiInputLabel-root.MuiInputLabel-shrink {
+  background: #fff;
+  padding: 0 6px;
+  margin-inline-start: -2px;
+  border-radius: 4px;
+}
+
 .kpi-card { transition: box-shadow .18s ease, transform .15s ease; }
 .kpi-card:hover { box-shadow: 0 8px 28px rgba(45,27,107,0.16) !important; transform: translateY(-2px); }
 

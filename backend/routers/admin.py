@@ -74,6 +74,47 @@ def backup(req: BackupReq, _admin: dict = Depends(require_admin)):
             "size_mb": round(dest.stat().st_size / 1_048_576, 1)}
 
 
+# ── Native path pickers ───────────────────────────────────────────────────────
+# The app and the browser run on the SAME machine (127.0.0.1), so the backend
+# can open a real Explorer dialog and hand the chosen path to the UI.
+
+def _native_pick(kind: str) -> Optional[str]:
+    import subprocess
+    if kind == "folder":
+        ps = ("Add-Type -AssemblyName System.Windows.Forms;"
+              "$o = New-Object System.Windows.Forms.Form -Property @{TopMost=$true};"
+              "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
+              "if ($d.ShowDialog($o) -eq 'OK') { Write-Output $d.SelectedPath }")
+    else:
+        ps = ("Add-Type -AssemblyName System.Windows.Forms;"
+              "$o = New-Object System.Windows.Forms.Form -Property @{TopMost=$true};"
+              "$d = New-Object System.Windows.Forms.OpenFileDialog;"
+              "$d.Filter = 'Database backup (*.db)|*.db|All files (*.*)|*.*';"
+              "if ($d.ShowDialog($o) -eq 'OK') { Write-Output $d.FileName }")
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-STA", "-Command", ps],
+            capture_output=True, text=True, timeout=300,
+            creationflags=0x08000000,   # CREATE_NO_WINDOW - no console flash
+        )
+        p = (r.stdout or "").strip()
+        return p or None
+    except Exception:
+        return None
+
+
+@router.post("/api/admin/pick-folder")
+def pick_folder(_admin: dict = Depends(require_admin)):
+    """Open a native folder picker on the server machine; None if cancelled."""
+    return {"path": _native_pick("folder")}
+
+
+@router.post("/api/admin/pick-file")
+def pick_file(_admin: dict = Depends(require_admin)):
+    """Open a native file picker (.db) on the server machine; None if cancelled."""
+    return {"path": _native_pick("file")}
+
+
 # ── Restore ────────────────────────────────────────────────────────────────────
 
 @router.get("/api/admin/backups")

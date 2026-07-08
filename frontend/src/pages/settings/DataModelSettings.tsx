@@ -1081,6 +1081,15 @@ function MaintenanceCard() {
     onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Backup failed')) },
   })
 
+  const pickFolder = useMutation({
+    mutationFn: () => axios.post('/api/admin/pick-folder'),
+    onSuccess: r => { if (r.data.path) setFolder(r.data.path) },
+  })
+  const pickFile = useMutation({
+    mutationFn: () => axios.post('/api/admin/pick-file'),
+    onSuccess: r => { if (r.data.path) setRestorePath(r.data.path) },
+  })
+
   const restore = useMutation({
     mutationFn: () => axios.post('/api/admin/restore', { file: restorePath.trim() || restoreFile }),
     onSuccess: r => { setErr(null);
@@ -1104,6 +1113,11 @@ function MaintenanceCard() {
           <TextField size="small" sx={{ minWidth:320 }} placeholder="D:\\RetailTecBackups"
             value={folder} onChange={e => setFolder(e.target.value)} />
         </LabeledCtl>
+        <Button variant="outlined" size="small" disabled={pickFolder.isPending}
+          onClick={() => pickFolder.mutate()}
+          sx={{ borderColor:'#94a3b8', color:'#64748b', textTransform:'none', fontWeight:600 }}>
+          {tr('Browse…')}
+        </Button>
         <Button variant="outlined" size="small" disabled={backup.isPending}
           onClick={() => backup.mutate()}
           sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
@@ -1136,6 +1150,11 @@ function MaintenanceCard() {
             placeholder="D:\\RetailTecBackups\\retailtec_..._backup_....db"
             value={restorePath} onChange={e => setRestorePath(e.target.value)} />
         </LabeledCtl>
+        <Button variant="outlined" size="small" disabled={pickFile.isPending}
+          onClick={() => pickFile.mutate()}
+          sx={{ borderColor:'#94a3b8', color:'#64748b', textTransform:'none', fontWeight:600 }}>
+          {tr('Browse…')}
+        </Button>
         <Button variant="outlined" size="small" color="error"
           disabled={(!restoreFile && !restorePath.trim()) || restore.isPending}
           onClick={() => {
