@@ -1064,11 +1064,28 @@ function MaintenanceCard() {
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [folder, setFolder] = useState('')
+  const [restoreFile, setRestoreFile] = useState('')
+  const qc = useQueryClient()
+
+  const { data: backupList } = useQuery({
+    queryKey: ['backup-list'],
+    queryFn: () => axios.get('/api/admin/backups').then(r => r.data.backups as
+      { file: string; size_mb: number; created: string }[]),
+  })
 
   const backup = useMutation({
     mutationFn: () => axios.post('/api/admin/backup', { dest_folder: folder.trim() || null }),
-    onSuccess: r => { setErr(null); setMsg(trf('Backup saved: {{path}} ({{mb}} MB)', { path: r.data.path, mb: r.data.size_mb })) },
+    onSuccess: r => { setErr(null); setMsg(trf('Backup saved: {{path}} ({{mb}} MB)', { path: r.data.path, mb: r.data.size_mb }));
+                      qc.invalidateQueries({ queryKey: ['backup-list'] }) },
     onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Backup failed')) },
+  })
+
+  const restore = useMutation({
+    mutationFn: () => axios.post('/api/admin/restore', { file: restoreFile }),
+    onSuccess: r => { setErr(null);
+                      setMsg(trf('Restored {{file}} — {{n}} invoices in the warehouse', { file: r.data.restored, n: (r.data.invoices ?? 0).toLocaleString() }));
+                      qc.invalidateQueries() },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Restore failed')) },
   })
   const compact = useMutation({
     mutationFn: () => axios.post('/api/admin/compact'),
@@ -1097,6 +1114,36 @@ function MaintenanceCard() {
           {compact.isPending ? tr('Compacting…') : tr('Compact Database')}
         </Button>
       </Box>
+
+      {/* Restore from a previous backup (current database only) */}
+      <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap', mt:2.5 }}>
+        <FormControl size="small" sx={{ minWidth:320 }}>
+          <InputLabel>{tr('Restore from backup')}</InputLabel>
+          <Select value={restoreFile} label={tr('Restore from backup')}
+            onChange={e => setRestoreFile(e.target.value)}>
+            {(backupList ?? []).map(b => (
+              <MenuItem key={b.file} value={b.file}>
+                {b.created} — {b.size_mb} MB
+              </MenuItem>
+            ))}
+            {(backupList ?? []).length === 0 &&
+              <MenuItem value="" disabled>{tr('No backups yet')}</MenuItem>}
+          </Select>
+        </FormControl>
+        <Button variant="outlined" size="small" color="error"
+          disabled={!restoreFile || restore.isPending}
+          onClick={() => {
+            if (window.confirm(tr('Replace the current database with this backup? Data loaded after the backup was taken will be lost. The current file is kept as a pre restore copy.')))
+              restore.mutate()
+          }}
+          sx={{ textTransform:'none', fontWeight:600 }}>
+          {restore.isPending ? tr('Restoring…') : tr('Restore')}
+        </Button>
+      </Box>
+      <Typography sx={{ fontSize:11.5, color:'#94a3b8', mt:0.5 }}>
+        {tr('Restores the currently connected database from one of its backups. A safety copy of the current file is kept.')}
+      </Typography>
+
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
       {err && <Alert severity="error" sx={{ mt:1.5, fontSize:12 }}>{err}</Alert>}
     </SectionCard>

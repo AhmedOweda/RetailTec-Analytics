@@ -724,6 +724,15 @@ const ar_strings: Record<string, string> = {
   'Backup saved: {{path}} ({{mb}} MB)': 'تم حفظ النسخة: {{path}} ({{mb}} ميجابايت)',
   'Compacted: {{a}} MB → {{b}} MB': 'تم الضغط: {{a}} ميجابايت → {{b}} ميجابايت',
   'Backup failed': 'فشل النسخ الاحتياطي', 'Compact failed': 'فشل الضغط',
+  'Restore from backup': 'الاستعادة من نسخة احتياطية',
+  'No backups yet': 'لا توجد نسخ احتياطية بعد',
+  'Restore': 'استعادة', 'Restoring…': 'جارٍ الاستعادة…',
+  'Restore failed': 'فشلت الاستعادة',
+  'Restored {{file}} — {{n}} invoices in the warehouse': 'تمت استعادة {{file}} — {{n}} فاتورة في المستودع',
+  'Replace the current database with this backup? Data loaded after the backup was taken will be lost. The current file is kept as a pre restore copy.':
+    'هل تريد استبدال قاعدة البيانات الحالية بهذه النسخة الاحتياطية؟ ستُفقد البيانات المحمّلة بعد إنشاء النسخة. يُحتفظ بالملف الحالي كنسخة ما قبل الاستعادة.',
+  'Restores the currently connected database from one of its backups. A safety copy of the current file is kept.':
+    'يستعيد قاعدة البيانات المتصلة حاليًا من إحدى نسخها الاحتياطية. يُحتفظ بنسخة أمان من الملف الحالي.',
   'Used for sending reports and alerts. Works with your company mail server or Gmail (smtp.gmail.com, port 587, app password). The password is stored encrypted.':
     'يُستخدم لإرسال التقارير والتنبيهات. يعمل مع خادم بريد شركتك أو Gmail (smtp.gmail.com، المنفذ 587، كلمة مرور تطبيق). تُخزَّن كلمة المرور مشفّرة.',
   'SMTP host': 'خادم SMTP', 'Username': 'اسم المستخدم', 'Password': 'كلمة المرور',
