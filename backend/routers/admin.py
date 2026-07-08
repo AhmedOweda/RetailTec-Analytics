@@ -74,6 +74,82 @@ def backup(req: BackupReq, _admin: dict = Depends(require_admin)):
             "size_mb": round(dest.stat().st_size / 1_048_576, 1)}
 
 
+# ── Restore ────────────────────────────────────────────────────────────────────
+
+@router.get("/api/admin/backups")
+def list_backups(_admin: dict = Depends(require_admin)):
+    """Backups available for the CURRENT database host, newest first."""
+    stem = _warehouse_file().stem
+    out = []
+    if _BACKUP_DIR.exists():
+        for f in sorted(_BACKUP_DIR.glob(f"{stem}_backup_*"),
+                        key=lambda p: p.stat().st_mtime, reverse=True):
+            if f.is_file():
+                out.append({
+                    "file":    f.name,
+                    "size_mb": round(f.stat().st_size / 1_048_576, 1),
+                    "created": datetime.fromtimestamp(f.stat().st_mtime)
+                                       .strftime("%Y-%m-%d %H:%M"),
+                })
+    return {"backups": out}
+
+
+class RestoreReq(BaseModel):
+    file: str
+
+
+@router.post("/api/admin/restore")
+def restore(req: RestoreReq, _admin: dict = Depends(require_admin)):
+    """Replace the CURRENT warehouse with a backup file. The current warehouse
+    is kept next to it as *.pre_restore.db so the restore itself is reversible."""
+    import re
+    import db.model as _m
+    from db.sync import cancel_sync
+    from services.config import load_settings as _ls
+
+    if not re.fullmatch(r"[A-Za-z0-9_.\-]+\.db", req.file or ""):
+        raise HTTPException(status_code=400, detail="Invalid backup file name")
+    src = (_BACKUP_DIR / req.file).resolve()
+    if src.parent != _BACKUP_DIR.resolve() or not src.exists():
+        raise HTTPException(status_code=404, detail="Backup file not found")
+
+    target = _warehouse_file()
+    if not req.file.startswith(f"{target.stem}_backup_"):
+        raise HTTPException(status_code=400,
+                            detail="Backup belongs to a different database host")
+
+    host = _current_settings_host()
+    cancel_sync()
+    try:
+        with DB_LOCK:
+            # Close the shared connection so Windows releases the file lock.
+            if _m._conn is not None:
+                try:
+                    _m._conn.close()
+                except Exception:
+                    pass
+                _m._conn = None
+            # Safety copy of the current warehouse, then swap in the backup.
+            if target.exists():
+                shutil.copy2(target, target.with_name(target.stem + ".pre_restore.db"))
+            shutil.copy2(src, target)
+            wal = target.with_name(target.name + ".wal")
+            if wal.exists():
+                wal.unlink()   # stale WAL from the old file must not replay
+        _m.switch_db(host)     # reopen + ensure_schema on the restored file
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Restore failed: {e}")
+
+    record_audit(_admin["username"], "restore", req.file)
+    try:
+        n = _m.get_db().execute("SELECT COUNT(*) FROM FACT_SALES_INVOICES").fetchone()[0]
+    except Exception:
+        n = None
+    return {"ok": True, "restored": req.file, "invoices": n}
+
+
 @router.post("/api/admin/compact")
 def compact(_admin: dict = Depends(require_admin)):
     src = _warehouse_file()
