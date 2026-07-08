@@ -29,8 +29,10 @@ Control tables:
 import duckdb
 import json
 import hashlib
+import logging
 import secrets
 import threading
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -113,6 +115,24 @@ def _col_type(con: duckdb.DuckDBPyConnection, table: str, col: str) -> str:
     return row[0] if row else ""
 
 
+def _connect_retry(path: str, timeout_s: int = 120) -> duckdb.DuckDBPyConnection:
+    """Open the warehouse, WAITING for another instance to release it.
+    A tray Restart spawns the new process while the old one may still be
+    finishing a sync batch — failing immediately left the app unreachable
+    (seen 8 Jul 2026: new instance died with 'file is being used by another
+    process' while the old sync thread drained)."""
+    log = logging.getLogger(__name__)
+    deadline = time.time() + timeout_s
+    while True:
+        try:
+            return duckdb.connect(path)
+        except duckdb.IOException as e:
+            if "used by another process" not in str(e) or time.time() >= deadline:
+                raise
+            log.warning("Warehouse held by another instance - waiting to retry...")
+            time.sleep(2)
+
+
 def get_db() -> duckdb.DuckDBPyConnection:
     global _conn, _current_host
     host = _current_settings_host()
@@ -131,7 +151,7 @@ def get_db() -> duckdb.DuckDBPyConnection:
             _conn.close()
         except Exception:
             pass
-    _conn = duckdb.connect(str(_db_path(host)))
+    _conn = _connect_retry(str(_db_path(host)))
     # Analyze ALL rows when inferring column types from object-dtype DataFrames
     # (duck.register in sync staging). The default 1000-row sample inferred
     # INT32 for DIM_ITEM.UPC on a server whose first 1000 UPCs were small, then
@@ -151,7 +171,7 @@ def switch_db(host: str):
             pass
         _conn = None
     _current_host = host
-    _conn = duckdb.connect(str(_db_path(host)))
+    _conn = _connect_retry(str(_db_path(host)))
     _conn.execute("SET pandas_analyze_sample=10000000")  # see get_db note
     _ensure_schema(_conn)
 
