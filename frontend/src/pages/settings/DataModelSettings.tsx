@@ -27,6 +27,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
 import { ITEM_FIELDS, itemFieldLabel } from '../../utils/itemFields'
+import { setSubsidiary } from '../../state/subsidiary'
 import { tr, trf } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -240,11 +241,16 @@ export default function DataModelSettings() {
       backup_retention: backupKeep }),
     onSuccess: (res) => {
       setSaveErr('')
-      qc.invalidateQueries({ queryKey:['settings'] })
-      qc.invalidateQueries({ queryKey:['sync-status'] })
       if (res.data?.host_changed) {
-        setSaveMsg(tr('Host changed — switched to new database. Run Load All Data to populate it.'))
+        // The old server's subsidiary/store selections are meaningless on the
+        // new warehouse: clear the saved subsidiary and drop EVERY cached list
+        // (subsidiaries-list, stores-list, …) so all slicers refetch fresh.
+        setSubsidiary('')
+        qc.invalidateQueries()
+        setSaveMsg(tr('Host changed — switched to that server\'s database.'))
       } else {
+        qc.invalidateQueries({ queryKey:['settings'] })
+        qc.invalidateQueries({ queryKey:['sync-status'] })
         setSaveMsg(tr('Settings saved'))
       }
       setTimeout(() => setSaveMsg(''), 5000)

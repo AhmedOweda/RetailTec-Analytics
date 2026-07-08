@@ -53,10 +53,14 @@ def _run_with_tray(app):
     server = uvicorn.Server(config)
     threading.Thread(target=server.run, daemon=True).start()
 
-    # Simple brand-coloured tray glyph (no external asset needed)
-    img = Image.new("RGB", (64, 64), "#160b33")
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle([14, 14, 50, 50], radius=8, fill="#7c3aed")
+    # Brand icon (bundled app.ico); fall back to a drawn glyph if missing
+    _ico = os.path.join(getattr(sys, "_MEIPASS", ""), "app.ico")
+    if os.path.exists(_ico):
+        img = Image.open(_ico)
+    else:
+        img = Image.new("RGB", (64, 64), "#160b33")
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle([14, 14, 50, 50], radius=8, fill="#7c3aed")
 
     _restart = {"want": False}
 
