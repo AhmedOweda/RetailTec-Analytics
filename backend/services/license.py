@@ -73,6 +73,62 @@ def _parse_expiry(payload: dict):
         return None
 
 
+def get_device_code() -> str:
+    """Short, stable fingerprint of THIS Windows machine (from MachineGuid).
+    Shown in About; the vendor can bind a license to it. Never raises."""
+    import hashlib
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                            r"SOFTWARE\Microsoft\Cryptography") as k:
+            guid, _ = winreg.QueryValueEx(k, "MachineGuid")
+    except Exception:
+        import platform
+        guid = platform.node()
+    h = hashlib.sha256(f"retailtec:{guid}".encode()).hexdigest().upper()
+    return f"{h[:4]}-{h[4:8]}-{h[8:12]}"
+
+
+def evaluate(oracle_host: str, subsidiary_count: int | None) -> dict:
+    """License enforcement verdict. NEVER raises.
+
+    Returns {
+      "violation": bool,       # hard problem → UI watermark
+      "warnings":  [str],      # soft problems → UI banner
+      "reason":    str|None,   # short watermark text
+      "device_code": str,
+      "status": <get_license_status() dict>,
+    }
+    Policy: watermark on invalid signature, expiry, or device/host mismatch.
+    A MISSING license is only a warning (evaluation mode), and the subsidiary
+    limit being exceeded is a warning — reporting never breaks.
+    """
+    st = get_license_status()
+    device = get_device_code()
+    violation, reason, warnings = False, None, []
+    try:
+        if st.get("present") and not st.get("valid"):
+            violation, reason = True, "INVALID LICENSE"
+        elif st.get("valid"):
+            if st.get("expired"):
+                violation, reason = True, "LICENSE EXPIRED"
+            if st.get("bound_device") and st["bound_device"] != device:
+                violation, reason = True, "WRONG DEVICE"
+            if st.get("bound_oracle_host") and oracle_host \
+                    and st["bound_oracle_host"] != oracle_host:
+                violation, reason = True, "WRONG SERVER"
+            maxs = st.get("max_subsidiaries")
+            if maxs and subsidiary_count and subsidiary_count > int(maxs):
+                warnings.append(
+                    f"License covers {maxs} subsidiaries — {subsidiary_count} found")
+        else:
+            warnings.append("No license installed — evaluation mode")
+    except Exception as e:  # pragma: no cover
+        log.warning(f"License evaluation failed (ignored): {e}")
+    return {"violation": violation, "reason": reason, "warnings": warnings,
+            "device_code": device, "status": st}
+
+
 def get_license_status() -> dict:
     """Return license status. NEVER raises.
 
@@ -107,6 +163,9 @@ def get_license_status() -> dict:
             "expired":        expired,
             "max_stores":     payload.get("max_stores"),
             "max_users":      payload.get("max_users"),
+            "max_subsidiaries":  payload.get("max_subsidiaries"),
+            "bound_device":      payload.get("device_code"),
+            "bound_oracle_host": payload.get("oracle_host"),
         }
     except Exception as e:  # pragma: no cover — never let license break anything
         log.warning(f"License read failed (ignored): {e}")

@@ -410,6 +410,12 @@ const ar_strings: Record<string, string> = {
   'Load a date range…': 'تحميل فترة محددة…',
   'Server online': 'الخادم يعمل',
   'UNLICENSED COPY': 'نسخة غير مرخصة',
+  'INVALID LICENSE': 'ترخيص غير صالح',
+  'LICENSE EXPIRED': 'انتهى الترخيص',
+  'WRONG DEVICE': 'جهاز غير مرخص',
+  'WRONG SERVER': 'خادم غير مرخص',
+  'No license installed — evaluation mode': 'لا يوجد ترخيص — وضع التجربة',
+  'Device Code': 'رمز الجهاز',
   'Server not reachable — is RetailTec Analytics running?': 'تعذّر الوصول إلى الخادم — هل تطبيق ريتيل تك يعمل؟',
   'Checking server…': 'جارٍ فحص الخادم…',
   'Cannot reach the server — it may still be starting. Try again in a moment.':

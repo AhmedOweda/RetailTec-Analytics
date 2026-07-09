@@ -91,7 +91,16 @@ def diagnostics(_admin: dict = Depends(require_admin)):
         "warehouse_size_mb":    round(size_bytes / 1_048_576, 1) if size_bytes else None,
         "fact_row_counts":      counts,
         "license":              license_status,
+        "device_code":          _device_code(),
     }
+
+
+def _device_code() -> str:
+    try:
+        from services.license import get_device_code
+        return get_device_code()
+    except Exception:
+        return ""
 
 
 @router.get("/api/admin/license")

@@ -1047,6 +1047,11 @@ function AboutCard() {
           <Row label="License Customer"  value={lic.customer ?? '—'} />
           <Row label="License Expiry"    value={lic.expiry ?? '—'} />
           <Row label="License Status"    value={licChip()} />
+          <Row label="Device Code"       value={
+            <Typography component="span" sx={{ fontSize:12.5, fontWeight:700,
+                                               fontFamily:'monospace', color:ACCENT }}>
+              {data?.device_code ?? '—'}
+            </Typography>} />
         </Box>
       )}
       <Box sx={{ mt:2, display:'flex', alignItems:'center', gap:1.5 }}>

@@ -348,9 +348,10 @@ export default function AppShell() {
       {/* Forced-password-change disabled by owner request (2026-07-08).
           <ForcePasswordDialog /> stays available if it's ever wanted back. */}
 
-      {/* License-binding watermark: the warehouse remembers the Oracle server
-          that filled it; if the app now points elsewhere, watermark all pages */}
-      {whStatus?.db_host_mismatch && (
+      {/* License watermark: shown when the warehouse was filled by a different
+          Oracle server (copied database) OR the license itself is violated
+          (invalid signature, expired, wrong device, wrong server). */}
+      {(whStatus?.db_host_mismatch || whStatus?.license_violation) && (
         <Box sx={{ position:'fixed', inset:0, zIndex:1999, pointerEvents:'none',
                    overflow:'hidden', display:'grid',
                    gridTemplateColumns:'repeat(3, 1fr)', alignContent:'space-around' }}>
@@ -358,9 +359,23 @@ export default function AppShell() {
             <Typography key={i} sx={{ transform:'rotate(-24deg)', textAlign:'center',
               fontSize:26, fontWeight:800, color:'rgba(220,38,38,0.10)',
               userSelect:'none', whiteSpace:'nowrap' }}>
-              {tr('UNLICENSED COPY')} · {whStatus?.bound_host}
+              {whStatus?.license_violation
+                ? `${tr(whStatus?.license_reason || 'UNLICENSED COPY')} · RetailTec`
+                : `${tr('UNLICENSED COPY')} · ${whStatus?.bound_host}`}
             </Typography>
           ))}
+        </Box>
+      )}
+
+      {/* Soft license warnings (no license / subsidiary limit exceeded) */}
+      {(whStatus?.license_warnings?.length ?? 0) > 0 && !whStatus?.license_violation && (
+        <Box sx={{ position:'fixed', bottom:10, left:'50%', transform:'translateX(-50%)',
+                   zIndex:1998, bgcolor:'rgba(245,158,11,0.14)',
+                   border:'1px solid rgba(245,158,11,0.45)', borderRadius:99,
+                   px:2, py:0.4, pointerEvents:'none' }}>
+          <Typography sx={{ fontSize:12, fontWeight:600, color:'#92400e', whiteSpace:'nowrap' }}>
+            {whStatus.license_warnings.map((w: string) => tr(w)).join(' · ')}
+          </Typography>
         </Box>
       )}
 

@@ -299,11 +299,30 @@ def get_model_status():
             mismatch = bool(host) and bound_host != host
     except Exception:
         pass
+    # License enforcement verdict (subsidiary count read from the warehouse)
+    lic = {}
+    try:
+        from services.license import evaluate
+        sub_count = None
+        try:
+            from db.model import DB_LOCK as _L, get_db as _g
+            with _L:
+                sub_count = _g().execute(
+                    "SELECT COUNT(*) FROM DIM_SUBSIDIARY").fetchone()[0]
+        except Exception:
+            pass
+        lic = evaluate(host, sub_count)
+    except Exception:
+        pass
     return {"model_status": s.get("model_status", "empty"),
             "last_sync": s.get("last_sync"),
             "db_alias": (c.get("alias") or "").strip() or c.get("host", ""),
             "bound_host": bound_host,
-            "db_host_mismatch": mismatch}
+            "db_host_mismatch": mismatch,
+            "license_violation": bool(lic.get("violation")),
+            "license_reason": lic.get("reason"),
+            "license_warnings": lic.get("warnings") or [],
+            "device_code": lic.get("device_code")}
 
 
 @router.post("/api/sync/cancel")

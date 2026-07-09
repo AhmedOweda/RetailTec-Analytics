@@ -70,8 +70,8 @@ class App(tk.Tk):
         fields = [
             ("Customer name",              "customer",    ""),
             ("Expiry (YYYY-MM-DD)",        "expiry",      f"{date.today().year + 1}-12-31"),
-            ("Max stores (blank = none)",  "max_stores",  ""),
-            ("Max users (blank = none)",   "max_users",   ""),
+            ("Max subsidiaries (blank = none)", "max_subsidiaries", ""),
+            ("Device code (blank = any device)", "device_code", ""),
             ("Oracle host binding (blank = any)", "oracle_host", ""),
         ]
         for i, (label, key, default) in enumerate(fields):
@@ -176,14 +176,16 @@ class App(tk.Tk):
             return
         payload = {"customer": customer, "expiry": expiry,
                    "issued": date.today().isoformat()}
-        for key in ("max_stores", "max_users"):
-            v = self.f[key].get().strip()
-            if v:
-                try:
-                    payload[key] = int(v)
-                except ValueError:
-                    messagebox.showwarning("Bad number", f"{key} must be a whole number.")
-                    return
+        v = self.f["max_subsidiaries"].get().strip()
+        if v:
+            try:
+                payload["max_subsidiaries"] = int(v)
+            except ValueError:
+                messagebox.showwarning("Bad number", "Max subsidiaries must be a whole number.")
+                return
+        device = self.f["device_code"].get().strip().upper()
+        if device:
+            payload["device_code"] = device
         host = self.f["oracle_host"].get().strip()
         if host:
             payload["oracle_host"] = host
@@ -198,7 +200,7 @@ class App(tk.Tk):
         self.log(f"License written: {out}")
         self.log(f"  customer={customer}  expiry={expiry}  "
                  + "  ".join(f"{k}={payload[k]}" for k in
-                             ("max_stores", "max_users", "oracle_host") if k in payload))
+                             ("max_subsidiaries", "device_code", "oracle_host") if k in payload))
         self.log("Send this file to the customer — it goes next to the app's settings"
                  " (backend/ in dev, _internal in the packaged install).")
 
