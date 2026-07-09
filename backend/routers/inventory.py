@@ -1165,8 +1165,33 @@ def inventory_ledger(
             UNION SELECT ITEM_SID, STORE_SID FROM SENT
             UNION SELECT ITEM_SID, STORE_SID FROM ADJ"""
 
-    # Params follow placeholder order: OPENING, SALES, RECV, SENT, ADJ
-    params = ([date_from]
+    # Ending balance: for a period ending today the live snapshot is the truth;
+    # for a HISTORICAL period, stock-as-of-date_to = last history row per
+    # item×store on or before date_to (carry-forward semantics).
+    use_asof_end = date_to < date.today()
+    if use_asof_end:
+        ending_cte = f"""
+        ENDING AS (
+            SELECT ITEM_SID, STORE_SID, QTY AS end_qty, COST AS end_unit_cost
+            FROM FACT_INVENTORY_HISTORY
+            WHERE ACTION_DATE <= ? {sf_item_open}
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY ITEM_SID, STORE_SID ORDER BY ACTION_DATE DESC, HISTORY_SID DESC) = 1
+        ),"""
+        ending_select = """
+            COALESCE(E.end_qty,                       0) AS end_qty,
+            ROUND(COALESCE(E.end_qty * E.end_unit_cost, 0), 2) AS end_cost"""
+        ending_join = "LEFT JOIN ENDING E ON E.ITEM_SID = AC.ITEM_SID AND E.STORE_SID = AC.STORE_SID"
+        ending_params = [date_to]
+    else:
+        ending_cte = ""
+        ending_select = """
+            COALESCE(FI.ON_HAND_QTY,          0) AS end_qty,
+            ROUND(COALESCE(FI.ON_HAND_QTY * FI.COST, 0), 2) AS end_cost"""
+        ending_join = "LEFT JOIN FACT_INVENTORY FI ON FI.ITEM_SID = AC.ITEM_SID AND FI.STORE_SID = AC.STORE_SID"
+        ending_params = []
+
+    # Params follow placeholder order: OPENING, ENDING (as-of only), SALES, RECV, SENT, ADJ
+    params = ([date_from] + ending_params
               + [date_from, date_to] + sp_sale
               + [date_from, date_to] + sp_trans
               + [date_from, date_to] + sp_trans
@@ -1180,7 +1205,7 @@ def inventory_ledger(
             FROM FACT_INVENTORY_HISTORY
             WHERE ACTION_DATE < ? {sf_item_open}
             QUALIFY ROW_NUMBER() OVER (PARTITION BY ITEM_SID, STORE_SID ORDER BY ACTION_DATE DESC, HISTORY_SID DESC) = 1
-        ),
+        ),{ending_cte}
         -- Net sales in period (sales reduce inventory, returns add back)
         SALES AS (
             SELECT
@@ -1261,9 +1286,8 @@ def inventory_ledger(
             -- Adjustments
             COALESCE(A.adj_qty,      0) AS adj_qty,
             COALESCE(A.adj_cost,     0) AS adj_cost,
-            -- Ending balance (current snapshot)
-            COALESCE(FI.ON_HAND_QTY,          0) AS end_qty,
-            ROUND(COALESCE(FI.ON_HAND_QTY * FI.COST, 0), 2) AS end_cost
+            -- Ending balance (live snapshot for today, as-of history for the past)
+            {ending_select}
         FROM ACTIVE AC
         LEFT JOIN DIM_ITEM     I   ON I.SID   = AC.ITEM_SID
         LEFT JOIN DIM_DCS      DC  ON DC.SID  = I.DCS_SID
@@ -1273,7 +1297,7 @@ def inventory_ledger(
         LEFT JOIN RECV         R   ON R.ITEM_SID  = AC.ITEM_SID  AND R.STORE_SID  = AC.STORE_SID
         LEFT JOIN SENT         S   ON S.ITEM_SID  = AC.ITEM_SID  AND S.STORE_SID  = AC.STORE_SID
         LEFT JOIN ADJ          A   ON A.ITEM_SID  = AC.ITEM_SID  AND A.STORE_SID  = AC.STORE_SID
-        LEFT JOIN FACT_INVENTORY FI ON FI.ITEM_SID = AC.ITEM_SID AND FI.STORE_SID = AC.STORE_SID
+        {ending_join}
         ORDER BY DS.STORE_NAME, I.ALU
         {lim}
     """, params)

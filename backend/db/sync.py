@@ -908,7 +908,19 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
             # warning instead of failing the whole sync; Ledger/History pages
             # simply stay empty on such servers.
             try:
-                _stream_insert(duck, ora, _sql_inventory_history(df, dt), "FACT_INVENTORY_HISTORY", 8, force_replace)
+                # CARRY-FORWARD SEMANTICS (RetailTec's own INVN_BACKUP_TRG):
+                # each row's QTY is the ABSOLUTE on-hand after a change, and the
+                # trigger-install baseline snapshot rows all share one old
+                # ACTION_DATE. Stock-as-of-D = last row per item×store <= D, so
+                # our copy must be COMPLETE back to that baseline. First load
+                # therefore pulls the ENTIRE table; later loads append the
+                # window only (new actions are inserts, never updates).
+                _hist_empty = duck.execute(
+                    "SELECT COUNT(*) = 0 FROM FACT_INVENTORY_HISTORY").fetchone()[0]
+                _hdf = "1900-01-01" if _hist_empty else df
+                if _hist_empty:
+                    log.info("FACT_INVENTORY_HISTORY empty - pulling FULL history incl. baseline")
+                _stream_insert(duck, ora, _sql_inventory_history(_hdf, dt), "FACT_INVENTORY_HISTORY", 8, force_replace)
             except Exception as e:
                 if "ORA-00942" in str(e):
                     log.warning("RPS.INVENTORY_HISTORY missing on this server - skipping inventory history")
@@ -1102,6 +1114,7 @@ def _run_sync(mode: str, date_from: str, date_to: str,
         s["last_sync"]    = datetime.now().isoformat()
         s["model_status"] = "ready"
         SETTINGS_FILE.write_text(json.dumps(s, indent=2, default=str))
+        _invalidate_dim_cache()
         log.info(f"Sync [{mode}] complete: {date_from}->{date_to}")
 
     except SyncCancelled:
@@ -1153,6 +1166,16 @@ def _validate_sync(duck) -> None:
     duck.commit()
     log.info("Post-sync validation: " +
              ", ".join(f"{r[1]}={r[4]}%" for r in rows))
+
+
+def _invalidate_dim_cache() -> None:
+    """Tell the sales router its in-memory dim cache is stale (lazy import —
+    routers.sales imports this module's callers, so no import at module load)."""
+    try:
+        from routers.sales import invalidate_dim_cache
+        invalidate_dim_cache()
+    except Exception:
+        pass
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -1220,6 +1243,7 @@ def _run_dimensions_load(progress_cb, triggered_by):
         if progress_cb:
             progress_cb("Done", 100, 100)
         _log_finish(duck, _run_id, "completed")
+        _invalidate_dim_cache()
         log.info("Dimensions fresh load complete")
     except SyncCancelled:
         _log_finish(duck, _run_id, "cancelled", "Cancelled by user")
@@ -1241,8 +1265,11 @@ async def dimensions_load(progress_cb=None, triggered_by: str = "user"):
 # -- Retention (cap the largest tables) ----------------------------------------
 
 _RETENTION_COLS = {
-    "FACT_SALES_ITEMS":       "INVC_POST_DATE",
-    "FACT_INVENTORY_HISTORY": "ACTION_DATE",
+    "FACT_SALES_ITEMS": "INVC_POST_DATE",
+    # FACT_INVENTORY_HISTORY is EXEMPT from retention (2026-07-09): its rows are
+    # absolute stock levels (carry-forward semantics from INVN_BACKUP_TRG), so
+    # deleting old rows destroys the baseline that stock-as-of-date and the
+    # Ledger opening balance depend on. Never prune it.
 }
 
 def apply_retention(retain_months=24, dry_run: bool = False, duck=None) -> dict:

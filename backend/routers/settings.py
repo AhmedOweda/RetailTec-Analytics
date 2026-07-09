@@ -242,6 +242,11 @@ def update_settings(payload: SettingsPayload, _admin: dict = Depends(require_adm
     if new_host != old_host:
         cancel_sync()
         switch_db(new_host)
+        try:
+            from routers.sales import invalidate_dim_cache
+            invalidate_dim_cache()   # old server's stores/subsidiaries are stale
+        except Exception:
+            pass
         from db.model import get_db
         has_data, last_sync = False, None
         try:

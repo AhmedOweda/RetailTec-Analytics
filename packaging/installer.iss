@@ -45,6 +45,13 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
 Name: "autostart";   Description: "Start {#AppName} automatically when I sign in"; GroupDescription: "Startup:"; Flags: unchecked
 
+[Dirs]
+; The app writes its runtime state (settings.json, warehouse .db, jwt secret,
+; log) inside its own folder — grant Users modify rights so it works when
+; installed under Program Files without running elevated.
+Name: "{app}"; Permissions: users-modify
+Name: "{app}\_internal"; Permissions: users-modify
+
 [Files]
 ; The entire PyInstaller onedir output (exe + _internal + bundled web app).
 ; Excludes: runtime state that must NEVER ship to customers — connection
