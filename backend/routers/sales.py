@@ -48,12 +48,25 @@ def _load_dims() -> None:
 
 _dim_sid_checked_at: datetime | None = None   # throttle the SID staleness check
 
+
+def invalidate_dim_cache() -> None:
+    """Force the next request to reload dims. Called after syncs, server
+    switches and restores — the events that change the warehouse contents."""
+    global _dim_loaded_at, _dim_sid_checked_at
+    _dim_loaded_at = None
+    _dim_sid_checked_at = None
+
+
 def _ensure_dims() -> None:
     """Refresh dim cache if older than 24 h or if new store SID detected (checked hourly)."""
     global _dim_loaded_at, _dim_sid_checked_at
     now   = datetime.utcnow()
     age   = (now - _dim_loaded_at).total_seconds() if _dim_loaded_at else 99_999
     stale = age > 86_400  # hard 24-hour refresh
+    # An EMPTY store cache is never worth keeping — the warehouse may have just
+    # been filled/switched/restored ("No options" bug, 9 Jul 2026). Retry cheap.
+    if not _dim_cache.get("stores"):
+        stale = True
 
     if not stale:
         # Only run the MAX-SID staleness check once per hour to avoid per-request table scans

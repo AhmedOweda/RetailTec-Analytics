@@ -196,6 +196,11 @@ def restore(req: RestoreReq, _admin: dict = Depends(require_admin)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Restore failed: {e}")
 
+    try:
+        from routers.sales import invalidate_dim_cache
+        invalidate_dim_cache()   # restored warehouse = new stores/subsidiaries
+    except Exception:
+        pass
     record_audit(_admin["username"], "restore", req.file)
     try:
         n = _m.get_db().execute("SELECT COUNT(*) FROM FACT_SALES_INVOICES").fetchone()[0]

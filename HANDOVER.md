@@ -317,6 +317,21 @@ tabs + first-run wizard, About/diagnostics, whitelabel branding, packaging,
 monthly backup) are DONE. Nice-to-haves left: authoritative store→subsidiary
 from RPS.STORE, ledger subsidiary filter, and general QA against live data.
 
+**INVENTORY_HISTORY semantics (critical — documented 9 Jul 2026):**
+`RPS.INVENTORY_HISTORY` is NOT a Prism table — it's RetailTec's OWN change-capture,
+installed per customer by `backend/tools/oracle/inventory_backup_trigger.sql`:
+a one-time baseline snapshot of `INVN_SBS_ITEM_QTY` (all rows share the
+install-date ACTION_DATE) plus trigger rows on every qty change carrying the
+ABSOLUTE new QTY (`:NEW.QTY`, fired only when OLD<>NEW; inserts only when
+QTY>0). Therefore stock-as-of-date D = LAST row per item×store ON OR BEFORE D
+(order by ACTION_DATE DESC, HISTORY_SID DESC) — never SUM(QTY). Consequences
+implemented: the first inventory load pulls the FULL table (windowed loads
+would miss baselines); FACT_INVENTORY_HISTORY is EXEMPT from retention
+pruning; Ledger opening AND ending both use the as-of pattern (ending falls
+back to the live snapshot only when date_to is today). As-of dates before the
+trigger install date are unknowable. The History page KPIs (summed QTYs) are
+still semantically wrong — pending redesign.
+
 Other docs in the repo: `HANDOFF.md` (technical TODO log), `DB_SYNC_REDESIGN.md`
 (sync design), `EXPERT_REVIEW*.md` (assessments), `Krunch Queries feb 2024/`
 (reference Prism SQL used to validate column semantics — the product's moat).
