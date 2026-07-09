@@ -1003,6 +1003,20 @@ def _run_sync(mode: str, date_from: str, date_to: str,
     _run_id = _log_start(duck, mode, triggered_by, _domains_str, date_from, date_to, 100)
 
     try:
+        # Subsidiary-limit grace period: after GRACE_DAYS over the licensed
+        # count, data refresh stops (existing data stays viewable).
+        try:
+            from services.license import get_license_status, sub_limit_state
+            _n = duck.execute("SELECT COUNT(*) FROM DIM_SUBSIDIARY").fetchone()[0]
+            _g = sub_limit_state(duck, get_license_status(), _n)
+        except Exception:
+            _g = None
+        if _g and _g.get("blocked"):
+            raise SyncCancelled(
+                f"License covers {_g['max']} subsidiaries but {_g['found']} were found — "
+                "the grace period has ended and data refresh is disabled. "
+                "Contact RetailTec to upgrade the license.")
+
         # License binding: remember which Oracle server first filled this
         # warehouse (read by the UI watermark when the host later differs).
         try:
