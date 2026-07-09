@@ -286,9 +286,24 @@ async def test_connection(conn: ConnectionSettings, _admin: dict = Depends(requi
 def get_model_status():
     s = load_settings()
     c = s.get("connection", {})
+    host = (c.get("host") or "").strip()
+    # License binding: warehouse remembers the Oracle server that filled it.
+    bound_host, mismatch = None, False
+    try:
+        from db.model import DB_LOCK, get_db
+        with DB_LOCK:
+            row = get_db().execute(
+                "SELECT value FROM WAREHOUSE_META WHERE key='source_host'").fetchone()
+        if row and row[0]:
+            bound_host = row[0]
+            mismatch = bool(host) and bound_host != host
+    except Exception:
+        pass
     return {"model_status": s.get("model_status", "empty"),
             "last_sync": s.get("last_sync"),
-            "db_alias": (c.get("alias") or "").strip() or c.get("host", "")}
+            "db_alias": (c.get("alias") or "").strip() or c.get("host", ""),
+            "bound_host": bound_host,
+            "db_host_mismatch": mismatch}
 
 
 @router.post("/api/sync/cancel")

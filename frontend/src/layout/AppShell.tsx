@@ -323,6 +323,14 @@ export default function AppShell() {
   const brandName: string = brandSettings?.brand_name || 'RetailTec Analytics'
   const brandLogo: string = brandSettings?.brand_logo || ''
 
+  // Warehouse status: alias + license-binding watermark flag
+  const { data: whStatus } = useQuery<any>({
+    queryKey: ['settings-status'],
+    queryFn:  () => api.get('/api/settings/status').then(r => r.data),
+    staleTime: 60_000,
+    retry: false,
+  })
+
   // First-run wizard: admins only, when the install has never completed setup.
   // Gated on an explicit `false` so a still-loading query never flashes it.
   const [wizardDismissed, setWizardDismissed] = useState(false)
@@ -339,6 +347,22 @@ export default function AppShell() {
 
       {/* Forced-password-change disabled by owner request (2026-07-08).
           <ForcePasswordDialog /> stays available if it's ever wanted back. */}
+
+      {/* License-binding watermark: the warehouse remembers the Oracle server
+          that filled it; if the app now points elsewhere, watermark all pages */}
+      {whStatus?.db_host_mismatch && (
+        <Box sx={{ position:'fixed', inset:0, zIndex:1999, pointerEvents:'none',
+                   overflow:'hidden', display:'grid',
+                   gridTemplateColumns:'repeat(3, 1fr)', alignContent:'space-around' }}>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <Typography key={i} sx={{ transform:'rotate(-24deg)', textAlign:'center',
+              fontSize:26, fontWeight:800, color:'rgba(220,38,38,0.10)',
+              userSelect:'none', whiteSpace:'nowrap' }}>
+              {tr('UNLICENSED COPY')} · {whStatus?.bound_host}
+            </Typography>
+          ))}
+        </Box>
+      )}
 
       {/* One-time first-run setup wizard (skippable, admins only) */}
       {showWizard && <FirstRunWizard onDone={() => setWizardDismissed(true)} />}

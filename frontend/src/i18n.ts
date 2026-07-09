@@ -409,6 +409,7 @@ const ar_strings: Record<string, string> = {
   'Daily {{t}}': 'يوميًا {{t}}',
   'Load a date range…': 'تحميل فترة محددة…',
   'Server online': 'الخادم يعمل',
+  'UNLICENSED COPY': 'نسخة غير مرخصة',
   'Server not reachable — is RetailTec Analytics running?': 'تعذّر الوصول إلى الخادم — هل تطبيق ريتيل تك يعمل؟',
   'Checking server…': 'جارٍ فحص الخادم…',
   'Cannot reach the server — it may still be starting. Try again in a moment.':

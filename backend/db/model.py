@@ -672,6 +672,16 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     # Migration: per-user subsidiary scope (CSV of subsidiary SIDs; NULL = all)
     con.execute("ALTER TABLE DIM_USERS ADD COLUMN IF NOT EXISTS subsidiaries VARCHAR")
 
+    # Warehouse metadata: key/value facts about THIS warehouse file, e.g.
+    # 'source_host' (the Oracle server that filled it — license binding for the
+    # UI watermark) and 'dims_loaded_at' (dimension reload throttle).
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS WAREHOUSE_META (
+            key   VARCHAR PRIMARY KEY,
+            value VARCHAR
+        )
+    """)
+
     # Audit trail: who did what, when (logins, user changes, settings, loads)
     con.execute("""
         CREATE TABLE IF NOT EXISTS AUDIT_LOG (
