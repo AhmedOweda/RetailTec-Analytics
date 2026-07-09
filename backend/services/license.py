@@ -37,7 +37,7 @@ log = logging.getLogger(__name__)
 # Generated 2026-07 for RetailTec Analytics. The matching PRIVATE key is kept
 # offline by the vendor (never committed). Rotating the license signing key
 # means replacing this constant and re-issuing customer licenses.
-_PUBLIC_KEY_HEX = "a24eb5ed877be06432307961585d6b1848418682acdfd7db3ea57b8c21d5055b"
+_PUBLIC_KEY_HEX = "516181c82a769a6df7f03d0ba2829f2100ccdb2c9c2be7818f6d2ea8b05acf4a"
 
 _LICENSE_FILE = Path(__file__).parent.parent / "license.json"
 

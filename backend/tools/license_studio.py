@@ -28,7 +28,31 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey, Ed25519PublicKey)
 
 ACCENT  = "#7c3aed"
-LICENSE_PY = Path(__file__).parent.parent / "services" / "license.py"
+
+
+def _find_license_py() -> Path | None:
+    """Locate backend/services/license.py. Works from source (relative) AND
+    from the packed one-file exe (where __file__ lives in a temp dir)."""
+    candidates = [
+        Path(__file__).parent.parent / "services" / "license.py",
+        Path(r"C:\RetailTec\RetailTec-Analytics\backend\services\license.py"),
+    ]
+    import sys
+    if getattr(sys, "frozen", False):
+        # exe usually lives in <repo>\packaging\Output — walk up looking for backend/
+        p = Path(sys.executable).resolve()
+        for parent in p.parents:
+            cand = parent / "backend" / "services" / "license.py"
+            if cand.exists():
+                candidates.insert(0, cand)
+                break
+    for c in candidates:
+        if c.exists():
+            return c
+    return None
+
+
+LICENSE_PY = _find_license_py()
 
 
 def canonical(payload: dict) -> bytes:
@@ -175,13 +199,18 @@ class App(tk.Tk):
         self.log("application accepts licenses signed with this new key.")
 
     def patch_app(self):
+        global LICENSE_PY
         pub = self.pub_var.get().strip()
         if not pub:
             messagebox.showwarning("No key", "Load or generate a key first.")
             return
-        if not LICENSE_PY.exists():
-            messagebox.showerror("Not found", f"Cannot find {LICENSE_PY}")
-            return
+        if LICENSE_PY is None or not LICENSE_PY.exists():
+            p = filedialog.askopenfilename(
+                title="Locate the app's backend/services/license.py",
+                filetypes=[("license.py", "license.py"), ("Python", "*.py")])
+            if not p:
+                return
+            LICENSE_PY = Path(p)
         src = LICENSE_PY.read_text(encoding="utf-8")
         new = re.sub(r'_PUBLIC_KEY_HEX = "[0-9a-f]+"',
                      f'_PUBLIC_KEY_HEX = "{pub}"', src)
@@ -274,6 +303,8 @@ class App(tk.Tk):
 
     def _embedded_pub(self) -> str:
         try:
+            if LICENSE_PY is None:
+                return ""
             m = re.search(r'_PUBLIC_KEY_HEX = "([0-9a-f]+)"',
                           LICENSE_PY.read_text(encoding="utf-8"))
             return m.group(1) if m else ""
