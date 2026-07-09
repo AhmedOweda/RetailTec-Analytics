@@ -89,7 +89,44 @@ def get_device_code() -> str:
     return f"{h[:4]}-{h[4:8]}-{h[8:12]}"
 
 
-def evaluate(oracle_host: str, subsidiary_count: int | None) -> dict:
+GRACE_DAYS = 30   # days a customer may exceed max_subsidiaries before sync stops
+
+
+def sub_limit_state(duck, status: dict, subsidiary_count: int | None):
+    """Subsidiary-limit state with a persisted grace period. Returns None when
+    within limit (and clears the marker), else
+    {exceeded, since, days_left, blocked, max, found}. Never raises."""
+    try:
+        maxs = status.get("max_subsidiaries")
+        over = (status.get("valid") and maxs and subsidiary_count
+                and int(subsidiary_count) > int(maxs))
+        if not over:
+            try:
+                duck.execute("DELETE FROM WAREHOUSE_META WHERE key='sub_limit_since'")
+                duck.commit()
+            except Exception:
+                pass
+            return None
+        row = duck.execute(
+            "SELECT value FROM WAREHOUSE_META WHERE key='sub_limit_since'").fetchone()
+        if row and row[0]:
+            since = str(row[0])
+        else:
+            since = date.today().isoformat()
+            duck.execute("INSERT INTO WAREHOUSE_META VALUES ('sub_limit_since', ?) "
+                         "ON CONFLICT (key) DO NOTHING", [since])
+            duck.commit()
+        days_used = (date.today() - datetime.strptime(since[:10], "%Y-%m-%d").date()).days
+        return {"exceeded": True, "since": since,
+                "days_left": max(0, GRACE_DAYS - days_used),
+                "blocked": days_used > GRACE_DAYS,
+                "max": int(maxs), "found": int(subsidiary_count)}
+    except Exception as e:  # pragma: no cover
+        log.warning(f"sub_limit_state failed (ignored): {e}")
+        return None
+
+
+def evaluate(oracle_host: str, subsidiary_count: int | None, duck=None) -> dict:
     """License enforcement verdict. NEVER raises.
 
     Returns {
@@ -117,10 +154,21 @@ def evaluate(oracle_host: str, subsidiary_count: int | None) -> dict:
             if st.get("bound_oracle_host") and oracle_host \
                     and st["bound_oracle_host"] != oracle_host:
                 violation, reason = True, "WRONG SERVER"
-            maxs = st.get("max_subsidiaries")
-            if maxs and subsidiary_count and subsidiary_count > int(maxs):
+            if duck is not None:
+                g = sub_limit_state(duck, st, subsidiary_count)
+                if g and g["blocked"]:
+                    warnings.append(
+                        f"Data refresh disabled — license covers {g['max']} "
+                        f"subsidiaries, {g['found']} found. Contact RetailTec to upgrade.")
+                elif g:
+                    warnings.append(
+                        f"License covers {g['max']} subsidiaries — {g['found']} found. "
+                        f"Data refresh stops in {g['days_left']} days.")
+            elif st.get("max_subsidiaries") and subsidiary_count \
+                    and subsidiary_count > int(st["max_subsidiaries"]):
                 warnings.append(
-                    f"License covers {maxs} subsidiaries — {subsidiary_count} found")
+                    f"License covers {st['max_subsidiaries']} subsidiaries — "
+                    f"{subsidiary_count} found")
         else:
             warnings.append("No license installed — evaluation mode")
     except Exception as e:  # pragma: no cover

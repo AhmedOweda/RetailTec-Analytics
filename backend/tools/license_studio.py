@@ -39,33 +39,64 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("RetailTec License Studio")
-        self.geometry("640x560")
+        self.geometry("700x640")
         self.resizable(False, False)
+        self.configure(bg="#f8fafc")
+        try:
+            ico = Path(__file__).parent.parent.parent / "packaging" / "app.ico"
+            if ico.exists():
+                self.iconbitmap(str(ico))
+        except Exception:
+            pass
         self.priv: Ed25519PrivateKey | None = None
         self.priv_path: Path | None = None
         self._build()
 
     # ── UI ──────────────────────────────────────────────────────────────
     def _build(self):
-        pad = {"padx": 12, "pady": 4}
         s = ttk.Style(self)
-        s.configure("H.TLabel", font=("Segoe UI", 11, "bold"), foreground=ACCENT)
+        try:
+            s.theme_use("vista")
+        except Exception:
+            pass
+        s.configure("TLabelframe", background="#f8fafc")
+        s.configure("TLabelframe.Label", font=("Segoe UI", 10, "bold"),
+                    foreground=ACCENT, background="#f8fafc")
+        s.configure("TFrame", background="#f8fafc")
+        s.configure("TLabel", background="#f8fafc", font=("Segoe UI", 9))
+        s.configure("TButton", font=("Segoe UI", 9))
+        s.configure("Go.TButton", font=("Segoe UI", 10, "bold"))
 
-        ttk.Label(self, text="1 · Vendor private key", style="H.TLabel").pack(anchor="w", **pad)
-        row = ttk.Frame(self); row.pack(fill="x", **pad)
+        # Brand header
+        head = tk.Frame(self, bg="#160b33", height=64)
+        head.pack(fill="x")
+        head.pack_propagate(False)
+        tk.Label(head, text="RetailTec  License Studio", bg="#160b33", fg="white",
+                 font=("Segoe UI", 15, "bold")).pack(side="left", padx=18, pady=14)
+        tk.Label(head, text="vendor tool — never ship to customers",
+                 bg="#160b33", fg="#a78bfa", font=("Segoe UI", 9)).pack(
+                 side="right", padx=18)
+
+        body = ttk.Frame(self); body.pack(fill="both", expand=True, padx=14, pady=10)
+
+        kf = ttk.Labelframe(body, text=" Vendor private key ", padding=10)
+        kf.pack(fill="x", pady=(0, 8))
+        row = ttk.Frame(kf); row.pack(fill="x")
         self.key_var = tk.StringVar(value="(no key loaded)")
-        ttk.Label(row, textvariable=self.key_var, width=52).pack(side="left")
+        ttk.Label(row, textvariable=self.key_var, width=58,
+                  foreground="#475569").pack(side="left")
         ttk.Button(row, text="Load…", command=self.load_key).pack(side="left", padx=4)
         ttk.Button(row, text="Generate new…", command=self.gen_key).pack(side="left")
-        row2 = ttk.Frame(self); row2.pack(fill="x", **pad)
+        row2 = ttk.Frame(kf); row2.pack(fill="x", pady=(6, 0))
         self.pub_var = tk.StringVar(value="")
         ttk.Label(row2, text="Public key:").pack(side="left")
-        ttk.Entry(row2, textvariable=self.pub_var, width=52, state="readonly").pack(side="left", padx=4)
+        ttk.Entry(row2, textvariable=self.pub_var, width=54,
+                  state="readonly", font=("Consolas", 9)).pack(side="left", padx=6)
         ttk.Button(row2, text="Apply to app", command=self.patch_app).pack(side="left")
 
-        ttk.Separator(self).pack(fill="x", pady=8)
-        ttk.Label(self, text="2 · License details", style="H.TLabel").pack(anchor="w", **pad)
-        form = ttk.Frame(self); form.pack(fill="x", **pad)
+        lf = ttk.Labelframe(body, text=" New license ", padding=10)
+        lf.pack(fill="x", pady=(0, 8))
+        form = ttk.Frame(lf); form.pack(fill="x")
         self.f = {}
         fields = [
             ("Customer name",              "customer",    ""),
@@ -80,17 +111,19 @@ class App(tk.Tk):
             self.f[key] = var
             ttk.Entry(form, textvariable=var, width=42).grid(row=i, column=1, sticky="w")
 
-        ttk.Button(self, text="Generate signed license.json…",
-                   command=self.generate).pack(anchor="w", **pad)
+        ttk.Button(lf, text="Generate signed license.json…", style="Go.TButton",
+                   command=self.generate).pack(anchor="w", pady=(8, 0))
 
-        ttk.Separator(self).pack(fill="x", pady=8)
-        ttk.Label(self, text="3 · Verify a license file", style="H.TLabel").pack(anchor="w", **pad)
-        ttk.Button(self, text="Open license.json to verify…",
-                   command=self.verify).pack(anchor="w", **pad)
+        vf = ttk.Labelframe(body, text=" Verify a license file ", padding=10)
+        vf.pack(fill="x", pady=(0, 8))
+        ttk.Button(vf, text="Open license.json to verify…",
+                   command=self.verify).pack(anchor="w")
 
-        self.out = tk.Text(self, height=9, width=76, font=("Consolas", 9),
-                           state="disabled", bg="#f8fafc")
-        self.out.pack(fill="both", expand=True, padx=12, pady=8)
+        of = ttk.Labelframe(body, text=" Activity ", padding=6)
+        of.pack(fill="both", expand=True)
+        self.out = tk.Text(of, height=9, font=("Consolas", 9), state="disabled",
+                           bg="#ffffff", relief="flat", fg="#334155")
+        self.out.pack(fill="both", expand=True)
 
     def log(self, msg: str):
         self.out.configure(state="normal")

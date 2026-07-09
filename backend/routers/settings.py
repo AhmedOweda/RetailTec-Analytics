@@ -303,15 +303,15 @@ def get_model_status():
     lic = {}
     try:
         from services.license import evaluate
-        sub_count = None
-        try:
-            from db.model import DB_LOCK as _L, get_db as _g
-            with _L:
-                sub_count = _g().execute(
+        from db.model import DB_LOCK as _L, get_db as _g
+        with _L:
+            con = _g()
+            try:
+                sub_count = con.execute(
                     "SELECT COUNT(*) FROM DIM_SUBSIDIARY").fetchone()[0]
-        except Exception:
-            pass
-        lic = evaluate(host, sub_count)
+            except Exception:
+                sub_count = None
+            lic = evaluate(host, sub_count, duck=con)
     except Exception:
         pass
     return {"model_status": s.get("model_status", "empty"),
