@@ -1003,12 +1003,41 @@ def _run_sync(mode: str, date_from: str, date_to: str,
     _run_id = _log_start(duck, mode, triggered_by, _domains_str, date_from, date_to, 100)
 
     try:
+        # License binding: remember which Oracle server first filled this
+        # warehouse (read by the UI watermark when the host later differs).
+        try:
+            _host = json.loads(SETTINGS_FILE.read_text()).get("connection", {}).get("host", "")
+            if _host:
+                duck.execute(
+                    "INSERT INTO WAREHOUSE_META VALUES ('source_host', ?) "
+                    "ON CONFLICT (key) DO NOTHING", [_host])
+                duck.commit()
+        except Exception as e:
+            log.warning(f"source_host stamp failed: {e}")
+
+        # Dimension reload throttle: incremental syncs run on every app open —
+        # skip the (heavy) dimension mirror if it already ran in the last 12h.
+        # Full/range loads and the explicit dimensions-load always refresh.
+        _skip_dims = False
+        if mode == "incremental":
+            try:
+                row = duck.execute(
+                    "SELECT value FROM WAREHOUSE_META WHERE key='dims_loaded_at'").fetchone()
+                if row and row[0]:
+                    age_h = (datetime.now() - datetime.fromisoformat(row[0])).total_seconds() / 3600
+                    _skip_dims = age_h < 12
+            except Exception:
+                pass
+
         ora = _get_oracle_conn()
         try:
             # Step 1 — dimensions (full refresh; small tables)
-            if progress_cb:
-                progress_cb("Loading dimensions", 2, 100)
-            _load_dimensions(duck, ora, progress_cb)
+            if _skip_dims:
+                log.info("Dimensions fresh (<12h) — skipping reload for incremental sync")
+            else:
+                if progress_cb:
+                    progress_cb("Loading dimensions", 2, 100)
+                _load_dimensions(duck, ora, progress_cb)
 
             # Step 2 — REBUILD only (opt-in, destructive): clear the range first
             if rebuild:
@@ -1023,9 +1052,15 @@ def _run_sync(mode: str, date_from: str, date_to: str,
             _log_progress(duck, _run_id, 1)
 
             # Step 4 — large dims (customers, items) for the range
-            if progress_cb:
-                progress_cb("Loading customers & items", 90, 100)
-            _load_large_dims(duck, ora, date_from, date_to, progress_cb)
+            if not _skip_dims:
+                if progress_cb:
+                    progress_cb("Loading customers & items", 90, 100)
+                _load_large_dims(duck, ora, date_from, date_to, progress_cb)
+                duck.execute(
+                    "INSERT INTO WAREHOUSE_META VALUES ('dims_loaded_at', ?) "
+                    "ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                    [datetime.now().isoformat()])
+                duck.commit()
 
             # Step 5 — inventory on-hand snapshot (current state, full refresh)
             if ALL or "inventory" in tables:
@@ -1161,6 +1196,11 @@ def _run_dimensions_load(progress_cb, triggered_by):
             if progress_cb:
                 progress_cb("Loading customers & items", 50, 100)
             _load_large_dims(duck, ora, df, dt, progress_cb)
+            duck.execute(
+                "INSERT INTO WAREHOUSE_META VALUES ('dims_loaded_at', ?) "
+                "ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                [datetime.now().isoformat()])
+            duck.commit()
         finally:
             ora.close()
         if progress_cb:
