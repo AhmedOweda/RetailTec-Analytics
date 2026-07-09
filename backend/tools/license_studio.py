@@ -126,6 +126,7 @@ class App(tk.Tk):
             ("Customer name",              "customer",    ""),
             ("Expiry (YYYY-MM-DD)",        "expiry",      f"{date.today().year + 1}-12-31"),
             ("Max subsidiaries (blank = none)", "max_subsidiaries", ""),
+            ("Max users per install (blank = none)", "max_users", ""),
             ("Device code (blank = any device)", "device_code", ""),
             ("Oracle host binding (blank = any)", "oracle_host", ""),
         ]
@@ -238,13 +239,15 @@ class App(tk.Tk):
             return
         payload = {"customer": customer, "expiry": expiry,
                    "issued": date.today().isoformat()}
-        v = self.f["max_subsidiaries"].get().strip()
-        if v:
-            try:
-                payload["max_subsidiaries"] = int(v)
-            except ValueError:
-                messagebox.showwarning("Bad number", "Max subsidiaries must be a whole number.")
-                return
+        for key, label in (("max_subsidiaries", "Max subsidiaries"),
+                           ("max_users", "Max users")):
+            v = self.f[key].get().strip()
+            if v:
+                try:
+                    payload[key] = int(v)
+                except ValueError:
+                    messagebox.showwarning("Bad number", f"{label} must be a whole number.")
+                    return
         device = self.f["device_code"].get().strip().upper()
         if device:
             payload["device_code"] = device
@@ -262,7 +265,8 @@ class App(tk.Tk):
         self.log(f"License written: {out}")
         self.log(f"  customer={customer}  expiry={expiry}  "
                  + "  ".join(f"{k}={payload[k]}" for k in
-                             ("max_subsidiaries", "device_code", "oracle_host") if k in payload))
+                             ("max_subsidiaries", "max_users", "device_code", "oracle_host")
+                             if k in payload))
         self.log("Send this file to the customer — it goes next to the app's settings"
                  " (backend/ in dev, _internal in the packaged install).")
 

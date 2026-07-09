@@ -288,6 +288,24 @@ def create_user(req: UserCreate, current: dict = Depends(require_admin)):
     if existing:
         raise HTTPException(status_code=409, detail="Username already exists")
 
+    # License user limit (per installation): block CREATING accounts beyond
+    # max_users. Existing accounts and logins are never touched.
+    try:
+        from services.license import get_license_status
+        _st = get_license_status()
+        _max = _st.get("max_users") if _st.get("valid") and not _st.get("expired") else None
+        if _max:
+            _count = _qdf("SELECT COUNT(*) AS n FROM DIM_USERS WHERE is_active")[0]["n"]
+            if int(_count) >= int(_max):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"License allows {_max} users on this installation — "
+                           "deactivate an account or contact RetailTec to upgrade")
+    except HTTPException:
+        raise
+    except Exception:
+        pass   # license problems must never break user management
+
     if req.role not in ("admin", "manager", "viewer"):
         raise HTTPException(status_code=400, detail="Role must be admin, manager, or viewer")
 
