@@ -115,6 +115,40 @@ def pick_file(_admin: dict = Depends(require_admin)):
     return {"path": _native_pick("file")}
 
 
+@router.get("/api/admin/browse")
+def browse(path: Optional[str] = Query(None),
+           mode: str = Query("folder", pattern="^(folder|file)$"),
+           _admin: dict = Depends(require_admin)):
+    """List the SERVER's folders (and .db files in file mode) for the in-app
+    picker. Works whether the browser is local or remote — the native Explorer
+    dialog only worked when browser and server were the same machine, and did
+    nothing on a remote/windowless install (13 Jul 2026). Admin-only; admins can
+    already restore from any path, so directory listing is within their scope."""
+    import os
+    if not path:
+        drives = [f"{d}:\\" for d in "CDEFGHIJKLMNOPQRSTUVWXYZ"
+                  if os.path.exists(f"{d}:\\")]
+        return {"path": None, "parent": None, "dirs": drives, "files": []}
+    p = Path(path)
+    if not p.exists() or not p.is_dir():
+        raise HTTPException(status_code=400, detail="Not a folder")
+    dirs, files = [], []
+    try:
+        for e in sorted(os.scandir(p), key=lambda e: e.name.lower()):
+            try:
+                if e.is_dir():
+                    dirs.append(e.name)
+                elif mode == "file" and e.name.lower().endswith(".db"):
+                    files.append(e.name)
+            except OSError:
+                continue
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Folder not accessible")
+    parent = str(p.parent) if str(p.parent) != str(p) else None
+    return {"path": str(p), "parent": parent, "dirs": dirs, "files": files,
+            "sep": os.sep}
+
+
 # ── Restore ────────────────────────────────────────────────────────────────────
 
 @router.get("/api/admin/backups")

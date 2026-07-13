@@ -23,6 +23,9 @@ import StorageIcon      from '@mui/icons-material/Storage'
 import TuneIcon         from '@mui/icons-material/Tune'
 import ScheduleIcon     from '@mui/icons-material/Schedule'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import FolderIcon       from '@mui/icons-material/Folder'
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
+import ArrowUpwardIcon  from '@mui/icons-material/ArrowUpward'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
@@ -1047,6 +1050,14 @@ function AboutCard() {
           <Row label="License Customer"  value={lic.customer ?? '—'} />
           <Row label="License Expiry"    value={lic.expiry ?? '—'} />
           <Row label="License Status"    value={licChip()} />
+          <Row label="License File"      value={
+            <Typography component="span" sx={{ fontSize:11.5, fontFamily:'monospace',
+                                               color: data?.license_file_present ? '#16a34a' : '#b45309',
+                                               wordBreak:'break-all' }}>
+              {data?.license_file_path ?? '—'}
+              {data?.license_file_path && (data?.license_file_present
+                ? tr(' (found)') : tr(' (put license.json here)'))}
+            </Typography>} />
           <Row label="Device Code"       value={
             <Typography component="span" sx={{ fontSize:12.5, fontWeight:700,
                                                fontFamily:'monospace', color:ACCENT }}>
@@ -1064,8 +1075,76 @@ function AboutCard() {
   )
 }
 
+/* ── Server folder / file browser (works local AND remote) ──────────────────── */
+function BrowseDialog({ open, mode, onClose, onPick }:
+  { open: boolean; mode: 'folder' | 'file'; onClose: () => void; onPick: (p: string) => void }) {
+  const [path, setPath] = useState<string | null>(null)
+  const { data, isFetching } = useQuery<any>({
+    queryKey: ['browse', mode, path],
+    queryFn: () => axios.get('/api/admin/browse', { params: { mode, ...(path ? { path } : {}) } }).then(r => r.data),
+    enabled: open,
+  })
+  useEffect(() => { if (open) setPath(null) }, [open])
+  const sep = data?.sep ?? '\\'
+  const join = (base: string | null, name: string) =>
+    !base ? name : base.endsWith(sep) ? base + name : base + sep + name
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
+      PaperProps={{ sx: { borderRadius: 3, height: '70vh' } }}>
+      <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
+        {mode === 'folder' ? tr('Choose a folder on the server') : tr('Choose a backup file on the server')}
+      </DialogTitle>
+      <DialogContent dividers sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#f8fafc', borderBottom: '1px solid #eef0f5' }}>
+          <IconButton size="small" disabled={!path}
+            onClick={() => setPath(data?.parent ?? null)}>
+            <ArrowUpwardIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+          <Typography sx={{ fontSize: 12.5, fontFamily: 'monospace', color: '#475569', wordBreak: 'break-all' }}>
+            {data?.path ?? tr('This PC (drives)')}
+          </Typography>
+        </Box>
+        <Box sx={{ flex: 1, overflowY: 'auto' }}>
+          {isFetching && <LinearProgress />}
+          {(data?.dirs ?? []).map((d: string) => (
+            <Box key={'d' + d} onClick={() => setPath(join(data?.path ?? null, d))}
+              sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1, cursor: 'pointer',
+                    '&:hover': { bgcolor: '#f5f3ff' } }}>
+              <FolderIcon sx={{ fontSize: 19, color: '#f59e0b' }} />
+              <Typography sx={{ fontSize: 13.5 }}>{d}</Typography>
+            </Box>
+          ))}
+          {(data?.files ?? []).map((f: string) => (
+            <Box key={'f' + f} onClick={() => onPick(join(data?.path ?? null, f))}
+              sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1, cursor: 'pointer',
+                    '&:hover': { bgcolor: '#eef9f0' } }}>
+              <InsertDriveFileIcon sx={{ fontSize: 19, color: '#0f766e' }} />
+              <Typography sx={{ fontSize: 13.5 }}>{f}</Typography>
+            </Box>
+          ))}
+          {!isFetching && (data?.dirs ?? []).length === 0 && (data?.files ?? []).length === 0 && (
+            <Typography sx={{ fontSize: 12.5, color: '#94a3b8', p: 2 }}>{tr('Nothing to show here.')}</Typography>
+          )}
+        </Box>
+      </DialogContent>
+      <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+        <Button onClick={onClose} sx={{ textTransform: 'none', color: '#64748b' }}>{tr('Cancel')}</Button>
+        {mode === 'folder' && (
+          <Button variant="contained" disabled={!path} onClick={() => path && onPick(path)}
+            sx={{ bgcolor: ACCENT, textTransform: 'none', fontWeight: 700, '&:hover': { bgcolor: '#6d28d9' } }}>
+            {tr('Use this folder')}
+          </Button>
+        )}
+      </Box>
+    </Dialog>
+  )
+}
+
 /* ── Maintenance card: backup + compact ─────────────────────────────────────── */
 function MaintenanceCard() {
+  const [browseFolder, setBrowseFolder] = useState(false)
+  const [browseFile, setBrowseFile] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [folder, setFolder] = useState('')
@@ -1084,15 +1163,6 @@ function MaintenanceCard() {
     onSuccess: r => { setErr(null); setMsg(trf('Backup saved: {{path}} ({{mb}} MB)', { path: r.data.path, mb: r.data.size_mb }));
                       qc.invalidateQueries({ queryKey: ['backup-list'] }) },
     onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Backup failed')) },
-  })
-
-  const pickFolder = useMutation({
-    mutationFn: () => axios.post('/api/admin/pick-folder'),
-    onSuccess: r => { if (r.data.path) setFolder(r.data.path) },
-  })
-  const pickFile = useMutation({
-    mutationFn: () => axios.post('/api/admin/pick-file'),
-    onSuccess: r => { if (r.data.path) setRestorePath(r.data.path) },
   })
 
   const restore = useMutation({
@@ -1118,8 +1188,8 @@ function MaintenanceCard() {
           <TextField size="small" sx={{ minWidth:320 }} placeholder="D:\\RetailTecBackups"
             value={folder} onChange={e => setFolder(e.target.value)} />
         </LabeledCtl>
-        <Button variant="outlined" size="small" disabled={pickFolder.isPending}
-          onClick={() => pickFolder.mutate()}
+        <Button variant="outlined" size="small"
+          onClick={() => setBrowseFolder(true)}
           sx={{ borderColor:'#94a3b8', color:'#64748b', textTransform:'none', fontWeight:600 }}>
           {tr('Browse…')}
         </Button>
@@ -1155,8 +1225,8 @@ function MaintenanceCard() {
             placeholder="D:\\RetailTecBackups\\retailtec_..._backup_....db"
             value={restorePath} onChange={e => setRestorePath(e.target.value)} />
         </LabeledCtl>
-        <Button variant="outlined" size="small" disabled={pickFile.isPending}
-          onClick={() => pickFile.mutate()}
+        <Button variant="outlined" size="small"
+          onClick={() => setBrowseFile(true)}
           sx={{ borderColor:'#94a3b8', color:'#64748b', textTransform:'none', fontWeight:600 }}>
           {tr('Browse…')}
         </Button>
@@ -1176,6 +1246,11 @@ function MaintenanceCard() {
 
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
       {err && <Alert severity="error" sx={{ mt:1.5, fontSize:12 }}>{err}</Alert>}
+
+      <BrowseDialog open={browseFolder} mode="folder" onClose={() => setBrowseFolder(false)}
+        onPick={p => { setFolder(p); setBrowseFolder(false) }} />
+      <BrowseDialog open={browseFile} mode="file" onClose={() => setBrowseFile(false)}
+        onPick={p => { setRestorePath(p); setBrowseFile(false) }} />
     </SectionCard>
   )
 }

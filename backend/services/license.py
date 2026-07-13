@@ -42,6 +42,15 @@ _PUBLIC_KEY_HEX = "516181c82a769a6df7f03d0ba2829f2100ccdb2c9c2be7818f6d2ea8b05ac
 _LICENSE_FILE = Path(__file__).parent.parent / "license.json"
 
 
+def license_file_path() -> str:
+    """Absolute path where the app looks for license.json — shown in
+    Diagnostics so the customer knows exactly where to drop the file."""
+    try:
+        return str(_LICENSE_FILE.resolve())
+    except Exception:
+        return str(_LICENSE_FILE)
+
+
 def _canonical(payload: dict) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
 

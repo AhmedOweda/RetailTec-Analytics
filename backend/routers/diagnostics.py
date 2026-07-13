@@ -18,7 +18,7 @@ from db.model import (DB_LOCK, get_db, APP_VERSION, SCHEMA_VERSION,
                       _db_path, _current_settings_host)
 from routers.auth import require_admin
 from services.config import load_settings
-from services.license import get_license_status
+from services.license import get_license_status, license_file_path
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["diagnostics"])
@@ -81,7 +81,17 @@ def diagnostics(_admin: dict = Depends(require_admin)):
     except Exception:
         pass
 
+    lic_path = ""
+    lic_present = False
+    try:
+        lic_path = license_file_path()
+        lic_present = Path(lic_path).exists()
+    except Exception:
+        pass
+
     return {
+        "license_file_path":    lic_path,
+        "license_file_present": lic_present,
         "app_version":          APP_VERSION,
         "schema_version":       SCHEMA_VERSION,
         "last_sync":            last_sync,
