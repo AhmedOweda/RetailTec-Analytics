@@ -7,7 +7,6 @@ GET  /api/auth/users        — list users (admin only)
 POST /api/auth/users        — create user (admin only)
 PUT  /api/auth/users/{id}   — update user (admin only)
 DELETE /api/auth/users/{id} — delete user (admin only)
-GET  /api/auth/debug        — TEMP: shows DB state (remove in prod)
 """
 import os
 import secrets as _secrets
@@ -185,6 +184,33 @@ class UserUpdate(BaseModel):
 
 # ── Login ─────────────────────────────────────────────────────────────────────
 
+# Brute-force lockout: sliding window per username, in-memory (single process).
+# 5 failures within 15 min → reject for 30 s from the LAST failure. The seeded
+# default password is public and forced-change was removed, so unbounded local
+# guessing was possible (ARCHITECTURE_REVIEW 2026-07-13 P1).
+_LOCKOUT_FAILS = 5
+_LOCKOUT_WINDOW_S = 900
+_LOCKOUT_COOLDOWN_S = 30
+_failed_logins: dict[str, list[float]] = {}
+
+
+def _lockout_check(username: str) -> None:
+    import time as _time
+    now = _time.time()
+    fails = [t for t in _failed_logins.get(username, []) if now - t < _LOCKOUT_WINDOW_S]
+    _failed_logins[username] = fails
+    if len(fails) >= _LOCKOUT_FAILS and now - fails[-1] < _LOCKOUT_COOLDOWN_S:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed attempts — wait a moment and try again",
+        )
+
+
+def _lockout_record_failure(username: str) -> None:
+    import time as _time
+    _failed_logins.setdefault(username, []).append(_time.time())
+
+
 @router.post("/api/auth/login")
 def login(req: LoginRequest):
     global _admin_migrated
@@ -195,13 +221,16 @@ def login(req: LoginRequest):
         except Exception as e:
             print(f"[auth] ensure_admin failed: {e}")
 
+    _lockout_check(req.username)
     user = _get_user_by_username(req.username)
     if not user or not verify_password(req.password, user["password_hash"]):
+        _lockout_record_failure(req.username)
         record_audit(req.username, "login_failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
         )
+    _failed_logins.pop(req.username, None)   # success clears the window
     token = _create_token({
         "sub":    user["username"],
         "role":   user["role"],

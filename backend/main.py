@@ -142,11 +142,21 @@ _WEBAPP = _Path(__file__).parent / "webapp"
 if _WEBAPP.exists():
     app.mount("/assets", StaticFiles(directory=_WEBAPP / "assets"), name="assets")
 
+    _WEBAPP_ROOT = _WEBAPP.resolve()
+
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa(full_path: str):
-        target = _WEBAPP / full_path
-        if full_path and target.is_file():
-            return FileResponse(target)
+        # Containment check: this route is unauthenticated, and without it a
+        # dot-segment path could serve files OUTSIDE webapp/ — settings.json,
+        # .jwt_secret (JWT forgery), even the warehouse .db (ARCHITECTURE_REVIEW
+        # 2026-07-13 P1). Resolve and require the target stays inside webapp/.
+        if full_path:
+            try:
+                target = (_WEBAPP / full_path).resolve()
+                if target.is_relative_to(_WEBAPP_ROOT) and target.is_file():
+                    return FileResponse(target)
+            except (OSError, ValueError):
+                pass
         return FileResponse(_WEBAPP / "index.html")
 
     log.info(f"Serving bundled frontend from {_WEBAPP}")
