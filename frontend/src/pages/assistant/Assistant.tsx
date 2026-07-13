@@ -15,7 +15,7 @@ import {
   FormControlLabel, Alert, Tooltip, Avatar, Fade, InputAdornment,
 } from '@mui/material'
 import SendIcon           from '@mui/icons-material/ArrowUpward'
-import AutoAwesomeIcon    from '@mui/icons-material/AutoAwesome'
+import QueryStatsIcon     from '@mui/icons-material/QueryStats'
 import SettingsIcon       from '@mui/icons-material/Tune'
 import CodeIcon           from '@mui/icons-material/DataObject'
 import TrendingUpIcon     from '@mui/icons-material/TrendingUp'
@@ -126,7 +126,7 @@ function ConfigDialog({ open, onClose }: { open: boolean; onClose: () => void })
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
       PaperProps={{ sx: { borderRadius: 3.5, overflow: 'hidden' } }}>
       <Box sx={{ background: GRAD, color: '#fff', px: 3, py: 2.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <AutoAwesomeIcon />
+        <QueryStatsIcon />
         <Box>
           <Typography sx={{ fontWeight: 800, fontSize: 18 }}>{tr('AI Assistant')}</Typography>
           <Typography sx={{ fontSize: 12.5, opacity: .85 }}>{tr('Choose where the AI runs and connect it.')}</Typography>
@@ -191,7 +191,7 @@ function ConfigDialog({ open, onClose }: { open: boolean; onClose: () => void })
 function Sparkle() {
   return (
     <Avatar sx={{ width: 34, height: 34, background: GRAD, boxShadow: '0 4px 12px rgba(124,58,237,.35)' }}>
-      <AutoAwesomeIcon sx={{ fontSize: 18 }} />
+      <QueryStatsIcon sx={{ fontSize: 18 }} />
     </Avatar>
   )
 }
@@ -237,7 +237,7 @@ export default function Assistant() {
         <Sparkle />
         <Box sx={{ flex: 1 }}>
           <Typography variant="h5" fontWeight={800} sx={{ color: INK, lineHeight: 1.1 }}>
-            {tr('Ask AI')}
+            {tr('Data Analyst')}
           </Typography>
           <Typography sx={{ fontSize: 12.5, color: MUTED }}>
             {tr('Your data analyst — ask anything about sales, stock and purchases.')}
@@ -272,7 +272,7 @@ export default function Assistant() {
               <Box sx={{ width: 64, height: 64, borderRadius: '50%', background: GRAD, mx: 'auto', mb: 2.5,
                          display: 'flex', alignItems: 'center', justifyContent: 'center',
                          boxShadow: '0 10px 30px rgba(124,58,237,.35)' }}>
-                <AutoAwesomeIcon sx={{ color: '#fff', fontSize: 30 }} />
+                <QueryStatsIcon sx={{ color: '#fff', fontSize: 30 }} />
               </Box>
               <Typography sx={{ fontSize: 22, fontWeight: 800, color: INK, mb: .5 }}>
                 {tr('What would you like to know?')}
@@ -382,3 +382,4 @@ export default function Assistant() {
     </Box>
   )
 }
+

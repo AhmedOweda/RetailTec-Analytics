@@ -20,7 +20,7 @@ export const PAGE_DOMAINS: PageDomain[] = [
   {
     domain: 'Inventory',
     pages: [
-      { key: '/inventory/overview',    label: 'Stock Levels' },
+      { key: '/inventory/overview',    label: 'Stock Levels' }, // (assistant lives above, not permission-gated)
       { key: '/inventory/stock-asof',  label: 'Stock by Date' },
       { key: '/inventory/movement',    label: 'Movement' },
       { key: '/inventory/transfers',   label: 'Transfers' },

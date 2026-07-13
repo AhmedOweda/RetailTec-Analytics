@@ -79,7 +79,8 @@ const ar_strings: Record<string, string> = {
   'First Event': 'أول حركة',
   'Last Event': 'آخر حركة',
 
-  // ── AI Assistant (Ask AI) ──
+  // ── AI Assistant (Data Analyst) ──
+  'Data Analyst': 'محلّل البيانات',
   'Ask AI': 'اسأل الذكاء الاصطناعي',
   'Your data analyst — ask anything about sales, stock and purchases.': 'محلّل بياناتك — اسأل أي شيء عن المبيعات والمخزون والمشتريات.',
   'AI Assistant': 'المساعد الذكي',
