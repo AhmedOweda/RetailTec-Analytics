@@ -29,6 +29,11 @@ if getattr(sys, "frozen", False):
         sys.stdout = sys.stderr = io.StringIO()
 
 PORT = int(os.environ.get("RETAILTEC_PORT", "7382"))
+# Bind address. 0.0.0.0 = reachable from other machines (VPN / server with a
+# public or LAN IP); 127.0.0.1 = this machine only. Default is 0.0.0.0 so the
+# app works when installed on a shared server. Access is still gated by login;
+# restrict exposure at the firewall / VPN layer. Override with RETAILTEC_HOST.
+HOST = os.environ.get("RETAILTEC_HOST", "0.0.0.0")
 
 
 def _open_browser():
@@ -49,7 +54,7 @@ def _run_with_tray(app):
     import pystray
     from PIL import Image, ImageDraw
 
-    config = uvicorn.Config(app, host="127.0.0.1", port=PORT, log_level="info")
+    config = uvicorn.Config(app, host=HOST, port=PORT, log_level="info")
     server = uvicorn.Server(config)
     threading.Thread(target=server.run, daemon=True).start()
 
@@ -206,7 +211,7 @@ def main():
         _run_with_tray(app)          # windowed build: controllable via the tray
     except Exception as e:
         print(f"[run_server] tray unavailable ({e}); running without it")
-        uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="info")
+        uvicorn.run(app, host=HOST, port=PORT, log_level="info")
 
 
 if __name__ == "__main__":
