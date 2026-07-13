@@ -19,7 +19,7 @@ import logging
 import urllib.request
 import urllib.error
 
-from db.model import _db_path
+from db.model import get_db, DB_LOCK
 from services import assistant_sql as guard
 
 log = logging.getLogger(__name__)
@@ -66,24 +66,21 @@ Return DuckDB SQL only. Read-only SELECT. Use only the tables listed above.
 """
 
 
-def _schema_text(db_path: str) -> str:
+def _schema_text(cur) -> str:
     """Introspect the whitelisted tables + columns into a compact CREATE-like
-    description the model can read."""
-    con, tables = guard.open_sandbox(db_path)   # unrestricted view, admin-level
-    try:
-        lines = []
-        for t in tables:
-            cols = con.execute(
-                "SELECT column_name, data_type FROM information_schema.columns "
-                "WHERE table_catalog='memory' AND table_name=? ORDER BY ordinal_position",
-                [t]).fetchall()
-            if not cols:
-                continue
-            coltxt = ", ".join(f"{c} {d}" for c, d in cols)
-            lines.append(f"{t}({coltxt})")
-        return "\n".join(lines)
-    finally:
-        con.close()
+    description the model can read (via the app's live connection cursor)."""
+    tables = guard.whitelist_tables(cur)
+    lines = []
+    for t in tables:
+        cols = cur.execute(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_schema='main' AND table_name=? ORDER BY ordinal_position",
+            [t]).fetchall()
+        if not cols:
+            continue
+        coltxt = ", ".join(f"{c} {d}" for c, d in cols)
+        lines.append(f"{t}({coltxt})")
+    return "\n".join(lines)
 
 
 def _system_prompt(schema: str) -> str:
@@ -168,30 +165,45 @@ def _chat(cfg: dict, system: str, user: str) -> str:
 
 # ── Orchestration ─────────────────────────────────────────────────────────────
 
-def ask(question: str, cfg: dict, host: str,
+def ask(question: str, cfg: dict, host: str = "",
         allowed_store_names=None, allowed_subsidiary_sids=None) -> dict:
     """Full pipeline. Returns a dict for the API:
-    {answer, sql, columns, rows, truncated, error}."""
-    db_path = str(_db_path(host))
-    schema = _schema_text(db_path)
-    system = _system_prompt(schema)
+    {answer, sql, columns, rows, truncated, error}.
 
-    # 1) NL -> SQL (one retry feeding back an execution error)
-    sql, result, last_err = "", None, None
-    user_msg = question
-    for attempt in range(2):
-        raw = _chat(cfg, system, user_msg)
-        sql = _extract_sql(raw)
+    Runs on a cursor of the app's LIVE connection (a second handle to the
+    warehouse file is impossible while the app holds it). DB_LOCK guards only
+    cursor creation; the LLM round-trips happen without holding the lock."""
+    with DB_LOCK:
+        cur = get_db().cursor()
+    try:
+        schema = _schema_text(cur)
+        system = _system_prompt(schema)
+
+        # 1) NL -> SQL (one retry feeding back an execution error)
+        sql, result, last_err = "", None, None
+        user_msg = question
+        for attempt in range(2):
+            raw = _chat(cfg, system, user_msg)
+            sql = _extract_sql(raw)
+            try:
+                result = guard.run(sql, cur, allowed_store_names, allowed_subsidiary_sids)
+                break
+            except guard.SqlGuardError as e:
+                last_err = str(e)
+                user_msg = (f"{question}\n\nYour previous SQL failed with: {last_err}\n"
+                            f"SQL was:\n{sql}\nFix it and return corrected SQL only.")
+        if result is None:
+            return {"answer": None, "sql": sql, "columns": [], "rows": [],
+                    "truncated": False, "error": last_err or "Could not generate a valid query."}
+        return _finish(question, cfg, result, sql)
+    finally:
         try:
-            result = guard.run(sql, db_path, allowed_store_names, allowed_subsidiary_sids)
-            break
-        except guard.SqlGuardError as e:
-            last_err = str(e)
-            user_msg = (f"{question}\n\nYour previous SQL failed with: {last_err}\n"
-                        f"SQL was:\n{sql}\nFix it and return corrected SQL only.")
-    if result is None:
-        return {"answer": None, "sql": sql, "columns": [], "rows": [],
-                "truncated": False, "error": last_err or "Could not generate a valid query."}
+            cur.close()
+        except Exception:
+            pass
+
+
+def _finish(question, cfg, result, sql) -> dict:
 
     # 2) rows -> plain-language answer (send only a capped preview of rows)
     preview = {"columns": result["columns"], "rows": result["rows"][:50],
