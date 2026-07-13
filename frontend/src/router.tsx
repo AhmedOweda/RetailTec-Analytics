@@ -17,6 +17,7 @@ import InventoryLedger       from './pages/inventory/Ledger'
 import InventoryHistory      from './pages/inventory/History'
 import InventoryStockAsOf    from './pages/inventory/StockAsOf'
 import InventoryCoverage     from './pages/inventory/Coverage'
+import Assistant             from './pages/assistant/Assistant'
 import PurchasesOverview     from './pages/purchases/Overview'
 import PurchasesTransactions from './pages/purchases/Transactions'
 import DimStores             from './pages/dimensions/Stores'
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute><AppShell /></ProtectedRoute>,
     children: [
       { index: true, element: <Navigate to="/sales/overview" replace /> },
+      { path: 'assistant',              element: <Assistant />             },
       { path: 'sales/overview',          element: <Overview />              },
       { path: 'sales/performance',       element: <Performance />           },
       { path: 'sales/products',          element: <Products />              },

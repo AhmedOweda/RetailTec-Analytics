@@ -32,6 +32,7 @@ import LogoutIcon         from '@mui/icons-material/Logout'
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import HistoryIcon        from '@mui/icons-material/History'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
+import AutoAwesomeIcon    from '@mui/icons-material/AutoAwesome'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios             from 'axios'
 import api               from '../api/client'
@@ -326,6 +327,15 @@ export default function AppShell() {
   const brandName: string = brandSettings?.brand_name || 'RetailTec Analytics'
   const brandLogo: string = brandSettings?.brand_logo || ''
 
+  // AI assistant enabled? (gates the sidebar link)
+  const { data: asstStatus } = useQuery<any>({
+    queryKey: ['assistant-status'],
+    queryFn:  () => axios.get('/api/assistant/status').then(r => r.data),
+    staleTime: 60_000,
+    retry: false,
+  })
+  const asstEnabled = !!asstStatus?.enabled
+
   // Warehouse status: alias + license-binding watermark flag
   const { data: whStatus } = useQuery<any>({
     queryKey: ['settings-status'],
@@ -405,6 +415,14 @@ export default function AppShell() {
         <Box sx={{ flex:1, overflowY:'auto', overflowX:'hidden',
                    '&::-webkit-scrollbar':{ width:4 },
                    '&::-webkit-scrollbar-thumb':{ bgcolor:'rgba(255,255,255,0.12)', borderRadius:2 } }}>
+
+          {/* AI Assistant — prominent top link, shown only when enabled */}
+          {asstEnabled && (
+            <Box sx={{ px:1.5, pt:1.5 }}>
+              <NavItem to="/assistant" icon={<AutoAwesomeIcon />} label="Ask AI" />
+              <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:0.5, mt:1 }} />
+            </Box>
+          )}
 
           {/* Sales section */}
           {salesNav.length > 0 && (<>
