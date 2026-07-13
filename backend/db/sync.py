@@ -499,6 +499,14 @@ def _bulk_upsert_dim(duck, table: str, pk: str, rows, full_refresh: bool = False
     stage_df = pd.DataFrame(rows, columns=cols, dtype=object)
     tmp = f"{table}__rebuild"
     duck.register("_dim_stage", stage_df)
+    # ATOMIC rebuild: the whole build + DROP + RENAME runs in ONE transaction.
+    # The old two-statement "DROP {table}; ALTER {tmp} RENAME" auto-committed the
+    # DROP first — if anything interrupted before the RENAME (an error, or the
+    # shared connection being reset mid-sync), DIM_ITEM stayed DROPPED and all
+    # products/items vanished until a full dimension reload rebuilt it (reported
+    # 13 Jul 2026). Inside a transaction, readers keep seeing the old table until
+    # COMMIT, and any failure ROLLs back to the original table — never empty.
+    duck.execute("BEGIN TRANSACTION")
     try:
         duck.execute(f"DROP TABLE IF EXISTS {tmp}")
         # clone schema (types) without rows — new table has no PK/ART index
@@ -512,9 +520,15 @@ def _bulk_upsert_dim(duck, table: str, pk: str, rows, full_refresh: bool = False
             """)
         duck.execute(f"DROP TABLE {table}")
         duck.execute(f"ALTER TABLE {tmp} RENAME TO {table}")
+        duck.execute("COMMIT")
+    except BaseException:
+        try:
+            duck.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
     finally:
         duck.unregister("_dim_stage")
-    duck.commit()
     return len(rows)
 
 
