@@ -94,7 +94,7 @@ def get_config(_admin: dict = Depends(require_admin)):
 
 @router.put("/api/assistant/config")
 def put_config(req: ConfigReq, _admin: dict = Depends(require_admin)):
-    if req.provider not in ("ollama", "anthropic", "openai"):
+    if req.provider not in ("ollama", "anthropic", "openai", "groq", "gemini"):
         raise HTTPException(status_code=422, detail="Unknown provider.")
     s = load_settings()
     cur = s.get("assistant") or dict(_DEFAULTS)

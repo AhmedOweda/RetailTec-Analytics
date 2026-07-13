@@ -26,6 +26,15 @@ log = logging.getLogger(__name__)
 
 _HTTP_TIMEOUT = 60
 
+# Default model per provider (the admin can override in settings).
+_DEFAULT_MODEL = {
+    "ollama":    "qwen2.5-coder:7b",
+    "anthropic": "claude-sonnet-5",
+    "groq":      "llama-3.3-70b-versatile",
+    "gemini":    "gemini-2.5-flash",
+    "openai":    "gpt-4o-mini",
+}
+
 
 # ── Schema description fed to the model ───────────────────────────────────────
 
@@ -133,10 +142,17 @@ def _chat(cfg: dict, system: str, user: str) -> str:
                 "anthropic-version": "2023-06-01"})
             return "".join(b.get("text", "") for b in out.get("content", []))
 
-        # openai-compatible (OpenAI, Azure, LM Studio, vLLM, etc.)
-        base = (cfg.get("base_url") or "https://api.openai.com/v1").rstrip("/")
+        # openai-compatible family: OpenAI, Groq, Gemini, or a custom base_url
+        # (Azure, LM Studio, vLLM, OpenRouter…). Groq & Gemini have FREE tiers.
+        base = {
+            "groq":   "https://api.groq.com/openai/v1",
+            "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
+            "openai": cfg.get("base_url") or "https://api.openai.com/v1",
+        }.get(provider, cfg.get("base_url") or "https://api.openai.com/v1")
+        base = base.rstrip("/")
+        model = cfg.get("model") or _DEFAULT_MODEL.get(provider, "gpt-4o-mini")
         out = _post_json(f"{base}/chat/completions", {
-            "model": cfg.get("model") or "gpt-4o-mini",
+            "model": model,
             "temperature": 0,
             "messages": [{"role": "system", "content": system},
                          {"role": "user", "content": user}],
