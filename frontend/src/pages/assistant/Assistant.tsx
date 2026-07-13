@@ -6,6 +6,7 @@
  * premium: gradient accents, soft cards, smooth entrance animations.
  */
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import {
@@ -199,9 +200,9 @@ function Sparkle() {
 export default function Assistant() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const navigate = useNavigate()
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
-  const [showCfg, setShowCfg] = useState(false)
   const [openSql, setOpenSql] = useState<number | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -244,8 +245,8 @@ export default function Assistant() {
           </Typography>
         </Box>
         {isAdmin && (
-          <Tooltip title={tr('AI Assistant Settings')}>
-            <IconButton onClick={() => setShowCfg(true)}
+          <Tooltip title={tr('Open Settings')}>
+            <IconButton onClick={() => navigate('/settings')}
               sx={{ bgcolor: '#f5f3ff', '&:hover': { bgcolor: '#ede9fe' } }}>
               <SettingsIcon sx={{ color: ACCENT }} />
             </IconButton>
@@ -255,9 +256,9 @@ export default function Assistant() {
 
       {disabled && (
         <Alert severity="info" sx={{ mb: 2, borderRadius: 2.5 }}
-          action={isAdmin ? <Button onClick={() => setShowCfg(true)} sx={{ textTransform: 'none' }}>{tr('Set up')}</Button> : undefined}>
+          action={isAdmin ? <Button onClick={() => navigate('/settings')} sx={{ textTransform: 'none' }}>{tr('Open Settings')}</Button> : undefined}>
           {isAdmin
-            ? tr('The AI assistant is off. Configure a provider to turn it on.')
+            ? tr('The AI assistant is off. Enable it in Settings → Maintenance → AI Assistant.')
             : tr('The AI assistant is not enabled. Ask your administrator to turn it on.')}
         </Alert>
       )}
@@ -378,7 +379,6 @@ export default function Assistant() {
         </Typography>
       </Box>
 
-      <ConfigDialog open={showCfg} onClose={() => setShowCfg(false)} />
     </Box>
   )
 }
