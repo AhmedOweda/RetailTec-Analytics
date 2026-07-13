@@ -26,6 +26,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import FolderIcon       from '@mui/icons-material/Folder'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import ArrowUpwardIcon  from '@mui/icons-material/ArrowUpward'
+import QueryStatsIcon   from '@mui/icons-material/QueryStats'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
@@ -945,6 +946,8 @@ export default function DataModelSettings() {
           </Typography>
         </Box>
       </SectionCard>
+      {/* ── AI Assistant (Data Analyst) provider config ──────────── */}
+      <AssistantCard />
       {/* ── About & Diagnostics (read-only) ──────────────────────── */}
       <AboutCard />
       </Box>{/* end Tab 4 */}
@@ -1071,6 +1074,108 @@ function AboutCard() {
           {copied ? tr('Copied!') : tr('Copy diagnostics')}
         </Button>
       </Box>
+    </SectionCard>
+  )
+}
+
+/* ── AI Assistant (Data Analyst) provider config ────────────────────────────── */
+const ASST_PROVIDERS = [
+  { v: 'groq',      label: 'Groq',               badge: 'Free',    hint: 'Fast, free. Get a key at console.groq.com',      model: 'llama-3.3-70b-versatile' },
+  { v: 'gemini',    label: 'Google Gemini',      badge: 'Free',    hint: 'Free tier. Get a key at aistudio.google.com',   model: 'gemini-2.5-flash' },
+  { v: 'anthropic', label: 'Claude (Anthropic)', badge: '',        hint: 'Highest quality. Paid API key.',                model: 'claude-sonnet-5' },
+  { v: 'openai',    label: 'OpenAI-compatible',  badge: '',        hint: 'OpenAI, OpenRouter, Azure, LM Studio…',         model: 'gpt-4o-mini' },
+  { v: 'ollama',    label: 'Local (Ollama)',     badge: 'Offline', hint: 'Runs on this machine, no internet. Install Ollama + pull a model.', model: 'qwen2.5-coder:7b' },
+]
+const ASST_KEY_MASK = '••••••••'
+
+function AssistantCard() {
+  const qc = useQueryClient()
+  const [cfg, setCfg] = useState<any>({ enabled:false, provider:'groq',
+    ollama_url:'http://localhost:11434', base_url:'', model:'', api_key:'', has_key:false })
+  const [msg, setMsg] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  useQuery({
+    queryKey: ['assistant-config'],
+    queryFn: () => axios.get('/api/assistant/config').then(r => {
+      // Show a masked value when a key is already stored, so the admin knows
+      // it's saved and doesn't need to re-enter it.
+      setCfg({ ...r.data, api_key: r.data.has_key ? ASST_KEY_MASK : '' })
+      return r.data
+    }),
+  })
+  const save = useMutation({
+    mutationFn: () => axios.put('/api/assistant/config', {
+      enabled: cfg.enabled, provider: cfg.provider,
+      ollama_url: cfg.ollama_url, base_url: cfg.base_url, model: cfg.model,
+      // untouched mask = keep stored key; anything else = new key
+      api_key: (cfg.api_key && cfg.api_key !== ASST_KEY_MASK) ? cfg.api_key : undefined,
+    }),
+    onSuccess: () => { setErr(null); setMsg(tr('AI Assistant settings saved'));
+      qc.invalidateQueries({ queryKey: ['assistant-status'] })
+      qc.invalidateQueries({ queryKey: ['assistant-config'] }) },
+    onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Save failed')) },
+  })
+  const set = (k: string, v: any) => setCfg((c: any) => ({ ...c, [k]: v }))
+  const meta = ASST_PROVIDERS.find(p => p.v === cfg.provider) || ASST_PROVIDERS[0]
+
+  return (
+    <SectionCard title="AI Assistant (Data Analyst)" icon={<QueryStatsIcon />}>
+      <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+        {tr('Lets users ask questions about the data in plain language. Choose where the AI runs and connect it.')}
+      </Typography>
+      <FormControlLabel control={
+        <Switch size="small" checked={cfg.enabled} onChange={e => set('enabled', e.target.checked)}
+          sx={{ '& .Mui-checked': { color: ACCENT }, '& .Mui-checked + .MuiSwitch-track': { bgcolor: `${ACCENT} !important` } }} />}
+        label={<Typography sx={{ fontSize:13, fontWeight:600 }}>{tr('Enable the AI assistant')}</Typography>} />
+
+      <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mt:2, alignItems:'flex-start' }}>
+        <FormControl size="small" sx={{ minWidth:240 }}>
+          <InputLabel>{tr('Provider')}</InputLabel>
+          <Select value={cfg.provider} label={tr('Provider')} onChange={e => set('provider', e.target.value)}>
+            {ASST_PROVIDERS.map(p => (
+              <MenuItem key={p.v} value={p.v}>
+                {tr(p.label)}{p.badge ? '  · ' + tr(p.badge) : ''}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <TextField size="small" label={tr('Model')} value={cfg.model} placeholder={meta.model}
+          onChange={e => set('model', e.target.value)} sx={{ minWidth:240 }}
+          helperText={tr('Leave blank to use the default:') + ' ' + meta.model} />
+      </Box>
+      <Typography sx={{ fontSize:12, color:'#94a3b8', mt:1 }}>{tr(meta.hint)}</Typography>
+
+      <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mt:2, alignItems:'flex-start' }}>
+        {cfg.provider === 'ollama' && (
+          <TextField size="small" label={tr('Ollama endpoint')} value={cfg.ollama_url}
+            onChange={e => set('ollama_url', e.target.value)} sx={{ minWidth:320 }} />
+        )}
+        {cfg.provider === 'openai' && (
+          <TextField size="small" label={tr('API base URL')} value={cfg.base_url}
+            placeholder="https://api.openai.com/v1" onChange={e => set('base_url', e.target.value)} sx={{ minWidth:320 }} />
+        )}
+        {cfg.provider !== 'ollama' && (
+          <TextField size="small" type="password" label={tr('API key')} value={cfg.api_key}
+            onChange={e => set('api_key', e.target.value)} sx={{ minWidth:320 }}
+            helperText={cfg.has_key ? tr('A key is stored (shown masked). Clear it and type to replace.')
+                                    : tr('Stored encrypted on this machine.')} />
+        )}
+      </Box>
+
+      {cfg.provider !== 'ollama' && (
+        <Alert severity="info" sx={{ mt:2, borderRadius:2, fontSize:12 }}>
+          {tr('Cloud providers need internet. Your question and the data schema are sent to the provider; row data stays local except a small preview used to phrase the answer.')}
+        </Alert>
+      )}
+      <Box sx={{ mt:2, display:'flex', alignItems:'center', gap:2 }}>
+        <Button variant="contained" size="small" disabled={save.isPending} onClick={() => save.mutate()}
+          sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, '&:hover':{ bgcolor:'#6d28d9' } }}>
+          {save.isPending ? tr('Saving…') : tr('Save')}
+        </Button>
+        {msg && <Typography sx={{ fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {msg}</Typography>}
+      </Box>
+      {err && <Alert severity="error" sx={{ mt:1.5, fontSize:12 }}>{err}</Alert>}
     </SectionCard>
   )
 }
