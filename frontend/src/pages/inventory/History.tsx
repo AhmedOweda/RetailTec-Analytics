@@ -54,16 +54,19 @@ export default function InventoryHistory() {
   const fmt    = (n?: number) => n == null ? '—' : n.toLocaleString()
   const fmtCur = (n?: number) => n == null ? '—' : `${moneyPrefix()}${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
+  // Honest trend: history QTY values are absolute snapshots, so the chart
+  // shows EVENT COUNTS (total / inserts / updates) and SKUs touched per day.
   const trendOpt = {
     tooltip: { trigger: 'axis' },
-    legend: { data: ['INS Qty', 'UPD Qty', 'Events'] },
+    legend: { data: [tr('Events'), tr('Inserts'), tr('Updates'), tr('SKUs Touched')] },
     grid: { left: 50, right: 20, top: 40, bottom: 30 },
     xAxis: { type: 'category', data: trend.map((r: any) => r.action_date), axisLabel: { fontSize: 11 } },
     yAxis: { type: 'value', axisLabel: { fontSize: 11 } },
     series: [
-      { name: tr('INS Qty'),  type: 'line', data: trend.map((r: any) => r.inserted_qty), smooth: true, color: '#4caf50', lineStyle: { width: 2 } },
-      { name: tr('UPD Qty'),  type: 'line', data: trend.map((r: any) => r.updated_qty),  smooth: true, color: '#2196f3', lineStyle: { width: 2 } },
-      { name: tr('Events'),   type: 'bar',  data: trend.map((r: any) => r.event_count),  color: '#ff980055', yAxisIndex: 0 },
+      { name: tr('Events'),       type: 'bar',  data: trend.map((r: any) => r.event_count),  color: '#ff980055' },
+      { name: tr('Inserts'),      type: 'line', data: trend.map((r: any) => r.insert_count), smooth: true, color: '#4caf50', lineStyle: { width: 2 } },
+      { name: tr('Updates'),      type: 'line', data: trend.map((r: any) => r.update_count), smooth: true, color: '#2196f3', lineStyle: { width: 2 } },
+      { name: tr('SKUs Touched'), type: 'line', data: trend.map((r: any) => r.skus_touched), smooth: true, color: '#9c27b0', lineStyle: { width: 2, type: 'dashed' } },
     ],
   }
 
@@ -75,11 +78,14 @@ export default function InventoryHistory() {
     { field: 'department',   headerName: 'Dept',        flex: 1 },
     { field: 'vendor',       headerName: 'Item Vendor', flex: 1,
       headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
-    { field: 'event_count',  headerName: 'Events',  type: 'numericColumn', flex: 0.8 },
-    { field: 'last_qty',     headerName: 'Last Qty',type: 'numericColumn', flex: 0.8 },
-    { field: 'min_qty',      headerName: 'Min Qty', type: 'numericColumn', flex: 0.8 },
-    { field: 'qty_range',    headerName: 'Range',   type: 'numericColumn', flex: 0.8 },
-    { field: 'avg_cost',     headerName: 'Avg Cost',type: 'numericColumn', flex: 0.8 },
+    { field: 'event_count',     headerName: 'Events',       type: 'numericColumn', flex: 0.8 },
+    { field: 'store_count',     headerName: 'Stores',       type: 'numericColumn', flex: 0.7 },
+    { field: 'first_event',     headerName: 'First Event',  flex: 1 },
+    { field: 'last_event',      headerName: 'Last Event',   flex: 1 },
+    { field: 'stock_at_end',    headerName: 'Stock at End', type: 'numericColumn', flex: 0.9,
+      headerTooltip: 'True stock at the end of the period — last history row per store on or before the To date, summed over stores' },
+    { field: 'stock_value_end', headerName: 'Value at End', type: 'numericColumn', flex: 1,
+      valueFormatter: (p: any) => fmtCur(p.value) },
   ]
 
   const detailCols = [
@@ -120,7 +126,7 @@ export default function InventoryHistory() {
         <Grid item xs={6} sm={3}><KpiCard label="Total Events"      value={fmt(kpi?.total_events)} icon="ti-history" /></Grid>
         <Grid item xs={6} sm={3}><KpiCard label="SKUs Affected"     value={fmt(kpi?.sku_count)} icon="ti-barcode" /></Grid>
         <Grid item xs={6} sm={3}><KpiCard label="Inserts / Updates" value={`${fmt(kpi?.insert_count)} / ${fmt(kpi?.update_count)}`} icon="ti-database" /></Grid>
-        <Grid item xs={6} sm={3}><KpiCard label="Total Cost Value"  value={fmtCur(kpi?.total_cost_value)} icon="ti-coin" /></Grid>
+        <Grid item xs={6} sm={3}><KpiCard label="Item-Store Pairs"  value={fmt(kpi?.pairs_touched)} icon="ti-grid-dots" /></Grid>
       </Grid>
 
       <Card variant="outlined" sx={{ borderRadius: 2, mb: 3 }}>

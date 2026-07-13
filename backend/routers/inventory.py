@@ -985,6 +985,8 @@ def invh_kpi(
     stores:    Optional[str] = Depends(scoped_stores),
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
+    # HONEST metrics: history QTY is an ABSOLUTE snapshot per event, so summing
+    # QTY (or QTY*COST) across events is meaningless — those fields were removed.
     base, sp = _invh_base(stores, subsidiaries)
     rows = _q(f"""
         SELECT
@@ -993,21 +995,20 @@ def invh_kpi(
             COUNT(DISTINCT FH.STORE_SID)                                             AS store_count,
             COUNT(CASE WHEN FH.ACTION_TYPE = 'INSERT' THEN 1 END)                 AS insert_count,
             COUNT(CASE WHEN FH.ACTION_TYPE = 'UPDATE' THEN 1 END)                 AS update_count,
-            ROUND(COALESCE(SUM(CASE WHEN FH.ACTION_TYPE = 'INSERT' THEN FH.QTY ELSE 0 END), 0), 0) AS inserted_qty,
-            ROUND(COALESCE(SUM(CASE WHEN FH.ACTION_TYPE = 'UPDATE' THEN FH.QTY ELSE 0 END), 0), 0) AS updated_qty,
-            ROUND(COALESCE(SUM(FH.QTY * FH.COST), 0), 2)                           AS total_cost_value
+            COUNT(DISTINCT FH.ITEM_SID || '·' || FH.STORE_SID)                     AS pairs_touched
         {base}
     """, [date_from, date_to] + sp)
     r = rows[0]
+    days = max(1, (date_to - date_from).days + 1)
+    total = int(r[0] or 0)
     return {
-        "total_events":   int(r[0] or 0),
+        "total_events":   total,
         "sku_count":      int(r[1] or 0),
         "store_count":    int(r[2] or 0),
         "insert_count":   int(r[3] or 0),
         "update_count":   int(r[4] or 0),
-        "inserted_qty":   float(r[5] or 0),
-        "updated_qty":    float(r[6] or 0),
-        "total_cost_value": float(r[7] or 0),
+        "pairs_touched":  int(r[5] or 0),
+        "events_per_day": round(total / days, 1),
     }
 
 
@@ -1018,18 +1019,19 @@ def invh_trend(
     stores:    Optional[str] = Depends(scoped_stores),
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
-    """Daily inventory change trend — total qty inserted and updated per day."""
+    """Daily inventory change trend — HONEST counts only (event/insert/update
+    counts and SKUs touched); absolute snapshot QTYs are never summed."""
     base, sp = _invh_base(stores, subsidiaries)
     return _qdf(f"""
         SELECT
-            FH.ACTION_DATE                                                            AS action_date,
+            FH.ACTION_DATE::DATE                                                      AS action_date,
             COUNT(*)                                                                  AS event_count,
-            ROUND(SUM(CASE WHEN FH.ACTION_TYPE = 'INSERT' THEN FH.QTY ELSE 0 END), 0) AS inserted_qty,
-            ROUND(SUM(CASE WHEN FH.ACTION_TYPE = 'UPDATE' THEN FH.QTY ELSE 0 END), 0) AS updated_qty,
-            ROUND(SUM(FH.QTY * FH.COST), 2)                                         AS cost_value
+            COUNT(CASE WHEN FH.ACTION_TYPE = 'INSERT' THEN 1 END)                  AS insert_count,
+            COUNT(CASE WHEN FH.ACTION_TYPE = 'UPDATE' THEN 1 END)                  AS update_count,
+            COUNT(DISTINCT FH.ITEM_SID)                                              AS skus_touched
         {base}
-        GROUP BY FH.ACTION_DATE
-        ORDER BY FH.ACTION_DATE
+        GROUP BY FH.ACTION_DATE::DATE
+        ORDER BY action_date
     """, [date_from, date_to] + sp)
 
 
@@ -1041,25 +1043,68 @@ def invh_by_item(
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     limit:     int = Query(50, ge=1, le=10000),
 ):
-    """Top items by number of inventory change events in the period."""
+    """Top items by number of inventory change events in the period.
+
+    HONEST metrics only: history QTY values are ABSOLUTE snapshots per
+    item×store, so MIN/MAX/SUM across events (and across stores) are
+    meaningless. Instead we report event counts, the stores touched, the
+    first/last event dates, and the item's true stock at the END of the
+    period (carry-forward: last row per item×store on or before date_to,
+    summed over stores)."""
     base, sp = _invh_base(stores, subsidiaries)
+
+    # End-of-period stock CTE gets its own filter fragments (own aliases)
+    sf2, sp2 = store_filter(stores, alias="S2")
+    subf2, subp2 = subsidiary_filter(subsidiaries, alias="S2")
+    store_join2 = ("LEFT JOIN DIM_STORE S2 ON S2.SID = FH2.STORE_SID"
+                   if (sf2 or subf2) else "")
+
+    # Params: AGG (dates + base filters), then ENDQ (date_to + its filters)
+    params = [date_from, date_to] + sp + [date_to] + sp2 + subp2
+
     return _qdf(f"""
+        WITH
+        AGG AS (
+            SELECT
+                FH.ITEM_SID,
+                I.ALU,
+                I.UPC,
+                I.DESCRIPTION1,
+                COALESCE(D.D_NAME, '(Unknown)')    AS department,
+                COALESCE(V.VEND_NAME, '(Unknown)') AS vendor,
+                COUNT(*)                            AS event_count,
+                COUNT(DISTINCT FH.STORE_SID)        AS store_count,
+                MIN(FH.ACTION_DATE)::DATE::VARCHAR AS first_event,
+                MAX(FH.ACTION_DATE)::DATE::VARCHAR AS last_event
+            {base}
+            GROUP BY FH.ITEM_SID, I.ALU, I.UPC, I.DESCRIPTION1, D.D_NAME, V.VEND_NAME
+        ),
+        ENDQ AS (
+            SELECT FH2.ITEM_SID, FH2.STORE_SID, FH2.QTY, FH2.COST
+            FROM FACT_INVENTORY_HISTORY FH2
+            {store_join2}
+            WHERE FH2.ACTION_DATE <= ? {sf2} {subf2}
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY FH2.ITEM_SID, FH2.STORE_SID
+                ORDER BY FH2.ACTION_DATE DESC, FH2.HISTORY_SID DESC) = 1
+        ),
+        ENDAGG AS (
+            SELECT ITEM_SID,
+                   ROUND(SUM(QTY), 0)        AS stock_at_end,
+                   ROUND(SUM(QTY * COST), 2) AS stock_value_end
+            FROM ENDQ
+            GROUP BY ITEM_SID
+        )
         SELECT
-            I.ALU,
-            I.UPC,
-            I.DESCRIPTION1,
-            COALESCE(D.D_NAME, '(Unknown)')  AS department,
-            COALESCE(V.VEND_NAME, '(Unknown)') AS vendor,
-            COUNT(*)                            AS event_count,
-            ROUND(MAX(FH.QTY), 0)              AS last_qty,
-            ROUND(MIN(FH.QTY), 0)              AS min_qty,
-            ROUND(MAX(FH.QTY) - MIN(FH.QTY), 0) AS qty_range,
-            ROUND(AVG(FH.COST), 4)             AS avg_cost
-        {base}
-        GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, D.D_NAME, V.VEND_NAME
-        ORDER BY event_count DESC
+            A.ALU, A.UPC, A.DESCRIPTION1, A.department, A.vendor,
+            A.event_count, A.store_count, A.first_event, A.last_event,
+            COALESCE(E.stock_at_end,    0) AS stock_at_end,
+            COALESCE(E.stock_value_end, 0) AS stock_value_end
+        FROM AGG A
+        LEFT JOIN ENDAGG E ON E.ITEM_SID = A.ITEM_SID
+        ORDER BY A.event_count DESC
         LIMIT {limit}
-    """, [date_from, date_to] + sp)
+    """, params)
 
 
 @router.get("/api/inventory/history/details")
@@ -1474,3 +1519,179 @@ def inv_dcs_list():
         WHERE DC.D_NAME IS NOT NULL AND FI.ON_HAND_QTY > 0
         ORDER BY DC.D_NAME
     """)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STOCK AS OF DATE  (carry-forward from FACT_INVENTORY_HISTORY)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Semantics (owner's INVN_BACKUP_TRG): each history row stores the ABSOLUTE
+# on-hand QTY after a change (baseline snapshot at install + one row per
+# change). Stock on date D for an item×store = the LAST row on or before D
+# (ACTION_DATE DESC, HISTORY_SID DESC tiebreak). Never SUM(QTY) across rows.
+
+_ASOF_CTE = """
+        SNAP AS (
+            SELECT ITEM_SID, STORE_SID, QTY, COST
+            FROM FACT_INVENTORY_HISTORY
+            WHERE ACTION_DATE <= ? {item_f}
+            QUALIFY ROW_NUMBER() OVER (
+                PARTITION BY ITEM_SID, STORE_SID
+                ORDER BY ACTION_DATE DESC, HISTORY_SID DESC) = 1
+        )
+"""
+
+
+@router.get("/api/inventory/stock-asof/kpi")
+def stock_asof_kpi(
+    asof: date = Query(...),
+    stores: Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
+):
+    """Headline stock figures on the chosen date + the history coverage window
+    (so the UI can warn when `asof` predates the baseline snapshot)."""
+    sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    asof_cte = _ASOF_CTE.format(item_f="")
+    rows = _q(f"""
+        WITH {asof_cte}
+        SELECT
+            COUNT(DISTINCT CASE WHEN A.QTY <> 0 THEN A.ITEM_SID  END) AS sku_count,
+            ROUND(COALESCE(SUM(A.QTY), 0), 0)                          AS total_qty,
+            ROUND(COALESCE(SUM(A.QTY * A.COST), 0), 2)                AS stock_cost,
+            COUNT(DISTINCT CASE WHEN A.QTY <> 0 THEN A.STORE_SID END) AS store_count,
+            COUNT(CASE WHEN A.QTY < 0 THEN 1 END)                      AS neg_stock
+        FROM SNAP A
+        LEFT JOIN DIM_STORE S ON S.SID = A.STORE_SID
+        WHERE 1=1 {sf} {subf}
+    """, [asof] + sp + subp)
+    r = rows[0]
+    rng = _q("""
+        SELECT MIN(ACTION_DATE)::DATE::VARCHAR, MAX(ACTION_DATE)::DATE::VARCHAR
+        FROM FACT_INVENTORY_HISTORY
+    """)
+    return {
+        "sku_count":     int(r[0] or 0),
+        "total_qty":     float(r[1] or 0),
+        "stock_cost":    float(r[2] or 0),
+        "store_count":   int(r[3] or 0),
+        "neg_stock":     int(r[4] or 0),
+        "history_start": rng[0][0],
+        "history_end":   rng[0][1],
+    }
+
+
+@router.get("/api/inventory/stock-asof")
+def stock_asof(
+    asof: date = Query(...),
+    stores: Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
+    group_by: str = Query("item_store", pattern="^(item_store|item|store|dept|vendor)$"),
+    search: Optional[str] = Query(None, max_length=100),
+    vendors: Optional[str] = Query(None),
+    dcs: Optional[str] = Query(None),
+    limit: Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
+):
+    """Per-item × per-store stock on the chosen date (carry-forward), grouped
+    on demand. Zero-qty positions are hidden; negative ones are shown."""
+    lim = f"LIMIT {int(limit)}" if limit else ""
+    sf, sp = store_filter(stores)
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    vf, vp = csv_in("V.VEND_NAME", vendors)
+    df, dp = csv_in("DC.D_NAME", dcs)
+
+    # Optional item search (ALU / UPC / Description) — bound params
+    if search and search.strip():
+        pat = f"%{search.strip()}%"
+        srch = " AND (I.ALU ILIKE ? OR I.UPC ILIKE ? OR I.DESCRIPTION1 ILIKE ?)"
+        srch_p = [pat, pat, pat]
+    else:
+        srch, srch_p = "", []
+
+    asof_cte = _ASOF_CTE.format(item_f="")
+    base = f"""
+        FROM SNAP A
+        LEFT JOIN DIM_STORE  S  ON S.SID  = A.STORE_SID
+        LEFT JOIN DIM_ITEM   I  ON I.SID  = A.ITEM_SID
+        LEFT JOIN DIM_DCS    DC ON DC.SID = I.DCS_SID
+        LEFT JOIN DIM_VENDOR V  ON V.SID  = I.VEND_SID
+        WHERE A.QTY <> 0 {sf} {subf} {vf} {df} {srch}
+    """
+    params = [asof] + sp + subp + vp + dp + srch_p
+
+    if group_by == "item_store":
+        return _qdf(f"""
+            WITH {asof_cte}
+            SELECT
+                COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
+                COALESCE(I.ALU, '')                  AS alu,
+                COALESCE(I.UPC, '')                  AS upc,
+                COALESCE(I.DESCRIPTION1, '')         AS description,
+                COALESCE(DC.D_NAME, '(Unknown)')     AS department,
+                COALESCE(V.VEND_NAME, '(Unknown)')   AS vendor,
+                ROUND(A.QTY, 0)                       AS qty,
+                ROUND(A.COST, 4)                      AS unit_cost,
+                ROUND(A.QTY * A.COST, 2)             AS cost_value
+            {base}
+            ORDER BY cost_value DESC
+            {lim}
+        """, params)
+
+    if group_by == "item":
+        return _qdf(f"""
+            WITH {asof_cte}
+            SELECT
+                COALESCE(I.ALU, '')                  AS alu,
+                COALESCE(I.UPC, '')                  AS upc,
+                COALESCE(I.DESCRIPTION1, '')         AS description,
+                COALESCE(DC.D_NAME, '(Unknown)')     AS department,
+                COALESCE(V.VEND_NAME, '(Unknown)')   AS vendor,
+                COUNT(DISTINCT A.STORE_SID)           AS store_count,
+                ROUND(SUM(A.QTY), 0)                 AS qty,
+                ROUND(SUM(A.QTY * A.COST), 2)        AS cost_value
+            {base}
+            GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, DC.D_NAME, V.VEND_NAME
+            ORDER BY cost_value DESC
+            {lim}
+        """, params)
+
+    if group_by == "store":
+        return _qdf(f"""
+            WITH {asof_cte}
+            SELECT
+                COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
+                COUNT(DISTINCT A.ITEM_SID)           AS sku_count,
+                ROUND(SUM(A.QTY), 0)                AS qty,
+                ROUND(SUM(A.QTY * A.COST), 2)       AS cost_value
+            {base}
+            GROUP BY S.STORE_NAME
+            ORDER BY cost_value DESC
+            {lim}
+        """, params)
+
+    if group_by == "vendor":
+        return _qdf(f"""
+            WITH {asof_cte}
+            SELECT
+                COALESCE(V.VEND_NAME, '(Unknown)') AS vendor,
+                COUNT(DISTINCT A.ITEM_SID)          AS sku_count,
+                ROUND(SUM(A.QTY), 0)               AS qty,
+                ROUND(SUM(A.QTY * A.COST), 2)      AS cost_value
+            {base}
+            GROUP BY V.VEND_NAME
+            ORDER BY cost_value DESC
+            {lim}
+        """, params)
+
+    # default: by department
+    return _qdf(f"""
+        WITH {asof_cte}
+        SELECT
+            COALESCE(DC.D_NAME, '(Unknown)') AS department,
+            COUNT(DISTINCT A.ITEM_SID)        AS sku_count,
+            ROUND(SUM(A.QTY), 0)             AS qty,
+            ROUND(SUM(A.QTY * A.COST), 2)    AS cost_value
+        {base}
+        GROUP BY DC.D_NAME
+        ORDER BY cost_value DESC
+        {lim}
+    """, params)

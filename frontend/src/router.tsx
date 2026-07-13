@@ -14,6 +14,8 @@ import InventoryMovement     from './pages/inventory/Movement'
 import InventoryTransfers    from './pages/inventory/Transfers'
 import InventoryAdjustments  from './pages/inventory/Adjustments'
 import InventoryLedger       from './pages/inventory/Ledger'
+import InventoryHistory      from './pages/inventory/History'
+import InventoryStockAsOf    from './pages/inventory/StockAsOf'
 import InventoryCoverage     from './pages/inventory/Coverage'
 import PurchasesOverview     from './pages/purchases/Overview'
 import PurchasesTransactions from './pages/purchases/Transactions'
@@ -42,6 +44,8 @@ export const router = createBrowserRouter([
       { path: 'inventory/transfers',     element: <InventoryTransfers />    },
       { path: 'inventory/adjustments',   element: <InventoryAdjustments />  },
       { path: 'inventory/ledger',        element: <InventoryLedger />       },
+      { path: 'inventory/history',       element: <InventoryHistory />      },
+      { path: 'inventory/stock-asof',    element: <InventoryStockAsOf />    },
       { path: 'inventory/coverage',      element: <InventoryCoverage />     },
       { path: 'purchases/overview',      element: <PurchasesOverview />     },
       { path: 'purchases/transactions',  element: <PurchasesTransactions /> },
