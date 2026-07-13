@@ -63,9 +63,10 @@ def _ensure_dims() -> None:
     now   = datetime.utcnow()
     age   = (now - _dim_loaded_at).total_seconds() if _dim_loaded_at else 99_999
     stale = age > 86_400  # hard 24-hour refresh
-    # An EMPTY store cache is never worth keeping — the warehouse may have just
-    # been filled/switched/restored ("No options" bug, 9 Jul 2026). Retry cheap.
-    if not _dim_cache.get("stores"):
+    # An EMPTY store/subsidiary cache is never worth keeping — the warehouse may
+    # have just been filled/switched/restored ("No options" bug, 9 Jul 2026).
+    # Retry cheap.
+    if not _dim_cache.get("stores") or not _dim_cache.get("subsidiaries"):
         stale = True
 
     if not stale:

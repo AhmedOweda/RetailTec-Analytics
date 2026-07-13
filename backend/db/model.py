@@ -41,7 +41,10 @@ from pathlib import Path
 # guard queries with THIS lock. Two different locks on the same connection let
 # concurrent requests interleave and corrupt each other's cursors (random
 # IndexError 500s / bogus 401s under parallel page loads).
-DB_LOCK = threading.Lock()
+# RLock so get_db()/switch_db() can also take it internally — callers that
+# already hold it (routers/common._cursor) re-enter without deadlocking, and
+# callers that forgot it (the sync thread) are now covered anyway.
+DB_LOCK = threading.RLock()
 
 # Product + warehouse schema versions (surfaced by /api/admin/diagnostics).
 # APP_VERSION mirrors the FastAPI app version in main.py; SCHEMA_VERSION is the
@@ -93,11 +96,27 @@ def _db_path(host: str) -> Path:
 
 
 def _current_settings_host() -> str:
-    try:
-        s = json.loads(SETTINGS_FILE.read_text())
-        return s.get("connection", {}).get("host", "local")
-    except Exception:
-        return "local"
+    """Read the configured host from settings.json — used ONCE at startup.
+
+    After startup the active host lives in _current_host and changes only via
+    switch_db(). (get_db used to re-read this file on EVERY call; any reader
+    that hit the file mid-write got truncated JSON, silently fell back to the
+    empty 'local' warehouse, and the app showed no items/products until a
+    restart — the 'empty on open' bug, 13 Jul 2026.)
+
+    If the file exists but is momentarily unreadable (concurrent write),
+    retry briefly before falling back."""
+    for attempt in range(5):
+        try:
+            s = json.loads(SETTINGS_FILE.read_text())
+            return s.get("connection", {}).get("host", "local") or "local"
+        except FileNotFoundError:
+            return "local"          # genuine fresh install
+        except Exception:
+            time.sleep(0.2)         # mid-write / transient — retry
+    logging.getLogger(__name__).error(
+        "settings.json unreadable after retries — falling back to 'local' warehouse")
+    return "local"
 
 
 def _table_cols(con: duckdb.DuckDBPyConnection, table: str) -> set:
@@ -134,46 +153,49 @@ def _connect_retry(path: str, timeout_s: int = 120) -> duckdb.DuckDBPyConnection
 
 
 def get_db() -> duckdb.DuckDBPyConnection:
+    """Return the shared connection for the ACTIVE host.
+
+    The active host is read from settings.json exactly once (first call);
+    afterwards it changes ONLY through switch_db(). The whole body runs under
+    DB_LOCK (re-entrant) so the health check / reconnect can never interleave
+    with another thread's access to the shared connection."""
     global _conn, _current_host
-    host = _current_settings_host()
-    if _conn is not None and host == _current_host:
-        try:
-            _conn.execute("SELECT 1")
-            return _conn
-        except Exception:
+    with DB_LOCK:
+        if not _current_host:
+            _current_host = _current_settings_host()
+        if _conn is not None:
+            try:
+                _conn.execute("SELECT 1")
+                return _conn
+            except Exception:
+                try:
+                    _conn.close()
+                except Exception:
+                    pass
+                _conn = None
+        _conn = _connect_retry(str(_db_path(_current_host)))
+        # Analyze ALL rows when inferring column types from object-dtype DataFrames
+        # (duck.register in sync staging). The default 1000-row sample inferred
+        # INT32 for DIM_ITEM.UPC on a server whose first 1000 UPCs were small, then
+        # a 13-digit barcode failed with Python Conversion Failure out of range.
+        _conn.execute("SET pandas_analyze_sample=10000000")
+        _ensure_schema(_conn)
+        return _conn
+
+
+def switch_db(host: str):
+    global _conn, _current_host
+    with DB_LOCK:
+        if _conn is not None:
             try:
                 _conn.close()
             except Exception:
                 pass
             _conn = None
-    if _conn is not None:
-        try:
-            _conn.close()
-        except Exception:
-            pass
-    _conn = _connect_retry(str(_db_path(host)))
-    # Analyze ALL rows when inferring column types from object-dtype DataFrames
-    # (duck.register in sync staging). The default 1000-row sample inferred
-    # INT32 for DIM_ITEM.UPC on a server whose first 1000 UPCs were small, then
-    # a 13-digit barcode failed with Python Conversion Failure out of range.
-    _conn.execute("SET pandas_analyze_sample=10000000")
-    _current_host = host
-    _ensure_schema(_conn)
-    return _conn
-
-
-def switch_db(host: str):
-    global _conn, _current_host
-    if _conn is not None:
-        try:
-            _conn.close()
-        except Exception:
-            pass
-        _conn = None
-    _current_host = host
-    _conn = _connect_retry(str(_db_path(host)))
-    _conn.execute("SET pandas_analyze_sample=10000000")  # see get_db note
-    _ensure_schema(_conn)
+        _current_host = host
+        _conn = _connect_retry(str(_db_path(host)))
+        _conn.execute("SET pandas_analyze_sample=10000000")  # see get_db note
+        _ensure_schema(_conn)
 
 
 def init_db():
