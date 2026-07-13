@@ -126,6 +126,9 @@ def load_settings() -> dict:
         email = data.get("email")
         if email and email.get("password"):
             email["password"] = _decrypt_password(email["password"])
+        asst = data.get("assistant")
+        if asst and asst.get("api_key"):
+            asst["api_key"] = _decrypt_password(asst["api_key"])
         # Transparent migration: re-save plaintext files encrypted
         if stored and not stored.startswith(_DPAPI_PREFIX) and _dpapi_available():
             try:
@@ -150,6 +153,9 @@ def save_settings(data: dict) -> None:
         email = out.get("email")
         if email and email.get("password"):
             email["password"] = _encrypt_password(email["password"])
+        asst = out.get("assistant")
+        if asst and asst.get("api_key"):
+            asst["api_key"] = _encrypt_password(asst["api_key"])
         payload = json.dumps(out, indent=2, default=str)
         fd, tmp = tempfile.mkstemp(dir=str(SETTINGS_FILE.parent),
                                    prefix=".settings_", suffix=".tmp")
