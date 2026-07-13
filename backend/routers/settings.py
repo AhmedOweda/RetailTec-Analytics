@@ -10,6 +10,7 @@ GET     /api/sync/table-stats
 import json
 import asyncio
 import re
+from datetime import date
 from typing import Dict, List, Literal, Optional, Union
 
 import oracledb
@@ -184,6 +185,10 @@ def get_settings():
     s = json.loads(json.dumps(migrate_data_model(load_settings())))
     if s.get("connection", {}).get("password"):
         s["connection"]["password"] = _PASSWORD_MASK
+    # Mask the SMTP password too — it used to go out DECRYPTED to any
+    # logged-in viewer (ARCHITECTURE_REVIEW 2026-07-13 P1).
+    if s.get("email", {}) and s["email"].get("password"):
+        s["email"]["password"] = _PASSWORD_MASK
     return s
 
 
@@ -469,20 +474,35 @@ def sync_table_stats():
 # -- Custom range load (From -> To) --------------------------------------------
 
 class RangeLoadReq(BaseModel):
-    date_from: str
-    date_to:   str
+    # date-typed: these values are interpolated into Oracle TO_DATE('...') by
+    # the sync SQL builders — free-text strings were an injection/robustness
+    # hole (ARCHITECTURE_REVIEW 2026-07-13 P1). Pydantic rejects non-dates.
+    date_from: date
+    date_to:   date
     domains:   Optional[List[str]] = None
     rebuild:   bool = False
+
+    @field_validator("domains")
+    @classmethod
+    def _known_domains(cls, v):
+        if v is None:
+            return v
+        unknown = set(v) - set(DOMAINS)
+        if unknown:
+            raise ValueError(f"Unknown domain(s): {sorted(unknown)} — expected {DOMAINS}")
+        return v
 
 
 @router.post("/api/sync/range")
 async def sync_range(req: RangeLoadReq, _admin: dict = Depends(require_admin)):
     """Trigger a load of an explicit date range. Append (non-destructive) by default."""
+    if req.date_from > req.date_to:
+        raise HTTPException(status_code=422, detail="date_from must be on or before date_to")
     record_audit(_admin["username"], "range_load", f"{req.date_from}->{req.date_to} rebuild={req.rebuild}")
     from services.scheduler import trigger_range_load
     tables = set(req.domains) if req.domains else None
-    return await trigger_range_load(req.date_from, req.date_to, tables=tables,
-                                    rebuild=req.rebuild)
+    return await trigger_range_load(req.date_from.isoformat(), req.date_to.isoformat(),
+                                    tables=tables, rebuild=req.rebuild)
 
 
 @router.get("/api/sync/validation")
