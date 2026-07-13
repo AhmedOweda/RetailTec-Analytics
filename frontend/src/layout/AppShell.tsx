@@ -416,8 +416,10 @@ export default function AppShell() {
                    '&::-webkit-scrollbar':{ width:4 },
                    '&::-webkit-scrollbar-thumb':{ bgcolor:'rgba(255,255,255,0.12)', borderRadius:2 } }}>
 
-          {/* AI Assistant — prominent top link, shown only when enabled */}
-          {asstEnabled && (
+          {/* AI Assistant — prominent top link. Admins ALWAYS see it (so they
+              can reach the setup even while it's off); other users only once
+              it's enabled. */}
+          {(asstEnabled || isAdmin) && (
             <Box sx={{ px:1.5, pt:1.5 }}>
               <NavItem to="/assistant" icon={<AutoAwesomeIcon />} label="Ask AI" />
               <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:0.5, mt:1 }} />
