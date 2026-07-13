@@ -31,6 +31,7 @@ import ExpandMoreIcon      from '@mui/icons-material/ExpandMore'
 import LogoutIcon         from '@mui/icons-material/Logout'
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import HistoryIcon        from '@mui/icons-material/History'
+import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios             from 'axios'
 import api               from '../api/client'
@@ -71,10 +72,12 @@ const DIMENSIONS_NAV = [
 
 const INVENTORY_NAV = [
   { to: '/inventory/overview',    icon: <WarehouseIcon     />, label: 'Stock Levels' },
+  { to: '/inventory/stock-asof',  icon: <EventAvailableIcon />, label: 'Stock by Date' },
   { to: '/inventory/movement',    icon: <SwapHorizIcon     />, label: 'Movement'     },
   { to: '/inventory/transfers',   icon: <CompareArrowsIcon />, label: 'Transfers'    },
   { to: '/inventory/adjustments', icon: <AdjustIcon        />, label: 'Adjustments'  },
   { to: '/inventory/ledger',      icon: <AssessmentIcon        />, label: 'Ledger'    },
+  { to: '/inventory/history',     icon: <HistoryIcon           />, label: 'History'   },
   { to: '/inventory/coverage',   icon: <CalendarViewWeekIcon  />, label: 'Coverage'  },
 ]
 

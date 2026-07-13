@@ -21,10 +21,12 @@ export const PAGE_DOMAINS: PageDomain[] = [
     domain: 'Inventory',
     pages: [
       { key: '/inventory/overview',    label: 'Stock Levels' },
+      { key: '/inventory/stock-asof',  label: 'Stock by Date' },
       { key: '/inventory/movement',    label: 'Movement' },
       { key: '/inventory/transfers',   label: 'Transfers' },
       { key: '/inventory/adjustments', label: 'Adjustments' },
       { key: '/inventory/ledger',      label: 'Ledger' },
+      { key: '/inventory/history',     label: 'History' },
       { key: '/inventory/coverage',    label: 'Coverage' },
     ],
   },
