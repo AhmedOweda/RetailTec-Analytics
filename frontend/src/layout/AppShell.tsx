@@ -32,7 +32,7 @@ import LogoutIcon         from '@mui/icons-material/Logout'
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import HistoryIcon        from '@mui/icons-material/History'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
-import QueryStatsIcon     from '@mui/icons-material/QueryStats'
+import InsightsIcon       from '@mui/icons-material/Insights'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios             from 'axios'
 import api               from '../api/client'
@@ -421,7 +421,7 @@ export default function AppShell() {
               it's enabled. */}
           {(asstEnabled || isAdmin) && (
             <Box sx={{ px:1.5, pt:1.5 }}>
-              <NavItem to="/assistant" icon={<QueryStatsIcon />} label="Data Analyst" />
+              <NavItem to="/assistant" icon={<InsightsIcon />} label="Data Analyst" />
               <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:0.5, mt:1 }} />
             </Box>
           )}

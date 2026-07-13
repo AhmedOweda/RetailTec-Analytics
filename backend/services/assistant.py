@@ -156,9 +156,27 @@ def _chat(cfg: dict, system: str, user: str) -> str:
         }, {"Authorization": f"Bearer {cfg.get('api_key','')}"})
         return out["choices"][0]["message"]["content"]
 
+    except urllib.error.HTTPError as e:
+        # The provider WAS reached but returned an error status.
+        body = ""
+        try:
+            body = e.read().decode()[:200]
+        except Exception:
+            pass
+        if e.code in (401, 403):
+            raise RuntimeError(
+                f"The AI provider rejected the request ({e.code} {e.reason}) — the API key is "
+                f"invalid, expired, or lacks access. Paste a fresh key in Settings → AI Assistant.")
+        if e.code == 404:
+            raise RuntimeError(
+                f"The AI provider returned 404 — the model name is probably wrong. "
+                f"Clear the Model field to use the default, or set a valid model.")
+        if e.code == 429:
+            raise RuntimeError("The AI provider is rate-limiting (429) — wait a moment and try again.")
+        raise RuntimeError(f"The AI provider returned an error {e.code}: {body or e.reason}")
     except urllib.error.URLError as e:
         raise RuntimeError(f"Could not reach the AI provider ({provider}): {e.reason}. "
-                           "Check the AI Assistant settings / that Ollama is running.")
+                           "Check the endpoint / your internet, or that Ollama is running.")
     except (KeyError, IndexError, ValueError) as e:
         raise RuntimeError(f"Unexpected response from the AI provider: {e}")
 

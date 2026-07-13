@@ -26,7 +26,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import FolderIcon       from '@mui/icons-material/Folder'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import ArrowUpwardIcon  from '@mui/icons-material/ArrowUpward'
-import QueryStatsIcon   from '@mui/icons-material/QueryStats'
+import InsightsIcon   from '@mui/icons-material/Insights'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
@@ -1120,7 +1120,7 @@ function AssistantCard() {
   const meta = ASST_PROVIDERS.find(p => p.v === cfg.provider) || ASST_PROVIDERS[0]
 
   return (
-    <SectionCard title="AI Assistant (Data Analyst)" icon={<QueryStatsIcon />}>
+    <SectionCard title="AI Assistant (Data Analyst)" icon={<InsightsIcon />}>
       <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
         {tr('Lets users ask questions about the data in plain language. Choose where the AI runs and connect it.')}
       </Typography>
