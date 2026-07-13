@@ -12,13 +12,21 @@ Existing plaintext settings files are migrated transparently on first load.
 import base64
 import json
 import logging
+import os
 import sys
+import tempfile
+import threading
 from pathlib import Path
 
 log = logging.getLogger(__name__)
 
 SETTINGS_FILE = Path(__file__).parent.parent / "settings.json"
 _DPAPI_PREFIX = "dpapi:"
+
+# One lock for every read-modify-write of settings.json. Three writers used to
+# race (settings router, sync completion, report scheduler) — a sync finishing
+# while the admin saved a new connection could write the OLD connection back.
+_SETTINGS_LOCK = threading.RLock()
 
 _DEFAULTS = {
     "connection":   {"host": "", "port": 1521, "sid": "", "username": "", "password": ""},
@@ -108,31 +116,61 @@ def _decrypt_password(pw: str) -> str:
 def load_settings() -> dict:
     """Read settings.json; the returned dict always has PLAINTEXT passwords
     (decrypted in memory only)."""
-    if not SETTINGS_FILE.exists():
-        return json.loads(json.dumps(_DEFAULTS))
-    data = json.loads(SETTINGS_FILE.read_text())
-    conn = data.get("connection", {})
-    stored = conn.get("password", "")
-    conn["password"] = _decrypt_password(stored)
-    email = data.get("email")
-    if email and email.get("password"):
-        email["password"] = _decrypt_password(email["password"])
-    # Transparent migration: re-save plaintext files encrypted
-    if stored and not stored.startswith(_DPAPI_PREFIX) and _dpapi_available():
-        try:
-            save_settings(data)
-        except OSError:
-            pass
-    return data
+    with _SETTINGS_LOCK:
+        if not SETTINGS_FILE.exists():
+            return json.loads(json.dumps(_DEFAULTS))
+        data = json.loads(SETTINGS_FILE.read_text())
+        conn = data.get("connection", {})
+        stored = conn.get("password", "")
+        conn["password"] = _decrypt_password(stored)
+        email = data.get("email")
+        if email and email.get("password"):
+            email["password"] = _decrypt_password(email["password"])
+        # Transparent migration: re-save plaintext files encrypted
+        if stored and not stored.startswith(_DPAPI_PREFIX) and _dpapi_available():
+            try:
+                save_settings(data)
+            except OSError:
+                pass
+        return data
 
 
 def save_settings(data: dict) -> None:
-    """Write settings.json, encrypting passwords at rest."""
-    out = json.loads(json.dumps(data, default=str))
-    conn = out.get("connection", {})
-    if conn.get("password"):
-        conn["password"] = _encrypt_password(conn["password"])
-    email = out.get("email")
-    if email and email.get("password"):
-        email["password"] = _encrypt_password(email["password"])
-    SETTINGS_FILE.write_text(json.dumps(out, indent=2, default=str))
+    """Write settings.json, encrypting passwords at rest.
+
+    ATOMIC: writes to a temp file in the same directory then os.replace()s it
+    over settings.json. The old truncate-then-write left a window where any
+    reader (get_db used to re-read the file per call) saw truncated JSON and
+    silently fell back to the empty 'local' warehouse — blank dashboards."""
+    with _SETTINGS_LOCK:
+        out = json.loads(json.dumps(data, default=str))
+        conn = out.get("connection", {})
+        if conn.get("password"):
+            conn["password"] = _encrypt_password(conn["password"])
+        email = out.get("email")
+        if email and email.get("password"):
+            email["password"] = _encrypt_password(email["password"])
+        payload = json.dumps(out, indent=2, default=str)
+        fd, tmp = tempfile.mkstemp(dir=str(SETTINGS_FILE.parent),
+                                   prefix=".settings_", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(payload)
+            os.replace(tmp, SETTINGS_FILE)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+
+
+def update_settings_fields(**patch) -> dict:
+    """Locked read-modify-write for callers that only touch a few top-level
+    keys (e.g. sync completion writing last_sync/model_status). Prevents the
+    lost-update race between concurrent writers. Returns the saved dict."""
+    with _SETTINGS_LOCK:
+        data = load_settings()
+        data.update(patch)
+        save_settings(data)
+        return data

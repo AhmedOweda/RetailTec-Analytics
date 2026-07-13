@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from db.model import get_db, SETTINGS_FILE
+from db.model import get_db, DB_LOCK, SETTINGS_FILE
 
 log = logging.getLogger(__name__)
 
@@ -409,6 +409,30 @@ def _sql_inventory_qty_window(df, dt):
 
 # ── Dimension loaders ─────────────────────────────────────────────────────────
 
+def _replace_small_dim(duck, table: str, insert_sql: str, rows) -> None:
+    """DELETE + re-INSERT a small dimension ATOMICALLY.
+
+    The old unguarded DELETE-then-executemany autocommitted the DELETE first:
+    if the insert failed (Oracle row surprise, type error) or the process died,
+    the dim stayed EMPTY until the next successful dims load — the app opened
+    with no stores/items/products (seen 13 Jul 2026; the earlier 'DIM_STORE
+    emptied by sync' bug was the same class). A transaction closes the window;
+    readers also never see the half-loaded state anymore."""
+    duck.execute("BEGIN TRANSACTION")
+    try:
+        duck.execute(f"DELETE FROM {table}")
+        if rows:
+            duck.executemany(insert_sql, rows)
+        duck.execute("COMMIT")
+    except BaseException:
+        try:
+            duck.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    log.info(f"{table}: {len(rows)} rows")
+
+
 def _load_dimensions(duck, ora, progress_cb=None):
     def _r(name):
         if progress_cb:
@@ -417,35 +441,22 @@ def _load_dimensions(duck, ora, progress_cb=None):
 
     _r("Stores")
     cur.execute("SELECT SID, STORE_CODE, STORE_NAME FROM RPS.STORE")
-    rows = cur.fetchall()
-    duck.execute("DELETE FROM DIM_STORE")
-    if rows:
-        # Explicit columns: DIM_STORE also has SUBSIDIARY_SID (added for the
-        # multi-subsidiary feature and populated by the schema migration from the
-        # sales facts), so a positional 3-value insert would fail on the 4-col table.
-        duck.executemany(
-            "INSERT OR REPLACE INTO DIM_STORE (SID, STORE_CODE, STORE_NAME) VALUES (?,?,?)",
-            rows)
-    duck.commit()
-    log.info(f"DIM_STORE: {len(rows)} rows")
+    # Explicit columns: DIM_STORE also has SUBSIDIARY_SID (added for the
+    # multi-subsidiary feature and populated by the schema migration from the
+    # sales facts), so a positional 3-value insert would fail on the 4-col table.
+    _replace_small_dim(duck, "DIM_STORE",
+        "INSERT OR REPLACE INTO DIM_STORE (SID, STORE_CODE, STORE_NAME) VALUES (?,?,?)",
+        cur.fetchall())
 
     _r("Subsidiaries")
     cur.execute("SELECT SID, SBS_NO, SBS_NAME FROM RPS.SUBSIDIARY")
-    rows = cur.fetchall()
-    duck.execute("DELETE FROM DIM_SUBSIDIARY")
-    if rows:
-        duck.executemany("INSERT OR REPLACE INTO DIM_SUBSIDIARY VALUES (?,?,?)", rows)
-    duck.commit()
-    log.info(f"DIM_SUBSIDIARY: {len(rows)} rows")
+    _replace_small_dim(duck, "DIM_SUBSIDIARY",
+        "INSERT OR REPLACE INTO DIM_SUBSIDIARY VALUES (?,?,?)", cur.fetchall())
 
     _r("Employees")
     cur.execute("SELECT SID, NVL(TRIM(FULL_NAME), TRIM(EMPL_NAME)) FROM RPS.EMPLOYEE")
-    rows = cur.fetchall()
-    duck.execute("DELETE FROM DIM_EMPLOYEE")
-    if rows:
-        duck.executemany("INSERT OR REPLACE INTO DIM_EMPLOYEE VALUES (?,?)", rows)
-    duck.commit()
-    log.info(f"DIM_EMPLOYEE: {len(rows)} rows")
+    _replace_small_dim(duck, "DIM_EMPLOYEE",
+        "INSERT OR REPLACE INTO DIM_EMPLOYEE VALUES (?,?)", cur.fetchall())
 
     # RPS.DCS columns are D_NAME, C_NAME, S_NAME (confirmed via schema inspection)
     _r("Departments (DCS)")
@@ -454,12 +465,8 @@ def _load_dimensions(duck, ora, progress_cb=None):
                D_NAME, C_NAME, S_NAME
         FROM RPS.DCS
     """)
-    rows = cur.fetchall()
-    duck.execute("DELETE FROM DIM_DCS")
-    if rows:
-        duck.executemany("INSERT OR REPLACE INTO DIM_DCS VALUES (?,?,?,?,?,?)", rows)
-    duck.commit()
-    log.info(f"DIM_DCS: {len(rows)} rows")
+    _replace_small_dim(duck, "DIM_DCS",
+        "INSERT OR REPLACE INTO DIM_DCS VALUES (?,?,?,?,?,?)", cur.fetchall())
 
     # ALL vendors, including inactive: filtering ACTIVE=1 dropped historical
     # vendors and dumped their sales into '(Unknown)' (Krunch loads all vendors)
@@ -468,12 +475,8 @@ def _load_dimensions(duck, ora, progress_cb=None):
         SELECT SID, SBS_SID, VEND_CODE, VEND_NAME
         FROM RPS.VENDOR
     """)
-    rows = cur.fetchall()
-    duck.execute("DELETE FROM DIM_VENDOR")
-    if rows:
-        duck.executemany("INSERT OR REPLACE INTO DIM_VENDOR VALUES (?,?,?,?)", rows)
-    duck.commit()
-    log.info(f"DIM_VENDOR: {len(rows)} rows")
+    _replace_small_dim(duck, "DIM_VENDOR",
+        "INSERT OR REPLACE INTO DIM_VENDOR VALUES (?,?,?,?)", cur.fetchall())
 
     cur.close()
 
@@ -1006,7 +1009,9 @@ def _run_sync(mode: str, date_from: str, date_to: str,
     # The sync WRITER runs on its own cursor (isolated connection). Using the
     # root connection while API reader cursors run concurrently deadlocked
     # inside DuckDB (writer stuck in unregister, all readers timing out).
-    duck = get_db().cursor()
+    # DB_LOCK guards cursor CREATION on the shared connection (model.py rule).
+    with DB_LOCK:
+        duck = get_db().cursor()
     # A DuckDB cursor is a SEPARATE session — settings on the root connection
     # do not propagate. Re-apply the full-analyze setting here or DataFrame
     # staging re-infers INT32 from 1000-row samples (see model.py get_db note).
@@ -1110,10 +1115,11 @@ def _run_sync(mode: str, date_from: str, date_to: str,
             progress_cb("Done", 100, 100)
         _update_watermarks(duck, tables, date_from, date_to, _run_id)
         _log_finish(duck, _run_id, "completed")
-        s = json.loads(SETTINGS_FILE.read_text())
-        s["last_sync"]    = datetime.now().isoformat()
-        s["model_status"] = "ready"
-        SETTINGS_FILE.write_text(json.dumps(s, indent=2, default=str))
+        # Locked + atomic — a raw read/write here used to race the settings
+        # router and could resurrect an old connection block (lost update).
+        from services.config import update_settings_fields
+        update_settings_fields(last_sync=datetime.now().isoformat(),
+                               model_status="ready")
         _invalidate_dim_cache()
         log.info(f"Sync [{mode}] complete: {date_from}->{date_to}")
 
@@ -1216,7 +1222,8 @@ def _run_dimensions_load(progress_cb, triggered_by):
     items are a full-refresh rebuild; customers upsert over the warehouse's whole
     fact date range (covers every referenced customer, updates names/phones)."""
     _clear_cancel()
-    duck = get_db().cursor()
+    with DB_LOCK:
+        duck = get_db().cursor()
     duck.execute("SET pandas_analyze_sample=10000000")
     _run_id = _log_start(duck, "dimensions", triggered_by, "dimensions", None, None, 100)
     try:
@@ -1276,7 +1283,9 @@ def apply_retention(retain_months=24, dry_run: bool = False, duck=None) -> dict:
     """Prune line-item DETAIL older than retain_months (keeps FACT_SALES_DAILY and
     invoice headers forever). retain_months None/0 = keep everything. dry_run counts
     without deleting. Returns {table: rows_pruned}."""
-    duck = duck or get_db().cursor()   # isolated writer cursor (see _run_sync)
+    if duck is None:
+        with DB_LOCK:                  # cursor creation on the shared connection
+            duck = get_db().cursor()   # isolated writer cursor (see _run_sync)
     if not retain_months:
         return {"retain_months": None, "pruned": {}}
     m = int(retain_months)
