@@ -614,10 +614,10 @@ export default function Products() {
             ))}
           </Box>
 
-          <Divider orientation="vertical" flexItem sx={{ borderColor: '#e9e4ff', mx: 0.5 }} />
+          <Divider orientation="vertical" flexItem className="rt-mobile-hide" sx={{ borderColor: '#e9e4ff', mx: 0.5 }} />
 
-          {/* Custom date range */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* Custom date range — hidden on mobile (keep period chips) */}
+          <Box className="rt-mobile-hide" sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', rowGap: 1 }}>
             <CalendarMonthIcon sx={{ fontSize: 16, color: C_SLATE }} />
             <TextField type="date" size="small" label="From" value={customFrom}
               onChange={e => { setCustomFrom(e.target.value); setPeriod(null) }}

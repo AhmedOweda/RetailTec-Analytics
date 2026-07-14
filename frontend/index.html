@@ -12,6 +12,12 @@
       .ag-cell,.ag-header-cell{font-family:'RiyalSymbol','Inter',sans-serif !important;}
       * { box-sizing: border-box; margin: 0; padding: 0; }
       html, body, #root { height: 100%; }
+      /* Mobile (< md 900px): hide data tables and any element tagged
+         rt-mobile-hide (dense charts + custom date-range groups). */
+      @media (max-width: 899.95px) {
+        .ag-theme-alpine { display: none !important; }
+        .rt-mobile-hide  { display: none !important; }
+      }
     </style>
   </head>
   <body>

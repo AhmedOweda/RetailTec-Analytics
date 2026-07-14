@@ -365,6 +365,7 @@ export default function InventoryMovement() {
                     color: period === p.days ? '#fff' : C_SLATE,
                     border: `1px solid ${period === p.days ? C_PURPLE : '#e2e8f0'}` }} />
           ))}
+          <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1 }}>
           <TextField size="small" type="date" value={from}
             onChange={e => { setFrom(e.target.value); setPeriod(0) }}
             sx={{ width: 130 }} inputProps={{ max: to }} />
@@ -372,6 +373,7 @@ export default function InventoryMovement() {
           <TextField size="small" type="date" value={to}
             onChange={e => { setTo(e.target.value); setPeriod(0) }}
             sx={{ width: 130 }} inputProps={{ min: from, max: format(today, 'yyyy-MM-dd') }} />
+          </Box>
 
           {/* Store filter */}
           <Autocomplete

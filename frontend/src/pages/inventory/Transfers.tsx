@@ -273,6 +273,7 @@ export default function Transfers() {
                     color:   period===i ? '#fff' : '#64748b',
                     border: `1px solid ${period===i ? ACCENT : '#e2e8f0'}` }} />
           ))}
+          <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1 }}>
           <TextField type="date" size="small" value={dateFrom}
             onChange={e => { setDateFrom(e.target.value); setPeriod(-1) }}
             sx={{ width:130 }} />
@@ -280,6 +281,7 @@ export default function Transfers() {
           <TextField type="date" size="small" value={dateTo}
             onChange={e => { setDateTo(e.target.value); setPeriod(-1) }}
             sx={{ width:130 }} />
+          </Box>
           <Autocomplete
             multiple disableCloseOnSelect size="small"
             options={storeNames} value={selStores}
