@@ -573,7 +573,7 @@ export default function InventoryOverview() {
         </Box>
 
         {/* ── Row 1: Treemap + Sunburst ── */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1.2fr' }, gap: 2 }}>
           <ChartCard title="Department Cost vs Margin"
             subtitle="x = cost value · y = GM% · bubble size = units on-hand · colour = margin tier"
             option={deptBubbleOpt} height={340} />
@@ -583,7 +583,7 @@ export default function InventoryOverview() {
         </Box>
 
         {/* ── Row 2: Vendor Bar + Store Bar ── */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr' }, gap: 2 }}>
           <ChartCard title="Top Item Vendors by Stock Value" subtitle="Item-master (catalog) vendor · cost value · GM% annotated" option={vendorOpt} height={300} />
           <ChartCard title="Stock by Store" subtitle="Cost value distribution" option={storeOpt} height={300} />
         </Box>

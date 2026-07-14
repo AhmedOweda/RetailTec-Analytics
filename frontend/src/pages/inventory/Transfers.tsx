@@ -302,7 +302,7 @@ export default function Transfers() {
       </Box>
 
       {/* ── Charts row 1 ── */}
-      <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
+      <Box sx={{ display:'flex', flexDirection:{ xs:'column', md:'row' }, gap:2, flexWrap:'wrap' }}>
         <Box sx={{ flex:2, minWidth:320 }}>
           <ChartCard title="Daily Transfer Trend" chartRef={trendRef} height={240}>
             <EChart ref={trendRef} option={trendOption} style={{ height:'100%' }} />
@@ -316,7 +316,7 @@ export default function Transfers() {
       </Box>
 
       {/* ── Charts row 2 ── */}
-      <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
+      <Box sx={{ display:'flex', flexDirection:{ xs:'column', md:'row' }, gap:2, flexWrap:'wrap' }}>
         <Box sx={{ flex:1, minWidth:260 }}>
           <ChartCard title="Top Sending Stores (Cost)" chartRef={outStoreRef} height={260}>
             <EChart ref={outStoreRef} option={outStoreOption} style={{ height:'100%' }} />
