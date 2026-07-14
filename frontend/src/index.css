@@ -2,12 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Saudi Riyal symbol (U+20C1) web-font ──────────────────────────────────────
+   The new Saudi Riyal sign (Unicode 17, Sept 2025) isn't in older OS fonts
+   (e.g. Windows Server 2022), so it renders as a box there. This embedded font
+   (npm 'riyal', MIT, © 2025 Pooya Golchian) contains ONLY the U+20C1 glyph.
+   Put 'RiyalSymbol' FIRST in every relevant font stack: the browser draws
+   U+20C1 from it and falls through to Manrope for every other character, so it
+   renders correctly on ANY machine with no per-server font install. */
+@font-face {
+  font-family: 'RiyalSymbol';
+  src: url('data:font/woff2;base64,d09GMk9UVE8AAAKEAAkAAAAABTwAAAI+AAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAADYIsBmAALAE2AiQDCAQGBYRbByAbmgTILgt4auWwq0mp1sGRujS1TBqMuZ3+cT4/jATP11h7fwUzqVJJ5pmbTjPJLCKWvVuiRNoN00/s74/5/qLDMqjOk0aRbUnjEY7KxiNcN0AMDnei1TVdq9kT+VtdUMGrLydGvrtgaPqeBcfkRYKVHo4G8urLpgaMwsj3aYMOOCJ5NvANdL7bep4/NAgrYhCDfMAxVrVcKLdGMIKIpI6Wx+naj0UfASRS/5FWSNah0oTKxrnIbEoB5tJLARYz93JICwesSEqhQm/40IQtJusZl8qXce7Qb5RtllAA4sCImOdoXbzjnye8/d5OS6v8OksKenP5fPK2+5Hw94oP/h6w/+4yjndBEFwJf3xJc0NCM/1ivVEkueiDqr7TjvD0CmJu0Y0Ec9LNjYvKjPwtLC7e93n3tHd3fn6bcDnn7OFo59idJOyDVL77TX8VPaekofU62gMPalOdALbqMPInUZCOAArBdAL8FWeflX+gKJGQ+LpXAQSNACkYKgCDQaDi5w56+wEBjBbo9fQLSWbPkxSGAW/d5YBeG7m0jqiAOFvXWE52NTROVMOAQpXcgKJCY4NgAYp40qFJZw+GVGpgSWYWcaTQx+P5eAJoIk2iyTSFptI0lqFRSeZYNGISAUU3ICRhoUgjD5oybmEoohOWPJYQRwFTPN7yBNBEmkSTaQpNpWk8wwozDZdVDDHKjElzu7/HyFOkT400nUcs2WuFaqWKKw+l7/03MEmeDl3KNGmgooM2Oit8Qm2q6BJrHywEAAA==) format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #C8A8E8; border-radius: 10px; }
 
 * { box-sizing: border-box; }
-body { margin: 0; font-family: 'Manrope', sans-serif; background: #F5F3FB; color: #1A0D45; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body { margin: 0; font-family: 'RiyalSymbol', 'Manrope', sans-serif; background: #F5F3FB; color: #1A0D45; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+/* Riyal glyph also on MUI surfaces & grids/tooltips (they set their own font,
+   overriding body); prepend the symbol font so U+20C1 resolves there too. */
+.MuiTypography-root, .MuiInputBase-root, .MuiButton-root, .MuiChip-root,
+.ag-cell, .ag-header-cell, .rt-tooltip, .kpi-value {
+  font-family: 'RiyalSymbol', 'Manrope', sans-serif;
+}
 
 .tabnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1, 'cv01' 1; }
 
