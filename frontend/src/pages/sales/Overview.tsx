@@ -163,8 +163,9 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
         ) : (
           <>
             {/* Primary metric */}
-            <Typography sx={{ fontSize:30, fontWeight:800, color:'#0f172a',
-                              lineHeight:1.05, letterSpacing:'-0.5px', fontVariantNumeric:'tabular-nums' }}>
+            <Typography sx={{ fontSize:{ xs:23, md:30 }, fontWeight:800, color:'#0f172a',
+                              lineHeight:1.05, letterSpacing:'-0.5px', fontVariantNumeric:'tabular-nums',
+                              whiteSpace:'nowrap' }}>
               {showCurrency && (
                 <Box component="span" sx={{ fontSize:15, fontWeight:700, color:'#7c3aed', mr:0.7 }}>
                   {currency.symbol}
@@ -679,7 +680,7 @@ export default function Overview() {
     { weekday:'long', day:'numeric', month:'long', year:'numeric' })
 
   return (
-    <Box sx={{ p:3, display:'flex', flexDirection:'column', gap:3 }}>
+    <Box sx={{ p:{ xs:1.5, md:3 }, display:'flex', flexDirection:'column', gap:{ xs:2, md:3 } }}>
 
       {/* ── Page header ── */}
       <Box>
@@ -699,7 +700,7 @@ export default function Overview() {
       )}
 
       {/* ── KPI cards ── */}
-      <Box sx={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:2 }}>
+      <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'repeat(2,1fr)', md:'repeat(4,1fr)' }, gap:{ xs:1.25, md:2 } }}>
         <KpiCard label={tr('Today')}          dot={ACCENT}    data={kpi?.today}     prevData={kpi?.yesterday} prevLabel={tr('Yesterday')}  loading={kpiLoading}/>
         <KpiCard label={tr('Yesterday')}      dot={C_INV}     data={kpi?.yesterday} prevData={kpi?.prev_day}  prevLabel={tr('2 days ago')} loading={kpiLoading}/>
         <KpiCard label={tr('Month to Date')}  dot="#f59e0b"   data={kpi?.mtd}       prevData={kpi?.lmtd}      prevLabel={tr('Last Month')} loading={kpiLoading}/>
@@ -730,18 +731,20 @@ export default function Overview() {
       <Card elevation={0} sx={{ border:'1px solid #e9e4ff', borderRadius:2.5 }}>
         <CardContent sx={{ p:2.5, '&:last-child':{ pb:2.5 } }}>
 
-          <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:2 }}>
+          <Box sx={{ display:'flex', flexDirection:{ xs:'column', md:'row' },
+                     alignItems:{ xs:'stretch', md:'center' }, justifyContent:'space-between',
+                     gap:{ xs:1.25, md:0 }, mb:2 }}>
             <Box>
               <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:15 }}>
                 {tr('Sales Trend')}
               </Typography>
-              <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.2 }}>
+              <Typography noWrap sx={{ fontSize:12, color:'#94a3b8', mt:0.2 }}>
                 {tr('Net sales · invoices · return rate by day')}
               </Typography>
             </Box>
 
             {/* Right side: period selector + toolbar */}
-            <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+            <Box sx={{ display:'flex', alignItems:'center', gap:1, flexWrap:'wrap' }}>
               <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor:'#f8f7ff', borderRadius:2 }}>
                 {TREND_PERIODS.map(tp => (
                   <Chip key={tp.label} label={tr(tp.label)} size="small"

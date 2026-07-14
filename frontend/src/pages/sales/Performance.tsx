@@ -520,7 +520,7 @@ export default function Performance() {
 
       {/* ── Sticky header: title + date selector ── */}
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#ffffff',
-          borderBottom:'1px solid #e9e4ff', px:3, pt:3, pb:2, mx:0 }}>
+          borderBottom:'1px solid #e9e4ff', px:{ xs:1.5, md:3 }, pt:{ xs:2, md:3 }, pb:2, mx:0 }}>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
           {tr('Performance')}
           <TitleLoader />
@@ -540,8 +540,8 @@ export default function Performance() {
               />
             ))}
           </Box>
-          <Divider orientation="vertical" flexItem sx={{ borderColor:'#e9e4ff', mx:0.5 }} />
-          <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+          <Divider orientation="vertical" flexItem sx={{ borderColor:'#e9e4ff', mx:0.5, display:{ xs:'none', md:'block' } }} />
+          <Box sx={{ display:'flex', alignItems:'center', gap:1, flexWrap:'wrap', rowGap:1 }}>
             <CalendarMonthIcon sx={{ fontSize:16, color:C_SLATE }} />
             <TextField type="date" size="small" label={tr('From')} value={customFrom}
               onChange={e => { setCustomFrom(e.target.value); setPeriod(null) }}
@@ -583,7 +583,7 @@ export default function Performance() {
       </Box>
 
       {/* ── Chart content ── */}
-      <Box sx={{ px:3, pb:3, display:'flex', flexDirection:'column', gap:2.5 }}>
+      <Box sx={{ px:{ xs:1.5, md:3 }, pb:3, display:'flex', flexDirection:'column', gap:2.5 }}>
 
         {/* Row 1: Store Rankings + Payment Mix */}
         <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'1fr 320px' }, gap:2 }}>

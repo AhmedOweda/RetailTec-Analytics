@@ -387,7 +387,7 @@ export default function DataModelSettings() {
         <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
           {tr('Choose which product code appears alongside the item description in charts and tables throughout the dashboard.')}
         </Typography>
-        <Box sx={{ display:'flex', alignItems:'center', gap:2 }}>
+        <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap', rowGap:1 }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
             {tr('Product Code Field')}
           </Typography>
@@ -409,7 +409,7 @@ export default function DataModelSettings() {
           </Typography>
         </Box>
 
-        <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5 }}>
+        <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5, flexWrap:'wrap', rowGap:1 }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
             {tr('Currency')}
           </Typography>
@@ -464,7 +464,7 @@ export default function DataModelSettings() {
         </Box>
 
         {/* ── Language / direction ── */}
-        <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5 }}>
+        <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:2.5, flexWrap:'wrap', rowGap:1 }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', minWidth:110 }}>
             {tr('Language')}
           </Typography>
