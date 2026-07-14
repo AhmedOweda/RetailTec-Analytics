@@ -116,12 +116,17 @@ _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
 
 
-def _post_json(url: str, payload: dict, headers: dict) -> dict:
+def _post_json(url: str, payload: dict, headers: dict, timeout: int = _HTTP_TIMEOUT) -> dict:
     data = json.dumps(payload).encode()
     base = {"Content-Type": "application/json", "User-Agent": _UA}
     req = urllib.request.Request(url, data=data, headers={**base, **headers})
-    with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode())
+
+
+# Local models on a CPU-only server are SLOW — the first request also loads the
+# model into RAM. 60s (fine for cloud) times out. Give Ollama a long window.
+_OLLAMA_TIMEOUT = 600
 
 
 def _chat(cfg: dict, system: str, user: str) -> str:
@@ -135,8 +140,11 @@ def _chat(cfg: dict, system: str, user: str) -> str:
                 "messages": [{"role": "system", "content": system},
                              {"role": "user", "content": user}],
                 "stream": False,
-                "options": {"temperature": 0},
-            }, {})
+                # keep the model resident so the 2nd call and follow-up
+                # questions don't reload it; cap output so SQL/answers are quick.
+                "keep_alive": "30m",
+                "options": {"temperature": 0, "num_predict": 700},
+            }, {}, timeout=_OLLAMA_TIMEOUT)
             return out["message"]["content"]
 
         if provider == "anthropic":
