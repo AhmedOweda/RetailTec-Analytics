@@ -56,7 +56,11 @@ Name: "{app}\_internal"; Permissions: users-modify
 ; The entire PyInstaller onedir output (exe + _internal + bundled web app).
 ; Excludes: runtime state that must NEVER ship to customers — connection
 ; settings (DPAPI secrets), JWT secret, synced warehouses, logs, backups.
-Source: "out\RetailTecAnalytics\*"; DestDir: "{app}"; Excludes: "settings.json,.jwt_secret,retailtec_*.db,retailtec_*.db.wal,retailtec.log,\_internal\backups\*"; Flags: recursesubdirs createallsubdirs ignoreversion
+; license.json is DEVICE-SPECIFIC (bound to a machine's device code) — it must
+; NEVER ship in the installer, or every other machine shows a WRONG DEVICE
+; watermark. Fresh installs run in evaluation mode; the vendor issues a license
+; per device after install. Also exclude the pre-restore safety copy.
+Source: "out\RetailTecAnalytics\*"; DestDir: "{app}"; Excludes: "settings.json,.jwt_secret,license.json,retailtec_*.db,retailtec_*.db.wal,retailtec_*.pre_restore.db,retailtec.log,\_internal\backups\*"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}";             Filename: "{app}\{#AppExe}"
