@@ -219,7 +219,7 @@ export default function InventoryLedger() {
         position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
         mx: -3, px: 3, pt: 3, pb: 2, borderBottom: '1px solid #e9e4ff',
       }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Inventory Ledger')}
           <TitleLoader />
         </Typography>
@@ -306,11 +306,11 @@ export default function InventoryLedger() {
         borderRadius: 2, border: '1px solid #e2e8f0',
         overflow: 'hidden', flex: 1, minHeight: 440,
       }}>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 1.5, pt: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 1.5, pt: 1.5, pb: 1.5 }}>
           <GridExportBar gridRef={gridRef} filename="inventory_ledger" title="Inventory Ledger"
             colDefs={columns as any} onResetColumns={resetColumns} />
         </Box>
-        <Box className="ag-theme-alpine" sx={{ height: 560 }}>
+        <Box className="ag-theme-alpine" sx={{ height: 560, mt: 0.5 }}>
           <AgGridReact
             ref={gridRef}
             overlayNoRowsTemplate={noRowsOverlay()}

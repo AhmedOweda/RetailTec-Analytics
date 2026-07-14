@@ -106,7 +106,7 @@ export default function InventoryHistory() {
       {/* ── Sticky filter bar ── */}
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h5" fontWeight={700} mb={1.5}>{tr('Inventory History')}<TitleLoader /></Typography>
+        <Typography variant="h6" fontWeight={700} sx={{ fontSize: 20 }} mb={1.5}>{tr('Inventory History')}<TitleLoader /></Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap">
         <TextField size="small" label="From" type="date" value={dateFrom}
           onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />

@@ -1096,7 +1096,8 @@ def invh_by_item(
             GROUP BY ITEM_SID
         )
         SELECT
-            A.ALU, A.UPC, A.DESCRIPTION1, A.department, A.vendor,
+            A.ALU AS alu, A.UPC AS upc, A.DESCRIPTION1 AS description1,
+            A.department, A.vendor,
             A.event_count, A.store_count, A.first_event, A.last_event,
             COALESCE(E.stock_at_end,    0) AS stock_at_end,
             COALESCE(E.stock_value_end, 0) AS stock_value_end
@@ -1120,12 +1121,12 @@ def invh_details(
     subf, subp = subsidiary_filter(subsidiaries, alias="S")
     return _qdf(f"""
         SELECT
-            FH.ACTION_DATE,
-            FH.ACTION_TYPE,
+            FH.ACTION_DATE AS action_date,
+            FH.ACTION_TYPE AS action_type,
             COALESCE(S.STORE_NAME, '(Unknown)')  AS store_name,
-            I.ALU,
-            I.UPC,
-            I.DESCRIPTION1,
+            I.ALU AS alu,
+            I.UPC AS upc,
+            I.DESCRIPTION1 AS description1,
             COALESCE(D.D_NAME, '')               AS department,
             COALESCE(V.VEND_NAME, '')             AS vendor,
             ROUND(FH.QTY, 3)                       AS qty,
