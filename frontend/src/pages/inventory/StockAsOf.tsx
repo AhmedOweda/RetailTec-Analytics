@@ -10,7 +10,7 @@ import { useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import {
-  Box, Typography, Grid, Stack, TextField, MenuItem, Card, CardContent, Alert,
+  Box, Typography, Stack, TextField, MenuItem, Card, CardContent, Alert,
 } from '@mui/material'
 import { AgGridReact } from 'ag-grid-react'
 import 'ag-grid-community/styles/ag-grid.css'
@@ -19,7 +19,7 @@ import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
-import { moneyPrefix } from '../../utils/formatters'
+import { num, money } from '../../utils/formatters'
 import { tr } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -62,9 +62,6 @@ export default function InventoryStockAsOf() {
     queryFn: () => axios.get('/api/inventory/stock-asof', { params }).then(r => r.data),
   })
 
-  const fmt    = (n?: number) => n == null ? '—' : n.toLocaleString()
-  const fmtCur = (n?: number) => n == null ? '—' : `${moneyPrefix()}${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-
   const beforeHistory = kpi?.history_start && asof < kpi.history_start
 
   const gridDefault = { sortable: true, filter: true, resizable: true, wrapHeaderText: true, autoHeaderHeight: true }
@@ -72,7 +69,7 @@ export default function InventoryStockAsOf() {
   const numCols = [
     { field: 'qty',        headerName: 'Qty',        type: 'numericColumn', flex: 0.8 },
     { field: 'cost_value', headerName: 'Cost Value', type: 'numericColumn', flex: 1,
-      valueFormatter: (p: any) => p.value == null ? '' : `${moneyPrefix()}${Number(p.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+      valueFormatter: (p: any) => p.value == null ? '' : money(p.value) },
   ]
   const colDefs: any[] =
     groupBy === 'item_store' ? [
@@ -83,7 +80,8 @@ export default function InventoryStockAsOf() {
       { field: 'department',  headerName: 'Dept',        flex: 1 },
       { field: 'vendor',      headerName: 'Item Vendor', flex: 1 },
       { field: 'qty',         headerName: 'Qty',         type: 'numericColumn', flex: 0.7 },
-      { field: 'unit_cost',   headerName: 'Unit Cost',   type: 'numericColumn', flex: 0.8 },
+      { field: 'unit_cost',   headerName: 'Unit Cost',   type: 'numericColumn', flex: 0.8,
+        valueFormatter: (p: any) => p.value == null ? '' : money(p.value) },
       ...numCols.slice(1),
     ] :
     groupBy === 'item' ? [
@@ -146,12 +144,12 @@ export default function InventoryStockAsOf() {
         </Alert>
       )}
 
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={6} sm={3}><KpiCard label="SKUs in Stock"      value={fmt(kpi?.sku_count)}   icon="ti-barcode" /></Grid>
-        <Grid item xs={6} sm={3}><KpiCard label="Total Qty"          value={fmt(kpi?.total_qty)}   icon="ti-stack-2" /></Grid>
-        <Grid item xs={6} sm={3}><KpiCard label="Stock Value (Cost)" value={fmtCur(kpi?.stock_cost)} icon="ti-coin" /></Grid>
-        <Grid item xs={6} sm={3}><KpiCard label="Negative Lines"     value={fmt(kpi?.neg_stock)}   icon="ti-alert-triangle" /></Grid>
-      </Grid>
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+        <KpiCard label="SKUs in Stock"      value={num(kpi?.sku_count, 0)}   icon="ti-barcode" />
+        <KpiCard label="Total Qty"          value={num(kpi?.total_qty, 0)}   icon="ti-stack-2" />
+        <KpiCard label="Stock Value (Cost)" value={money(kpi?.stock_cost)}   icon="ti-coin" />
+        <KpiCard label="Negative Lines"     value={num(kpi?.neg_stock, 0)}   icon="ti-alert-triangle" />
+      </Box>
 
       <Card variant="outlined" sx={{ borderRadius: 2 }}>
         <CardContent>

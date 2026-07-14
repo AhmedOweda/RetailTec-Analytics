@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import {
-  Box, Typography, Grid, Stack, TextField, MenuItem, Card, CardContent,
+  Box, Typography, Stack, TextField, MenuItem, Card, CardContent,
 } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
 import { AgGridReact } from 'ag-grid-react'
@@ -12,7 +12,7 @@ import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
-import { moneyPrefix } from '../../utils/formatters'
+import { num, money } from '../../utils/formatters'
 import { tr } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -51,9 +51,6 @@ export default function InventoryHistory() {
     queryFn: () => axios.get('/api/inventory/history/details', { params }).then(r => r.data),
   })
 
-  const fmt    = (n?: number) => n == null ? '—' : n.toLocaleString()
-  const fmtCur = (n?: number) => n == null ? '—' : `${moneyPrefix()}${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-
   // Honest trend: history QTY values are absolute snapshots, so the chart
   // shows EVENT COUNTS (total / inserts / updates) and SKUs touched per day.
   const trendOpt = {
@@ -85,7 +82,7 @@ export default function InventoryHistory() {
     { field: 'stock_at_end',    headerName: 'Stock at End', type: 'numericColumn', flex: 0.9,
       headerTooltip: 'True stock at the end of the period — last history row per store on or before the To date, summed over stores' },
     { field: 'stock_value_end', headerName: 'Value at End', type: 'numericColumn', flex: 1,
-      valueFormatter: (p: any) => fmtCur(p.value) },
+      valueFormatter: (p: any) => p.value == null ? '' : money(p.value) },
   ]
 
   const detailCols = [
@@ -122,12 +119,12 @@ export default function InventoryHistory() {
       </Stack>
       </Box>
 
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={6} sm={3}><KpiCard label="Total Events"      value={fmt(kpi?.total_events)} icon="ti-history" /></Grid>
-        <Grid item xs={6} sm={3}><KpiCard label="SKUs Affected"     value={fmt(kpi?.sku_count)} icon="ti-barcode" /></Grid>
-        <Grid item xs={6} sm={3}><KpiCard label="Inserts / Updates" value={`${fmt(kpi?.insert_count)} / ${fmt(kpi?.update_count)}`} icon="ti-database" /></Grid>
-        <Grid item xs={6} sm={3}><KpiCard label="Item-Store Pairs"  value={fmt(kpi?.pairs_touched)} icon="ti-grid-dots" /></Grid>
-      </Grid>
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+        <KpiCard label="Total Events"      value={num(kpi?.total_events, 0)} icon="ti-history" />
+        <KpiCard label="SKUs Affected"     value={num(kpi?.sku_count, 0)} icon="ti-barcode" />
+        <KpiCard label="Inserts / Updates" value={`${num(kpi?.insert_count, 0)} / ${num(kpi?.update_count, 0)}`} icon="ti-database" />
+        <KpiCard label="Item-Store Pairs"  value={num(kpi?.pairs_touched, 0)} icon="ti-grid-dots" />
+      </Box>
 
       <Card variant="outlined" sx={{ borderRadius: 2, mb: 3 }}>
         <CardContent>
