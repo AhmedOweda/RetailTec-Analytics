@@ -45,7 +45,7 @@ export function createAppTheme(mode: 'light' | 'dark',
     },
 
     typography: {
-      fontFamily: '"Inter", "Manrope", sans-serif',
+      fontFamily: '"RiyalSymbol", "Inter", "Manrope", sans-serif',
       fontFeatureSettings: '"tnum"',
       fontWeightLight:   400,
       fontWeightRegular: 400,
@@ -55,7 +55,7 @@ export function createAppTheme(mode: 'light' | 'dark',
       subtitle1: { fontWeight: 600 },
       subtitle2: { fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' },
       body2:     { fontSize: '0.78rem' },
-      caption:   { fontFamily: '"DM Mono", monospace', fontSize: '0.68rem' },
+      caption:   { fontFamily: '"RiyalSymbol", "DM Mono", monospace', fontSize: '0.68rem' },
     },
 
     shape: { borderRadius: 12 },
@@ -118,7 +118,7 @@ export function createAppTheme(mode: 'light' | 'dark',
       MuiButton: {
         styleOverrides: {
           root: {
-            fontFamily: '"Inter", sans-serif',
+            fontFamily: '"RiyalSymbol", "Inter", sans-serif',
             fontWeight: 700,
             textTransform: 'none',
             borderRadius: 10,
@@ -133,7 +133,7 @@ export function createAppTheme(mode: 'light' | 'dark',
 
       MuiChip: {
         styleOverrides: {
-          root: { fontFamily: '"Inter", sans-serif', fontWeight: 600 },
+          root: { fontFamily: '"RiyalSymbol", "Inter", sans-serif', fontWeight: 600 },
         },
       },
 
@@ -149,7 +149,7 @@ export function createAppTheme(mode: 'light' | 'dark',
           tooltip: {
             background: '#1A0D45',
             color: '#EDE8F8',
-            fontFamily: '"Inter", sans-serif',
+            fontFamily: '"RiyalSymbol", "Inter", sans-serif',
             fontSize: '0.72rem',
             fontWeight: 600,
             borderRadius: 8,
@@ -161,7 +161,7 @@ export function createAppTheme(mode: 'light' | 'dark',
 
       MuiInputBase: {
         styleOverrides: {
-          root: { fontFamily: '"Inter", sans-serif', fontSize: '0.82rem' },
+          root: { fontFamily: '"RiyalSymbol", "Inter", sans-serif', fontSize: '0.82rem' },
         },
       },
 
