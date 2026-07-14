@@ -245,7 +245,7 @@ function SubsidiarySelect() {
       displayEmpty
       MenuProps={{ disableScrollLock: true }}
       sx={{
-        minWidth: 140, height: 30, fontSize: 12, fontWeight: 600,
+        minWidth: { xs: 92, md: 140 }, height: 30, fontSize: 12, fontWeight: 600,
         color: '#475569', bgcolor: 'rgba(124,58,237,0.06)', borderRadius: 99,
         '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(124,58,237,0.12)' },
         '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(124,58,237,0.30)' },
@@ -649,7 +649,7 @@ export default function AppShell() {
               </Typography>
             </Box>
           </Box>
-          <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
+          <Box sx={{ display:'flex', alignItems:'center', gap:{ xs:0.75, md:1.5 }, flexShrink:0 }}>
             {(brandSettings?.connection?.alias || brandSettings?.connection?.host) && (
               <Tooltip title={`${brandSettings?.connection?.host ?? ''}${brandSettings?.connection?.sid ? ' · ' + brandSettings.connection.sid : ''}`}>
                 <Box sx={{
@@ -669,12 +669,12 @@ export default function AppShell() {
             <ValidationBadge />
             <SyncBadge />
             <Box sx={{
-              display:'flex', alignItems:'center', gap:0.8,
+              display:{ xs:'none', md:'flex' }, alignItems:'center', gap:0.8, flexShrink:0,
               px:1.5, py:0.5, borderRadius:99,
               bgcolor:'rgba(124,58,237,0.06)', border:'1px solid rgba(124,58,237,0.12)',
             }}>
               <Box sx={{ width:6, height:6, borderRadius:'50%', bgcolor:'#7c3aed' }} />
-              <Typography sx={{ fontSize:12, color:'#475569', fontWeight:600 }}>
+              <Typography noWrap sx={{ fontSize:12, color:'#475569', fontWeight:600 }}>
                 {new Date().toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' })}
               </Typography>
             </Box>
