@@ -232,18 +232,46 @@ def ask(question: str, cfg: dict, host: str = "",
 
 
 def _finish(question, cfg, result, sql) -> dict:
-
-    # 2) rows -> plain-language answer (send only a capped preview of rows)
-    preview = {"columns": result["columns"], "rows": result["rows"][:50],
+    # 2) rows -> plain-language answer. Send a SMALL preview (fewer rows/tokens)
+    #    so this second call stays well under free-tier rate/token limits — the
+    #    usual reason the written answer silently failed and only the table showed.
+    preview = {"columns": result["columns"], "rows": result["rows"][:20],
                "row_count": len(result["rows"]), "truncated": result["truncated"]}
-    answer_sys = ("You explain query results to a retail manager in 1-3 short "
-                  "sentences, plainly, citing the concrete numbers. No SQL, no fluff.")
+    answer_sys = ("You are a retail analyst. In 1-3 short, plain sentences, answer the "
+                  "user's question using the query result, citing the concrete numbers. "
+                  "Always write an answer. No SQL, no tables, no fluff.")
     answer_user = (f"Question: {question}\n\nResult (JSON):\n"
-                   f"{json.dumps(preview, default=str)}\n\nWrite the answer.")
+                   f"{json.dumps(preview, default=str)}\n\nWrite the spoken answer.")
+    answer = None
     try:
-        answer = _chat(cfg, answer_sys, answer_user).strip()
-    except RuntimeError:
-        answer = None      # provider worked for step 1 but failed here — show table only
+        answer = (_chat(cfg, answer_sys, answer_user) or "").strip() or None
+    except Exception as e:
+        log.warning(f"assistant answer step failed: {e}")
+
+    if not answer:
+        answer = _fallback_summary(question, result)
 
     return {"answer": answer, "sql": sql, "columns": result["columns"],
             "rows": result["rows"], "truncated": result["truncated"], "error": None}
+
+
+def _fallback_summary(question: str, result: dict) -> str:
+    """Deterministic written summary when the model's answer step is unavailable
+    (rate-limited, etc.) — so the user always gets words, not just a table."""
+    cols = result.get("columns") or []
+    rows = result.get("rows") or []
+    n = len(rows)
+    if n == 0:
+        return "No matching records were found for that question."
+    if n == 1 and len(cols) == 1:
+        return f"{cols[0]}: {rows[0][0]}."
+    # describe the top row concisely
+    top = rows[0]
+    parts = []
+    for c, v in zip(cols, top):
+        parts.append(f"{c} {v}")
+        if len(parts) >= 4:
+            break
+    lead = "; ".join(parts)
+    more = f" (showing {n} rows)" if n > 1 else ""
+    return f"Top result — {lead}{more}. See the table for the full breakdown."
