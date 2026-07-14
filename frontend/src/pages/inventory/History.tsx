@@ -12,7 +12,7 @@ import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
-import { num, money } from '../../utils/formatters'
+import { num, moneyExact } from '../../utils/formatters'
 import { tr } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -82,7 +82,7 @@ export default function InventoryHistory() {
     { field: 'stock_at_end',    headerName: 'Stock at End', type: 'numericColumn', flex: 0.9,
       headerTooltip: 'True stock at the end of the period — last history row per store on or before the To date, summed over stores' },
     { field: 'stock_value_end', headerName: 'Value at End', type: 'numericColumn', flex: 1,
-      valueFormatter: (p: any) => p.value == null ? '' : money(p.value) },
+      valueFormatter: (p: any) => p.value == null ? '' : moneyExact(p.value) },
   ]
 
   const detailCols = [

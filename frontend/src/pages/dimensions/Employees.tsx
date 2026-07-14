@@ -13,7 +13,7 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money } from '../../utils/formatters'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
@@ -169,7 +169,7 @@ export default function DimEmployees() {
 
       <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mb:2 }}>
         <KpiCard label="Head Count"       value={fmtN(kpi.count)}         icon="ti-id-badge-2"  color={C_PURPLE} />
-        <KpiCard label="Avg Rev / Invoice" value={num(kpi.avgRevPerInv)}  icon="ti-receipt"     color={C_CYAN}
+        <KpiCard label="Avg Rev / Invoice" value={money(kpi.avgRevPerInv)}  icon="ti-receipt"     color={C_CYAN}
           sub="team productivity index" />
         <KpiCard label="Avg Disc %"        value={pct(kpi.avgDisc)}       icon="ti-discount"
           color={kpi.avgDisc > 15 ? C_ROSE : kpi.avgDisc > 8 ? C_AMBER : C_GREEN} />

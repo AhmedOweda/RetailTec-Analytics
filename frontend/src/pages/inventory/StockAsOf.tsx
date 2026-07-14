@@ -19,7 +19,7 @@ import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
-import { num, money } from '../../utils/formatters'
+import { num, money, moneyExact } from '../../utils/formatters'
 import { tr } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -69,7 +69,7 @@ export default function InventoryStockAsOf() {
   const numCols = [
     { field: 'qty',        headerName: 'Qty',        type: 'numericColumn', flex: 0.8 },
     { field: 'cost_value', headerName: 'Cost Value', type: 'numericColumn', flex: 1,
-      valueFormatter: (p: any) => p.value == null ? '' : money(p.value) },
+      valueFormatter: (p: any) => p.value == null ? '' : moneyExact(p.value) },
   ]
   const colDefs: any[] =
     groupBy === 'item_store' ? [
@@ -81,7 +81,7 @@ export default function InventoryStockAsOf() {
       { field: 'vendor',      headerName: 'Item Vendor', flex: 1 },
       { field: 'qty',         headerName: 'Qty',         type: 'numericColumn', flex: 0.7 },
       { field: 'unit_cost',   headerName: 'Unit Cost',   type: 'numericColumn', flex: 0.8,
-        valueFormatter: (p: any) => p.value == null ? '' : money(p.value) },
+        valueFormatter: (p: any) => p.value == null ? '' : moneyExact(p.value) },
       ...numCols.slice(1),
     ] :
     groupBy === 'item' ? [

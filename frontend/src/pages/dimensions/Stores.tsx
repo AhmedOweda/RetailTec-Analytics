@@ -13,7 +13,7 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money } from '../../utils/formatters'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
@@ -158,8 +158,8 @@ export default function DimStores() {
 
       <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mb:2 }}>
         <KpiCard label="Active Stores"    value={fmtN(kpi.count)}         icon="ti-building-store" color={C_PURPLE} />
-        <KpiCard label="Period Revenue"   value={num(kpi.totalRev)}        icon="ti-cash"           color={C_CYAN}   />
-        <KpiCard label="Lifetime Revenue" value={num(kpi.lifetimeTotal)}   icon="ti-chart-line"     color={C_GREEN}
+        <KpiCard label="Period Revenue"   value={money(kpi.totalRev)}        icon="ti-cash"           color={C_CYAN}   />
+        <KpiCard label="Lifetime Revenue" value={money(kpi.lifetimeTotal)}   icon="ti-chart-line"     color={C_GREEN}
           sub="all-time chain total" />
         <KpiCard label="Avg Return Rate"  value={pct(kpi.avgReturn)}       icon="ti-arrow-back"
           color={kpi.avgReturn > 10 ? C_ROSE : kpi.avgReturn > 5 ? C_AMBER : C_GREEN} />

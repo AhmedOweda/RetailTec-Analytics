@@ -11,7 +11,7 @@ import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
@@ -193,7 +193,7 @@ export default function DimItems() {
         <KpiCard label={tr('Active SKUs')}   value={fmtN(kpi.count)}     icon="ti-barcode"     color={C_PURPLE} />
         <KpiCard label={tr('Avg GP %')}      value={pct(kpi.avgGPpct)}   icon="ti-chart-pie-2"
           color={gmColorOf(kpi.avgGPpct)} />
-        <KpiCard label={tr('Total GP')}      value={num(kpi.totalGP)}    icon="ti-trending-up" color={C_GREEN}  />
+        <KpiCard label={tr('Total GP')}      value={money(kpi.totalGP)}    icon="ti-trending-up" color={C_GREEN}  />
         <KpiCard label={tr('Loss-Making SKUs')} value={fmtN(kpi.lossItems)} icon="ti-alert-triangle"
           color={kpi.lossItems > 0 ? C_ROSE : C_GREEN}
           sub={trf('{{n}}% of portfolio',{n: kpi.count > 0 ? ((kpi.lossItems / kpi.count)*100).toFixed(0) : 0})} />

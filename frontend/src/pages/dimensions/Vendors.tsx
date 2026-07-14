@@ -11,7 +11,7 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -188,7 +188,7 @@ export default function DimVendors() {
 
       <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mb:2 }}>
         <KpiCard label="Supplier Count"    value={fmtN(kpi.count)}      icon="ti-truck"         color={C_PURPLE} />
-        <KpiCard label="Total Purchased"   value={num(kpi.totalCost)}   icon="ti-coin"           color={C_CYAN}   />
+        <KpiCard label="Total Purchased"   value={money(kpi.totalCost)}   icon="ti-coin"           color={C_CYAN}   />
         <KpiCard label="Avg Fill Rate"     value={pct(kpi.avgFill)}     icon="ti-circle-check"
           color={kpi.avgFill >= 90 ? C_GREEN : kpi.avgFill >= 70 ? C_AMBER : C_ROSE} />
         <KpiCard label="Top Supplier Share" value={pct(kpi.top1dep)}    icon="ti-alert-triangle"

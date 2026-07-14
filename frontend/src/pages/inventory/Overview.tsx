@@ -23,7 +23,7 @@ import KpiCard                        from '../../components/KpiCard'
 import { noRowsOverlay }               from '../../utils/gridOverlay'
 import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
@@ -554,8 +554,8 @@ export default function InventoryOverview() {
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           <KpiCard variant="F" label="Total SKUs"       value={kpi.skus.toLocaleString()}    sub={trf('{{n}} departments', { n: kpi.depts })} icon="ti-barcode" />
           <KpiCard variant="F" label="Units On-Hand"    value={num(kpi.totalQty)}             sub={trf('across {{n}} stores', { n: kpi.stores })} icon="ti-package" />
-          <KpiCard variant="F" label="Cost Value"       value={num(kpi.stockCost)}            sub="at cost price" icon="ti-coin" />
-          <KpiCard variant="F" label="Retail Value"     value={num(kpi.stockRetail)}          sub="at selling price" icon="ti-tag" />
+          <KpiCard variant="F" label="Cost Value"       value={money(kpi.stockCost)}            sub="at cost price" icon="ti-coin" />
+          <KpiCard variant="F" label="Retail Value"     value={money(kpi.stockRetail)}          sub="at selling price" icon="ti-tag" />
           <KpiCard variant="F" label="Potential GM"     value={`${kpi.gmPct}%`}              sub="retail − cost margin" color={gmColor} icon="ti-chart-pie-2" />
         </Box>
 
@@ -568,7 +568,7 @@ export default function InventoryOverview() {
             color={dohColor(turnover.doh)} />
           <KpiCard variant="F" label="Months Supply"      value={`${turnover.months}m`}
             sub="stock cost ÷ monthly COGS" color="#0891b2" icon="ti-clock" />
-          <KpiCard variant="F" label="COGS (12m)"         value={num(turnover.cogs12m)}
+          <KpiCard variant="F" label="COGS (12m)"         value={money(turnover.cogs12m)}
             sub="cost of goods sold (last yr)" color="#7c3aed" icon="ti-receipt" />
         </Box>
 

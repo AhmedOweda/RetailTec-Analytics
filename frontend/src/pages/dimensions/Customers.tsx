@@ -11,7 +11,7 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -179,9 +179,9 @@ export default function DimCustomers() {
 
       <Box sx={{ display:'flex', gap:2, flexWrap:'wrap', mb:2 }}>
         <KpiCard label="Total Customers"  value={fmtN(kpi.count)}      icon="ti-users"       color={C_PURPLE} />
-        <KpiCard label="Total LTV"        value={num(kpi.totalLtv)}     icon="ti-chart-line"  color={C_INDIGO}
+        <KpiCard label="Total LTV"        value={money(kpi.totalLtv)}     icon="ti-chart-line"  color={C_INDIGO}
           sub="all-time lifetime value" />
-        <KpiCard label="Avg LTV / Customer" value={num(kpi.avgLtv)}    icon="ti-coin"        color={C_GREEN}  />
+        <KpiCard label="Avg LTV / Customer" value={money(kpi.avgLtv)}    icon="ti-coin"        color={C_GREEN}  />
         <KpiCard label="At Risk + Dormant"  value={fmtN(kpi.atRisk)}   icon="ti-alert-triangle"
           color={kpi.atRisk > 0 ? C_AMBER : C_GREEN}
           sub={trf('{{n}}% of base',{n: kpi.count > 0 ? ((kpi.atRisk / kpi.count)*100).toFixed(0) : 0})} />

@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import ReactECharts from 'echarts-for-react'
 import KpiCard      from '../../components/KpiCard'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money, num } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 import { CHART_CATEGORICAL } from '../../theme/chartPalette'
@@ -268,14 +268,14 @@ export default function PurchasesOverview() {
       {/* ── KPI strip (flex row — equal heights, like Stock Movement) ─── */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 2 }}>
         {([
-          { label: 'Total Vouchers',    value: fmt(kpi?.vou_count      ?? 0), sub: 'purchase orders in period',      color: C.blue,   icon: 'ti-file-invoice' },
-          { label: 'Total Cost',   value: fmtC0(kpi?.total_cost   ?? 0), sub: 'sum of voucher totals',          color: C.purple, icon: 'ti-coin'          },
-          { label: 'Received Vouchers', value: fmt(kpi?.received_count ?? 0), sub: trf('{{n}}% of total', { n: kpi?.recv_pct ?? 0 }), color: C.green,  icon: 'ti-circle-check'  },
-          { label: 'Pending Vouchers',  value: fmt(kpi?.pending_count  ?? 0), sub: 'awaiting receipt',               color: C.amber,  icon: 'ti-clock'         },
-          { label: 'Suppliers',    value: fmt(kpi?.vendor_count   ?? 0), sub: 'purchased from in period',       color: C.sky,    icon: 'ti-building-store'},
-          { label: 'Line Items',   value: fmt(kpi?.line_count     ?? 0), sub: 'voucher detail rows',            color: C.rose,   icon: 'ti-list'          },
-          { label: 'Ordered Qty',  value: fmt(kpi?.ord_qty        ?? 0), sub: 'units on order',                 color: '#64748b', icon: 'ti-package' },
-          { label: 'Received Qty', value: fmt(kpi?.recv_qty       ?? 0), sub: trf('Disc: {{v}}', { v: fmtC0(kpi?.total_disc ?? 0) }), color: '#64748b', icon: 'ti-inbox' },
+          { label: 'Total Vouchers',    value: num(kpi?.vou_count      ?? 0, 0), sub: 'purchase orders in period',      color: C.blue,   icon: 'ti-file-invoice' },
+          { label: 'Total Cost',   value: money(kpi?.total_cost   ?? 0), sub: 'sum of voucher totals',          color: C.purple, icon: 'ti-coin'          },
+          { label: 'Received Vouchers', value: num(kpi?.received_count ?? 0, 0), sub: trf('{{n}}% of total', { n: kpi?.recv_pct ?? 0 }), color: C.green,  icon: 'ti-circle-check'  },
+          { label: 'Pending Vouchers',  value: num(kpi?.pending_count  ?? 0, 0), sub: 'awaiting receipt',               color: C.amber,  icon: 'ti-clock'         },
+          { label: 'Suppliers',    value: num(kpi?.vendor_count   ?? 0, 0), sub: 'purchased from in period',       color: C.sky,    icon: 'ti-building-store'},
+          { label: 'Line Items',   value: num(kpi?.line_count     ?? 0, 0), sub: 'voucher detail rows',            color: C.rose,   icon: 'ti-list'          },
+          { label: 'Ordered Qty',  value: num(kpi?.ord_qty        ?? 0, 0), sub: 'units on order',                 color: '#64748b', icon: 'ti-package' },
+          { label: 'Received Qty', value: num(kpi?.recv_qty       ?? 0, 0), sub: trf('Disc: {{v}}', { v: fmtC0(kpi?.total_disc ?? 0) }), color: '#64748b', icon: 'ti-inbox' },
         ] as const).map(k => (
           <KpiCard key={k.label} {...k} />
         ))}
