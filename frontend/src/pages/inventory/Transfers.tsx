@@ -168,7 +168,7 @@ export default function Transfers() {
   const trendOption = useMemo(() => ({
     tooltip: { trigger:'axis' },
     legend:  { bottom:0, textStyle:{ fontSize:11 } },
-    grid:    { top:10, right:12, bottom:36, left:52 },
+    grid:    { top:10, right:12, bottom:64, left:52, containLabel:true },
     xAxis:   { type:'category', data: trend.map(r => r.slip_date?.toString().slice(0,10) || ''), axisLabel:{ fontSize:10 } },
     yAxis:   { type:'value', axisLabel:{ fontSize:10 } },
     series: [
@@ -258,7 +258,7 @@ export default function Transfers() {
       {/* ── Header (standard page pattern — matches Stock Movement) ── */}
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#ffffff',
                  mx:-3, px:3, pt:3, pb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
+        <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
           {tr('Transfers')}
           <TitleLoader />
         </Typography>

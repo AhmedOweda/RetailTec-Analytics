@@ -222,7 +222,7 @@ export default function InventoryCoverage() {
         mx: -3, px: 3, pt: 2.5, pb: 1.5, mb: 2, borderBottom: '1px solid #e9e4ff',
       }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5}>
-          <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px' }}>
+          <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color:'#0f172a', letterSpacing:'-0.3px' }}>
             {tr('Coverage & Replenishment Planning')}
             <TitleLoader />
           </Typography>

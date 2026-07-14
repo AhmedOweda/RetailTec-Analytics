@@ -177,7 +177,7 @@ export default function Adjustments() {
       },
     },
     legend:  { bottom:0, textStyle:{ fontSize:11 } },
-    grid:    { top:10, right:12, bottom:36, left:68 },
+    grid:    { top:10, right:12, bottom:64, left:68, containLabel:true },
     xAxis:   { type:'category', data: trend.map(r => r.ADJ_DATE?.toString().slice(0,10) || ''), axisLabel:{ fontSize:10 } },
     yAxis:   { type:'value', splitNumber:4, axisLabel:{ fontSize:10, hideOverlap:true, formatter:(v:number) => Math.abs(v)>=1000?`${(v/1000).toFixed(0)}K`:`${v}` } },
     series: [
@@ -289,7 +289,7 @@ export default function Adjustments() {
       {/* ── Header (standard page pattern — matches Stock Movement) ── */}
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#ffffff',
                  mx:-3, px:3, pt:3, pb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
+        <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
           {tr('Adjustments')}
           <TitleLoader />
         </Typography>

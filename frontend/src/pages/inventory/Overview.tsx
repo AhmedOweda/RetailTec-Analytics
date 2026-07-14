@@ -514,7 +514,7 @@ export default function InventoryOverview() {
       {/* ── Header ── */}
       <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
                  borderBottom: '1px solid #e9e4ff', px: 3, pt: 3, pb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Stock Levels')}
           <TitleLoader />
         </Typography>
