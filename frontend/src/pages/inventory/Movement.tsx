@@ -7,7 +7,7 @@ import { useMemo, useRef, useState, useCallback } from 'react'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
-import { moneyPrefix } from '../../utils/formatters'
+import { money } from '../../utils/formatters'
 import { useAppSettings } from '../../context/AppSettings'
 import {
   Box, Typography, Chip, Dialog, DialogTitle, DialogContent,
@@ -393,8 +393,8 @@ export default function InventoryMovement() {
           <KpiCard label="Active SKUs"    value={kpi.skus.toLocaleString()}      sub="distinct items moved" icon="ti-barcode" />
           <KpiCard label="Units Sold"     value={num(kpi.soldQty)}               sub={trf('{{n}} returned', { n: num(kpi.returnQty) })} icon="ti-shopping-cart" />
           <KpiCard label="Daily Velocity" value={`${kpi.velocity.toLocaleString()} u/d`} sub="units per day" color={C_CYAN} icon="ti-rocket" />
-          <KpiCard label="Revenue"        value={moneyPrefix() + num(kpi.revenue)}               sub="excl. tax" icon="ti-cash" />
-          <KpiCard label="Gross Margin"   value={`${kpi.gmPct}%`}               sub={moneyPrefix() + num(kpi.revenue - kpi.cogs)} color={gmColor} icon="ti-trending-up" />
+          <KpiCard label="Revenue"        value={money(kpi.revenue)}               sub="excl. tax" icon="ti-cash" />
+          <KpiCard label="Gross Margin"   value={`${kpi.gmPct}%`}               sub={money(kpi.revenue - kpi.cogs)} color={gmColor} icon="ti-trending-up" />
         </Box>
 
         {/* ── Row 1: Trend + Pareto ── */}

@@ -17,7 +17,7 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import { noRowsOverlay } from '../../utils/gridOverlay'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money, num } from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -61,8 +61,6 @@ const PRESETS: Record<string, [string, string]> = {
 }
 
 const fmtC = (v: number) => v == null ? '' : moneyPrefix() + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-// KPI cards: whole numbers only (no decimals)
-const fmtC0 = (v: number) => v == null ? '' : moneyPrefix() + Math.round(v).toLocaleString('en-US')
 const fmtN = (v: number) => v == null ? '' : v.toLocaleString('en-US', { maximumFractionDigits: 0 })
 const fmtQ = (v: number) => v == null ? '' : v.toLocaleString('en-US', { maximumFractionDigits: 1 })
 
@@ -264,11 +262,11 @@ export default function PurchasesTransactions() {
       {/* ── KPI strip (shared KpiCard — consistent with other pages) ──── */}
       {!isLoading && rows.length > 0 && (
         <Box sx={{ display: 'flex', gap: 2, mt: 2, mb: 1.5, flexWrap: 'wrap' }}>
-          <KpiCard label="Total Cost"   value={fmtC0(totals.total_cost)}   sub="sum of line costs"    color="#7c3aed" icon="ti-coin" />
-          <KpiCard label="Total Retail" value={fmtC0(totals.total_retail)} sub="at selling price"     color="#0284c7" icon="ti-tag" />
-          <KpiCard label="Ordered Qty"  value={fmtN(totals.ord_qty)}       sub="units on order"       color="#64748b" icon="ti-package" />
-          <KpiCard label="Received Qty" value={fmtN(totals.recv_qty)}      sub="units received"       color="#059669" icon="ti-inbox" />
-          <KpiCard label="Line Items"   value={fmtN(rows.length)}          sub="rows in current filter" color="#e11d48" icon="ti-list" />
+          <KpiCard label="Total Cost"   value={money(totals.total_cost)}   sub="sum of line costs"    color="#7c3aed" icon="ti-coin" />
+          <KpiCard label="Total Retail" value={money(totals.total_retail)} sub="at selling price"     color="#0284c7" icon="ti-tag" />
+          <KpiCard label="Ordered Qty"  value={num(totals.ord_qty, 0)}       sub="units on order"       color="#64748b" icon="ti-package" />
+          <KpiCard label="Received Qty" value={num(totals.recv_qty, 0)}      sub="units received"       color="#059669" icon="ti-inbox" />
+          <KpiCard label="Line Items"   value={num(rows.length, 0)}          sub="rows in current filter" color="#e11d48" icon="ti-list" />
         </Box>
       )}
 

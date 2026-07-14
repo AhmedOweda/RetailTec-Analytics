@@ -18,7 +18,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { noRowsOverlay } from '../../utils/gridOverlay'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money, num } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -272,15 +272,15 @@ export default function InventoryLedger() {
 
       {/* ── KPI strip ── */}
       <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-        <KpiCard label={tr('Active SKUs')}    value={fmtN(kpi?.sku_count  || 0)} sub={tr('items with movement')} color={ACCENT}  icon="ti-barcode" />
-        <KpiCard label={tr('Sold Cost (COGS)')} value={fmtC(kpi?.sold_cost  || 0)}
+        <KpiCard label={tr('Active SKUs')}    value={num(kpi?.sku_count  || 0, 0)} sub={tr('items with movement')} color={ACCENT}  icon="ti-barcode" />
+        <KpiCard label={tr('Sold Cost (COGS)')} value={money(kpi?.sold_cost  || 0)}
           sub={trf('units sold {{n}}', { n: fmtN(kpi?.sold_qty || 0) })}    color={C_SALES} icon="ti-receipt" />
-        <KpiCard label={tr('Transfers In')}   value={fmtN(kpi?.recv_qty   || 0)}
+        <KpiCard label={tr('Transfers In')}   value={num(kpi?.recv_qty   || 0, 0)}
           sub={fmtC(kpi?.recv_cost || 0)}                   color={C_RECV}  icon="ti-arrows-down-up" />
-        <KpiCard label={tr('Adj Cost Impact')} value={fmtC(kpi?.adj_cost  || 0)}
+        <KpiCard label={tr('Adj Cost Impact')} value={money(kpi?.adj_cost  || 0)}
           sub={trf('qty {{n}}', { n: fmtSign(kpi?.adj_qty || 0) })}
           color={(kpi?.adj_cost || 0) >= 0 ? C_ADJ_POS : C_ADJ_NEG} icon="ti-adjustments" />
-        <KpiCard label={tr('Rows in View')}   value={fmtN(rows.length)}
+        <KpiCard label={tr('Rows in View')}   value={num(rows.length, 0)}
           sub={tr('Item × Store combinations')}                 color={C_SLATE} icon="ti-list" />
       </Box>
 

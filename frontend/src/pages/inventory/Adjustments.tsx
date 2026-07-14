@@ -26,7 +26,7 @@ import KpiCard                  from '../../components/KpiCard'
 import { noRowsOverlay }         from '../../utils/gridOverlay'
 import GridExportBar            from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
-import { moneyPrefix } from '../../utils/formatters'
+import { moneyPrefix, money, num } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -323,12 +323,12 @@ export default function Adjustments() {
 
       {/* ── KPI strip ── */}
       <Box sx={{ display:'flex', gap:1.5, flexWrap:'wrap' }}>
-        <KpiCard label={tr('Net Cost Impact')} value={fmtC(kpi?.net_cost    || 0)}
+        <KpiCard label={tr('Net Cost Impact')} value={money(kpi?.net_cost    || 0)}
           sub={`+${fmtC(kpi?.pos_cost || 0)} / ${fmtC(kpi?.neg_cost || 0)}`}
           color={(kpi?.net_cost || 0) >= 0 ? POS_C : NEG_C} icon="ti-scale" />
-        <KpiCard label={tr('+ Positive Cost')} value={fmtC(kpi?.pos_cost    || 0)} color={POS_C} icon="ti-trending-up" />
-        <KpiCard label={tr('− Negative Cost')} value={fmtC(Math.abs(kpi?.neg_cost || 0))} color={NEG_C} icon="ti-trending-down" />
-        <KpiCard label={tr('Adjustments')}     value={fmtN(kpi?.total_adjs  || 0)} sub={trf('{{n}} lines', { n: fmtN(kpi?.total_lines || 0) })} icon="ti-edit" />
+        <KpiCard label={tr('+ Positive Cost')} value={money(kpi?.pos_cost    || 0)} color={POS_C} icon="ti-trending-up" />
+        <KpiCard label={tr('− Negative Cost')} value={money(Math.abs(kpi?.neg_cost || 0))} color={NEG_C} icon="ti-trending-down" />
+        <KpiCard label={tr('Adjustments')}     value={num(kpi?.total_adjs  || 0, 0)} sub={trf('{{n}} lines', { n: fmtN(kpi?.total_lines || 0) })} icon="ti-edit" />
         <KpiCard label={tr('Net Qty Change')}  value={fmtSign(kpi?.net_qty  || 0)}
           sub={`+${fmtN(kpi?.pos_qty || 0)} / ${fmtN(kpi?.neg_qty || 0)}`}
           color={(kpi?.net_qty || 0) >= 0 ? POS_C : NEG_C} icon="ti-arrows-diff" />

@@ -56,8 +56,36 @@ let _moneyPrefix = '⃁ '
 export function setMoneyPrefixGlobal(p: string) { _moneyPrefix = p }
 export function moneyPrefix(): string { return _moneyPrefix }
 
-/** moneyPrefix() + thousands-formatted number (decimals default from Display Settings) */
+/**
+ * moneyPrefix() + amount for HEADLINE / KPI numbers.
+ * When the "Abbreviate large numbers" Display Setting is ON, this abbreviates
+ * to K/M (mirroring num()) with the currency prefix — e.g. "⃁6.4M", "⃁292K".
+ * When OFF, it shows the full thousands-formatted number.
+ * For DETAIL TABLES/grids that must stay full-precision, use moneyExact().
+ */
 export function money(v: unknown, decimals?: number): string {
+  const d = decimals ?? _moneyDecimals
+  const n = v == null ? 0 : Number(v)
+  if (isNaN(n)) return _moneyPrefix + (0).toFixed(d)
+  const abs  = Math.abs(n)
+  const sign = n < 0 ? '-' : ''
+  if (_abbrev) {
+    if (abs >= 1_000_000)
+      return `${_moneyPrefix}${sign}${(abs / 1_000_000).toFixed(d)}M`
+    if (abs >= 1_000)
+      return `${_moneyPrefix}${sign}${(abs / 1_000).toFixed(d)}K`
+  }
+  return _moneyPrefix + n.toLocaleString('en-US', {
+    minimumFractionDigits: d, maximumFractionDigits: d,
+  })
+}
+
+/**
+ * moneyPrefix() + FULL thousands-formatted number — NEVER abbreviated.
+ * Use for detail tables / grids that must keep full precision regardless of
+ * the "Abbreviate large numbers" Display Setting.
+ */
+export function moneyExact(v: unknown, decimals?: number): string {
   const d = decimals ?? _moneyDecimals
   const n = v == null ? 0 : Number(v)
   if (isNaN(n)) return _moneyPrefix + (0).toFixed(d)

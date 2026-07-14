@@ -4,7 +4,7 @@
  * pages append `item_fields=<csv>` to item queries and extra colDefs.
  */
 import type { ColDef } from 'ag-grid-community'
-import { money } from './formatters'
+import { moneyExact } from './formatters'
 
 export interface ItemFieldDef { key: string; label: string; numeric?: boolean }
 
@@ -42,7 +42,7 @@ export function itemFieldCols(selected: string[]): ColDef[] {
     if (!def) return null
     return def.numeric
       ? { field: k, headerName: def.label, width: 120, type: 'numericColumn',
-          valueFormatter: (p: any) => p.value == null ? '' : money(p.value, 2) }
+          valueFormatter: (p: any) => p.value == null ? '' : moneyExact(p.value, 2) }
       : { field: k, headerName: def.label, width: 140 }
   }).filter(Boolean) as ColDef[]
 }
