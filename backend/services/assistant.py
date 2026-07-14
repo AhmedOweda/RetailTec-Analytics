@@ -107,9 +107,19 @@ def _extract_sql(text: str) -> str:
 
 # ── Provider calls (stdlib only) ─────────────────────────────────────────────
 
+# A browser-like User-Agent. Groq (and other Cloudflare-fronted providers)
+# BLOCK the default Python-urllib agent at the edge with "error 1010" (a 403
+# that looks like a rejected key but isn't). Sending a normal UA fixes it —
+# confirmed 13 Jul 2026: same key returns 403/1010 with the default agent and
+# 200 with this one.
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+
+
 def _post_json(url: str, payload: dict, headers: dict) -> dict:
     data = json.dumps(payload).encode()
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json", **headers})
+    base = {"Content-Type": "application/json", "User-Agent": _UA}
+    req = urllib.request.Request(url, data=data, headers={**base, **headers})
     with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as r:
         return json.loads(r.read().decode())
 
