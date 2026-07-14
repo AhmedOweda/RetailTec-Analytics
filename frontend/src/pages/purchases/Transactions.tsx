@@ -218,12 +218,14 @@ export default function PurchasesTransactions() {
             ))}
           </Stack>
 
+          <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1 }}>
           <TextField size="small" label="From" type="date" value={dateFrom}
             onChange={e => { setDateFrom(e.target.value); setPreset('') }}
             InputLabelProps={{ shrink: true }} sx={{ width: 148 }} />
           <TextField size="small" label="To" type="date" value={dateTo}
             onChange={e => { setDateTo(e.target.value); setPreset('') }}
             InputLabelProps={{ shrink: true }} sx={{ width: 148 }} />
+          </Box>
 
           {/* Filters — Autocomplete style, consistent with all other pages */}
           <Autocomplete

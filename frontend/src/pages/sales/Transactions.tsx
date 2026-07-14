@@ -295,8 +295,8 @@ export default function Transactions() {
           ))}
         </Box>
 
-        {/* Custom date range */}
-        <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
+        {/* Custom date range — hidden on mobile (keep quick presets) */}
+        <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1, flexWrap:'wrap', rowGap:1 }}>
           <TextField label={tr('From')} type="date" size="small" sx={{ width:150, bgcolor:'#fff', borderRadius:2 }}
             InputLabelProps={{ shrink:true }}
             value={draftFrom} onChange={e => setDraftFrom(e.target.value)} />

@@ -541,7 +541,7 @@ export default function Performance() {
             ))}
           </Box>
           <Divider orientation="vertical" flexItem sx={{ borderColor:'#e9e4ff', mx:0.5, display:{ xs:'none', md:'block' } }} />
-          <Box sx={{ display:'flex', alignItems:'center', gap:1, flexWrap:'wrap', rowGap:1 }}>
+          <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1, flexWrap:'wrap', rowGap:1 }}>
             <CalendarMonthIcon sx={{ fontSize:16, color:C_SLATE }} />
             <TextField type="date" size="small" label={tr('From')} value={customFrom}
               onChange={e => { setCustomFrom(e.target.value); setPeriod(null) }}
@@ -591,11 +591,13 @@ export default function Performance() {
           <ChartPanel title="Payment Mix" subtitle="Cash · Card · Deposit · Other" option={payOpt} height={280} loading={payLoad} />
         </Box>
 
-        {/* Row 2: Hourly Heatmap */}
-        <ChartPanel title="Hourly Sales Heatmap" subtitle="Net sales intensity · hour of day × day of week" option={heatOpt} height={220} loading={hourlyLoad} />
+        {/* Row 2: Hourly Heatmap — hidden on mobile (dense grid) */}
+        <Box className="rt-mobile-hide">
+          <ChartPanel title="Hourly Sales Heatmap" subtitle="Net sales intensity · hour of day × day of week" option={heatOpt} height={220} loading={hourlyLoad} />
+        </Box>
 
-        {/* Row 3: Top Associates + Top Customers (side by side) */}
-        <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'1fr 1fr' }, gap:2 }}>
+        {/* Row 3: Top Associates + Top Customers (side by side) — tables hidden on mobile */}
+        <Box className="rt-mobile-hide" sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'1fr 1fr' }, gap:2 }}>
           <TableSection title="Top Associates" subtitle="Ranked by net sales · disc % amber >10% · return % red >5%" loading={assocLoad} height={320}
             toolbar={<GridExportBar gridRef={assocGridRef} filename="top_associates" title="Top Associates"
               colDefs={assocCols as any} onResetColumns={colsAssoc.resetColumns} />}>
