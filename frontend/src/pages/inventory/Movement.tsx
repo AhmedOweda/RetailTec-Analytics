@@ -398,7 +398,7 @@ export default function InventoryMovement() {
         </Box>
 
         {/* ── Row 1: Trend + Pareto ── */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.4fr 1fr' }, gap: 2 }}>
           <ChartCard title="Daily Movement Trend" subtitle="Units sold & returns over time" option={trendOpt} height={280} />
           <ChartCard title="Revenue by Department (ABC)" subtitle="Pareto · dashed line = 80% threshold" option={paretoOpt} height={280} />
         </Box>

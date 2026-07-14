@@ -335,7 +335,7 @@ export default function Adjustments() {
       </Box>
 
       {/* ── Charts row ── */}
-      <Box sx={{ display:'flex', gap:2, flexWrap:'wrap' }}>
+      <Box sx={{ display:'flex', flexDirection:{ xs:'column', md:'row' }, gap:2, flexWrap:'wrap' }}>
         <Box sx={{ flex:2, minWidth:300 }}>
           <ChartCard title="Daily Adjustment Trend (Cost $)" chartRef={trendRef} height={240}>
             <EChart ref={trendRef} option={trendOption} style={{ height:'100%' }} />

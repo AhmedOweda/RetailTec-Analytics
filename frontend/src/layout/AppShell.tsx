@@ -7,7 +7,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Box, Tooltip, Typography, Divider, CircularProgress,
   IconButton, Collapse, Dialog, TextField, Button,
-  Select, MenuItem,
+  Select, MenuItem, Drawer, useMediaQuery, useTheme,
 } from '@mui/material'
 import DashboardIcon        from '@mui/icons-material/Dashboard'
 import TrendingUpIcon       from '@mui/icons-material/TrendingUp'
@@ -33,6 +33,7 @@ import ManageAccountsIcon from '@mui/icons-material/ManageAccounts'
 import HistoryIcon        from '@mui/icons-material/History'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 import InsightsIcon       from '@mui/icons-material/Insights'
+import MenuIcon           from '@mui/icons-material/Menu'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios             from 'axios'
 import api               from '../api/client'
@@ -49,6 +50,16 @@ const SIDEBAR_W    = 220
 const ACCENT       = '#7c3aed'
 const ACCENT_LIGHT = '#ede9fe'
 const HEADER_H     = 56
+
+// Shared sidebar styling — used by the permanent desktop Box and the mobile Drawer paper
+const SIDEBAR_SX = {
+  width: SIDEBAR_W, flexShrink: 0,
+  // Subtle top-to-bottom depth instead of a flat fill
+  background: `linear-gradient(180deg, #1e1248 0%, ${SIDEBAR_BG} 58%, #100621 100%)`,
+  display: 'flex', flexDirection: 'column',
+  borderRight: '1px solid rgba(255,255,255,0.06)',
+  boxShadow: '1px 0 0 rgba(0,0,0,0.20)',
+} as const
 
 // ── Nav items ──────────────────────────────────────────────────────────────
 const SALES_NAV = [
@@ -355,55 +366,14 @@ export default function AppShell() {
     && !brandSettings?.last_sync
     && (brandSettings?.model_status ?? 'empty') === 'empty'
 
-  return (
-    <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
+  // ── Responsive: permanent sidebar (desktop) vs temporary Drawer (mobile) ──
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
-      {/* Forced-password-change disabled by owner request (2026-07-08).
-          <ForcePasswordDialog /> stays available if it's ever wanted back. */}
-
-      {/* License watermark: shown when the warehouse was filled by a different
-          Oracle server (copied database) OR the license itself is violated
-          (invalid signature, expired, wrong device, wrong server). */}
-      {(whStatus?.db_host_mismatch || whStatus?.license_violation) && (
-        <Box sx={{ position:'fixed', inset:0, zIndex:1999, pointerEvents:'none',
-                   overflow:'hidden', display:'grid',
-                   gridTemplateColumns:'repeat(3, 1fr)', alignContent:'space-around' }}>
-          {Array.from({ length: 9 }).map((_, i) => (
-            <Typography key={i} sx={{ transform:'rotate(-24deg)', textAlign:'center',
-              fontSize:26, fontWeight:800, color:'rgba(220,38,38,0.10)',
-              userSelect:'none', whiteSpace:'nowrap' }}>
-              {whStatus?.license_violation
-                ? `${tr(whStatus?.license_reason || 'UNLICENSED COPY')} · RetailTec`
-                : `${tr('UNLICENSED COPY')} · ${whStatus?.bound_host}`}
-            </Typography>
-          ))}
-        </Box>
-      )}
-
-      {/* Soft license warnings (no license / subsidiary limit exceeded) */}
-      {(whStatus?.license_warnings?.length ?? 0) > 0 && !whStatus?.license_violation && (
-        <Box sx={{ position:'fixed', bottom:10, left:'50%', transform:'translateX(-50%)',
-                   zIndex:1998, bgcolor:'rgba(245,158,11,0.14)',
-                   border:'1px solid rgba(245,158,11,0.45)', borderRadius:99,
-                   px:2, py:0.4, pointerEvents:'none' }}>
-          <Typography sx={{ fontSize:12, fontWeight:600, color:'#92400e', whiteSpace:'nowrap' }}>
-            {whStatus.license_warnings.map((w: string) => tr(w)).join(' · ')}
-          </Typography>
-        </Box>
-      )}
-
-      {/* One-time first-run setup wizard (skippable, admins only) */}
-      {showWizard && <FirstRunWizard onDone={() => setWizardDismissed(true)} />}
-
-      {/* ── Sidebar ──────────────────────────────────────────────────── */}
-      <Box sx={{
-        width: SIDEBAR_W, flexShrink: 0,
-        // Subtle top-to-bottom depth instead of a flat fill
-        background: `linear-gradient(180deg, #1e1248 0%, ${SIDEBAR_BG} 58%, #100621 100%)`,
-        display:'flex', flexDirection:'column',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
-        boxShadow: '1px 0 0 rgba(0,0,0,0.20)',
-      }}>
+  // Sidebar inner content — defined once, rendered in the desktop Box or the mobile Drawer
+  const sidebarContent = (
+    <>
         {/* Logo */}
         <Box sx={{ px:2.5, py:2, display:'flex', alignItems:'center', gap:1.5,
                    borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
@@ -562,8 +532,68 @@ export default function AppShell() {
             </Tooltip>
           </Box>
         </Box>
+    </>
+  )
 
-      </Box>
+  return (
+    <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
+
+      {/* Forced-password-change disabled by owner request (2026-07-08).
+          <ForcePasswordDialog /> stays available if it's ever wanted back. */}
+
+      {/* License watermark: shown when the warehouse was filled by a different
+          Oracle server (copied database) OR the license itself is violated
+          (invalid signature, expired, wrong device, wrong server). */}
+      {(whStatus?.db_host_mismatch || whStatus?.license_violation) && (
+        <Box sx={{ position:'fixed', inset:0, zIndex:1999, pointerEvents:'none',
+                   overflow:'hidden', display:'grid',
+                   gridTemplateColumns:'repeat(3, 1fr)', alignContent:'space-around' }}>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <Typography key={i} sx={{ transform:'rotate(-24deg)', textAlign:'center',
+              fontSize:26, fontWeight:800, color:'rgba(220,38,38,0.10)',
+              userSelect:'none', whiteSpace:'nowrap' }}>
+              {whStatus?.license_violation
+                ? `${tr(whStatus?.license_reason || 'UNLICENSED COPY')} · RetailTec`
+                : `${tr('UNLICENSED COPY')} · ${whStatus?.bound_host}`}
+            </Typography>
+          ))}
+        </Box>
+      )}
+
+      {/* Soft license warnings (no license / subsidiary limit exceeded) */}
+      {(whStatus?.license_warnings?.length ?? 0) > 0 && !whStatus?.license_violation && (
+        <Box sx={{ position:'fixed', bottom:10, left:'50%', transform:'translateX(-50%)',
+                   zIndex:1998, bgcolor:'rgba(245,158,11,0.14)',
+                   border:'1px solid rgba(245,158,11,0.45)', borderRadius:99,
+                   px:2, py:0.4, pointerEvents:'none' }}>
+          <Typography sx={{ fontSize:12, fontWeight:600, color:'#92400e', whiteSpace:'nowrap' }}>
+            {whStatus.license_warnings.map((w: string) => tr(w)).join(' · ')}
+          </Typography>
+        </Box>
+      )}
+
+      {/* One-time first-run setup wizard (skippable, admins only) */}
+      {showWizard && <FirstRunWizard onDone={() => setWizardDismissed(true)} />}
+
+      {/* ── Sidebar: permanent on desktop, temporary Drawer on mobile ── */}
+      {!isMobile && <Box sx={SIDEBAR_SX}>{sidebarContent}</Box>}
+      {isMobile && (
+        <Drawer
+          variant="temporary"
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          ModalProps={{ keepMounted: true }}
+          PaperProps={{
+            sx: SIDEBAR_SX,
+            // Close the drawer when a nav link (anchor) inside it is tapped
+            onClick: (e: React.MouseEvent) => {
+              if ((e.target as HTMLElement).closest('a')) setDrawerOpen(false)
+            },
+          }}
+        >
+          {sidebarContent}
+        </Drawer>
+      )}
 
       {/* ── Main area ────────────────────────────────────────────────── */}
       <Box sx={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -572,7 +602,7 @@ export default function AppShell() {
         <Box sx={{
           height: HEADER_H, flexShrink:0, position:'relative',
           display:'flex', alignItems:'center', justifyContent:'space-between',
-          px:3,
+          px:{ xs:1.5, md:3 },
           background:'linear-gradient(90deg, #ffffff 0%, #faf9ff 55%, #f6f4ff 100%)',
           borderBottom:'1px solid rgba(124,58,237,0.10)',
           boxShadow:'0 2px 10px rgba(15,23,42,0.05)',
@@ -586,6 +616,11 @@ export default function AppShell() {
           {/* Brand logo lives in the sidebar — the header carries the product
               wordmark only (duplicate logo overlapped the title). */}
           <Box sx={{ display:'flex', alignItems:'center', gap:1.5, minWidth:0, overflow:'hidden' }}>
+            {/* Mobile-only hamburger — opens the nav Drawer; hidden on desktop */}
+            <IconButton onClick={() => setDrawerOpen(true)} size="small"
+              sx={{ display:{ xs:'inline-flex', md:'none' }, color:'#475569', ml:-0.5, mr:0.5 }}>
+              <MenuIcon />
+            </IconButton>
             <Box sx={{ minWidth:0 }}>
               <Typography component="div" noWrap
                 sx={{ fontSize:15, fontWeight:800, letterSpacing:0.2, lineHeight:'18px' }}>
@@ -608,7 +643,8 @@ export default function AppShell() {
                 })()}
               </Typography>
               <Typography noWrap sx={{ fontSize:10, color:'#94a3b8', fontWeight:600,
-                                       letterSpacing:1, textTransform:'uppercase', lineHeight:'13px' }}>
+                                       letterSpacing:1, textTransform:'uppercase', lineHeight:'13px',
+                                       display:{ xs:'none', sm:'block' } }}>
                 Retail Pro Prism · Retail Intelligence
               </Typography>
             </Box>
@@ -617,7 +653,7 @@ export default function AppShell() {
             {(brandSettings?.connection?.alias || brandSettings?.connection?.host) && (
               <Tooltip title={`${brandSettings?.connection?.host ?? ''}${brandSettings?.connection?.sid ? ' · ' + brandSettings.connection.sid : ''}`}>
                 <Box sx={{
-                  display:'flex', alignItems:'center', gap:0.8,
+                  display:{ xs:'none', sm:'flex' }, alignItems:'center', gap:0.8,
                   px:1.5, py:0.5, borderRadius:99,
                   bgcolor:'rgba(6,182,212,0.06)', border:'1px solid rgba(6,182,212,0.18)',
                 }}>

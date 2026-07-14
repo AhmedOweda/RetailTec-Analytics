@@ -707,7 +707,7 @@ export default function Overview() {
       </Box>
 
       {/* ── Mini charts: Top Products · MTD Cumulative · Top Associates ── */}
-      <Box sx={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:2 }}>
+      <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'repeat(3,1fr)' }, gap:2 }}>
         <MiniChart
           title="Top Products (7D)"
           subtitle={`${tr('Revenue by item')} · ${productCodeField.toUpperCase()} | ${tr('Description')}`}

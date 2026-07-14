@@ -656,7 +656,7 @@ export default function Products() {
       </Box>
 
       {/* ── KPI strip ──────────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', gap: 2, px: 3 }}>
+      <Box sx={{ display: 'flex', gap: 2, px: 3, flexWrap: 'wrap' }}>
         <KpiCard label="Total Revenue"  value={money(kpi.totalRev)} icon="ti-cash" />
         <KpiCard label="Total GP"       value={money(kpi.totalGP)}
           color={kpi.totalGP >= 0 ? '#065f46' : '#991b1b'} icon="ti-trending-up" />
@@ -668,7 +668,7 @@ export default function Products() {
       </Box>
 
       {/* ── Row 1: Treemap (left) + Sunburst (centre, wider) ───── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 2, px: 3 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1.2fr' }, gap: 2, px: 3 }}>
         <ChartCard
           title="Department Margin vs Volume"
           subtitle="Revenue × GP% · bubble size = units sold"

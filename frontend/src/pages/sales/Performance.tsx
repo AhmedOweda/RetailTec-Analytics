@@ -586,7 +586,7 @@ export default function Performance() {
       <Box sx={{ px:3, pb:3, display:'flex', flexDirection:'column', gap:2.5 }}>
 
         {/* Row 1: Store Rankings + Payment Mix */}
-        <Box sx={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:2 }}>
+        <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'1fr 320px' }, gap:2 }}>
           <ChartPanel title="Store Rankings" subtitle="Net sales by branch · top 10" option={storeRankOpt} height={280} loading={storeLoad} />
           <ChartPanel title="Payment Mix" subtitle="Cash · Card · Deposit · Other" option={payOpt} height={280} loading={payLoad} />
         </Box>
@@ -595,7 +595,7 @@ export default function Performance() {
         <ChartPanel title="Hourly Sales Heatmap" subtitle="Net sales intensity · hour of day × day of week" option={heatOpt} height={220} loading={hourlyLoad} />
 
         {/* Row 3: Top Associates + Top Customers (side by side) */}
-        <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:2 }}>
+        <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'1fr 1fr' }, gap:2 }}>
           <TableSection title="Top Associates" subtitle="Ranked by net sales · disc % amber >10% · return % red >5%" loading={assocLoad} height={320}
             toolbar={<GridExportBar gridRef={assocGridRef} filename="top_associates" title="Top Associates"
               colDefs={assocCols as any} onResetColumns={colsAssoc.resetColumns} />}>
@@ -625,13 +625,13 @@ export default function Performance() {
         </Box>
 
         {/* Row 4: Day of Week + Basket Distribution */}
-        <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:2 }}>
+        <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'1fr 1fr' }, gap:2 }}>
           <ChartPanel title="Day of Week Pattern" subtitle="Total net sales per weekday" option={dowOpt} height={240} loading={dowLoad} />
           <ChartPanel title="Basket Size Distribution" subtitle="Transaction count by value bucket" option={basketOpt} height={240} loading={basketLoad} />
         </Box>
 
         {/* Row 5: Return Rate + Discount Rate */}
-        <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:2 }}>
+        <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'1fr 1fr' }, gap:2 }}>
           <ChartPanel title="Return Rate by Store" subtitle="Return value ÷ gross sales · dashed = avg" option={retRateOpt} height={260} loading={storeLoad} />
           <ChartPanel title="Discount Rate by Store" subtitle="Total discounts ÷ gross sales · dashed = avg" option={discRateOpt} height={260} loading={storeLoad} />
         </Box>
