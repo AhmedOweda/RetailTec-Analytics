@@ -1518,7 +1518,7 @@ function ReportsCard() {
               <TextField size="small" sx={{ width:160 }} value={r.name}
                 onChange={e => upd(i, { name: e.target.value })} />
             </LabeledCtl>
-            <LabeledCtl label="Report type">
+            <LabeledCtl label="Report">
               <FormControl size="small" sx={{ minWidth:230 }}>
                 <Select value={r.type} onChange={e => upd(i, { type: String(e.target.value) })}>
                   {Object.entries(types).map(([k, label]) =>
