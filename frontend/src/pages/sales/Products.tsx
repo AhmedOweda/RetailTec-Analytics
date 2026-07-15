@@ -731,6 +731,12 @@ export default function Products() {
               <GridExportBar gridRef={gridRef} filename="products_detail" title="Product Performance"
                 view={tr(VIEW_LABELS[view])}
                 filters={`${appliedFrom} → ${appliedTo} · ${selectedStores.length ? `${selectedStores.length} ${tr('store(s)')}` : tr('All stores')}`}
+                reportEndpoint="/api/sales/products" reportPeriod={period ?? 'custom'}
+                reportParams={{
+                  date_from: from, date_to: to, group_by: view,
+                  ...(storesKey ? { stores: storesKey } : {}),
+                  ...(view === 'item' && itemFields.length ? { item_fields: itemFields.join(',') } : {}),
+                }}
                 colDefs={tableCols as any} onResetColumns={resetColumns} />
             </Box>
 

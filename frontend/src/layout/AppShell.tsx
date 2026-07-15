@@ -66,12 +66,12 @@ const SALES_NAV = [
   { to: '/sales/overview',      icon: <DashboardIcon  />, label: 'Overview'     },
   { to: '/sales/performance',   icon: <TrendingUpIcon />, label: 'Performance'  },
   { to: '/sales/products',      icon: <InventoryIcon  />, label: 'Products'     },
-  { to: '/sales/transactions',  icon: <ReceiptLongIcon/>, label: 'Transactions' },
+  { to: '/sales/transactions',  icon: <ReceiptLongIcon/>, label: 'Invoices' },
 ]
 
 const PURCHASES_NAV = [
   { to: '/purchases/overview',      icon: <ShoppingCartIcon />, label: 'Overview'     },
-  { to: '/purchases/transactions',  icon: <ListAltIcon      />, label: 'Transactions' },
+  { to: '/purchases/transactions',  icon: <ListAltIcon      />, label: 'Vouchers' },
 ]
 
 const DIMENSIONS_NAV = [

@@ -45,6 +45,15 @@ interface Props {
   /** Active slicer summary, e.g. "16 Jun → 15 Jul 2026 · All stores".
    *  Shown in the email body so the recipient knows the exact filters. */
   filters?:         string
+  /** The API path this grid fetches its rows from. When provided, admins can
+   *  SCHEDULE this exact grid — the server regenerates it on the schedule. */
+  reportEndpoint?:  string
+  /** The current slicer values sent to reportEndpoint (stores, vendors, …).
+   *  date_from/date_to are rolled server-side from reportPeriod. */
+  reportParams?:    Record<string, any>
+  /** Active period preset (30D|90D|7D|MTD|YTD) so recurring reports roll the
+   *  window; omit/'custom' keeps the absolute dates in reportParams. */
+  reportPeriod?:    string
   colDefs?:         ColDef[]
   onResetColumns?:  () => void
 }
@@ -52,7 +61,8 @@ interface Props {
 interface RecipientList { name: string; recipients: string }
 
 export default function GridExportBar({
-  gridRef, filename, title, subtitle, view, filters, colDefs, onResetColumns,
+  gridRef, filename, title, subtitle, view, filters,
+  reportEndpoint, reportParams, reportPeriod, colDefs, onResetColumns,
 }: Props) {
 
   /* A definite label that names the page AND the active grid/tab. */
@@ -104,8 +114,17 @@ export default function GridExportBar({
     try {
       const cur = await axios.get('/api/admin/reports')
       const reports = cur.data?.reports ?? []
+      const cols = getVisibleColInfo().map(c => ({ id: c.id, label: c.label }))
       reports.push({
-        type: schedType, name: definiteLabel,   // definite (page + grid), no date
+        kind: 'grid',
+        name: definiteLabel,                 // definite (page + grid), no date
+        endpoint: reportEndpoint,
+        params: reportParams ?? {},
+        period: reportPeriod ?? 'custom',
+        date_from: reportParams?.date_from ?? null,
+        date_to:   reportParams?.date_to ?? null,
+        columns: cols,
+        title: title ?? filename, view: view ?? '', filters: filters ?? '',
         time: schedTime, freq: schedFreq,
         weekday: schedWeekday, day: schedDay, date: schedDate || null,
         stores: '', recipients, enabled: true,
@@ -387,7 +406,7 @@ export default function GridExportBar({
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {isAdmin && (
+            {isAdmin && reportEndpoint && (
               <ToggleButtonGroup exclusive size="small" fullWidth value={mode} onChange={(_, v) => v && setMode(v)}
                 sx={{ '& .Mui-selected': { bgcolor: `${ACCENT}18 !important`, color: `${ACCENT} !important` } }}>
                 <ToggleButton value="now" sx={{ textTransform: 'none', fontWeight: 600 }}>{tr('Send now')}</ToggleButton>
@@ -406,11 +425,12 @@ export default function GridExportBar({
             )}
             {mode === 'schedule' && (
             <>
-            <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Report')}</Typography>
-              <Select fullWidth size="small" value={schedType} onChange={e => setSchedType(String(e.target.value))}>
-                {Object.entries(reportTypes).map(([k, label]) => <MenuItem key={k} value={k}>{label}</MenuItem>)}
-              </Select>
+            <Box sx={{ p: 1.25, bgcolor: '#f8f7ff', border: '1px solid #ede9fe', borderRadius: 2 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT }}>{definiteLabel}</Typography>
+              <Typography sx={{ fontSize: 11.5, color: '#64748b', mt: 0.25 }}>
+                {tr('This grid is regenerated with its current filters and emailed on the schedule below.')}
+                {filters ? ` (${filters})` : ''}
+              </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Box>
@@ -454,10 +474,12 @@ export default function GridExportBar({
             </Typography>
             </>
             )}
+            {mode === 'now' && (
             <Box>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Subject / title')}</Typography>
               <TextField size="small" fullWidth value={subject} onChange={e => setSubject(e.target.value)} />
             </Box>
+            )}
             <Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
                 <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>{tr('Recipients')}</Typography>

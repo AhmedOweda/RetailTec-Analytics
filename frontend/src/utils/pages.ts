@@ -14,7 +14,7 @@ export const PAGE_DOMAINS: PageDomain[] = [
       { key: '/sales/overview',     label: 'Overview' },
       { key: '/sales/performance',  label: 'Performance' },
       { key: '/sales/products',     label: 'Products' },
-      { key: '/sales/transactions', label: 'Transactions' },
+      { key: '/sales/transactions', label: 'Invoices' },
     ],
   },
   {
@@ -34,7 +34,7 @@ export const PAGE_DOMAINS: PageDomain[] = [
     domain: 'Purchasing',
     pages: [
       { key: '/purchases/overview',     label: 'Overview' },
-      { key: '/purchases/transactions', label: 'Transactions' },
+      { key: '/purchases/transactions', label: 'Vouchers' },
     ],
   },
   {

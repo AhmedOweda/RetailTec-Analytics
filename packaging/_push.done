@@ -1,0 +1,3 @@
+To https://github.com/AhmedOweda/RetailTec-Analytics.git
+ ! [remote rejected] main -> main (cannot lock ref 'refs/heads/main': is at 68a4182a2920fbac09e4d49ef07af828b971e6c6 but expected 8ae97228b7837ee85a25928cc07cf0e9544cfc94)
+error: failed to push some refs to 'https://github.com/AhmedOweda/RetailTec-Analytics.git'

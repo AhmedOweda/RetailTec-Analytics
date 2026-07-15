@@ -193,6 +193,16 @@ _BUILDERS = {
 
 # ── Config access + legacy migration ─────────────────────────────────────────
 
+# The 3 built-in summary reports are always PREINSTALLED (disabled) so they show
+# in Settings → Reports; the owner can enable any of them. They are never used by
+# grid schedules (those carry kind="grid"). Fixed ids so they never duplicate.
+_PREINSTALLED = [
+    {"id": "pre_daily_sales",       "type": "daily_sales",       "freq": "daily"},
+    {"id": "pre_inventory_summary", "type": "inventory_summary", "freq": "daily"},
+    {"id": "pre_purchases_summary", "type": "purchases_summary", "freq": "weekly"},
+]
+
+
 def get_reports(settings: dict | None = None) -> list[dict]:
     s = settings or load_settings()
     email = s.get("email") or {}
@@ -207,6 +217,17 @@ def get_reports(settings: dict | None = None) -> list[dict]:
                 "recipients": legacy.get("recipients", ""),
                 "enabled": legacy.get("enabled", False),
                 "last_sent": legacy.get("last_sent"),
+            })
+    # Ensure the preinstalled summaries are present (disabled) so they always
+    # appear in Settings; user can enable. Never re-added once its id exists.
+    have = {r.get("id") for r in reports}
+    for p in _PREINSTALLED:
+        if p["id"] not in have:
+            reports.append({
+                "id": p["id"], "type": p["type"], "name": REPORT_TYPES[p["type"]],
+                "time": "07:00", "stores": "", "recipients": "", "enabled": False,
+                "freq": p["freq"], "weekday": 0, "day": 1, "date": None,
+                "preinstalled": True,
             })
     return reports
 
@@ -224,10 +245,52 @@ def save_reports(reports: list[dict]) -> None:
 
 # ── Sending ───────────────────────────────────────────────────────────────────
 
+def _send_grid_report(report: dict) -> str:
+    """Regenerate a dashboard grid server-side and email it as a CSV attachment
+    with an inline preview + report-details block."""
+    from services import report_grid
+    recipients = [x.strip() for x in (report.get("recipients") or "").split(",") if x.strip()]
+    if not recipients:
+        raise RuntimeError("No recipients configured")
+    endpoint = report.get("endpoint")
+    if not endpoint:
+        raise RuntimeError("Grid report has no endpoint")
+
+    params = dict(report.get("params") or {})
+    df, dt = report_grid.resolve_window(report)
+    # Roll the date window for any date-scoped grid.
+    if ("date_from" in params) or report.get("period") or report.get("date_from"):
+        params["date_from"], params["date_to"] = df, dt
+
+    rows = report_grid.run_grid(endpoint, params)
+    csv_bytes = report_grid.build_csv(report, rows)
+    preview   = report_grid.build_preview_html(report, rows)
+
+    name  = report.get("name") or report.get("title") or "Report"
+    today = date.today().isoformat()
+    subject = f"{name} — {today}"
+    base = "".join(c if (c.isalnum() or c in "-_") else "_" for c in name)[:60] or "report"
+    filename = f"{base}_{today}.csv"
+
+    period_lbl = (report.get("period") or "").lower()
+    details = {"Report": report.get("title") or name}
+    if report.get("view"):
+        details["View"] = report["view"]
+    details["Period"] = f"{df} → {dt}" + (f" ({period_lbl})" if period_lbl and period_lbl != "custom" else "")
+    if report.get("filters"):
+        details["Filters"] = report["filters"]
+    details["Rows"] = f"{len(rows):,}"
+
+    return send_attachment(recipients, subject, None, filename, csv_bytes,
+                           "text/csv", details, extra_html=preview)
+
+
 def send_one(report: dict) -> str:
     email = load_settings().get("email") or {}
     if not email.get("host"):
         raise RuntimeError("SMTP settings are not configured")
+    if (report.get("kind") or "").lower() == "grid":
+        return _send_grid_report(report)
     rtype = report.get("type", "daily_sales")
     if rtype not in _BUILDERS:
         raise RuntimeError(f"Unknown report type: {rtype}")
@@ -313,7 +376,7 @@ def _smtp_email() -> dict:
 
 
 def _attachment_body(subject: str, note: str | None, filename: str,
-                     details: dict | None = None) -> str:
+                     details: dict | None = None, extra_html: str | None = None) -> str:
     """A tidy branded HTML email body — looks good even with no note. `details`
     is an ordered {label: value} map (report/view/period/stores/rows/columns…)
     so the recipient knows exactly which grid + filters produced the attachment."""
@@ -340,8 +403,9 @@ def _attachment_body(subject: str, note: str | None, filename: str,
       </div>
       {note_html}
       {details_html}
+      {extra_html or ""}
       <p style="margin:0 0 14px;color:#334155;font-size:14px;line-height:1.6">
-        The report is attached as <b style="color:#0f172a">{filename}</b>.
+        The full report is attached as <b style="color:#0f172a">{filename}</b>.
       </p>
       <p style="margin:0;color:#94a3b8;font-size:12px">Generated {when}</p>
       <p style="color:#cbd5e1;font-size:11px;margin-top:22px;border-top:1px solid #eef2f7;padding-top:12px">
@@ -352,7 +416,7 @@ def _attachment_body(subject: str, note: str | None, filename: str,
 
 def send_attachment(recipients: list[str], subject: str, note: str | None,
                     filename: str, content: bytes, mime: str = "application/pdf",
-                    details: dict | None = None) -> str:
+                    details: dict | None = None, extra_html: str | None = None) -> str:
     """Email `content` (bytes) as an attachment to `recipients` via the app SMTP,
     with a branded HTML body (nice even when there is no note)."""
     email = _smtp_email()
@@ -363,7 +427,7 @@ def send_attachment(recipients: list[str], subject: str, note: str | None,
     msg["Subject"] = subject
     msg["From"] = email.get("from_addr") or email.get("username", "")
     msg["To"] = ", ".join(recipients)
-    msg.attach(MIMEText(_attachment_body(subject, note, filename, details), "html", "utf-8"))
+    msg.attach(MIMEText(_attachment_body(subject, note, filename, details, extra_html), "html", "utf-8"))
     subtype = mime.split("/", 1)[1] if "/" in mime else "octet-stream"
     part = MIMEApplication(content, _subtype=subtype)
     part.add_header("Content-Disposition", "attachment", filename=filename)
