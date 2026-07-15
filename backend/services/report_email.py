@@ -255,8 +255,13 @@ def send_one(report: dict) -> str:
 
 
 def maybe_send_scheduled() -> None:
-    """Called every minute by the scheduler; sends each enabled report once per
-    day at/after its configured time (server local time)."""
+    """Called every minute by the scheduler; sends each enabled report at/after
+    its configured time, honouring its frequency:
+      daily   — every day
+      weekly  — only on r['weekday'] (0=Mon … 6=Sun)
+      monthly — only on day-of-month r['day'] (1..31)
+      once    — only on the exact date r['date'] (YYYY-MM-DD), then auto-disables
+    last_sent guards one send per day. Server local time throughout."""
     reports = get_reports()
     if not reports:
         return
@@ -265,17 +270,32 @@ def maybe_send_scheduled() -> None:
     for r in reports:
         if not r.get("enabled") or r.get("last_sent") == today:
             continue
+        # ── time-of-day gate ──
         try:
             hh, mm = (r.get("time") or "07:00").split(":")
-            due = now.hour > int(hh) or (now.hour == int(hh) and now.minute >= int(mm))
+            time_ok = now.hour > int(hh) or (now.hour == int(hh) and now.minute >= int(mm))
         except Exception:
-            due = now.hour >= 7
-        if not due:
+            time_ok = now.hour >= 7
+        if not time_ok:
             continue
+        # ── frequency gate (default daily) ──
+        freq = (r.get("freq") or "daily").lower()
+        try:
+            if freq == "weekly" and now.weekday() != int(r.get("weekday", 0)):
+                continue
+            if freq == "monthly" and now.day != int(r.get("day", 1)):
+                continue
+        except Exception:
+            pass
+        if freq == "once" and today != (r.get("date") or ""):
+            continue
+        # ── send ──
         try:
             subject = send_one(r)
-            log.info(f"Report '{r.get('name')}' sent: {subject}")
+            log.info(f"Report '{r.get('name')}' sent ({freq}): {subject}")
             r["last_sent"] = today
+            if freq == "once":
+                r["enabled"] = False   # one-time reports fire exactly once
             changed = True
         except Exception as e:
             log.error(f"Report '{r.get('name')}' failed: {e}")
@@ -292,11 +312,26 @@ def _smtp_email() -> dict:
     return email
 
 
-def _attachment_body(subject: str, note: str | None, filename: str) -> str:
-    """A tidy branded HTML email body — looks good even with no note."""
+def _attachment_body(subject: str, note: str | None, filename: str,
+                     details: dict | None = None) -> str:
+    """A tidy branded HTML email body — looks good even with no note. `details`
+    is an ordered {label: value} map (report/view/period/stores/rows/columns…)
+    so the recipient knows exactly which grid + filters produced the attachment."""
     when = datetime.now().strftime("%A, %d %B %Y · %H:%M")
     note_html = (f"<p style='margin:0 0 16px;color:#334155;font-size:14px;line-height:1.6'>{note}</p>"
                  if note else "")
+    details_html = ""
+    if details:
+        rows = "".join(
+            f"<tr><td style='padding:5px 14px 5px 0;color:#64748b;font-size:13px;white-space:nowrap;vertical-align:top'>{k}</td>"
+            f"<td style='padding:5px 0;color:#0f172a;font-size:13px;font-weight:600'>{v}</td></tr>"
+            for k, v in details.items() if v not in (None, ""))
+        if rows:
+            details_html = (
+                "<div style='font-size:12px;font-weight:700;color:#5b21b6;text-transform:uppercase;"
+                "letter-spacing:.5px;margin:0 0 6px'>Report details</div>"
+                "<table style='width:100%;border-collapse:separate;border-spacing:0;margin:0 0 18px;"
+                f"background:#f8f7ff;border-radius:8px;padding:6px 14px'>{rows}</table>")
     return f"""
     <div style="font-family:Segoe UI,Arial,sans-serif;max-width:600px;margin:auto;color:#0f172a">
       <div style="background:linear-gradient(135deg,#1e1248,#160b33);border-radius:12px;padding:22px 26px;margin-bottom:18px">
@@ -304,15 +339,10 @@ def _attachment_body(subject: str, note: str | None, filename: str) -> str:
         <div style="font-size:13px;color:#c4b5fd;margin-top:3px">{subject}</div>
       </div>
       {note_html}
+      {details_html}
       <p style="margin:0 0 14px;color:#334155;font-size:14px;line-height:1.6">
-        Your report is attached as
-        <b style="color:#0f172a">{filename}</b>.
+        The report is attached as <b style="color:#0f172a">{filename}</b>.
       </p>
-      <table style="width:100%;border-collapse:separate;border-spacing:0;margin:6px 0 18px">
-        <tr><td style="padding:10px 14px;background:#f5f3ff;border-radius:8px;color:#5b21b6;font-size:13px">
-          📎 Open the attachment to view the full report.
-        </td></tr>
-      </table>
       <p style="margin:0;color:#94a3b8;font-size:12px">Generated {when}</p>
       <p style="color:#cbd5e1;font-size:11px;margin-top:22px;border-top:1px solid #eef2f7;padding-top:12px">
         Sent by RetailTec Analytics · Retail Pro Prism — Retail Intelligence
@@ -321,7 +351,8 @@ def _attachment_body(subject: str, note: str | None, filename: str) -> str:
 
 
 def send_attachment(recipients: list[str], subject: str, note: str | None,
-                    filename: str, content: bytes, mime: str = "application/pdf") -> str:
+                    filename: str, content: bytes, mime: str = "application/pdf",
+                    details: dict | None = None) -> str:
     """Email `content` (bytes) as an attachment to `recipients` via the app SMTP,
     with a branded HTML body (nice even when there is no note)."""
     email = _smtp_email()
@@ -332,7 +363,7 @@ def send_attachment(recipients: list[str], subject: str, note: str | None,
     msg["Subject"] = subject
     msg["From"] = email.get("from_addr") or email.get("username", "")
     msg["To"] = ", ".join(recipients)
-    msg.attach(MIMEText(_attachment_body(subject, note, filename), "html", "utf-8"))
+    msg.attach(MIMEText(_attachment_body(subject, note, filename, details), "html", "utf-8"))
     subtype = mime.split("/", 1)[1] if "/" in mime else "octet-stream"
     part = MIMEApplication(content, _subtype=subtype)
     part.add_header("Content-Disposition", "attachment", filename=filename)

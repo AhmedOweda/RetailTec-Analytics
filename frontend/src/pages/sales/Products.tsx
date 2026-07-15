@@ -729,6 +729,8 @@ export default function Products() {
               )}
               </Box>
               <GridExportBar gridRef={gridRef} filename="products_detail" title="Product Performance"
+                view={tr(VIEW_LABELS[view])}
+                filters={`${appliedFrom} → ${appliedTo} · ${selectedStores.length ? `${selectedStores.length} ${tr('store(s)')}` : tr('All stores')}`}
                 colDefs={tableCols as any} onResetColumns={resetColumns} />
             </Box>
 

@@ -1457,6 +1457,7 @@ function EmailCard() {
 interface ReportDef {
   id?: string; type: string; name: string; time: string
   stores: string; recipients: string; enabled: boolean; last_sent?: string | null
+  freq?: string; weekday?: number; day?: number; date?: string | null
 }
 
 function ReportsCard() {
@@ -1495,6 +1496,7 @@ function ReportsCard() {
   const addReport = () => setReports(rs => [...rs, {
     type: 'daily_sales', name: `Report ${rs.length + 1}`, time: '07:00',
     stores: '', recipients: '', enabled: false,
+    freq: 'daily', weekday: 0, day: 1, date: null,
   }])
 
   return (
@@ -1524,6 +1526,39 @@ function ReportsCard() {
                 </Select>
               </FormControl>
             </LabeledCtl>
+            <LabeledCtl label="Frequency">
+              <FormControl size="small" sx={{ minWidth:120 }}>
+                <Select value={r.freq ?? 'daily'} onChange={e => upd(i, { freq: String(e.target.value) })}>
+                  <MenuItem value="daily">{tr('Daily')}</MenuItem>
+                  <MenuItem value="weekly">{tr('Weekly')}</MenuItem>
+                  <MenuItem value="monthly">{tr('Monthly')}</MenuItem>
+                  <MenuItem value="once">{tr('One time')}</MenuItem>
+                </Select>
+              </FormControl>
+            </LabeledCtl>
+            {(r.freq ?? 'daily') === 'weekly' && (
+              <LabeledCtl label="On">
+                <FormControl size="small" sx={{ minWidth:120 }}>
+                  <Select value={r.weekday ?? 0} onChange={e => upd(i, { weekday: Number(e.target.value) })}>
+                    {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((d, idx) =>
+                      <MenuItem key={idx} value={idx}>{tr(d)}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </LabeledCtl>
+            )}
+            {(r.freq ?? 'daily') === 'monthly' && (
+              <LabeledCtl label="Day of month">
+                <TextField type="number" size="small" sx={{ width:90 }} value={r.day ?? 1}
+                  onChange={e => upd(i, { day: Math.max(1, Math.min(31, Number(e.target.value) || 1)) })}
+                  inputProps={{ min:1, max:31 }} />
+              </LabeledCtl>
+            )}
+            {(r.freq ?? 'daily') === 'once' && (
+              <LabeledCtl label="Date">
+                <TextField type="date" size="small" value={r.date ?? ''}
+                  onChange={e => upd(i, { date: e.target.value })} InputLabelProps={{ shrink:true }} />
+              </LabeledCtl>
+            )}
             <LabeledCtl label="Send at">
               <TextField size="small" type="time" sx={{ width:120 }} value={r.time}
                 onChange={e => upd(i, { time: e.target.value })} />
