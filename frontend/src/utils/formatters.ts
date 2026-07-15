@@ -52,9 +52,21 @@ export function formatDate(d: string): string {
  * hardcoding '$' — the app sells into the Gulf; default is the Saudi Riyal
  * sign ⃁ (U+20C1). */
 let _moneyPrefix = '⃁ '
+// "Safe" prefix for RAW STRING contexts that can't render an SVG (AG-Grid cell
+// text, chart canvas labels, PDF/Excel exports): the U+20C1 Saudi Riyal sign has
+// no font on many machines and shows as a tofu box, so there we fall back to the
+// ASCII text "SAR". React money displays keep the real sign and draw it as an
+// inline SVG (see components/RiyalSign MoneyText), so KPI cards still show ﷼.
+const RIYAL_CH = String.fromCharCode(0x20C1)
+let _moneyPrefixSafe = 'SAR '
 
-export function setMoneyPrefixGlobal(p: string) { _moneyPrefix = p }
-export function moneyPrefix(): string { return _moneyPrefix }
+export function setMoneyPrefixGlobal(p: string) {
+  _moneyPrefix = p
+  // swap the un-renderable Riyal sign for "SAR"; other currencies are plain text
+  _moneyPrefixSafe = p.indexOf(RIYAL_CH) === -1 ? p : p.replace(RIYAL_CH, 'SAR')
+}
+/** Safe (tofu-free) prefix for grid/chart/export strings — "SAR" for Saudi Riyal. */
+export function moneyPrefix(): string { return _moneyPrefixSafe }
 
 /**
  * moneyPrefix() + amount for HEADLINE / KPI numbers.
@@ -88,8 +100,8 @@ export function money(v: unknown, decimals?: number): string {
 export function moneyExact(v: unknown, decimals?: number): string {
   const d = decimals ?? _moneyDecimals
   const n = v == null ? 0 : Number(v)
-  if (isNaN(n)) return _moneyPrefix + (0).toFixed(d)
-  return _moneyPrefix + n.toLocaleString('en-US', {
+  if (isNaN(n)) return _moneyPrefixSafe + (0).toFixed(d)
+  return _moneyPrefixSafe + n.toLocaleString('en-US', {
     minimumFractionDigits: d, maximumFractionDigits: d,
   })
 }
