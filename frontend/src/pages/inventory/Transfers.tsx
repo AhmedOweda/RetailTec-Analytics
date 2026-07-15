@@ -26,7 +26,7 @@ import KpiCard                  from '../../components/KpiCard'
 import { noRowsOverlay }         from '../../utils/gridOverlay'
 import GridExportBar            from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
-import { moneyPrefix, money, num } from '../../utils/formatters'
+import { moneyPrefix, money, num, moneyExact } from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -91,7 +91,7 @@ function ChartCard({ title, children, chartRef, height = 260 }: {
 // ── Number formatting ─────────────────────────────────────────────────────
 const fmtN = (v: number, dec = 0) =>
   v == null ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
-const fmtC = (v: number) => v == null ? '—' : moneyPrefix() + v.toLocaleString('en-US', { maximumFractionDigits:0 })
+const fmtC = (v: number) => v == null ? '—' : moneyExact(v)
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Transfers() {

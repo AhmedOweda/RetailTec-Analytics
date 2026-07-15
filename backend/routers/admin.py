@@ -397,10 +397,9 @@ def email_grid(req: EmailGridReq, current: dict = Depends(get_current_user)):
         data = base64.b64decode(req.content_base64)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid file data")
-    html = f"<p style='font-family:Segoe UI,Arial,sans-serif'>{req.note}</p>" if req.note else None
     status, err = "sent", None
     try:
-        send_attachment(recips, req.subject, html, req.filename, data, req.mime)
+        send_attachment(recips, req.subject, req.note, req.filename, data, req.mime)
     except Exception as e:
         status, err = "failed", str(e)
     append_history({

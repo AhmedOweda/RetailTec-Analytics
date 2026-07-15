@@ -23,7 +23,7 @@ import KpiCard                        from '../../components/KpiCard'
 import { noRowsOverlay }               from '../../utils/gridOverlay'
 import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
-import { moneyPrefix, money } from '../../utils/formatters'
+import { moneyPrefix, money, moneyExact } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
@@ -480,8 +480,8 @@ export default function InventoryOverview() {
         headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
       { field: 'store_count',  headerName: 'Stores', width: 75, type: 'numericColumn' as const },
       qtyCol, costCol, retailCol, gmCol,
-      { field: 'avg_cost',  headerName: 'Avg Cost',  width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `${moneyPrefix()}${(+(p.value ?? 0)).toFixed(2)}` },
-      { field: 'avg_price', headerName: 'Avg Price', width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `${moneyPrefix()}${(+(p.value ?? 0)).toFixed(2)}` },
+      { field: 'avg_cost',  headerName: 'Avg Cost',  width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => moneyExact(p.value ?? 0) },
+      { field: 'avg_price', headerName: 'Avg Price', width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => moneyExact(p.value ?? 0) },
       ...itemFieldCols(itemFields),
     ]
 
@@ -492,8 +492,8 @@ export default function InventoryOverview() {
       { field: 'DESCRIPTION1', headerName: 'Description', flex: 1, minWidth: 180 },
       { field: 'department',   headerName: 'Dept',        width: 130 },
       { field: 'qty',          headerName: 'Units',  width: 90,  type: 'numericColumn' as const, valueFormatter: (p: any) => num(p.value) },
-      { field: 'unit_cost',    headerName: 'Unit Cost',  width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `${moneyPrefix()}${(+(p.value ?? 0)).toFixed(2)}` },
-      { field: 'unit_price',   headerName: 'Unit Price', width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => `${moneyPrefix()}${(+(p.value ?? 0)).toFixed(2)}` },
+      { field: 'unit_cost',    headerName: 'Unit Cost',  width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => moneyExact(p.value ?? 0) },
+      { field: 'unit_price',   headerName: 'Unit Price', width: 100, type: 'numericColumn' as const, valueFormatter: (p: any) => moneyExact(p.value ?? 0) },
       costCol, retailCol, gmCol,
       ...itemFieldCols(itemFields),
     ]

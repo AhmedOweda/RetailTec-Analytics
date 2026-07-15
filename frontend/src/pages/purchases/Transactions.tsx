@@ -17,7 +17,7 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import { noRowsOverlay } from '../../utils/gridOverlay'
-import { moneyPrefix, money, num } from '../../utils/formatters'
+import { moneyPrefix, money, num, moneyExact } from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -60,7 +60,7 @@ const PRESETS: Record<string, [string, string]> = {
   '90D': [daysAgo(89), today],
 }
 
-const fmtC = (v: number) => v == null ? '' : moneyPrefix() + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtC = (v: number) => v == null ? '' : moneyExact(v)
 const fmtN = (v: number) => v == null ? '' : v.toLocaleString('en-US', { maximumFractionDigits: 0 })
 const fmtQ = (v: number) => v == null ? '' : v.toLocaleString('en-US', { maximumFractionDigits: 1 })
 
