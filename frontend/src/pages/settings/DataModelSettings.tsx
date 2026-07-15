@@ -3,6 +3,8 @@
  */
 import { useState, useEffect } from 'react'
 import { CurrencyMark } from '../../components/RiyalSign'
+import SendHistoryDialog from '../../components/SendHistoryDialog'
+import HistoryIcon2 from '@mui/icons-material/History'
 import {
   Box, Card, CardContent, Typography, TextField, Button,
   Alert, CircularProgress, Select, MenuItem,
@@ -1462,6 +1464,7 @@ function ReportsCard() {
   const [types,   setTypes]   = useState<Record<string, string>>({})
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [histOpen, setHistOpen] = useState(false)
 
   useQuery({
     queryKey: ['email-reports'],
@@ -1562,7 +1565,7 @@ function ReportsCard() {
         </Box>
       ))}
 
-      <Box sx={{ display:'flex', gap:2 }}>
+      <Box sx={{ display:'flex', gap:2, alignItems:'center' }}>
         <Button size="small" startIcon={<AddIcon />} onClick={addReport}
           sx={{ textTransform:'none', color:ACCENT, fontWeight:600 }}>
           {tr('Add Report')}
@@ -1573,7 +1576,14 @@ function ReportsCard() {
                 '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
           {tr('Save Report Schedules')}
         </Button>
+        <Box sx={{ flex:1 }} />
+        <Button size="small" startIcon={<HistoryIcon2 />} onClick={() => setHistOpen(true)}
+          sx={{ textTransform:'none', color:'#64748b', fontWeight:600 }}>
+          {tr('Send history')}
+        </Button>
       </Box>
+
+      <SendHistoryDialog open={histOpen} onClose={() => setHistOpen(false)} />
 
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
       {err && <Alert severity="error" sx={{ mt:1.5, fontSize:12 }}>{err}</Alert>}
