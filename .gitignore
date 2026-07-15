@@ -69,5 +69,6 @@ packaging/Output/
 packaging/work/
 packaging/work2/
 packaging/*.spec
+packaging/_*
 COMMIT_MSG.txt
 backend/webapp/
