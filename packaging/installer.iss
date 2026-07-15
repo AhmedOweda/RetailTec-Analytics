@@ -15,7 +15,13 @@
 ; (C:\Oracle\instantclient). It cannot be redistributed inside this installer.
 
 #define AppName    "RetailTec Analytics"
-#define AppVersion "2.0.0"
+; AppVersion may be overridden on the ISCC command line: ISCC /DAppVersion=3.1.0
+#ifndef AppVersion
+  #define AppVersion "2.0.0"
+#endif
+; Unique per-build stamp (local build date+time) appended to the setup filename
+; so every compile produces a distinctly named installer.
+#define BuildStamp GetDateTimeString('yyyymmdd-hhnn', '', '')
 #define AppExe     "RetailTecAnalytics.exe"
 #define Publisher  "RetailTec"
 
@@ -28,7 +34,7 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=Output
-OutputBaseFilename=RetailTecAnalytics-Setup
+OutputBaseFilename=RetailTecAnalytics-Setup-{#AppVersion}-{#BuildStamp}
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64
