@@ -151,6 +151,8 @@ const AnimatedBg = () => (
       .rt-area  { opacity: 0; animation: rtArea 5.5s ease-in-out infinite; }
       @keyframes rtArea { 0%,30%{opacity:0} 55%,84%{opacity:1} 100%{opacity:0} }
       .rt-dot   { opacity: 0; transform-origin: center; transform-box: fill-box; animation: rtDot 5.5s ease-in-out infinite; }
+      /* Mobile: hide the brand panel so the login card centers full-width */
+      @media (max-width: 899px) { .rt-login-left { display: none !important; } }
     `}</style>
     <div className="rt-orb rt-orb-a" />
     <div className="rt-orb rt-orb-b" />
@@ -266,8 +268,8 @@ export default function Login() {
       <AnimatedBg />
       <GridBg />
 
-      {/* ── Left panel — brand messaging ─────────────────────────────── */}
-      <div style={{ ...S.left, position: 'relative', zIndex: 1 }}>
+      {/* ── Left panel — brand messaging (hidden on mobile) ──────────── */}
+      <div className="rt-login-left" style={{ ...S.left, position: 'relative', zIndex: 1 }}>
         {/* Logo */}
         <div>
           <div style={S.logoIcon}>

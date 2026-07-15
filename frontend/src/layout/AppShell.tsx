@@ -307,10 +307,22 @@ export default function AppShell() {
   const allowed = useMemo(
     () => (isAdmin ? null : parsePages(user?.pages)),
     [isAdmin, user?.pages])
-  const salesNav      = SALES_NAV.filter(n => pageAllowed(allowed, n.to))
-  const inventoryNav  = INVENTORY_NAV.filter(n => pageAllowed(allowed, n.to))
-  const purchasesNav  = PURCHASES_NAV.filter(n => pageAllowed(allowed, n.to))
-  const dimensionsNav = DIMENSIONS_NAV.filter(n => pageAllowed(allowed, n.to))
+  // ── Responsive (declared early so it can gate the nav below) ──
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  // On mobile, hide pure-table pages (their grids are hidden on phones): Sales/
+  // Purchases Transactions + every Dimensions page. Settings/Users/Audit are
+  // hidden separately in the footer block below.
+  const MOBILE_HIDE = new Set<string>([
+    '/sales/transactions', '/purchases/transactions',
+    '/dimensions/stores', '/dimensions/customers', '/dimensions/employees',
+    '/dimensions/items', '/dimensions/vendors',
+  ])
+  const _navOk = (to: string) => pageAllowed(allowed, to) && !(isMobile && MOBILE_HIDE.has(to))
+  const salesNav      = SALES_NAV.filter(n => _navOk(n.to))
+  const inventoryNav  = INVENTORY_NAV.filter(n => _navOk(n.to))
+  const purchasesNav  = PURCHASES_NAV.filter(n => _navOk(n.to))
+  const dimensionsNav = DIMENSIONS_NAV.filter(n => _navOk(n.to))
 
   // Route guard: opening a disallowed page redirects to the first allowed one
   useEffect(() => {
@@ -366,9 +378,7 @@ export default function AppShell() {
     && !brandSettings?.last_sync
     && (brandSettings?.model_status ?? 'empty') === 'empty'
 
-  // ── Responsive: permanent sidebar (desktop) vs temporary Drawer (mobile) ──
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  // Sidebar: permanent on desktop, temporary Drawer on mobile (isMobile above)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   // Sidebar inner content — defined once, rendered in the desktop Box or the mobile Drawer
@@ -489,7 +499,7 @@ export default function AppShell() {
 
         {/* Settings + Users (admin only) + User info + Logout */}
         <Box sx={{ px:1.5, py:1.5 }}>
-          {isAdmin && (
+          {isAdmin && !isMobile && (
             <>
               <NavItem to="/settings"       icon={<SettingsIcon />}       label="Settings"  />
               <NavItem to="/settings/users" icon={<ManageAccountsIcon />} label="Users"     />
