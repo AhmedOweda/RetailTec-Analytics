@@ -65,8 +65,16 @@ export function setMoneyPrefixGlobal(p: string) {
   // swap the un-renderable Riyal sign for "SAR"; other currencies are plain text
   _moneyPrefixSafe = p.indexOf(RIYAL_CH) === -1 ? p : p.replace(RIYAL_CH, 'SAR')
 }
-/** Safe (tofu-free) prefix for grid/chart/export strings — "SAR" for Saudi Riyal. */
-export function moneyPrefix(): string { return _moneyPrefixSafe }
+/**
+ * Prefix for RAW STRING money in TABLE CELLS — intentionally EMPTY.
+ * Owner preference (15 Jul 2026): tables show plain numbers with NO currency
+ * sign (the column header already conveys the currency; a per-row "SAR"/sign is
+ * clutter). KPI cards keep the ﷼ sign via money()+MoneyText; ECharts labels keep
+ * "SAR" via sar(). Kept as a function so the (few) callers need no change.
+ */
+export function moneyPrefix(): string { return '' }
+/** "SAR"-style safe text prefix, for the rare non-KPI place that wants a sign. */
+export function moneyPrefixSafe(): string { return _moneyPrefixSafe }
 
 /**
  * moneyPrefix() + amount for HEADLINE / KPI numbers.
@@ -98,10 +106,13 @@ export function money(v: unknown, decimals?: number): string {
  * the "Abbreviate large numbers" Display Setting.
  */
 export function moneyExact(v: unknown, decimals?: number): string {
+  // Table cells show the PLAIN number with NO currency sign — the column header
+  // already conveys the currency, and a per-row "SAR"/sign is visual clutter.
+  // KPI cards keep the ﷼ sign (money() + MoneyText); charts keep moneyPrefix().
   const d = decimals ?? _moneyDecimals
   const n = v == null ? 0 : Number(v)
-  if (isNaN(n)) return _moneyPrefixSafe + (0).toFixed(d)
-  return _moneyPrefixSafe + n.toLocaleString('en-US', {
+  if (isNaN(n)) return (0).toFixed(d)
+  return n.toLocaleString('en-US', {
     minimumFractionDigits: d, maximumFractionDigits: d,
   })
 }

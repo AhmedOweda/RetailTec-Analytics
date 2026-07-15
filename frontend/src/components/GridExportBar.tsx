@@ -13,13 +13,15 @@ import {
   Checkbox, Divider, CircularProgress, Typography,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   ToggleButton, ToggleButtonGroup, MenuItem, Select, IconButton,
-  Snackbar, Alert,
+  Snackbar, Alert, Tooltip,
 } from '@mui/material'
 import FileDownloadIcon  from '@mui/icons-material/FileDownload'
 import PictureAsPdfIcon  from '@mui/icons-material/PictureAsPdf'
 import ViewColumnIcon    from '@mui/icons-material/ViewColumn'
 import EmailIcon         from '@mui/icons-material/Email'
+import HistoryIcon       from '@mui/icons-material/History'
 import CloseIcon         from '@mui/icons-material/Close'
+import SendHistoryDialog from './SendHistoryDialog'
 import type { AgGridReact } from 'ag-grid-react'
 import type { ColDef }      from 'ag-grid-community'
 import * as XLSX from 'xlsx'
@@ -60,6 +62,7 @@ export default function GridExportBar({
   const [sending,   setSending  ] = useState(false)
   const [lists,     setLists    ] = useState<RecipientList[]>([])
   const [toast,     setToast    ] = useState<{ msg: string; sev: 'success' | 'error' } | null>(null)
+  const [histOpen,  setHistOpen ] = useState(false)
 
   useEffect(() => {
     if (!emailOpen) return
@@ -313,6 +316,16 @@ export default function GridExportBar({
       <Button size="small" variant="outlined" onClick={() => setEmailOpen(true)}
         startIcon={<EmailIcon sx={{ fontSize: '17px !important' }} />}
         sx={btnSx(ACCENT)}>{tr('Email')}</Button>
+
+      <Tooltip title={tr('Send history')}>
+        <IconButton size="small" onClick={() => setHistOpen(true)}
+          sx={{ border: '1px solid #e2e8f0', borderRadius: 2, height: 32, width: 32, color: '#64748b',
+                '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: `${ACCENT}10` } }}>
+          <HistoryIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      </Tooltip>
+
+      <SendHistoryDialog open={histOpen} onClose={() => setHistOpen(false)} />
 
       {/* ── Email dialog ── */}
       <Dialog open={emailOpen} onClose={() => setEmailOpen(false)} maxWidth="sm" fullWidth
