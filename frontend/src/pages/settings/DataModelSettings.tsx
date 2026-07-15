@@ -13,7 +13,7 @@ import {
   Checkbox, FormGroup, FormControlLabel, Tooltip,
   Dialog, DialogTitle, DialogContent,
   Collapse, IconButton, Autocomplete,
-  Tabs, Tab,
+  Tabs, Tab, Chip,
 } from '@mui/material'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
 import ExpandMoreIcon   from '@mui/icons-material/ExpandMore'
@@ -1458,6 +1458,8 @@ interface ReportDef {
   id?: string; type: string; name: string; time: string
   stores: string; recipients: string; enabled: boolean; last_sent?: string | null
   freq?: string; weekday?: number; day?: number; date?: string | null
+  kind?: string; endpoint?: string; params?: any; columns?: any[]
+  period?: string; title?: string; view?: string; filters?: string; preinstalled?: boolean
 }
 
 function ReportsCard() {
@@ -1518,14 +1520,26 @@ function ReportsCard() {
               <TextField size="small" sx={{ width:160 }} value={r.name}
                 onChange={e => upd(i, { name: e.target.value })} />
             </LabeledCtl>
-            <LabeledCtl label="Report">
-              <FormControl size="small" sx={{ minWidth:230 }}>
-                <Select value={r.type} onChange={e => upd(i, { type: String(e.target.value) })}>
-                  {Object.entries(types).map(([k, label]) =>
-                    <MenuItem key={k} value={k}>{label}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </LabeledCtl>
+            {r.kind === 'grid' ? (
+              <LabeledCtl label="Report">
+                <Box sx={{ display:'flex', alignItems:'center', gap:0.75, minWidth:230, height:40 }}>
+                  <Chip size="small" label={tr('Custom grid')}
+                    sx={{ bgcolor:'#ede9fe', color:'#6d28d9', fontWeight:700, fontSize:11 }} />
+                  <Typography sx={{ fontSize:12, color:'#475569' }} noWrap>
+                    {[r.title, r.view].filter(Boolean).join(' — ') || r.name}
+                  </Typography>
+                </Box>
+              </LabeledCtl>
+            ) : (
+              <LabeledCtl label="Report">
+                <FormControl size="small" sx={{ minWidth:230 }}>
+                  <Select value={r.type} onChange={e => upd(i, { type: String(e.target.value) })}>
+                    {Object.entries(types).map(([k, label]) =>
+                      <MenuItem key={k} value={k}>{label}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </LabeledCtl>
+            )}
             <LabeledCtl label="Frequency">
               <FormControl size="small" sx={{ minWidth:120 }}>
                 <Select value={r.freq ?? 'daily'} onChange={e => upd(i, { freq: String(e.target.value) })}>

@@ -314,6 +314,19 @@ class ReportDef(BaseModel):
     weekday:    int  = 0        # weekly: 0=Mon … 6=Sun
     day:        int  = 1        # monthly: day-of-month 1..31
     date:       Optional[str] = None   # once: YYYY-MM-DD
+    # kind: "predefined" (the 3 built-in summaries) | "grid" (regenerate a grid)
+    kind:       str  = "predefined"
+    endpoint:   Optional[str] = None            # grid: API path to re-run
+    params:     Optional[dict] = None           # grid: slicer values
+    columns:    Optional[list] = None           # grid: [{id,label}] for CSV/preview
+    period:     Optional[str] = None            # grid: 30D|90D|7D|MTD|YTD|custom
+    date_from:  Optional[str] = None            # grid: custom-period window
+    date_to:    Optional[str] = None
+    title:      Optional[str] = None            # grid: page title
+    view:       Optional[str] = None            # grid: active tab
+    filters:    Optional[str] = None            # grid: human-readable slicer summary
+    fmt:        Optional[str] = None            # reserved (csv today)
+    preinstalled: bool = False
 
 
 @router.get("/api/admin/reports")
@@ -330,7 +343,7 @@ class ReportsPut(BaseModel):
 def put_reports(req: ReportsPut, _admin: dict = Depends(require_admin)):
     from services.report_email import save_reports, REPORT_TYPES
     for r in req.reports:
-        if r.type not in REPORT_TYPES:
+        if (r.kind or "predefined") != "grid" and r.type not in REPORT_TYPES:
             raise HTTPException(status_code=400, detail=f"Unknown report type: {r.type}")
     save_reports([r.dict() for r in req.reports])
     record_audit(_admin["username"], "report_schedules_saved", f"{len(req.reports)} report(s)")

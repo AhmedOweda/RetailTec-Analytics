@@ -200,7 +200,7 @@ export default function PurchasesTransactions() {
         borderBottom: '1px solid #e9e4ff',
       }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
-          {tr('Purchase Transactions')}
+          {tr('Vouchers')}
           <TitleLoader />
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
@@ -274,7 +274,9 @@ export default function PurchasesTransactions() {
 
       {/* ── Export toolbar row (separate row above the grid) ──────────── */}
       <Stack direction="row" justifyContent="flex-end" alignItems="center" sx={{ mt: 2, mb: 1.5 }}>
-        <GridExportBar gridRef={gridRef} filename="purchases_transactions" title="Purchase Transactions"
+        <GridExportBar gridRef={gridRef} filename="purchases_vouchers" title="Vouchers"
+          filters={`${dateFrom} → ${dateTo} · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}${vendors.length ? ` · ${vendors.length} ${tr('vendor(s)')}` : ''}${status ? ` · ${status}` : ''}`}
+          reportEndpoint="/api/purchases/details" reportParams={params} reportPeriod={preset}
           colDefs={colDefs as any} onResetColumns={resetColumns} />
       </Stack>
 

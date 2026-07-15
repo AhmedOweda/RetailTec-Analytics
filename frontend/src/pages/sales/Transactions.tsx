@@ -23,6 +23,7 @@ import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import GridExportBar from '../../components/GridExportBar'
 import TitleLoader from '../../components/TitleLoader'
 import { format, subDays, startOfMonth } from 'date-fns'
 import { num, moneyExact } from '../../utils/formatters'
@@ -275,7 +276,7 @@ export default function Transactions() {
                  mx:-2.5, px:2.5, pt:2.5, pb:1.5, borderBottom:'1px solid #e9e4ff',
                  display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
         <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mr:'auto' }}>
-          {tr('Transactions')}
+          {tr('Invoices')}
           <TitleLoader />
         </Typography>
 
@@ -354,42 +355,14 @@ export default function Transactions() {
         )}
       </Box>
 
-      {/* == Action bar - above the grid (right-aligned like the other tables) == */}
+      {/* == Action bar - above the grid (Columns / Excel / PDF / Email / Schedule) == */}
       <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-
-        {/* Columns toggle */}
-        <Button size="small" variant="outlined"
-          onClick={e => setColAnchor(e.currentTarget)}
-          startIcon={<ViewColumnIcon sx={{ fontSize:'17px !important' }}/>}
-          sx={{ textTransform:'none', borderRadius:2.5, fontWeight:600, height:34,
-               borderColor: hiddenCols.size > 0 ? ACCENT : '#e2e8f0',
-               color:       hiddenCols.size > 0 ? ACCENT : '#475569',
-               bgcolor:     hiddenCols.size > 0 ? '#ede9fe' : 'transparent',
-               '&:hover':{ borderColor:ACCENT, color:ACCENT, bgcolor:'#ede9fe' } }}
-        >
-          {tr('Columns')}{hiddenCols.size > 0 ? ` (${hiddenCols.size} ${tr('hidden')})` : ''}
-        </Button>
-
-        {/* Export */}
-        <Button size="small" variant="outlined" disabled={!!exporting || rows.length === 0}
-          onClick={exportExcel}
-          startIcon={exporting==='excel'
-            ? <CircularProgress size={13} sx={{ color:ACCENT }}/>
-            : <FileDownloadIcon sx={{ fontSize:'17px !important' }}/>}
-          sx={{ textTransform:'none', borderRadius:2.5, fontWeight:600, height:34,
-               borderColor:'#e2e8f0', color:'#16a34a',
-               '&:hover':{ borderColor:'#16a34a', bgcolor:'#f0fdf4' } }}
-        >{tr('Excel')}</Button>
-
-        <Button size="small" variant="outlined" disabled={!!exporting || rows.length === 0}
-          onClick={exportPDF}
-          startIcon={exporting==='pdf'
-            ? <CircularProgress size={13} sx={{ color:ACCENT }}/>
-            : <PictureAsPdfIcon sx={{ fontSize:'17px !important' }}/>}
-          sx={{ textTransform:'none', borderRadius:2.5, fontWeight:600, height:34,
-               borderColor:'#e2e8f0', color:'#dc2626',
-               '&:hover':{ borderColor:'#dc2626', bgcolor:'#fff5f5' } }}
-        >{tr('PDF')}</Button>
+        <GridExportBar gridRef={gridRef} filename="sales_invoices" title="Invoices"
+          filters={`${from} → ${to}${search ? ` · "${search}"` : ''}`}
+          reportEndpoint="/api/sales/transactions"
+          reportParams={{ date_from: from, date_to: to, ...(search ? { search } : {}), limit: 0 }}
+          reportPeriod={custom ? 'custom' : (({ 7:'7D', 30:'30D', 90:'90D', '-1':'MTD' } as any)[String(days)] ?? 'custom')}
+          colDefs={COL_DEFS as any} />
       </Stack>
 
       {/* == Column picker popover == */}
