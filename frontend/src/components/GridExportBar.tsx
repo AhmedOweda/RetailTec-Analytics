@@ -39,6 +39,12 @@ interface Props {
   filename:         string
   title?:           string
   subtitle?:        string
+  /** Active grid/tab within the page, e.g. "By Item Vendor" — makes the
+   *  subject/schedule name definite when a page has several grids. */
+  view?:            string
+  /** Active slicer summary, e.g. "16 Jun → 15 Jul 2026 · All stores".
+   *  Shown in the email body so the recipient knows the exact filters. */
+  filters?:         string
   colDefs?:         ColDef[]
   onResetColumns?:  () => void
 }
@@ -46,8 +52,11 @@ interface Props {
 interface RecipientList { name: string; recipients: string }
 
 export default function GridExportBar({
-  gridRef, filename, title, subtitle, colDefs, onResetColumns,
+  gridRef, filename, title, subtitle, view, filters, colDefs, onResetColumns,
 }: Props) {
+
+  /* A definite label that names the page AND the active grid/tab. */
+  const definiteLabel = [title ?? filename, view].filter(Boolean).join(' — ')
 
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
   const [colAnchor,  setColAnchor ] = useState<HTMLElement | null>(null)
@@ -68,12 +77,17 @@ export default function GridExportBar({
   const [mode,        setMode      ] = useState<'now' | 'schedule'>('now')
   const [schedType,   setSchedType ] = useState('daily_sales')
   const [schedTime,   setSchedTime ] = useState('07:00')
+  const [schedFreq,   setSchedFreq ] = useState<'daily' | 'weekly' | 'monthly' | 'once'>('daily')
+  const [schedWeekday,setSchedWeekday] = useState(0)
+  const [schedDay,    setSchedDay  ] = useState(1)
+  const [schedDate,   setSchedDate ] = useState('')
   const [reportTypes, setReportTypes] = useState<Record<string, string>>({})
   const [creating,    setCreating  ] = useState(false)
+  const WEEKDAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 
   useEffect(() => {
     if (!emailOpen) return
-    setSubject(s => s || `${title ?? filename} — ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`)
+    setSubject(s => s || `${definiteLabel} — ${new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}`)
     axios.get('/api/reports/recipient-lists')
       .then(r => setLists(r.data?.lists ?? []))
       .catch(() => setLists([]))
@@ -90,8 +104,12 @@ export default function GridExportBar({
     try {
       const cur = await axios.get('/api/admin/reports')
       const reports = cur.data?.reports ?? []
-      reports.push({ type: schedType, name: subject || (title ?? filename), time: schedTime,
-                     stores: '', recipients, enabled: true })
+      reports.push({
+        type: schedType, name: definiteLabel,   // definite (page + grid), no date
+        time: schedTime, freq: schedFreq,
+        weekday: schedWeekday, day: schedDay, date: schedDate || null,
+        stores: '', recipients, enabled: true,
+      })
       await axios.put('/api/admin/reports', { reports })
       setToast({ msg: tr('Schedule created — manage it in Settings → Reports'), sev: 'success' })
       setEmailOpen(false); setMode('now')
@@ -249,6 +267,20 @@ export default function GridExportBar({
     finally { setExporting(null) }
   }
 
+  /* ── Report definitions shown in the email body ───────────────── */
+  const buildDetails = (): Record<string, string> => {
+    const cols = getVisibleColInfo()
+    const rows = getRowsAfterFilter()
+    const d: Record<string, string> = {}
+    d[tr('Report')] = title ?? filename
+    if (view)                 d[tr('View')]    = view
+    if (filters)              d[tr('Filters')] = filters
+    else if (subtitle)        d[tr('Period')]  = subtitle
+    d[tr('Rows')]    = String(rows.length)
+    d[tr('Columns')] = cols.map(c => tr(c.label)).join(', ')
+    return d
+  }
+
   /* ── Email handler ────────────────────────────────────────────── */
   const sendEmail = async () => {
     if (!recipients.trim()) { setToast({ msg: tr('Add at least one recipient'), sev: 'error' }); return }
@@ -257,6 +289,7 @@ export default function GridExportBar({
       let content_base64 = ''
       let outName = ''
       let mime = ''
+      const details = buildDetails()
       if (fmt === 'excel') {
         content_base64 = XLSX.write(makeWorkbook(), { type: 'base64', bookType: 'xlsx' })
         outName = `${filename}_${stamp}.xlsx`
@@ -268,9 +301,9 @@ export default function GridExportBar({
         mime = 'application/pdf'
       }
       await axios.post('/api/reports/email-grid', {
-        subject: subject || (title ?? filename),
+        subject: subject || definiteLabel,
         recipients, filename: outName, content_base64, mime,
-        note: note || undefined, page: title ?? filename,
+        note: note || undefined, page: definiteLabel, details,
       })
       setToast({ msg: tr('Report emailed successfully'), sev: 'success' })
       setEmailOpen(false); setNote('')
@@ -374,17 +407,50 @@ export default function GridExportBar({
             {mode === 'schedule' && (
             <>
             <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Report type')}</Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Report')}</Typography>
               <Select fullWidth size="small" value={schedType} onChange={e => setSchedType(String(e.target.value))}>
                 {Object.entries(reportTypes).map(([k, label]) => <MenuItem key={k} value={k}>{label}</MenuItem>)}
               </Select>
             </Box>
-            <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Send daily at')}</Typography>
-              <TextField type="time" size="small" value={schedTime} onChange={e => setSchedTime(e.target.value)} sx={{ width: 140 }} />
+            <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <Box>
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Frequency')}</Typography>
+                <Select size="small" value={schedFreq} onChange={e => setSchedFreq(e.target.value as any)} sx={{ minWidth: 150 }}>
+                  <MenuItem value="daily">{tr('Daily')}</MenuItem>
+                  <MenuItem value="weekly">{tr('Weekly')}</MenuItem>
+                  <MenuItem value="monthly">{tr('Monthly')}</MenuItem>
+                  <MenuItem value="once">{tr('One time (on a date)')}</MenuItem>
+                </Select>
+              </Box>
+              {schedFreq === 'weekly' && (
+                <Box>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('On')}</Typography>
+                  <Select size="small" value={schedWeekday} onChange={e => setSchedWeekday(Number(e.target.value))} sx={{ minWidth: 130 }}>
+                    {WEEKDAYS.map((d, i) => <MenuItem key={i} value={i}>{tr(d)}</MenuItem>)}
+                  </Select>
+                </Box>
+              )}
+              {schedFreq === 'monthly' && (
+                <Box>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Day of month')}</Typography>
+                  <TextField type="number" size="small" value={schedDay}
+                    onChange={e => setSchedDay(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}
+                    inputProps={{ min: 1, max: 31 }} sx={{ width: 110 }} />
+                </Box>
+              )}
+              {schedFreq === 'once' && (
+                <Box>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Date')}</Typography>
+                  <TextField type="date" size="small" value={schedDate} onChange={e => setSchedDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                </Box>
+              )}
+              <Box>
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('At')}</Typography>
+                <TextField type="time" size="small" value={schedTime} onChange={e => setSchedTime(e.target.value)} sx={{ width: 120 }} />
+              </Box>
             </Box>
             <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>
-              {tr('A recurring summary report is emailed automatically each day. Manage or remove it any time in Settings → Reports.')}
+              {tr('The report is emailed automatically on this schedule. Manage or remove it any time in Settings → Reports.')}
             </Typography>
             </>
             )}

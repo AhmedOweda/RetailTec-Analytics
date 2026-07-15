@@ -189,6 +189,7 @@ export default function Performance() {
   const storesKey = selectedStores.join(',')
   const storeQS   = storesKey ? `&stores=${encodeURIComponent(storesKey)}` : ''
   const params    = `date_from=${from}&date_to=${to}${storeQS}`
+  const rptFilters = `${from} → ${to} · ${selectedStores.length ? `${selectedStores.length} ${tr('store(s)')}` : tr('All stores')}`
   const qOpts     = { refetchOnMount: 'always' as const, gcTime: 0, retry: false }
 
   const { data: storesList = [] }                    = useQuery({ queryKey: ['stores-list'], queryFn: () => axios.get('/api/sales/stores-list').then(r => r.data as string[]), staleTime: 3_600_000 })
@@ -600,6 +601,7 @@ export default function Performance() {
         <Box className="rt-mobile-hide" sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'1fr 1fr' }, gap:2 }}>
           <TableSection title="Top Associates" subtitle="Ranked by net sales · disc % amber >10% · return % red >5%" loading={assocLoad} height={320}
             toolbar={<GridExportBar gridRef={assocGridRef} filename="top_associates" title="Top Associates"
+              filters={rptFilters}
               colDefs={assocCols as any} onResetColumns={colsAssoc.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
               <AgGridReact ref={assocGridRef} rowData={(assocData??[]) as any[]} columnDefs={trCols(assocCols as any[])}
@@ -613,6 +615,7 @@ export default function Performance() {
           </TableSection>
           <TableSection title="Top Customers" subtitle="Ranked by net spend for the selected period" loading={custLoad} height={320}
             toolbar={<GridExportBar gridRef={custGridRef} filename="top_customers" title="Top Customers"
+              filters={rptFilters}
               colDefs={custCols as any} onResetColumns={colsCust.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
               <AgGridReact ref={custGridRef} rowData={(custData??[]) as any[]} columnDefs={trCols(custCols as any[])}

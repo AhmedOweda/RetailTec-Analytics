@@ -309,6 +309,11 @@ class ReportDef(BaseModel):
     recipients: str  = ""
     enabled:    bool = False
     last_sent:  Optional[str] = None
+    # cadence: daily (default) | weekly | monthly | once
+    freq:       str  = "daily"
+    weekday:    int  = 0        # weekly: 0=Mon … 6=Sun
+    day:        int  = 1        # monthly: day-of-month 1..31
+    date:       Optional[str] = None   # once: YYYY-MM-DD
 
 
 @router.get("/api/admin/reports")
@@ -384,6 +389,7 @@ class EmailGridReq(BaseModel):
     mime:           str = "application/pdf"
     note:           Optional[str] = None
     page:           Optional[str] = None   # source page/report, for history
+    details:        Optional[dict] = None  # {label: value} shown in the email body
 
 
 @router.post("/api/reports/email-grid")
@@ -399,7 +405,7 @@ def email_grid(req: EmailGridReq, current: dict = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Invalid file data")
     status, err = "sent", None
     try:
-        send_attachment(recips, req.subject, req.note, req.filename, data, req.mime)
+        send_attachment(recips, req.subject, req.note, req.filename, data, req.mime, req.details)
     except Exception as e:
         status, err = "failed", str(e)
     append_history({
