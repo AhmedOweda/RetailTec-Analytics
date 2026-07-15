@@ -21,6 +21,7 @@
  */
 import { Box, Typography } from '@mui/material'
 import { tr } from '../i18n'
+import { MoneyText } from './RiyalSign'
 
 export type KpiVariant = 'A' | 'B' | 'C' | 'D' | 'E' | 'F'
 
@@ -90,10 +91,10 @@ export default function KpiCard({
       <Tag tag={tag} />
       <Typography sx={{ ...labelSx, color: C_SLATE }}>{label}</Typography>
       <Box sx={{ ...valueRow, mt: 0.6 }}>
-        <Typography sx={{ ...valueSx, color: C_INK }}>{value}</Typography>
+        <Typography sx={{ ...valueSx, color: C_INK }}><MoneyText text={value} /></Typography>
         <Trend trend={trend} />
       </Box>
-      {sub && <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.4 }}>{sub}</Typography>}
+      {sub && <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.4 }}><MoneyText text={sub} /></Typography>}
     </Box>
   )
 
@@ -111,10 +112,10 @@ export default function KpiCard({
       <Box>
         <Typography sx={{ ...labelSx, color: C_SLATE }}>{label}</Typography>
         <Box sx={{ ...valueRow, mt: 0.4 }}>
-          <Typography sx={{ ...valueSx, fontSize: 24, color: C_INK }}>{value}</Typography>
+          <Typography sx={{ ...valueSx, fontSize: 24, color: C_INK }}><MoneyText text={value} /></Typography>
           <Trend trend={trend} />
         </Box>
-        {sub && <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.2 }}>{sub}</Typography>}
+        {sub && <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.2 }}><MoneyText text={sub} /></Typography>}
       </Box>
     </Box>
   )
@@ -129,10 +130,10 @@ export default function KpiCard({
         {label}
       </Typography>
       <Box sx={{ ...valueRow, mt: 0.6 }}>
-        <Typography sx={{ ...valueSx, color: C_INK }}>{value}</Typography>
+        <Typography sx={{ ...valueSx, color: C_INK }}><MoneyText text={value} /></Typography>
         <Trend trend={trend} />
       </Box>
-      {sub && <Typography sx={{ fontSize: 11, color, mt: 0.4, opacity: 0.85 }}>{sub}</Typography>}
+      {sub && <Typography sx={{ fontSize: 11, color, mt: 0.4, opacity: 0.85 }}><MoneyText text={sub} /></Typography>}
     </Box>
   )
 
@@ -143,10 +144,10 @@ export default function KpiCard({
       <Tag tag={tag} />
       <Typography sx={{ ...labelSx, color: '#94a3b8' }}>{label}</Typography>
       <Box sx={{ ...valueRow, mt: 0.6 }}>
-        <Typography sx={{ ...valueSx, color }}>{value}</Typography>
+        <Typography sx={{ ...valueSx, color }}><MoneyText text={value} /></Typography>
         <Trend trend={trend} />
       </Box>
-      {sub && <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.4 }}>{sub}</Typography>}
+      {sub && <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.4 }}><MoneyText text={sub} /></Typography>}
     </Box>
   )
 
@@ -161,10 +162,10 @@ export default function KpiCard({
         {icon && <i className={`ti ${icon}`} style={{ fontSize: 16, color: `${color}99` }} aria-hidden="true" />}
       </Box>
       <Box sx={{ ...valueRow, mt: 0.6 }}>
-        <Typography sx={{ ...valueSx, color: C_INK }}>{value}</Typography>
+        <Typography sx={{ ...valueSx, color: C_INK }}><MoneyText text={value} /></Typography>
         <Trend trend={trend} />
       </Box>
-      {sub && <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.4 }}>{sub}</Typography>}
+      {sub && <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.4 }}><MoneyText text={sub} /></Typography>}
     </Box>
   )
 
@@ -185,11 +186,11 @@ export default function KpiCard({
       </Box>
       <Box sx={{ px: 2, pt: 1.4, pb: 1.6, flexGrow: 1 }}>
         <Box sx={valueRow}>
-          <Typography sx={{ ...valueSx, color }}>{value}</Typography>
+          <Typography sx={{ ...valueSx, color }}><MoneyText text={value} /></Typography>
           <Trend trend={trend} />
         </Box>
         {sub && (
-          <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.4 }}>{sub}</Typography>
+          <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.4 }}><MoneyText text={sub} /></Typography>
         )}
       </Box>
     </Box>
