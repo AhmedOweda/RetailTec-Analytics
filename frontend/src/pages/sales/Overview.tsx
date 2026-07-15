@@ -5,6 +5,7 @@ import { useState, useMemo, useRef } from 'react'
 import i18n from 'i18next'
 import { tr, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
+import { CurrencyMark } from '../../components/RiyalSign'
 import {
   Box, Card, CardContent, Typography, Divider,
   Skeleton, Alert, Chip,
@@ -168,7 +169,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
                               whiteSpace:'nowrap' }}>
               {showCurrency && (
                 <Box component="span" sx={{ fontSize:15, fontWeight:700, color:'#7c3aed', mr:0.7 }}>
-                  {currency.symbol}
+                  <CurrencyMark code={currency.code} symbol={currency.symbol} />
                 </Box>
               )}
               {num(net)}

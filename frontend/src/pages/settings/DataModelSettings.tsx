@@ -2,6 +2,7 @@
  * Data Model Settings — admin panel
  */
 import { useState, useEffect } from 'react'
+import { CurrencyMark } from '../../components/RiyalSign'
 import {
   Box, Card, CardContent, Typography, TextField, Button,
   Alert, CircularProgress, Select, MenuItem,
@@ -419,7 +420,7 @@ export default function DataModelSettings() {
               {CURRENCIES.map(c => (
                 <MenuItem key={c.code} value={c.code}>
                   <Box component="span" sx={{ display:'inline-flex', alignItems:'center', gap:1 }}>
-                    <Box component="span" sx={{ fontWeight:700, minWidth:28, textAlign:'center' }}>{c.symbol}</Box>
+                    <Box component="span" sx={{ fontWeight:700, minWidth:28, textAlign:'center' }}><CurrencyMark code={c.code} symbol={c.symbol} /></Box>
                     {c.name} ({c.code})
                   </Box>
                 </MenuItem>
