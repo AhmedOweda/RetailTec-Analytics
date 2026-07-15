@@ -902,7 +902,8 @@ def _trim_range(duck, tables, date_from: str, date_to: str):
 
 def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
                 tables: set | None = None, force_replace: bool = False,
-                progress_cb=None, base: int = 5, span: int = 100):
+                progress_cb=None, base: int = 5, span: int = 100,
+                rebuild: bool = False):
     ALL = tables is None
     ora = _get_oracle_conn()
 
@@ -951,14 +952,25 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
                 # each row's QTY is the ABSOLUTE on-hand after a change, and the
                 # trigger-install baseline snapshot rows all share one old
                 # ACTION_DATE. Stock-as-of-D = last row per item×store <= D, so
-                # our copy must be COMPLETE back to that baseline. First load
-                # therefore pulls the ENTIRE table; later loads append the
-                # window only (new actions are inserts, never updates).
+                # our copy must be COMPLETE back to that baseline.
+                #
+                # We pull the ENTIRE table (from 1900) whenever the local copy is
+                # empty OR this is a full/repair load (force_replace). Windowed
+                # incremental syncs only append new actions. WHY force_replace
+                # also triggers a full pull: the trigger logs only CHANGED qty,
+                # so a copy that was ever seeded by a windowed pull (or an
+                # interrupted first load) can permanently miss an item's baseline
+                # / last pre-window snapshot and corrupt carry-forward. A full
+                # load must therefore re-fetch the whole history so any missing
+                # baseline is recaptured; force_replace re-inserts by HISTORY_SID
+                # (rows are immutable, so this is idempotent).
                 _hist_empty = duck.execute(
                     "SELECT COUNT(*) = 0 FROM FACT_INVENTORY_HISTORY").fetchone()[0]
-                _hdf = "1900-01-01" if _hist_empty else df
-                if _hist_empty:
-                    log.info("FACT_INVENTORY_HISTORY empty - pulling FULL history incl. baseline")
+                _full_hist = _hist_empty or force_replace or rebuild
+                _hdf = "1900-01-01" if _full_hist else df
+                if _full_hist:
+                    _why = 'empty copy' if _hist_empty else ('rebuild' if rebuild else 'repair')
+                    log.info(f"FACT_INVENTORY_HISTORY: pulling FULL history incl. baseline ({_why})")
                 _stream_insert(duck, ora, _sql_inventory_history(_hdf, dt), "FACT_INVENTORY_HISTORY", 8, force_replace)
             except Exception as e:
                 if "ORA-00942" in str(e):
@@ -1114,7 +1126,7 @@ def _run_sync(mode: str, date_from: str, date_to: str,
 
             # Step 3 — facts: one streaming scan per table over the whole range
             _sync_chunk(duck, date_from, date_to, tables=tables,
-                        force_replace=force_replace,
+                        force_replace=force_replace, rebuild=rebuild,
                         progress_cb=progress_cb, base=5, span=90)
             _log_progress(duck, _run_id, 1)
 
