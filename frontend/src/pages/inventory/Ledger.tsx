@@ -18,7 +18,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { noRowsOverlay } from '../../utils/gridOverlay'
-import { moneyPrefix, money, num } from '../../utils/formatters'
+import { moneyPrefix, money, num, moneyExact } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -51,7 +51,7 @@ const PERIODS = [
 const fmtN = (v: number, dec = 0) =>
   v == null ? '—' : v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
 const fmtC = (v: number) =>
-  v == null ? '—' : moneyPrefix() + v.toLocaleString('en-US', { maximumFractionDigits: 0 })
+  v == null ? '—' : moneyExact(v)
 const fmtSign = (v: number) => v > 0 ? `+${fmtN(v)}` : fmtN(v)
 
 // ── Column header with colour dot ─────────────────────────────────────────────

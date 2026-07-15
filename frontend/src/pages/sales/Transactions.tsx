@@ -25,7 +25,7 @@ import { noRowsOverlay } from '../../utils/gridOverlay'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import TitleLoader from '../../components/TitleLoader'
 import { format, subDays, startOfMonth } from 'date-fns'
-import { num }           from '../../utils/formatters'
+import { num, moneyExact } from '../../utils/formatters'
 import * as XLSX         from 'xlsx'
 import jsPDF             from 'jspdf'
 import autoTable         from 'jspdf-autotable'
@@ -51,7 +51,8 @@ const TYPE_COLOR: Record<string, { text:string; bg:string }> = {
 }
 
 /* -- Column definitions ----------------------------------------------- */
-const numFmt = (p: any) => num(p.value ?? 0)
+// Money cells: full number, respects the "No decimals" Display Setting, no sign.
+const numFmt = (p: any) => moneyExact(p.value ?? 0)
 
 const COL_DEFS: ColDef[] = [
   {

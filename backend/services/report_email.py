@@ -292,9 +292,38 @@ def _smtp_email() -> dict:
     return email
 
 
-def send_attachment(recipients: list[str], subject: str, html_body: str | None,
+def _attachment_body(subject: str, note: str | None, filename: str) -> str:
+    """A tidy branded HTML email body — looks good even with no note."""
+    when = datetime.now().strftime("%A, %d %B %Y · %H:%M")
+    note_html = (f"<p style='margin:0 0 16px;color:#334155;font-size:14px;line-height:1.6'>{note}</p>"
+                 if note else "")
+    return f"""
+    <div style="font-family:Segoe UI,Arial,sans-serif;max-width:600px;margin:auto;color:#0f172a">
+      <div style="background:linear-gradient(135deg,#1e1248,#160b33);border-radius:12px;padding:22px 26px;margin-bottom:18px">
+        <div style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:.2px">RetailTec Analytics</div>
+        <div style="font-size:13px;color:#c4b5fd;margin-top:3px">{subject}</div>
+      </div>
+      {note_html}
+      <p style="margin:0 0 14px;color:#334155;font-size:14px;line-height:1.6">
+        Your report is attached as
+        <b style="color:#0f172a">{filename}</b>.
+      </p>
+      <table style="width:100%;border-collapse:separate;border-spacing:0;margin:6px 0 18px">
+        <tr><td style="padding:10px 14px;background:#f5f3ff;border-radius:8px;color:#5b21b6;font-size:13px">
+          📎 Open the attachment to view the full report.
+        </td></tr>
+      </table>
+      <p style="margin:0;color:#94a3b8;font-size:12px">Generated {when}</p>
+      <p style="color:#cbd5e1;font-size:11px;margin-top:22px;border-top:1px solid #eef2f7;padding-top:12px">
+        Sent by RetailTec Analytics · Retail Pro Prism — Retail Intelligence
+      </p>
+    </div>"""
+
+
+def send_attachment(recipients: list[str], subject: str, note: str | None,
                     filename: str, content: bytes, mime: str = "application/pdf") -> str:
-    """Email `content` (bytes) as an attachment to `recipients` via the app SMTP."""
+    """Email `content` (bytes) as an attachment to `recipients` via the app SMTP,
+    with a branded HTML body (nice even when there is no note)."""
     email = _smtp_email()
     recipients = [r for r in recipients if r]
     if not recipients:
@@ -303,7 +332,7 @@ def send_attachment(recipients: list[str], subject: str, html_body: str | None,
     msg["Subject"] = subject
     msg["From"] = email.get("from_addr") or email.get("username", "")
     msg["To"] = ", ".join(recipients)
-    msg.attach(MIMEText(html_body or "<p>Please find the attached report.</p>", "html", "utf-8"))
+    msg.attach(MIMEText(_attachment_body(subject, note, filename), "html", "utf-8"))
     subtype = mime.split("/", 1)[1] if "/" in mime else "octet-stream"
     part = MIMEApplication(content, _subtype=subtype)
     part.add_header("Content-Disposition", "attachment", filename=filename)

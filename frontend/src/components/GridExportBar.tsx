@@ -21,7 +21,6 @@ import ViewColumnIcon    from '@mui/icons-material/ViewColumn'
 import EmailIcon         from '@mui/icons-material/Email'
 import HistoryIcon       from '@mui/icons-material/History'
 import CloseIcon         from '@mui/icons-material/Close'
-import SendHistoryDialog from './SendHistoryDialog'
 import type { AgGridReact } from 'ag-grid-react'
 import type { ColDef }      from 'ag-grid-community'
 import * as XLSX from 'xlsx'
@@ -29,6 +28,7 @@ import jsPDF     from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import axios     from 'axios'
 import { tr }    from '../i18n'
+import { useAuth } from '../contexts/AuthContext'
 import { isArabic, hasArabic, registerArabicFont, shapeAr, ARABIC_FONT_NAME } from '../utils/pdfArabic'
 import { arabicTableToPdf } from '../utils/pdfImage'
 
@@ -62,7 +62,14 @@ export default function GridExportBar({
   const [sending,   setSending  ] = useState(false)
   const [lists,     setLists    ] = useState<RecipientList[]>([])
   const [toast,     setToast    ] = useState<{ msg: string; sev: 'success' | 'error' } | null>(null)
-  const [histOpen,  setHistOpen ] = useState(false)
+
+  /* ── Schedule state (admin only) ──────────────────────────────── */
+  const { isAdmin } = useAuth()
+  const [mode,        setMode      ] = useState<'now' | 'schedule'>('now')
+  const [schedType,   setSchedType ] = useState('daily_sales')
+  const [schedTime,   setSchedTime ] = useState('07:00')
+  const [reportTypes, setReportTypes] = useState<Record<string, string>>({})
+  const [creating,    setCreating  ] = useState(false)
 
   useEffect(() => {
     if (!emailOpen) return
@@ -70,7 +77,28 @@ export default function GridExportBar({
     axios.get('/api/reports/recipient-lists')
       .then(r => setLists(r.data?.lists ?? []))
       .catch(() => setLists([]))
+    if (isAdmin) {
+      axios.get('/api/admin/reports')
+        .then(r => setReportTypes(r.data?.types ?? {}))
+        .catch(() => setReportTypes({}))
+    }
   }, [emailOpen])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const createSchedule = async () => {
+    if (!recipients.trim()) { setToast({ msg: tr('Add at least one recipient'), sev: 'error' }); return }
+    setCreating(true)
+    try {
+      const cur = await axios.get('/api/admin/reports')
+      const reports = cur.data?.reports ?? []
+      reports.push({ type: schedType, name: subject || (title ?? filename), time: schedTime,
+                     stores: '', recipients, enabled: true })
+      await axios.put('/api/admin/reports', { reports })
+      setToast({ msg: tr('Schedule created — manage it in Settings → Reports'), sev: 'success' })
+      setEmailOpen(false); setMode('now')
+    } catch (e: any) {
+      setToast({ msg: e?.response?.data?.detail ?? tr('Could not create schedule (admin only)'), sev: 'error' })
+    } finally { setCreating(false) }
+  }
 
   /* ── Column picker ────────────────────────────────────────────── */
   const toggleCol = (field: string, visible: boolean) => {
@@ -317,16 +345,6 @@ export default function GridExportBar({
         startIcon={<EmailIcon sx={{ fontSize: '17px !important' }} />}
         sx={btnSx(ACCENT)}>{tr('Email')}</Button>
 
-      <Tooltip title={tr('Send history')}>
-        <IconButton size="small" onClick={() => setHistOpen(true)}
-          sx={{ border: '1px solid #e2e8f0', borderRadius: 2, height: 32, width: 32, color: '#64748b',
-                '&:hover': { borderColor: ACCENT, color: ACCENT, bgcolor: `${ACCENT}10` } }}>
-          <HistoryIcon sx={{ fontSize: 18 }} />
-        </IconButton>
-      </Tooltip>
-
-      <SendHistoryDialog open={histOpen} onClose={() => setHistOpen(false)} />
-
       {/* ── Email dialog ── */}
       <Dialog open={emailOpen} onClose={() => setEmailOpen(false)} maxWidth="sm" fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}>
@@ -336,6 +354,14 @@ export default function GridExportBar({
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {isAdmin && (
+              <ToggleButtonGroup exclusive size="small" fullWidth value={mode} onChange={(_, v) => v && setMode(v)}
+                sx={{ '& .Mui-selected': { bgcolor: `${ACCENT}18 !important`, color: `${ACCENT} !important` } }}>
+                <ToggleButton value="now" sx={{ textTransform: 'none', fontWeight: 600 }}>{tr('Send now')}</ToggleButton>
+                <ToggleButton value="schedule" sx={{ textTransform: 'none', fontWeight: 600 }}>{tr('Schedule recurring')}</ToggleButton>
+              </ToggleButtonGroup>
+            )}
+            {mode === 'now' && (
             <Box>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Format')}</Typography>
               <ToggleButtonGroup exclusive size="small" value={fmt} onChange={(_, v) => v && setFmt(v)}
@@ -344,6 +370,24 @@ export default function GridExportBar({
                 <ToggleButton value="excel" sx={{ textTransform: 'none', px: 2 }}><FileDownloadIcon sx={{ fontSize: 16, mr: 0.7 }} />Excel</ToggleButton>
               </ToggleButtonGroup>
             </Box>
+            )}
+            {mode === 'schedule' && (
+            <>
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Report type')}</Typography>
+              <Select fullWidth size="small" value={schedType} onChange={e => setSchedType(String(e.target.value))}>
+                {Object.entries(reportTypes).map(([k, label]) => <MenuItem key={k} value={k}>{label}</MenuItem>)}
+              </Select>
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Send daily at')}</Typography>
+              <TextField type="time" size="small" value={schedTime} onChange={e => setSchedTime(e.target.value)} sx={{ width: 140 }} />
+            </Box>
+            <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>
+              {tr('A recurring summary report is emailed automatically each day. Manage or remove it any time in Settings → Reports.')}
+            </Typography>
+            </>
+            )}
             <Box>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Subject / title')}</Typography>
               <TextField size="small" fullWidth value={subject} onChange={e => setSubject(e.target.value)} />
@@ -369,22 +413,34 @@ export default function GridExportBar({
                 {tr('Save these as a list')}
               </Button>
             </Box>
+            {mode === 'now' && (
             <Box>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Message (optional)')}</Typography>
               <TextField size="small" fullWidth multiline minRows={2} value={note} onChange={e => setNote(e.target.value)} />
             </Box>
+            )}
             <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>
-              {tr('Uses the SMTP settings in Settings → Reports. The current filtered/visible columns are sent.')}
+              {mode === 'schedule'
+                ? tr('Uses the SMTP settings in Settings → Reports.')
+                : tr('Uses the SMTP settings in Settings → Reports. The current filtered/visible columns are sent.')}
             </Typography>
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={() => setEmailOpen(false)} sx={{ textTransform: 'none', color: '#64748b' }}>{tr('Cancel')}</Button>
-          <Button variant="contained" onClick={sendEmail} disabled={sending}
-            startIcon={sending ? <CircularProgress size={14} color="inherit" /> : <EmailIcon />}
-            sx={{ textTransform: 'none', fontWeight: 700, bgcolor: ACCENT, '&:hover': { bgcolor: '#6d28d9' } }}>
-            {sending ? tr('Sending…') : tr('Send now')}
-          </Button>
+          {mode === 'schedule' ? (
+            <Button variant="contained" onClick={createSchedule} disabled={creating}
+              startIcon={creating ? <CircularProgress size={14} color="inherit" /> : <HistoryIcon />}
+              sx={{ textTransform: 'none', fontWeight: 700, bgcolor: ACCENT, '&:hover': { bgcolor: '#6d28d9' } }}>
+              {creating ? tr('Creating…') : tr('Create schedule')}
+            </Button>
+          ) : (
+            <Button variant="contained" onClick={sendEmail} disabled={sending}
+              startIcon={sending ? <CircularProgress size={14} color="inherit" /> : <EmailIcon />}
+              sx={{ textTransform: 'none', fontWeight: 700, bgcolor: ACCENT, '&:hover': { bgcolor: '#6d28d9' } }}>
+              {sending ? tr('Sending…') : tr('Send now')}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 

@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import ReactECharts from 'echarts-for-react'
 import KpiCard      from '../../components/KpiCard'
-import { moneyPrefix, money, num } from '../../utils/formatters'
+import { moneyPrefix, money, num, moneyExact } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 import { CHART_CATEGORICAL } from '../../theme/chartPalette'
@@ -62,7 +62,7 @@ const PRESETS: Record<string, [string, string]> = {
 }
 
 const fmt  = (n: number) => (n ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })
-const fmtC = (n: number) => moneyPrefix() + (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtC = (n: number) => moneyExact(n)
 // KPI cards: whole numbers only (no decimals)
 const fmtC0 = (n: number) => moneyPrefix() + Math.round(n ?? 0).toLocaleString('en-US')
 
