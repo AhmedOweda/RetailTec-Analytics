@@ -312,7 +312,7 @@ export default function DataModelSettings() {
                  { maxWidth: '100%' } }}>
       <Typography variant="h6" sx={{ fontWeight:700, color:'#0f172a', mb:0.5 }}>{tr('Settings')}<TitleLoader /></Typography>
       <Typography sx={{ fontSize:13, color:'#64748b', mb:3 }}>
-        {tr('Manage database connection, data refresh, display, reports and maintenance.')}
+        {tr('Manage your database connection, data refresh, display, AI assistant, reports and maintenance.')}
       </Typography>
 
       {/* ── Tab bar (pure UI grouping — no settings logic changes) ── */}
@@ -324,6 +324,7 @@ export default function DataModelSettings() {
               '& .MuiTabs-indicator': { bgcolor:ACCENT } }}>
         <Tab label={tr('Connection & Data')} />
         <Tab label={tr('Display')} />
+        <Tab label={tr('AI Assistant')} />
         <Tab label={tr('Reports')} />
         <Tab label={tr('Maintenance')} />
       </Tabs>
@@ -919,8 +920,14 @@ export default function DataModelSettings() {
 
       </Box>{/* end Tab 1 (part 2) */}
 
-      {/* ── Tab 3: Maintenance ── */}
-      <Box sx={{ display: tab === 3 ? 'block' : 'none' }}>
+      {/* ── Tab 2: AI Assistant ── */}
+      <Box sx={{ display: tab === 2 ? 'block' : 'none' }}>
+      {/* ── AI Assistant (Data Analyst) provider config ──────────── */}
+      <AssistantCard />
+      </Box>{/* end Tab 2 */}
+
+      {/* ── Tab 4: Maintenance ── */}
+      <Box sx={{ display: tab === 4 ? 'block' : 'none' }}>
       {/* ── Maintenance: backup & compact ─────────────────────────── */}
       <MaintenanceCard />
       {/* ── Automatic maintenance toggle (saved with Save Settings) ── */}
@@ -947,14 +954,12 @@ export default function DataModelSettings() {
           </Typography>
         </Box>
       </SectionCard>
-      {/* ── AI Assistant (Data Analyst) provider config ──────────── */}
-      <AssistantCard />
       {/* ── About & Diagnostics (read-only) ──────────────────────── */}
       <AboutCard />
-      </Box>{/* end Tab 4 */}
+      </Box>{/* end Tab 4 (Maintenance) */}
 
-      {/* ── Tab 2: Reports ── */}
-      <Box sx={{ display: tab === 2 ? 'block' : 'none' }}>
+      {/* ── Tab 3: Reports ── */}
+      <Box sx={{ display: tab === 3 ? 'block' : 'none' }}>
       {/* ── Email (SMTP) ──────────────────────────────────────────── */}
       <EmailCard />
 
