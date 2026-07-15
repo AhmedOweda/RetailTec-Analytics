@@ -20,6 +20,8 @@ import smtplib
 import uuid
 from datetime import date, datetime, timedelta
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 
 from services.config import load_settings, save_settings
 
@@ -279,3 +281,69 @@ def maybe_send_scheduled() -> None:
             log.error(f"Report '{r.get('name')}' failed: {e}")
     if changed:
         save_reports(reports)
+
+
+# ── On-demand: email an arbitrary file (a grid exported as PDF/Excel) ─────────
+
+def _smtp_email() -> dict:
+    email = load_settings().get("email") or {}
+    if not email.get("host"):
+        raise RuntimeError("SMTP settings are not configured. Ask an admin to set them in Settings → Reports.")
+    return email
+
+
+def send_attachment(recipients: list[str], subject: str, html_body: str | None,
+                    filename: str, content: bytes, mime: str = "application/pdf") -> str:
+    """Email `content` (bytes) as an attachment to `recipients` via the app SMTP."""
+    email = _smtp_email()
+    recipients = [r for r in recipients if r]
+    if not recipients:
+        raise RuntimeError("No recipients")
+    msg = MIMEMultipart()
+    msg["Subject"] = subject
+    msg["From"] = email.get("from_addr") or email.get("username", "")
+    msg["To"] = ", ".join(recipients)
+    msg.attach(MIMEText(html_body or "<p>Please find the attached report.</p>", "html", "utf-8"))
+    subtype = mime.split("/", 1)[1] if "/" in mime else "octet-stream"
+    part = MIMEApplication(content, _subtype=subtype)
+    part.add_header("Content-Disposition", "attachment", filename=filename)
+    msg.attach(part)
+    with smtplib.SMTP(email["host"], int(email.get("port", 587)), timeout=45) as smtp:
+        if email.get("use_tls", True):
+            smtp.starttls()
+        if email.get("username"):
+            smtp.login(email["username"], email.get("password", ""))
+        smtp.send_message(msg)
+    return subject
+
+
+# ── Send history (kept in settings.json → email.history, newest first, capped) ─
+
+_HISTORY_CAP = 300
+
+
+def get_history() -> list[dict]:
+    return ((load_settings().get("email") or {}).get("history")) or []
+
+
+def append_history(entry: dict) -> None:
+    s = load_settings()
+    email = s.setdefault("email", {})
+    hist = email.get("history") or []
+    entry.setdefault("at", datetime.now().isoformat(timespec="seconds"))
+    hist.insert(0, entry)
+    email["history"] = hist[:_HISTORY_CAP]
+    save_settings(s)
+
+
+# ── Saved recipient lists (settings.json → email.recipient_lists) ─────────────
+
+def get_recipient_lists() -> list[dict]:
+    return ((load_settings().get("email") or {}).get("recipient_lists")) or []
+
+
+def save_recipient_lists(lists: list[dict]) -> None:
+    s = load_settings()
+    email = s.setdefault("email", {})
+    email["recipient_lists"] = lists
+    save_settings(s)

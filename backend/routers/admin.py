@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from db.model import DB_LOCK, get_db, _db_path, _current_settings_host, record_audit
-from routers.auth import require_admin
+from routers.auth import require_admin, get_current_user
 from services.config import load_settings, save_settings
 
 router = APIRouter(tags=["admin"])
@@ -372,6 +372,68 @@ def test_email(req: TestEmailReq, _admin: dict = Depends(require_admin)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Send failed: {e}")
     return {"ok": True, "message": f"Test email sent to {req.to}"}
+
+
+# ── On-demand: email the current grid (PDF/Excel) — any authenticated user ───
+
+class EmailGridReq(BaseModel):
+    subject:        str
+    recipients:     str                 # comma/semicolon separated
+    filename:       str
+    content_base64: str
+    mime:           str = "application/pdf"
+    note:           Optional[str] = None
+    page:           Optional[str] = None   # source page/report, for history
+
+
+@router.post("/api/reports/email-grid")
+def email_grid(req: EmailGridReq, current: dict = Depends(get_current_user)):
+    import base64
+    from services.report_email import send_attachment, append_history
+    recips = [x.strip() for x in req.recipients.replace(";", ",").split(",") if x.strip()]
+    if not recips:
+        raise HTTPException(status_code=400, detail="No recipients")
+    try:
+        data = base64.b64decode(req.content_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid file data")
+    html = f"<p style='font-family:Segoe UI,Arial,sans-serif'>{req.note}</p>" if req.note else None
+    status, err = "sent", None
+    try:
+        send_attachment(recips, req.subject, html, req.filename, data, req.mime)
+    except Exception as e:
+        status, err = "failed", str(e)
+    append_history({
+        "subject": req.subject, "recipients": recips, "filename": req.filename,
+        "page": req.page, "by": current.get("username"),
+        "size_kb": round(len(data) / 1024, 1), "status": status, "error": err,
+    })
+    if status == "failed":
+        raise HTTPException(status_code=400, detail=f"Send failed: {err}")
+    return {"ok": True, "message": f"Report emailed to {len(recips)} recipient(s)"}
+
+
+@router.get("/api/reports/history")
+def report_send_history(current: dict = Depends(get_current_user)):
+    from services.report_email import get_history
+    return {"history": get_history()}
+
+
+@router.get("/api/reports/recipient-lists")
+def get_recipient_lists_ep(current: dict = Depends(get_current_user)):
+    from services.report_email import get_recipient_lists
+    return {"lists": get_recipient_lists()}
+
+
+class RecipientListsPut(BaseModel):
+    lists: list   # [{ "name": str, "recipients": str }]
+
+
+@router.put("/api/reports/recipient-lists")
+def put_recipient_lists_ep(req: RecipientListsPut, current: dict = Depends(get_current_user)):
+    from services.report_email import save_recipient_lists
+    save_recipient_lists(req.lists)
+    return {"ok": True}
 
 
 # ── Audit log viewer ───────────────────────────────────────────────────────────

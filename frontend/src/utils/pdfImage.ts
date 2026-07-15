@@ -48,7 +48,7 @@ export interface ArabicTableOpts {
  * Render an Arabic table to the given jsPDF doc as a browser-rasterised image,
  * paginate it across pages, and save it as `filename`.
  */
-export async function arabicTableToPdf(doc: jsPDF, opts: ArabicTableOpts): Promise<void> {
+export async function arabicTableToPdf(doc: jsPDF, opts: ArabicTableOpts, save = true): Promise<void> {
   const { title, subtitle, head, body, filename } = opts
   const rtl = opts.rtl !== false   // default RTL for back-compat
 
@@ -136,7 +136,7 @@ export async function arabicTableToPdf(doc: jsPDF, opts: ArabicTableOpts): Promi
       srcY += sliceH
     }
 
-    doc.save(filename)
+    if (save) doc.save(filename)
   } finally {
     document.body.removeChild(el)
   }
