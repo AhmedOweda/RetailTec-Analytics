@@ -146,6 +146,15 @@ if _WEBAPP.exists():
 
     _WEBAPP_ROOT = _WEBAPP.resolve()
 
+    # The HTML shell must NEVER be browser-cached: it carries the inline
+    # @font-face (Saudi Riyal glyph) and references the hashed JS/CSS bundles.
+    # FileResponse otherwise sends only ETag/Last-Modified, so browsers
+    # heuristically cache index.html and keep serving a stale shell after an
+    # update (old font, old assets) until a hard refresh. no-store forces every
+    # device to fetch the current shell every load. Hashed /assets are
+    # content-addressed and remain safely cacheable.
+    _NO_CACHE = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa(full_path: str):
         # Containment check: this route is unauthenticated, and without it a
@@ -156,9 +165,10 @@ if _WEBAPP.exists():
             try:
                 target = (_WEBAPP / full_path).resolve()
                 if target.is_relative_to(_WEBAPP_ROOT) and target.is_file():
-                    return FileResponse(target)
+                    hdrs = _NO_CACHE if target.suffix == ".html" else None
+                    return FileResponse(target, headers=hdrs)
             except (OSError, ValueError):
                 pass
-        return FileResponse(_WEBAPP / "index.html")
+        return FileResponse(_WEBAPP / "index.html", headers=_NO_CACHE)
 
     log.info(f"Serving bundled frontend from {_WEBAPP}")
