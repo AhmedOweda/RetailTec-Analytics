@@ -417,12 +417,19 @@ def _replace_small_dim(duck, table: str, insert_sql: str, rows) -> None:
     the dim stayed EMPTY until the next successful dims load — the app opened
     with no stores/items/products (seen 13 Jul 2026; the earlier 'DIM_STORE
     emptied by sync' bug was the same class). A transaction closes the window;
-    readers also never see the half-loaded state anymore."""
+    readers also never see the half-loaded state anymore.
+
+    ZERO-ROW GUARD: if Oracle returns no rows (transient connection blip, query
+    error surfacing as an empty result), do NOT wipe the table — keep whatever
+    is already loaded. Without this the transaction still committed an empty
+    DELETE and the dimension vanished (stores/vendors/employees empty on open)."""
+    if not rows:
+        log.warning(f"{table}: source returned 0 rows — keeping existing data (no wipe)")
+        return
     duck.execute("BEGIN TRANSACTION")
     try:
         duck.execute(f"DELETE FROM {table}")
-        if rows:
-            duck.executemany(insert_sql, rows)
+        duck.executemany(insert_sql, rows)
         duck.execute("COMMIT")
     except BaseException:
         try:
@@ -657,23 +664,38 @@ def _sync_inventory_snapshot(duck, ora):
     """)
     rows = cur.fetchall()
     cur.close()
+    # ZERO-ROW GUARD: never wipe the live snapshot on an empty/failed source read
+    # (a transient Oracle blip returning 0 rows used to blank inventory on open).
+    if not rows:
+        log.warning("FACT_INVENTORY: source returned 0 rows — keeping existing snapshot (no rebuild)")
+        return
     now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    duck.execute("DROP TABLE IF EXISTS FACT_INVENTORY")
-    duck.execute("""CREATE TABLE FACT_INVENTORY (
-        ITEM_SID BIGINT, STORE_SID BIGINT, ON_HAND_QTY DECIMAL(12,3),
-        COST DECIMAL(18,4), PRICE1 DECIMAL(18,4), SYNCED_AT TIMESTAMP)""")
-    if rows:
-        import pandas as pd
-        stage_df = pd.DataFrame(
-            [(r[0], r[1], r[2], r[3], r[4], now_str) for r in rows],
-            columns=["ITEM_SID", "STORE_SID", "ON_HAND_QTY", "COST", "PRICE1", "SYNCED_AT"],
-            dtype=object)  # exact BIGINT SIDs — see _stream_insert note
-        duck.register("_snap_stage", stage_df)
+    import pandas as pd
+    stage_df = pd.DataFrame(
+        [(r[0], r[1], r[2], r[3], r[4], now_str) for r in rows],
+        columns=["ITEM_SID", "STORE_SID", "ON_HAND_QTY", "COST", "PRICE1", "SYNCED_AT"],
+        dtype=object)  # exact BIGINT SIDs — see _stream_insert note
+    duck.register("_snap_stage", stage_df)
+    # ATOMIC rebuild in ONE transaction: the old code DROPped first (auto-commit),
+    # so FACT_INVENTORY sat EMPTY between DROP and INSERT — any interruption left
+    # inventory blank until the next sync. Inside a transaction readers keep the
+    # previous snapshot until COMMIT and any failure rolls back to it.
+    duck.execute("BEGIN TRANSACTION")
+    try:
+        duck.execute("DROP TABLE IF EXISTS FACT_INVENTORY")
+        duck.execute("""CREATE TABLE FACT_INVENTORY (
+            ITEM_SID BIGINT, STORE_SID BIGINT, ON_HAND_QTY DECIMAL(12,3),
+            COST DECIMAL(18,4), PRICE1 DECIMAL(18,4), SYNCED_AT TIMESTAMP)""")
+        duck.execute("INSERT INTO FACT_INVENTORY SELECT * FROM _snap_stage")
+        duck.execute("COMMIT")
+    except BaseException:
         try:
-            duck.execute("INSERT INTO FACT_INVENTORY SELECT * FROM _snap_stage")
-        finally:
-            duck.unregister("_snap_stage")
-    duck.commit()
+            duck.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        duck.unregister("_snap_stage")
     log.info(f"FACT_INVENTORY: {len(rows):,} rows loaded")
 
 
