@@ -263,14 +263,15 @@ def _send_grid_report(report: dict) -> str:
         params["date_from"], params["date_to"] = df, dt
 
     rows = report_grid.run_grid(endpoint, params)
-    csv_bytes = report_grid.build_csv(report, rows)
+    fmt = (report.get("fmt") or report.get("format") or "csv").lower()
+    content, mime, ext = report_grid.build_attachment(report, rows, fmt)
     preview   = report_grid.build_preview_html(report, rows)
 
     name  = report.get("name") or report.get("title") or "Report"
     today = date.today().isoformat()
     subject = f"{name} — {today}"
     base = "".join(c if (c.isalnum() or c in "-_") else "_" for c in name)[:60] or "report"
-    filename = f"{base}_{today}.csv"
+    filename = f"{base}_{today}.{ext}"
 
     period_lbl = (report.get("period") or "").lower()
     details = {"Report": report.get("title") or name}
@@ -281,8 +282,8 @@ def _send_grid_report(report: dict) -> str:
         details["Filters"] = report["filters"]
     details["Rows"] = f"{len(rows):,}"
 
-    return send_attachment(recipients, subject, None, filename, csv_bytes,
-                           "text/csv", details, extra_html=preview)
+    return send_attachment(recipients, subject, None, filename, content,
+                           mime, details, extra_html=preview)
 
 
 def send_one(report: dict) -> str:

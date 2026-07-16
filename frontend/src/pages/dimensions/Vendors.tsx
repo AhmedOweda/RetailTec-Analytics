@@ -170,7 +170,7 @@ export default function DimVendors() {
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
                  mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h5" fontWeight={700} mb={0.3}>{tr('SRM — Supplier Intelligence')}<TitleLoader /></Typography>
+        <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>{tr('SRM — Supplier Intelligence')}<TitleLoader /></Typography>
         <Typography sx={{ fontSize:12, color:'#64748b', mb:1.5 }}>
           {tr('Ranked by purchase vouchers (supplier bought from) — item catalogs elsewhere use the item-master vendor')}
         </Typography>
