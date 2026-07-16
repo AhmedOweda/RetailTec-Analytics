@@ -92,7 +92,7 @@ export default function GridExportBar({
   const [schedWeekday,setSchedWeekday] = useState(0)
   const [schedDay,    setSchedDay  ] = useState(1)
   const [schedDate,   setSchedDate ] = useState('')
-  const [schedFmt,    setSchedFmt  ] = useState<'csv' | 'excel'>('excel')
+  const [schedFmt,    setSchedFmt  ] = useState<'csv' | 'excel' | 'pdf'>('excel')
   const [reportTypes, setReportTypes] = useState<Record<string, string>>({})
   const [creating,    setCreating  ] = useState(false)
   const WEEKDAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
@@ -482,6 +482,7 @@ export default function GridExportBar({
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Attachment format')}</Typography>
               <ToggleButtonGroup exclusive size="small" value={schedFmt} onChange={(_, v) => v && setSchedFmt(v)}
                 sx={{ '& .Mui-selected': { bgcolor: `${ACCENT}18 !important`, color: `${ACCENT} !important` } }}>
+                <ToggleButton value="pdf" sx={{ textTransform: 'none', px: 2 }}><PictureAsPdfIcon sx={{ fontSize: 16, mr: 0.7 }} />PDF</ToggleButton>
                 <ToggleButton value="excel" sx={{ textTransform: 'none', px: 2 }}><FileDownloadIcon sx={{ fontSize: 16, mr: 0.7 }} />Excel</ToggleButton>
                 <ToggleButton value="csv" sx={{ textTransform: 'none', px: 2 }}>CSV</ToggleButton>
               </ToggleButtonGroup>

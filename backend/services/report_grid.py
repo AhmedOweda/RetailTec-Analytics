@@ -216,12 +216,72 @@ def build_xlsx(report: dict, rows: list[dict]) -> bytes:
     return buf.getvalue()
 
 
+_PDF_MAX_ROWS = 1500       # keep a scheduled PDF a sane size
+
+
+def _pdf_font(pdf):
+    """Register a Unicode TTF so Arabic/accented text doesn't crash the core
+    latin-1 fonts. Falls back to Helvetica (latin-1) if no TTF is found."""
+    import os
+    for path in (r"C:\Windows\Fonts\arial.ttf", r"C:\Windows\Fonts\segoeui.ttf",
+                 r"C:\Windows\Fonts\tahoma.ttf"):
+        if os.path.exists(path):
+            try:
+                pdf.add_font("uni", "", path)
+                pdf.add_font("uni", "B", path)
+                return "uni", True
+            except Exception:
+                pass
+    return "helvetica", False
+
+
+def build_pdf(report: dict, rows: list[dict]) -> bytes:
+    """Landscape A4 table PDF of the grid (header repeats on each page)."""
+    from fpdf import FPDF
+    cols = _columns(report, rows)
+    title = report.get("title") or report.get("name") or "Report"
+
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf.set_auto_page_break(True, margin=10)
+    pdf.add_page()
+    font, unicode_ok = _pdf_font(pdf)
+
+    def txt(v):
+        s = "" if v is None else str(v)
+        return s if unicode_ok else s.encode("latin-1", "replace").decode("latin-1")
+
+    pdf.set_font(font, "B", 13)
+    pdf.cell(0, 7, txt(title), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font(font, "", 8)
+    pdf.set_text_color(120, 120, 120)
+    sub = f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}  ·  {len(rows):,} rows"
+    if len(rows) > _PDF_MAX_ROWS:
+        sub += f"  (first {_PDF_MAX_ROWS:,} shown — full data in CSV/Excel)"
+    pdf.cell(0, 5, txt(sub), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(1)
+    pdf.set_text_color(15, 23, 42)
+
+    data = [[txt(c[1]) for c in cols]] + \
+           [[txt(r.get(fid)) for fid, _ in cols] for r in rows[:_PDF_MAX_ROWS]]
+    pdf.set_font(font, "", 6.5)
+    with pdf.table(first_row_as_headings=True, line_height=4.2,
+                   text_align="LEFT", padding=(0.6, 1.2)) as table:
+        for i, drow in enumerate(data):
+            trow = table.row()
+            for cell in drow:
+                trow.cell(cell)
+    out = pdf.output()
+    return bytes(out)
+
+
 def build_attachment(report: dict, rows: list[dict], fmt: str):
     """Return (bytes, mime, extension) for the requested attachment format."""
     fmt = (fmt or "csv").lower()
     if fmt in ("xlsx", "excel"):
         return build_xlsx(report, rows), \
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
+    if fmt == "pdf":
+        return build_pdf(report, rows), "application/pdf", "pdf"
     return build_csv(report, rows), "text/csv", "csv"
 
 

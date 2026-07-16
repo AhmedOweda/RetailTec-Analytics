@@ -1489,7 +1489,7 @@ interface ReportDef {
   stores: string; recipients: string; enabled: boolean; last_sent?: string | null
   freq?: string; weekday?: number; day?: number; date?: string | null
   kind?: string; endpoint?: string; params?: any; columns?: any[]
-  period?: string; title?: string; view?: string; filters?: string; preinstalled?: boolean
+  period?: string; title?: string; view?: string; filters?: string; preinstalled?: boolean; fmt?: string
 }
 
 function ReportsCard() {
@@ -1607,6 +1607,17 @@ function ReportsCard() {
               <TextField size="small" type="time" sx={{ width:120 }} value={r.time}
                 onChange={e => upd(i, { time: e.target.value })} />
             </LabeledCtl>
+            {r.kind === 'grid' && (
+              <LabeledCtl label="Format">
+                <FormControl size="small" sx={{ minWidth:110 }}>
+                  <Select value={r.fmt ?? 'excel'} onChange={e => upd(i, { fmt: String(e.target.value) })}>
+                    <MenuItem value="pdf">PDF</MenuItem>
+                    <MenuItem value="excel">Excel</MenuItem>
+                    <MenuItem value="csv">CSV</MenuItem>
+                  </Select>
+                </FormControl>
+              </LabeledCtl>
+            )}
             {r.last_sent && (
               <Typography sx={{ fontSize:11, color:'#94a3b8', mb:0.7 }}>{trf('last sent {{t}}', { t: r.last_sent })}</Typography>
             )}
