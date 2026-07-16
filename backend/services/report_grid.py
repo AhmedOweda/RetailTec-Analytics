@@ -41,6 +41,8 @@ def _registry() -> dict:
         "/api/purchases/details":       purchases.purchases_details,
         "/api/sales/transactions":      sales.transactions,
         "/api/sales/products":          sales.products,
+        "/api/sales/journal/invoices":  getattr(sales, "journal_invoices", None),
+        "/api/sales/journal/items":     getattr(sales, "journal_items", None),
         # Inventory
         "/api/inventory/items":         getattr(inventory, "inv_items", None),
         "/api/inventory/movement-by":   getattr(inventory, "inv_movement_by", None),

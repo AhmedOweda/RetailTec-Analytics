@@ -6,6 +6,7 @@ import Overview              from './pages/sales/Overview'
 import Performance           from './pages/sales/Performance'
 import Products              from './pages/sales/Products'
 import Transactions          from './pages/sales/Transactions'
+import Journals               from './pages/sales/Journals'
 import DataModelSettings     from './pages/settings/DataModelSettings'
 import UsersManagement       from './pages/settings/UsersManagement'
 import AuditLog              from './pages/settings/AuditLog'
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
       { path: 'sales/performance',       element: <Performance />           },
       { path: 'sales/products',          element: <Products />              },
       { path: 'sales/transactions',      element: <Transactions />          },
+      { path: 'sales/journals',          element: <Journals />              },
       { path: 'inventory/overview',      element: <InventoryOverview />     },
       { path: 'inventory/movement',      element: <InventoryMovement />     },
       { path: 'inventory/transfers',     element: <InventoryTransfers />    },

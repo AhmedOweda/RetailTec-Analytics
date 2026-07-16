@@ -13,6 +13,7 @@ import DashboardIcon        from '@mui/icons-material/Dashboard'
 import TrendingUpIcon       from '@mui/icons-material/TrendingUp'
 import InventoryIcon        from '@mui/icons-material/Inventory2'
 import ReceiptLongIcon      from '@mui/icons-material/ReceiptLong'
+import MenuBookIcon         from '@mui/icons-material/MenuBook'
 import SettingsIcon         from '@mui/icons-material/Settings'
 import WarehouseIcon        from '@mui/icons-material/Warehouse'
 import SwapHorizIcon        from '@mui/icons-material/SwapHoriz'
@@ -68,6 +69,7 @@ const SALES_NAV = [
   { to: '/sales/performance',   icon: <TrendingUpIcon />, label: 'Performance'  },
   { to: '/sales/products',      icon: <InventoryIcon  />, label: 'Products'     },
   { to: '/sales/transactions',  icon: <ReceiptLongIcon/>, label: 'Invoices' },
+  { to: '/sales/journals',      icon: <MenuBookIcon    />, label: 'Journals' },
 ]
 
 const PURCHASES_NAV = [
@@ -315,7 +317,7 @@ export default function AppShell() {
   // Purchases Transactions + every Dimensions page. Settings/Users/Audit are
   // hidden separately in the footer block below.
   const MOBILE_HIDE = new Set<string>([
-    '/sales/transactions', '/purchases/transactions',
+    '/sales/transactions', '/sales/journals', '/purchases/transactions',
     '/dimensions/stores', '/dimensions/customers', '/dimensions/employees',
     '/dimensions/items', '/dimensions/vendors',
   ])
