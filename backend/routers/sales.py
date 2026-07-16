@@ -578,7 +578,8 @@ def journal_items(
     stores:       Optional[str] = Depends(scoped_stores),
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     type:     Optional[str] = Query(None),
-    doc_sid:  Optional[int] = Query(None),   # drill to one invoice
+    doc_no:   Optional[str] = Query(None),   # drill to one invoice (by document no.)
+    doc_sid:  Optional[int] = Query(None),   # legacy drill by internal id
     vendor:   Optional[str] = Query(None),
     dcs:      Optional[str] = Query(None),
     item:     Optional[str] = Query(None),
@@ -588,7 +589,11 @@ def journal_items(
     subf, subp = subsidiary_filter(subsidiaries, alias="S")
     where = f"FI.INVC_POST_DATE BETWEEN ? AND ? {sf} {subf}"
     params = [date_from, date_to] + sp + subp
-    if doc_sid is not None:
+    # Drill preferentially by DOC_NO (a stable string — the invoice SID can lose
+    # precision as a JSON number, which broke click-to-drill).
+    if doc_no:
+        where += " AND INV.DOC_NO::VARCHAR = ?"; params.append(str(doc_no))
+    elif doc_sid is not None:
         where += " AND FI.DOC_SID = ?"; params.append(doc_sid)
     if type in ("sale", "return"):
         where += " AND FI.ITEM_TYPE = ?"; params.append("Sale" if type == "sale" else "Return")
@@ -600,7 +605,11 @@ def journal_items(
     if item:
         where += " AND (I.ALU ILIKE ? OR I.DESCRIPTION1 ILIKE ?)"
         params += [f"%{item}%", f"%{item}%"]
-    lim = f"LIMIT {int(limit)}" if limit else "LIMIT 20000"
+    # No cap when drilling a single invoice; a generous safety cap otherwise.
+    if doc_no or doc_sid is not None:
+        lim = ""
+    else:
+        lim = f"LIMIT {int(limit)}" if limit else "LIMIT 50000"
     return _qdf(f"""
         SELECT INV.DOC_NO                     AS doc_no,
                FI.ITEM_TYPE                   AS item_type,
