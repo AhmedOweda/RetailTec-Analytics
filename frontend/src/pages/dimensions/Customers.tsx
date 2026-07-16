@@ -8,6 +8,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { useNavigate } from 'react-router-dom'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
@@ -62,6 +63,7 @@ function getSegment(row: any, p50ltv: number): string {
 }
 
 export default function DimCustomers() {
+  const navigate = useNavigate()
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('dim-customers')
   const [dateFrom, setDateFrom] = useState(prior)
@@ -221,6 +223,7 @@ export default function DimCustomers() {
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             pagination paginationPageSize={25}
             rowHeight={36} headerHeight={38} suppressCellFocus
+            onRowClicked={e => { if (e.data?.customer_id != null) navigate(`/sales/journals?customer_id=${e.data.customer_id}&customer_name=${encodeURIComponent(e.data.customer_name ?? '')}`) }}
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged} onColumnVisible={onColumnChanged} />
         </div>

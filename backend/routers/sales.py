@@ -985,6 +985,7 @@ def perf_customers(
         )
         SELECT
             C.FULL_NAME                                                            AS customer_name,
+            MAX(F.BT_CUID)                                                         AS customer_id,
             MAX(C.PHONE)                                                           AS phone,
             COUNT(*)                                                               AS invoice_count,
             ROUND(SUM(F.NET_SALES_WOTAX),2)                                       AS net_sales,

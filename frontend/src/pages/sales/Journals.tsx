@@ -4,7 +4,8 @@
  * document no.). "Show all lines" switches the detail to every line for the
  * current filters. Full slicer set; both grids exportable/schedulable.
  */
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Box, Typography, Chip, TextField, Autocomplete, Stack, Paper,
   ToggleButton, ToggleButtonGroup, Switch, FormControlLabel, InputAdornment,
@@ -94,6 +95,17 @@ export default function Journals() {
     queryFn: () => axios.get('/api/inventory/items-search', { params: { q: itemQ } }).then(r => r.data as ItemOpt[]),
     enabled: itemQ.trim().length >= 2, staleTime: 30_000,
   }).data ?? []
+
+  // Drill-through: preset slicers from URL params (command palette / dimension pages).
+  const [sp] = useSearchParams()
+  useEffect(() => {
+    const cid = sp.get('customer_id')
+    if (cid) setCustSel({ customer_id: Number(cid), name: sp.get('customer_name') || `#${cid}`, phone: null })
+    const it = sp.get('item')
+    if (it) setItemSel({ item_sid: -1, ALU: it, UPC: '', DESCRIPTION1: sp.get('item_desc') || '' })
+    const vd = sp.get('vendor'); if (vd) setVendSel(vd)
+    const dc = sp.get('dcs');    if (dc) setDcsSel({ label: dc, lvl: '' })
+  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
   const [selDoc,   setSelDoc]   = useState<string | null>(null)   // selected document no.
   const [showAll,  setShowAll]  = useState(false)
 

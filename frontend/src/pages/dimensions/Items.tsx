@@ -11,6 +11,7 @@ import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { useNavigate } from 'react-router-dom'
 import { moneyPrefix, money } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
@@ -61,6 +62,7 @@ const GP_META: Record<string, { color: string; desc: string }> = {
 
 export default function DimItems() {
   const { itemFields } = useAppSettings()
+  const navigate = useNavigate()
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('dim-items')
   const [dateFrom, setDateFrom] = useState(prior)
@@ -241,6 +243,7 @@ export default function DimItems() {
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             pagination paginationPageSize={25}
             rowHeight={36} headerHeight={38} suppressCellFocus
+            onRowClicked={e => { if (e.data?.ALU) navigate(`/sales/journals?item=${encodeURIComponent(e.data.ALU)}&item_desc=${encodeURIComponent(e.data.DESCRIPTION1 ?? '')}`) }}
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged} onColumnVisible={onColumnChanged} />
         </div>

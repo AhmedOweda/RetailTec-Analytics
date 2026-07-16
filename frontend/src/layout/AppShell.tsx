@@ -4,6 +4,7 @@
  */
 import { useState, useMemo, useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import CommandPalette from '../components/CommandPalette'
 import {
   Box, Tooltip, Typography, Divider, CircularProgress,
   IconButton, Collapse, Dialog, TextField, Button,
@@ -550,6 +551,9 @@ export default function AppShell() {
 
   return (
     <Box sx={{ display:'flex', height:'100vh', overflow:'hidden' }}>
+
+      {/* Global command palette (Ctrl/Cmd-K) */}
+      <CommandPalette />
 
       {/* Forced-password-change disabled by owner request (2026-07-08).
           <ForcePasswordDialog /> stays available if it's ever wanted back. */}
