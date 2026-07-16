@@ -63,11 +63,37 @@ export default function Journals() {
   const [stores,   setStores]   = useState<string[]>([])
   const [type,     setType]     = useState<'all'|'sale'|'return'>('all')
   const [docNo,    setDocNo]    = useState('')
-  const [customer, setCustomer] = useState('')
-  const [vendor,   setVendor]   = useState('')
-  const [dcs,      setDcs]      = useState('')
-  const [item,     setItem]     = useState('')
   const [search,   setSearch]   = useState('')
+
+  // ── Type-ahead slicers (server-searched, like the inventory Ledger) ──
+  type CustOpt = { customer_id: number; name: string; phone: string | null }
+  type DcsOpt  = { label: string; lvl: string }
+  type ItemOpt = { item_sid: number; ALU: string; UPC: string; DESCRIPTION1: string }
+  const [custSel, setCustSel] = useState<CustOpt | null>(null); const [custQ, setCustQ] = useState('')
+  const [vendSel, setVendSel] = useState<string | null>(null); const [vendQ, setVendQ] = useState('')
+  const [dcsSel,  setDcsSel ] = useState<DcsOpt | null>(null); const [dcsQ,  setDcsQ ] = useState('')
+  const [itemSel, setItemSel] = useState<ItemOpt | null>(null); const [itemQ, setItemQ] = useState('')
+
+  const custOpts = useQuery({
+    queryKey: ['jr-cust', custQ],
+    queryFn: () => axios.get('/api/sales/journal/search/customers', { params: { q: custQ } }).then(r => r.data as CustOpt[]),
+    enabled: custQ.trim().length >= 2, staleTime: 30_000,
+  }).data ?? []
+  const vendOpts = useQuery({
+    queryKey: ['jr-vend', vendQ],
+    queryFn: () => axios.get('/api/sales/journal/search/vendors', { params: { q: vendQ } }).then(r => (r.data as any[]).map(x => x.vendor as string)),
+    enabled: vendQ.trim().length >= 2, staleTime: 30_000,
+  }).data ?? []
+  const dcsOpts = useQuery({
+    queryKey: ['jr-dcs', dcsQ],
+    queryFn: () => axios.get('/api/sales/journal/search/dcs', { params: { q: dcsQ } }).then(r => r.data as DcsOpt[]),
+    enabled: dcsQ.trim().length >= 2, staleTime: 30_000,
+  }).data ?? []
+  const itemOpts = useQuery({
+    queryKey: ['jr-item', itemQ],
+    queryFn: () => axios.get('/api/inventory/items-search', { params: { q: itemQ } }).then(r => r.data as ItemOpt[]),
+    enabled: itemQ.trim().length >= 2, staleTime: 30_000,
+  }).data ?? []
   const [selDoc,   setSelDoc]   = useState<string | null>(null)   // selected document no.
   const [showAll,  setShowAll]  = useState(false)
 
@@ -89,12 +115,12 @@ export default function Journals() {
     ...(stores.length ? { stores: stores.join(',') } : {}),
     ...(type !== 'all' ? { type } : {}),
     ...(docNo.trim()    ? { doc_no: docNo.trim() } : {}),
-    ...(customer.trim() ? { customer: customer.trim() } : {}),
-    ...(vendor.trim()   ? { vendor: vendor.trim() } : {}),
-    ...(dcs.trim()      ? { dcs: dcs.trim() } : {}),
-    ...(item.trim()     ? { item: item.trim() } : {}),
+    ...(custSel        ? { customer_id: String(custSel.customer_id) } : {}),
+    ...(vendSel        ? { vendor: vendSel } : {}),
+    ...(dcsSel         ? { dcs: dcsSel.label } : {}),
+    ...(itemSel        ? { item: itemSel.ALU } : {}),
     ...(search.trim()   ? { search: search.trim() } : {}),
-  }), [dateFrom, dateTo, stores, type, docNo, customer, vendor, dcs, item, search])
+  }), [dateFrom, dateTo, stores, type, docNo, custSel, vendSel, dcsSel, itemSel, search])
 
   // Master: invoice headers (no hardcoded cap — bounded by the date/filters)
   const { data: invData, isFetching: invFetching, refetch: refetchInv } = useQuery({
@@ -214,10 +240,61 @@ export default function Journals() {
 
         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mt: 1 }}>
           <TextField size="small" label={tr('Document No.')} value={docNo} onChange={e => setDocNo(e.target.value)} sx={{ width: 130 }} />
-          <TextField size="small" label={tr('Customer')} value={customer} onChange={e => setCustomer(e.target.value)} sx={{ width: 150 }} />
-          <TextField size="small" label={tr('Vendor')} value={vendor} onChange={e => setVendor(e.target.value)} sx={{ width: 150 }} />
-          <TextField size="small" label={tr('Dept / Class / Subclass')} value={dcs} onChange={e => setDcs(e.target.value)} sx={{ width: 180 }} />
-          <TextField size="small" label={tr('ALU / Item')} value={item} onChange={e => setItem(e.target.value)} sx={{ width: 150 }} />
+
+          {/* Customer — search by name / id / phone */}
+          <Autocomplete size="small" sx={{ minWidth: 240 }}
+            options={custOpts} value={custSel} inputValue={custQ}
+            onInputChange={(_, v) => setCustQ(v)} onChange={(_, v) => setCustSel(v)}
+            filterOptions={x => x}
+            getOptionLabel={o => o.name || String(o.customer_id)}
+            isOptionEqualToValue={(a, b) => a.customer_id === b.customer_id}
+            noOptionsText={custQ.length < 2 ? tr('Type 2+ chars…') : tr('No match')}
+            renderOption={(props, o) => (
+              <li {...props} key={o.customer_id}>
+                <Box>
+                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{o.name || '—'}</Typography>
+                  <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>#{o.customer_id}{o.phone ? ` · ${o.phone}` : ''}</Typography>
+                </Box>
+              </li>
+            )}
+            renderInput={p => <TextField {...p} label={tr('Customer (name / id / phone)')} size="small" />} />
+
+          {/* Vendor */}
+          <Autocomplete size="small" sx={{ minWidth: 180 }}
+            options={vendOpts} value={vendSel} inputValue={vendQ}
+            onInputChange={(_, v) => setVendQ(v)} onChange={(_, v) => setVendSel(v)}
+            filterOptions={x => x}
+            noOptionsText={vendQ.length < 2 ? tr('Type 2+ chars…') : tr('No match')}
+            renderInput={p => <TextField {...p} label={tr('Vendor')} size="small" />} />
+
+          {/* Dept / Class / Subclass */}
+          <Autocomplete size="small" sx={{ minWidth: 210 }}
+            options={dcsOpts} value={dcsSel} inputValue={dcsQ}
+            onInputChange={(_, v) => setDcsQ(v)} onChange={(_, v) => setDcsSel(v)}
+            filterOptions={x => x}
+            getOptionLabel={o => o.label}
+            isOptionEqualToValue={(a, b) => a.label === b.label && a.lvl === b.lvl}
+            noOptionsText={dcsQ.length < 2 ? tr('Type 2+ chars…') : tr('No match')}
+            renderOption={(props, o) => (
+              <li {...props} key={`${o.lvl}:${o.label}`}>
+                <Box>
+                  <Typography sx={{ fontSize: 13 }}>{o.label}</Typography>
+                  <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>{tr(o.lvl)}</Typography>
+                </Box>
+              </li>
+            )}
+            renderInput={p => <TextField {...p} label={tr('Dept / Class / Subclass')} size="small" />} />
+
+          {/* ALU / Item */}
+          <Autocomplete size="small" sx={{ minWidth: 240 }}
+            options={itemOpts} value={itemSel} inputValue={itemQ}
+            onInputChange={(_, v) => setItemQ(v)} onChange={(_, v) => setItemSel(v)}
+            filterOptions={x => x}
+            getOptionLabel={o => `${o.ALU} | ${o.DESCRIPTION1}`}
+            isOptionEqualToValue={(a, b) => a.item_sid === b.item_sid}
+            noOptionsText={itemQ.length < 2 ? tr('Type 2+ chars…') : tr('No match')}
+            renderInput={p => <TextField {...p} label={tr('ALU / Item')} size="small" />} />
+
           <TextField size="small" placeholder={tr('Quick search...')} value={search} onChange={e => setSearch(e.target.value)}
             sx={{ width: 200 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: '#94a3b8' }} /></InputAdornment> }} />
         </Box>

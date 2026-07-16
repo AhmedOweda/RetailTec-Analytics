@@ -514,6 +514,7 @@ def journal_invoices(
     type:     Optional[str] = Query(None),   # 'sale' | 'return' | None
     doc_no:   Optional[str] = Query(None),
     customer: Optional[str] = Query(None),
+    customer_id: Optional[str] = Query(None),   # exact customer (from the slicer)
     vendor:   Optional[str] = Query(None),
     dcs:      Optional[str] = Query(None),
     item:     Optional[str] = Query(None),
@@ -529,9 +530,11 @@ def journal_invoices(
         where += " AND INV.RECEIPT_TYPE = ?"; params.append(0 if type == "sale" else 1)
     if doc_no:
         where += " AND INV.DOC_NO::VARCHAR ILIKE ?"; params.append(f"%{doc_no}%")
+    if customer_id:
+        where += " AND INV.BT_CUID::VARCHAR = ?"; params.append(str(customer_id))
     if customer:
-        where += " AND (C.FULL_NAME ILIKE ? OR INV.BT_CUID::VARCHAR ILIKE ?)"
-        params += [f"%{customer}%", f"%{customer}%"]
+        where += " AND (C.FULL_NAME ILIKE ? OR INV.BT_CUID::VARCHAR ILIKE ? OR C.PHONE ILIKE ?)"
+        params += [f"%{customer}%", f"%{customer}%", f"%{customer}%"]
     if search.strip():
         pat = f"%{search.strip()}%"
         where += (" AND (INV.DOC_NO::VARCHAR ILIKE ? OR COALESCE(S.STORE_NAME,'') ILIKE ?"
@@ -636,6 +639,52 @@ def journal_items(
         ORDER BY INV.DOC_NO, I.DESCRIPTION1
         {lim}
     """, params)
+
+
+# ── Journal slicer type-ahead search endpoints ────────────────────────────────
+
+@router.get("/api/sales/journal/search/customers")
+def journal_search_customers(q: str = Query(..., min_length=1, max_length=100)):
+    """Search customers by name, id (SID) or phone for the Journals slicer."""
+    pat = f"%{q.strip()}%"
+    return _qdf("""
+        SELECT C.SID AS customer_id, C.FULL_NAME AS name, C.PHONE AS phone
+        FROM DIM_CUSTOMER C
+        WHERE C.FULL_NAME ILIKE ? OR C.SID::VARCHAR ILIKE ? OR C.PHONE ILIKE ?
+        ORDER BY C.FULL_NAME
+        LIMIT 40
+    """, [pat, pat, pat])
+
+
+@router.get("/api/sales/journal/search/vendors")
+def journal_search_vendors(q: str = Query(..., min_length=1, max_length=100)):
+    """Distinct item-master vendor names matching the query."""
+    pat = f"%{q.strip()}%"
+    return _qdf("""
+        SELECT DISTINCT VEND_NAME AS vendor
+        FROM DIM_VENDOR
+        WHERE VEND_NAME ILIKE ? AND VEND_NAME IS NOT NULL AND TRIM(VEND_NAME) <> ''
+        ORDER BY VEND_NAME
+        LIMIT 40
+    """, [pat])
+
+
+@router.get("/api/sales/journal/search/dcs")
+def journal_search_dcs(q: str = Query(..., min_length=1, max_length=100)):
+    """Distinct department / class / subclass labels matching the query."""
+    pat = f"%{q.strip()}%"
+    return _qdf("""
+        SELECT label, lvl FROM (
+            SELECT DISTINCT D_NAME AS label, 'Department' AS lvl FROM DIM_DCS WHERE D_NAME ILIKE ?
+            UNION
+            SELECT DISTINCT C_NAME AS label, 'Class' AS lvl FROM DIM_DCS WHERE C_NAME ILIKE ?
+            UNION
+            SELECT DISTINCT S_NAME AS label, 'Subclass' AS lvl FROM DIM_DCS WHERE S_NAME ILIKE ?
+        ) t
+        WHERE label IS NOT NULL AND TRIM(label) <> ''
+        ORDER BY label
+        LIMIT 40
+    """, [pat, pat, pat])
 
 
 # ── Performance: Store detail (invoices-level — real discounts + return rate) ──
