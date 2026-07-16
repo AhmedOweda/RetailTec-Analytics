@@ -333,8 +333,10 @@ export default function InventoryCoverage() {
             <GridExportBar
               gridRef={gridRef}
               filename={`coverage_${bucket}_${period}d`}
-              title={`Inventory Coverage — ${BUCKETS.find(b => b.key === bucket)?.label}`}
+              title="Inventory Coverage"
               subtitle={`Daily AVG basis: ${period} days | Period: last ${period} days`}
+              filters={`${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}`}
+              reportEndpoint="/api/inventory/coverage" reportPeriod="custom" reportParams={params}
               colDefs={colDefs}
               onResetColumns={resetColumns}
             />

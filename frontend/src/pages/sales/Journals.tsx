@@ -23,7 +23,7 @@ import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import TitleLoader from '../../components/TitleLoader'
 import { noRowsOverlay } from '../../utils/gridOverlay'
-import { moneyExact, num } from '../../utils/formatters'
+import { moneyExact, money, num } from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
 
 const ACCENT = '#7c3aed'
@@ -226,9 +226,9 @@ export default function Journals() {
       {/* ── KPI cards (standard KpiCard component) ── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(4,1fr)' }, gap: 2, mt: 2 }}>
         <KpiCard label={tr('Invoices')} value={num(kpi.count, 0)} sub={tr('in current filter')} color="#7c3aed" icon="ti-file-invoice" />
-        <KpiCard label={tr('Net Sales WTax')} value={fmtMoney(kpi.net)} sub={tr('with tax')} color="#0284c7" icon="ti-coin" />
+        <KpiCard label={tr('Net Sales WTax')} value={money(kpi.net)} sub={tr('with tax')} color="#0284c7" icon="ti-coin" />
         <KpiCard label={tr('Items')} value={num(kpi.prod, 0)} sub={tr('line items')} color="#059669" icon="ti-package" />
-        <KpiCard label={tr('Avg basket')} value={fmtMoney(kpi.avg)} sub={tr('per invoice')} color="#64748b" icon="ti-receipt" />
+        <KpiCard label={tr('Avg basket')} value={money(kpi.avg)} sub={tr('per invoice')} color="#64748b" icon="ti-receipt" />
       </Box>
 
       {/* ── Invoice master grid ── */}
@@ -254,8 +254,7 @@ export default function Journals() {
       </Paper>
 
       {/* ── Item detail grid ── */}
-      <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', overflow: 'hidden', mt: 2,
-        flex: 1, minHeight: 260, display: 'flex', flexDirection: 'column' }}>
+      <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', overflow: 'hidden', mt: 2, mb: 1 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 1.5, py: 1, flexWrap: 'wrap', gap: 1 }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>
             {tr('Item Details')}
@@ -271,7 +270,7 @@ export default function Journals() {
               reportParams={filterParams} colDefs={itemColDefs} onResetColumns={itemColsState.resetColumns} />
           </Stack>
         </Stack>
-        <Box className="ag-theme-alpine" sx={{ flex: 1, minHeight: 200, ...GRID_SX }}>
+        <Box className="ag-theme-alpine" sx={{ height: 360, ...GRID_SX }}>
           <AgGridReact ref={itemGridRef} rowData={itemRows} columnDefs={trCols(itemColDefs as any[])}
             defaultColDef={defaultColDef}
             overlayNoRowsTemplate={itemsEnabled ? noRowsOverlay() : `<span style="color:#94a3b8;font-size:13px">${tr('Select an invoice above, or turn on “Show all lines”.')}</span>`}

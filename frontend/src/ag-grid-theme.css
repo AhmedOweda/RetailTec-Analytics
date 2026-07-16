@@ -62,11 +62,10 @@
   letter-spacing: 0.2px;
 }
 
-/* Cells: vertically centered, no right border (flat look) */
+/* Cells: no right border (flat look). Leave the Alpine theme's own vertical
+   centering in place — forcing display:flex here can interfere with row layout. */
 .ag-theme-alpine.ag-theme-alpine .ag-cell {
   border-right: none;
-  display: flex;
-  align-items: center;
 }
 
 /* Selected row: subtle left accent bar */

@@ -190,6 +190,7 @@ export default function DimStores() {
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
           <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Store Detail — {{n}} stores',{n:rows.length})}</Typography>
           <GridExportBar gridRef={gridRef} filename="stores" title="Store Intelligence"
+            reportEndpoint="/api/sales/perf/stores" reportPeriod="custom" reportParams={params}
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 380 }}>

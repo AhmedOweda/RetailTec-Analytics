@@ -221,6 +221,7 @@ export default function DimVendors() {
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
           <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Supplier Detail — {{n}} suppliers',{n:merged.length})}</Typography>
           <GridExportBar gridRef={gridRef} filename="suppliers_srm" title="SRM — Supplier Intelligence"
+            reportEndpoint="/api/purchases/by-vendor" reportPeriod="custom" reportParams={purParams}
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 420 }}>

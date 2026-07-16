@@ -20,6 +20,7 @@ import PictureAsPdfIcon  from '@mui/icons-material/PictureAsPdf'
 import ViewColumnIcon    from '@mui/icons-material/ViewColumn'
 import EmailIcon         from '@mui/icons-material/Email'
 import HistoryIcon       from '@mui/icons-material/History'
+import ScheduleSendIcon  from '@mui/icons-material/ScheduleSend'
 import CloseIcon         from '@mui/icons-material/Close'
 import type { AgGridReact } from 'ag-grid-react'
 import type { ColDef }      from 'ag-grid-community'
@@ -393,9 +394,15 @@ export default function GridExportBar({
         startIcon={exporting === 'pdf' ? <CircularProgress size={13} sx={{ color: '#dc2626' }} /> : <PictureAsPdfIcon sx={{ fontSize: '17px !important' }} />}
         sx={btnSx('#dc2626')}>{tr('PDF')}</Button>
 
-      <Button size="small" variant="outlined" onClick={() => setEmailOpen(true)}
+      <Button size="small" variant="outlined" onClick={() => { setMode('now'); setEmailOpen(true) }}
         startIcon={<EmailIcon sx={{ fontSize: '17px !important' }} />}
         sx={btnSx(ACCENT)}>{tr('Email')}</Button>
+
+      {isAdmin && reportEndpoint && (
+        <Button size="small" variant="outlined" onClick={() => { setMode('schedule'); setEmailOpen(true) }}
+          startIcon={<ScheduleSendIcon sx={{ fontSize: '17px !important' }} />}
+          sx={btnSx('#0284c7')}>{tr('Schedule')}</Button>
+      )}
 
       {/* ── Email dialog ── */}
       <Dialog open={emailOpen} onClose={() => setEmailOpen(false)} maxWidth="sm" fullWidth

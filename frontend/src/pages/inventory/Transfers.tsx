@@ -343,7 +343,11 @@ export default function Transfers() {
             <Tab label={tr('By Department')} />
             <Tab label={tr('Details')} />
           </Tabs>
-          <GridExportBar gridRef={gridRef} filename="transfers" title="Transfers"
+          <GridExportBar gridRef={gridRef} filename="transfers" title="Transfers" view={tr('Details')}
+            filters={`${dateFrom} → ${dateTo} · ${storesParam ? tr('Selected stores') : tr('All stores')}`}
+            reportEndpoint="/api/inventory/transfers/details"
+            reportPeriod={PERIODS[period]?.label ?? 'custom'}
+            reportParams={qParams}
             colDefs={tabCols[tab]} />
         </Box>
         <Box className="ag-theme-alpine" sx={{ height:360 }}>
