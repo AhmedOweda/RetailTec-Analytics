@@ -1,12 +1,12 @@
 /**
  * Sales → Journals — Power BI-style master/detail invoice explorer.
- * Click an invoice (master) → its line items load below (detail). A "Show all
- * lines" toggle switches the detail grid to every line for the current filters.
- * Full slicer set + both grids exportable/schedulable.
+ * Click an invoice (master) → its line items load below (detail, drilled by
+ * document no.). "Show all lines" switches the detail to every line for the
+ * current filters. Full slicer set; both grids exportable/schedulable.
  */
 import { useMemo, useRef, useState } from 'react'
 import {
-  Box, Typography, Chip, TextField, Autocomplete, Stack,
+  Box, Typography, Chip, TextField, Autocomplete, Stack, Paper,
   ToggleButton, ToggleButtonGroup, Switch, FormControlLabel, InputAdornment,
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
@@ -20,6 +20,7 @@ import { format, subDays, startOfMonth, startOfYear } from 'date-fns'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { useRetryIfEmpty } from '../../hooks/useRetryIfEmpty'
 import GridExportBar from '../../components/GridExportBar'
+import KpiCard from '../../components/KpiCard'
 import TitleLoader from '../../components/TitleLoader'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import { moneyExact, num } from '../../utils/formatters'
@@ -45,6 +46,16 @@ function TypeBadge({ value }: { value: string }) {
   )
 }
 
+const GRID_SX = {
+  width: '100%',
+  '& .ag-header': { bgcolor: '#f8f7ff !important', borderBottom: '1px solid #e9e4ff' },
+  '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
+  '& .ag-row-even': { bgcolor: '#ffffff' },
+  '& .ag-row-odd': { bgcolor: '#faf9ff' },
+  '& .ag-row-selected': { bgcolor: '#ede9fe !important' },
+  '& .ag-paging-panel': { borderTop: '1px solid #e9e4ff', color: '#475569' },
+} as const
+
 export default function Journals() {
   const [preset, setPreset]   = useState('30D')
   const [dateFrom, setDateFrom] = useState(PRESETS['30D'][0])
@@ -57,7 +68,7 @@ export default function Journals() {
   const [dcs,      setDcs]      = useState('')
   const [item,     setItem]     = useState('')
   const [search,   setSearch]   = useState('')
-  const [selDoc,   setSelDoc]   = useState<{ sid: number; no: string } | null>(null)
+  const [selDoc,   setSelDoc]   = useState<string | null>(null)   // selected document no.
   const [showAll,  setShowAll]  = useState(false)
 
   const invGridRef  = useRef<AgGridReact>(null)
@@ -85,30 +96,30 @@ export default function Journals() {
     ...(search.trim()   ? { search: search.trim() } : {}),
   }), [dateFrom, dateTo, stores, type, docNo, customer, vendor, dcs, item, search])
 
-  // Master: invoice headers
+  // Master: invoice headers (no hardcoded cap — bounded by the date/filters)
   const { data: invData, isFetching: invFetching, refetch: refetchInv } = useQuery({
     queryKey: ['journal-invoices', filterParams],
-    queryFn: () => axios.get('/api/sales/journal/invoices', { params: { ...filterParams, limit: 1000 } }).then(r => r.data),
+    queryFn: () => axios.get('/api/sales/journal/invoices', { params: filterParams }).then(r => r.data),
     placeholderData: p => p,
   })
   const invoices: any[] = invData?.rows ?? []
   const invTotal: number = invData?.total ?? invoices.length
   useRetryIfEmpty(invoices.length === 0, invFetching, refetchInv)
 
-  // Detail: item lines — either the selected invoice (drill) or all filtered lines
+  // Detail: item lines — the selected invoice (drill by doc_no) OR all filtered lines
   const itemParams = useMemo(() => ({
     ...filterParams,
-    ...(showAll ? { limit: 20000 } : (selDoc ? { doc_sid: selDoc.sid } : {})),
+    ...(showAll ? {} : (selDoc ? { doc_no: selDoc } : {})),
   }), [filterParams, showAll, selDoc])
   const itemsEnabled = showAll || !!selDoc
   const { data: itemRows = [] } = useQuery<any[]>({
-    queryKey: ['journal-items', itemParams, showAll, selDoc?.sid],
+    queryKey: ['journal-items', itemParams, showAll, selDoc],
     queryFn: () => axios.get('/api/sales/journal/items', { params: itemParams }).then(r => r.data),
     enabled: itemsEnabled,
     placeholderData: p => p,
   })
 
-  // heat scale for the price/discount columns
+  // heat scale for the price / discount columns
   const maxPrice = useMemo(() =>
     Math.max(1, ...itemRows.map(r => Math.abs(+(r.extended_price_after_disc ?? 0)))), [itemRows])
   const heat = (v: number) => {
@@ -126,7 +137,7 @@ export default function Journals() {
   const invColDefs = useMemo<ColDef[]>(() => [
     { field: 'created_datetime', headerName: 'Created DateTime', width: 165, pinned: 'left' },
     { field: 'doc_no', headerName: 'Document No.', width: 120, pinned: 'left',
-      cellStyle: { fontFamily: 'monospace', fontWeight: 700 } },
+      cellStyle: { fontFamily: 'monospace', fontWeight: 700, color: ACCENT } },
     { field: 'invoice_type', headerName: 'Type', width: 90, cellRenderer: TypeBadge },
     { field: 'store_code', headerName: 'Store Code', width: 100 },
     { field: 'store_name', headerName: 'Store Name', width: 180 },
@@ -167,21 +178,25 @@ export default function Journals() {
   const journalFilters = `${dateFrom} → ${dateTo} · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}${type !== 'all' ? ` · ${type}` : ''}`
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: '#faf9ff', px: 2.5, pb: 2.5, gap: 1.25 }}>
-      {/* Header + slicers */}
-      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#faf9ff', mx: -2.5, px: 2.5, pt: 2.5, pb: 1.25,
+    <Box sx={{ pt: 0, px: 3, pb: 3, minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* ── Header + slicers (standard sticky pattern) ── */}
+      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff', mx: -3, px: 3, pt: 3, pb: 2,
         borderBottom: '1px solid #e9e4ff' }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', mb: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Journals')}<TitleLoader />
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Box sx={{ display: 'flex', gap: 0.5, p: 0.5, bgcolor: '#f1f5f9', borderRadius: 2 }}>
+        <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>{dateFrom} — {dateTo}</Typography>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+          <Stack direction="row" spacing={0.5}>
             {Object.keys(PRESETS).map(p => (
               <Chip key={p} label={tr(p)} size="small" onClick={() => applyPreset(p)}
-                sx={{ fontWeight: 700, fontSize: 12, height: 28,
-                  bgcolor: preset === p ? ACCENT : 'transparent', color: preset === p ? '#fff' : '#64748b' }} />
+                variant={preset === p ? 'filled' : 'outlined'}
+                sx={{ fontWeight: 600, fontSize: 11, ...(preset === p
+                  ? { bgcolor: ACCENT, color: '#fff', '&:hover': { bgcolor: '#6d28d9' } }
+                  : { borderColor: '#e2e8f0', color: '#64748b' }) }} />
             ))}
-          </Box>
+          </Stack>
           <TextField label={tr('From')} type="date" size="small" sx={{ width: 150 }} InputLabelProps={{ shrink: true }}
             value={dateFrom} onChange={e => { setPreset(''); setDateFrom(e.target.value) }} />
           <TextField label={tr('To')} type="date" size="small" sx={{ width: 150 }} InputLabelProps={{ shrink: true }}
@@ -196,7 +211,8 @@ export default function Journals() {
             onChange={(_, v) => setStores(v)} sx={{ minWidth: 200, maxWidth: 320 }}
             renderInput={p => <TextField {...p} label={tr('Store')} />} limitTags={1} />
         </Box>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', mt: 1 }}>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mt: 1 }}>
           <TextField size="small" label={tr('Document No.')} value={docNo} onChange={e => setDocNo(e.target.value)} sx={{ width: 130 }} />
           <TextField size="small" label={tr('Customer')} value={customer} onChange={e => setCustomer(e.target.value)} sx={{ width: 150 }} />
           <TextField size="small" label={tr('Vendor')} value={vendor} onChange={e => setVendor(e.target.value)} sx={{ width: 150 }} />
@@ -205,19 +221,22 @@ export default function Journals() {
           <TextField size="small" placeholder={tr('Quick search...')} value={search} onChange={e => setSearch(e.target.value)}
             sx={{ width: 200 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: '#94a3b8' }} /></InputAdornment> }} />
         </Box>
-        {/* KPI strip */}
-        <Box sx={{ display: 'flex', gap: 3, mt: 1, flexWrap: 'wrap' }}>
-          <KpiInline label={tr('Invoices')} value={num(kpi.count, 0)} />
-          <KpiInline label={tr('Net Sales WTax')} value={fmtMoney(kpi.net)} color={ACCENT} />
-          <KpiInline label={tr('Items')} value={num(kpi.prod, 0)} />
-          <KpiInline label={tr('Avg basket')} value={fmtMoney(kpi.avg)} />
-        </Box>
       </Box>
 
-      {/* Invoice master grid */}
-      <Box>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 13 }}>{tr('Invoice Details')}</Typography>
+      {/* ── KPI cards (standard KpiCard component) ── */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(4,1fr)' }, gap: 2, mt: 2 }}>
+        <KpiCard label={tr('Invoices')} value={num(kpi.count, 0)} sub={tr('in current filter')} color="#7c3aed" icon="ti-file-invoice" />
+        <KpiCard label={tr('Net Sales WTax')} value={fmtMoney(kpi.net)} sub={tr('with tax')} color="#0284c7" icon="ti-coin" />
+        <KpiCard label={tr('Items')} value={num(kpi.prod, 0)} sub={tr('line items')} color="#059669" icon="ti-package" />
+        <KpiCard label={tr('Avg basket')} value={fmtMoney(kpi.avg)} sub={tr('per invoice')} color="#64748b" icon="ti-receipt" />
+      </Box>
+
+      {/* ── Invoice master grid ── */}
+      <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', overflow: 'hidden', mt: 2 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 1.5, py: 1 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>
+            {tr('Invoice Details')} <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {num(invTotal, 0)}</span>
+          </Typography>
           <GridExportBar gridRef={invGridRef} filename="journal_invoices" title="Journals" view={tr('Invoices')}
             filters={journalFilters} reportEndpoint="/api/sales/journal/invoices" reportPeriod={preset || 'custom'}
             reportParams={filterParams} colDefs={invColDefs} onResetColumns={invCols.resetColumns} />
@@ -225,19 +244,23 @@ export default function Journals() {
         <Box className="ag-theme-alpine" sx={{ height: 300, ...GRID_SX }}>
           <AgGridReact ref={invGridRef} rowData={invoices} columnDefs={trCols(invColDefs as any[])}
             defaultColDef={defaultColDef} overlayNoRowsTemplate={noRowsOverlay()}
-            rowSelection="single" onRowClicked={e => { setShowAll(false); setSelDoc({ sid: e.data.doc_sid, no: e.data.doc_no }) }}
+            rowSelection="single"
+            onRowClicked={e => { setShowAll(false); setSelDoc(String(e.data?.doc_no ?? '')) }}
             onGridReady={invCols.onGridReady} onColumnMoved={invCols.onColumnChanged}
             onColumnResized={invCols.onColumnChanged} onColumnVisible={invCols.onColumnChanged}
             rowHeight={34} headerHeight={38} suppressCellFocus animateRows
             pagination paginationPageSize={100} />
         </Box>
-      </Box>
+      </Paper>
 
-      {/* Item detail grid */}
-      <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5, flexWrap: 'wrap', gap: 1 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 13 }}>
-            {tr('Item Details')}{selDoc && !showAll ? ` — #${selDoc.no}` : (showAll ? ` — ${tr('all filtered lines')}` : '')}
+      {/* ── Item detail grid ── */}
+      <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', overflow: 'hidden', mt: 2,
+        flex: 1, minHeight: 260, display: 'flex', flexDirection: 'column' }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 1.5, py: 1, flexWrap: 'wrap', gap: 1 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>
+            {tr('Item Details')}
+            {selDoc && !showAll ? <span style={{ color: ACCENT }}> · #{selDoc}</span>
+              : (showAll ? <span style={{ color: '#94a3b8', fontWeight: 500 }}> · {tr('all filtered lines')}</span> : '')}
           </Typography>
           <Stack direction="row" spacing={1.5} alignItems="center">
             <FormControlLabel control={<Switch size="small" checked={showAll} onChange={e => setShowAll(e.target.checked)}
@@ -245,37 +268,19 @@ export default function Journals() {
               label={<Typography sx={{ fontSize: 12, fontWeight: 600 }}>{tr('Show all lines')}</Typography>} />
             <GridExportBar gridRef={itemGridRef} filename="journal_items" title="Journals" view={tr('Item lines')}
               filters={journalFilters} reportEndpoint="/api/sales/journal/items" reportPeriod={preset || 'custom'}
-              reportParams={{ ...filterParams, limit: 20000 }} colDefs={itemColDefs} onResetColumns={itemColsState.resetColumns} />
+              reportParams={filterParams} colDefs={itemColDefs} onResetColumns={itemColsState.resetColumns} />
           </Stack>
         </Stack>
-        <Box className="ag-theme-alpine" sx={{ flex: 1, minHeight: 220, ...GRID_SX }}>
+        <Box className="ag-theme-alpine" sx={{ flex: 1, minHeight: 200, ...GRID_SX }}>
           <AgGridReact ref={itemGridRef} rowData={itemRows} columnDefs={trCols(itemColDefs as any[])}
             defaultColDef={defaultColDef}
-            overlayNoRowsTemplate={itemsEnabled ? noRowsOverlay() : `<span style="color:#94a3b8">${tr('Select an invoice above, or turn on “Show all lines”.')}</span>`}
+            overlayNoRowsTemplate={itemsEnabled ? noRowsOverlay() : `<span style="color:#94a3b8;font-size:13px">${tr('Select an invoice above, or turn on “Show all lines”.')}</span>`}
             onGridReady={itemColsState.onGridReady} onColumnMoved={itemColsState.onColumnChanged}
             onColumnResized={itemColsState.onColumnChanged} onColumnVisible={itemColsState.onColumnChanged}
             rowHeight={32} headerHeight={38} suppressCellFocus animateRows
             pagination paginationPageSize={100} />
         </Box>
-      </Box>
-    </Box>
-  )
-}
-
-const GRID_SX = {
-  width: '100%',
-  '& .ag-header': { bgcolor: '#f8f7ff !important', borderBottom: '1px solid #e9e4ff' },
-  '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
-  '& .ag-row-even': { bgcolor: '#ffffff' },
-  '& .ag-row-odd': { bgcolor: '#faf9ff' },
-  '& .ag-row-selected': { bgcolor: '#ede9fe !important' },
-} as const
-
-function KpiInline({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <Box>
-      <Typography sx={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>{label}</Typography>
-      <Typography sx={{ fontSize: 18, fontWeight: 800, color: color ?? '#0f172a' }}>{value}</Typography>
+      </Paper>
     </Box>
   )
 }
