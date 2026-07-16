@@ -308,6 +308,10 @@ export default function InventoryLedger() {
       }}>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 1.5, pt: 1.5, pb: 1.5 }}>
           <GridExportBar gridRef={gridRef} filename="inventory_ledger" title="Inventory Ledger"
+            filters={`${dateFrom} → ${dateTo} · ${storesParam ? tr('Selected stores') : tr('All stores')}${selItem?.item_sid ? ` · ${selItem.alu ?? selItem.item_sid}` : ''}`}
+            reportEndpoint="/api/inventory/ledger"
+            reportPeriod={PERIODS[period]?.label ?? 'custom'}
+            reportParams={qParams}
             colDefs={columns as any} onResetColumns={resetColumns} />
         </Box>
         <Box className="ag-theme-alpine" sx={{ height: 560, mt: 0.5 }}>

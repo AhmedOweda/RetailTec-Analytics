@@ -15,6 +15,7 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import EChart, { type EChartHandle } from '../../components/EChart'
 import KpiCard                        from '../../components/KpiCard'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { useRetryIfEmpty } from '../../hooks/useRetryIfEmpty'
 import GridExportBar      from '../../components/GridExportBar'
 import { AgGridReact }   from 'ag-grid-react'
 import type { ColDef }   from 'ag-grid-community'
@@ -202,7 +203,7 @@ export default function Products() {
   })
 
   /* Department data — for treemap + KPIs */
-  const { data: deptData,   isLoading: deptLoad   } = useQuery({
+  const { data: deptData,   isLoading: deptLoad, isFetching: deptFetching, refetch: refetchDept } = useQuery({
     queryKey: ['prod-dept',   from, to, storesKey],
     queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=department&limit=20${storeQS}`).then(r => r.data),
     ...qOpts,
@@ -223,11 +224,15 @@ export default function Products() {
   })
 
   /* Table data — changes per view tab */
-  const { data: tableData,  isLoading: tableLoad  } = useQuery({
+  const { data: tableData,  isLoading: tableLoad, isFetching: tableFetching, refetch: refetchTable } = useQuery({
     queryKey: ['prod-table',  from, to, view, storesKey, itemFields.join(',')],
     queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=${view}${storeQS}${view === 'item' ? itemFieldsQS(itemFields) : ''}`).then(r => r.data),  // no limit — grid paginates
     ...qOpts,
   })
+
+  /* Self-heal a transient empty load on open (no restart needed) */
+  useRetryIfEmpty(((deptData ?? []) as any[]).length === 0, deptFetching, refetchDept)
+  useRetryIfEmpty(((tableData ?? []) as any[]).length === 0, tableFetching, refetchTable)
 
   /* ── KPIs from department totals ──────────────────────────────── */
   const kpi = useMemo(() => {

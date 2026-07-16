@@ -16,6 +16,7 @@ import ReceiptLongIcon      from '@mui/icons-material/ReceiptLong'
 import SettingsIcon         from '@mui/icons-material/Settings'
 import WarehouseIcon        from '@mui/icons-material/Warehouse'
 import SwapHorizIcon        from '@mui/icons-material/SwapHoriz'
+import ImportExportIcon     from '@mui/icons-material/ImportExport'
 import CompareArrowsIcon    from '@mui/icons-material/CompareArrows'
 import AdjustIcon           from '@mui/icons-material/Adjust'
 import AssessmentIcon       from '@mui/icons-material/Assessment'
@@ -85,7 +86,7 @@ const DIMENSIONS_NAV = [
 const INVENTORY_NAV = [
   { to: '/inventory/overview',    icon: <WarehouseIcon     />, label: 'Stock Levels' },
   { to: '/inventory/stock-asof',  icon: <EventAvailableIcon />, label: 'Stock by Date' },
-  { to: '/inventory/movement',    icon: <SwapHorizIcon     />, label: 'Movement'     },
+  { to: '/inventory/movement',    icon: <ImportExportIcon  />, label: 'Movement'     },
   { to: '/inventory/transfers',   icon: <CompareArrowsIcon />, label: 'Transfers'    },
   { to: '/inventory/adjustments', icon: <AdjustIcon        />, label: 'Adjustments'  },
   { to: '/inventory/ledger',      icon: <AssessmentIcon        />, label: 'Ledger'    },

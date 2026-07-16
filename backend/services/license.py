@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import shutil
 from datetime import date, datetime
 from pathlib import Path
 
@@ -39,16 +41,45 @@ log = logging.getLogger(__name__)
 # means replacing this constant and re-issuing customer licenses.
 _PUBLIC_KEY_HEX = "516181c82a769a6df7f03d0ba2829f2100ccdb2c9c2be7818f6d2ea8b05acf4a"
 
-_LICENSE_FILE = Path(__file__).parent.parent / "license.json"
+# Bundled location inside the install dir (wiped on uninstall).
+_BUNDLED_LICENSE = Path(__file__).parent.parent / "license.json"
+
+
+def _persistent_license() -> Path:
+    """A machine-wide location that SURVIVES uninstall/reinstall:
+    C:\\ProgramData\\RetailTec Analytics\\license.json."""
+    base = os.environ.get("PROGRAMDATA") or r"C:\ProgramData"
+    return Path(base) / "RetailTec Analytics" / "license.json"
+
+
+def _resolve_license_file() -> Path:
+    """Where to read license.json from. Prefer the persistent ProgramData copy
+    (survives reinstall); migrate a bundled license there on first run so an
+    existing install keeps working. Never raises."""
+    persistent = _persistent_license()
+    try:
+        if persistent.exists():
+            return persistent
+        if _BUNDLED_LICENSE.exists():
+            try:
+                persistent.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(_BUNDLED_LICENSE, persistent)
+                return persistent
+            except Exception:
+                return _BUNDLED_LICENSE   # ProgramData not writable → use bundled
+    except Exception:
+        pass
+    return persistent   # nothing yet → this is where the customer should drop it
 
 
 def license_file_path() -> str:
     """Absolute path where the app looks for license.json — shown in
-    Diagnostics so the customer knows exactly where to drop the file."""
+    Diagnostics so the customer knows exactly where to drop the file. This is
+    now the persistent ProgramData path, which survives uninstall/reinstall."""
     try:
-        return str(_LICENSE_FILE.resolve())
+        return str(_resolve_license_file().resolve())
     except Exception:
-        return str(_LICENSE_FILE)
+        return str(_persistent_license())
 
 
 def _canonical(payload: dict) -> bytes:
@@ -197,9 +228,10 @@ def get_license_status() -> dict:
                             "max_users": int|None}
     """
     try:
-        if not _LICENSE_FILE.exists():
+        lf = _resolve_license_file()
+        if not lf.exists():
             return {"present": False, "valid": False}
-        doc = json.loads(_LICENSE_FILE.read_text())
+        doc = json.loads(lf.read_text())
         payload = doc.get("payload") or {}
         sig = doc.get("signature") or ""
         valid = _verify_signature(payload, sig)
