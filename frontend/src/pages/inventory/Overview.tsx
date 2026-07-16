@@ -23,6 +23,7 @@ import KpiCard                        from '../../components/KpiCard'
 import { noRowsOverlay }               from '../../utils/gridOverlay'
 import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
+import { useRetryIfEmpty }            from '../../hooks/useRetryIfEmpty'
 import { moneyPrefix, money, moneyExact } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
@@ -142,7 +143,7 @@ export default function InventoryOverview() {
   const storeQS = stores.length ? `&stores=${encodeURIComponent(stores.join(','))}` : ''
 
   // KPIs
-  const { data: kpiRaw } = useQuery({
+  const { data: kpiRaw, isFetching: kpiFetching, refetch: refetchKpi } = useQuery({
     queryKey: ['inv-overview', storeQS],
     queryFn:  () => axios.get(`/api/inventory/overview?${storeQS.slice(1)}`).then(r => r.data),
     gcTime: 1_800_000, refetchOnMount: 'always',
@@ -180,11 +181,15 @@ export default function InventoryOverview() {
     gcTime: 1_800_000,
   })
   const xfQS = view.startsWith('item') ? itemFieldsQS(itemFields) : ''
-  const { data: tableData = [] } = useQuery({
+  const { data: tableData = [], isFetching: itemsFetching, refetch: refetchItems } = useQuery({
     queryKey: ['inv-items', view, storeQS, xfQS],
     queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}${storeQS}${xfQS}`).then(r => r.data),  // no limit — full dataset, grid paginates
     gcTime: 1_800_000, refetchOnMount: 'always',
   })
+
+  /* Self-heal a transient empty load on open (no restart needed) */
+  useRetryIfEmpty(!kpiRaw || (kpiRaw?.sku_count ?? 0) === 0, kpiFetching, refetchKpi)
+  useRetryIfEmpty((tableData as any[]).length === 0, itemsFetching, refetchItems)
 
   // Turnover KPIs
   const { data: turnoverRaw } = useQuery({
@@ -609,7 +614,10 @@ export default function InventoryOverview() {
                         color: view === v ? '#fff' : C_SLATE,
                         border: `1px solid ${view === v ? C_PURPLE : '#e2e8f0'}` }} />
               ))}
-              <GridExportBar gridRef={gridRef} filename="inventory_overview" title="Inventory Stock Detail"
+              <GridExportBar gridRef={gridRef} filename="inventory_stock_levels" title="Stock Levels"
+                view={view} filters={`${tr('Current stock')} · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}`}
+                reportEndpoint="/api/inventory/items"
+                reportParams={{ group_by: view, ...(stores.length ? { stores: stores.join(',') } : {}), ...(view.startsWith('item') && itemFields.length ? { item_fields: itemFields.join(',') } : {}) }}
                 colDefs={tableCols} onResetColumns={resetColumns} />
             </Box>
           </Box>

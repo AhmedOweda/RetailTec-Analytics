@@ -70,7 +70,10 @@ const daysLabel = (v: number) => DAYS_LABEL[v] ? tr(DAYS_LABEL[v]) : trf('Last {
 // One shared template so the header and every row stay aligned
 const DATA_GRID_COLS = 'minmax(118px,150px) minmax(88px,1fr) minmax(96px,1.1fr) minmax(88px,1fr) auto'
 const INCR_OPTIONS = [1, 3, 7, 14, 30]
-const REFR_OPTIONS = [5, 10, 15, 30, 60, 120]
+const REFR_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 1440]
+// Friendly label for an interval in minutes (e.g. 90 → "1h 30m", 1440 → "24h").
+const everyLabel = (m: number) =>
+  m < 60 ? `${m} min` : (m % 60 === 0 ? `${m / 60}h` : `${Math.floor(m / 60)}h ${m % 60}m`)
 
 // ── v2 settings shape (per-domain schedules + retention) ──────────────────────
 export interface ScheduleCfg {
@@ -237,6 +240,12 @@ export default function DataModelSettings() {
       domains: { ...prev.domains,
         [key]: { ...prev.domains[key],
           schedule: { ...prev.domains[key].schedule, ...patch } } } }))
+
+  // Apply one incremental-refresh cadence to EVERY domain at once.
+  const setAllSchedules = (mins: number) =>
+    setDm(prev => ({ ...prev,
+      domains: Object.fromEntries(Object.entries(prev.domains).map(([k, v]) =>
+        [k, { ...v, schedule: { mode: 'interval', every_minutes: mins } }])) }))
 
   const testConn = useMutation({
     mutationFn: () => axios.post('/api/settings/test-connection', conn),
@@ -629,6 +638,27 @@ export default function DataModelSettings() {
               </Select>
             </FormControl>
           </LabeledCtl>
+          <LabeledCtl label="Incremental refresh (all data)">
+            <FormControl size="small" sx={{ minWidth:180 }}>
+              <Select
+                value={(() => {
+                  const vals = Object.values(dm.domains).map(v =>
+                    v.schedule?.mode === 'interval' ? (v.schedule.every_minutes ?? 0) : -1)
+                  return (vals.length && vals.every(v => v === vals[0])) ? vals[0] : ''
+                })()}
+                displayEmpty
+                renderValue={v => v === '' ? tr('Mixed / custom')
+                  : v === -1 || v === 0 ? tr('Manual only')
+                  : trf('Every {{n}}', { n: everyLabel(Number(v)) })}
+                onChange={e => {
+                  const v = Number(e.target.value)
+                  if (v > 0) setAllSchedules(v)
+                }}>
+                <MenuItem value="" disabled>{tr('Set frequency for all…')}</MenuItem>
+                {REFR_OPTIONS.map(m => <MenuItem key={m} value={m}>{trf('Every {{n}}', { n: everyLabel(m) })}</MenuItem>)}
+              </Select>
+            </FormControl>
+          </LabeledCtl>
         </Box>
         <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap', mb:2.5 }}>
           <FormControlLabel
@@ -715,7 +745,7 @@ export default function DataModelSettings() {
                       : sch.mode === 'times' ? 'times' : `i${sch.every_minutes ?? 30}`}
                     renderValue={v => v === 'manual' ? tr('Manual only')
                       : v === 'times' ? trf('Daily {{t}}', { t: (sch.times ?? []).join(', ') || '…' })
-                      : trf('Every {{n}} min', { n: +String(v).slice(1) })}
+                      : trf('Every {{n}}', { n: everyLabel(+String(v).slice(1)) })}
                     onChange={e => {
                       const v = String(e.target.value)
                       if (v === 'manual')     setSchedule(d.key, { mode:'manual' })
@@ -725,7 +755,7 @@ export default function DataModelSettings() {
                     <MenuItem value="manual">{tr('Manual only')}</MenuItem>
                     {[...new Set([...(sch.mode === 'interval' ? [sch.every_minutes ?? 30] : []), ...REFR_OPTIONS])]
                       .sort((a, b) => a - b)
-                      .map(m => <MenuItem key={m} value={`i${m}`}>{trf('Every {{n}} min', { n: m })}</MenuItem>)}
+                      .map(m => <MenuItem key={m} value={`i${m}`}>{trf('Every {{n}}', { n: everyLabel(m) })}</MenuItem>)}
                     <MenuItem value="times">{tr('At set times…')}</MenuItem>
                   </Select>
                 </FormControl>

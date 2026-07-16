@@ -422,7 +422,11 @@ export default function InventoryMovement() {
                         color: view === v ? '#fff' : C_SLATE,
                         border: `1px solid ${view === v ? C_PURPLE : '#e2e8f0'}` }} />
               ))}
-              <GridExportBar gridRef={gridRef} filename="inventory_movement" title="Stock Movement Detail"
+              <GridExportBar gridRef={gridRef} filename="inventory_movement" title="Stock Movement"
+                view={view} filters={`${from} → ${to} · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}`}
+                reportEndpoint="/api/inventory/movement-by"
+                reportPeriod={({ 7:'7D', 30:'30D', 90:'90D' } as any)[period] ?? 'custom'}
+                reportParams={{ group_by: view, date_from: from, date_to: to, ...(stores.length ? { stores: stores.join(',') } : {}) }}
                 colDefs={tableCols} onResetColumns={resetColumns} />
             </Box>
           </Box>

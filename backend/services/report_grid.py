@@ -35,11 +35,21 @@ _PREVIEW_ROWS = 30         # rows shown inline in the email body
 
 def _registry() -> dict:
     """Lazy import to avoid circular imports at module load."""
-    from routers import purchases, sales
+    from routers import purchases, sales, inventory
     reg = {
-        "/api/purchases/details":  purchases.purchases_details,
-        "/api/sales/transactions": sales.transactions,
-        "/api/sales/products":     sales.products,
+        # Sales / purchasing
+        "/api/purchases/details":       purchases.purchases_details,
+        "/api/sales/transactions":      sales.transactions,
+        "/api/sales/products":          sales.products,
+        # Inventory
+        "/api/inventory/items":         getattr(inventory, "inv_items", None),
+        "/api/inventory/movement-by":   getattr(inventory, "inv_movement_by", None),
+        "/api/inventory/transfers/details":   getattr(inventory, "transfers_details", None),
+        "/api/inventory/adjustments/details": getattr(inventory, "adjustments_details", None),
+        "/api/inventory/ledger":        getattr(inventory, "inventory_ledger", None),
+        "/api/inventory/coverage":      getattr(inventory, "inv_coverage", None),
+        "/api/inventory/history/details": getattr(inventory, "invh_details", None),
+        "/api/inventory/stock-asof":    getattr(inventory, "stock_asof", None),
     }
     return {k: v for k, v in reg.items() if v is not None}
 
