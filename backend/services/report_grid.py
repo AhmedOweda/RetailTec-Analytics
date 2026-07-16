@@ -25,6 +25,11 @@ import logging
 import inspect
 from datetime import date, datetime, timedelta
 
+try:
+    from fastapi import params as _fparams
+except Exception:                       # pragma: no cover
+    _fparams = None
+
 log = logging.getLogger(__name__)
 
 _MAX_ROWS = 20000          # hard cap so a scheduled email never balloons
@@ -106,14 +111,44 @@ def _coerce(name: str, value):
     return value
 
 
+def _safe_default(param):
+    """Resolve a parameter's default to a *real* value for a direct (non-HTTP)
+    call. FastAPI endpoints declare defaults like Depends(scoped_stores) or
+    Query(None); those marker objects must never reach the function body (e.g.
+    store_filter would call .split() on a Depends object). Depends → None
+    (no scoping = all stores); Query/Path/etc → their underlying default."""
+    d = param.default
+    if _fparams is not None:
+        if isinstance(d, _fparams.Depends):
+            return None
+        if isinstance(d, _fparams.Param):          # Query / Path / Header / Cookie
+            val = getattr(d, "default", None)
+            if val is inspect._empty or val is ... or type(val).__name__ == "PydanticUndefinedType":
+                return None
+            return val
+    if d is inspect._empty:
+        return None
+    return d
+
+
 def run_grid(endpoint: str, params: dict) -> list[dict]:
     reg = _registry()
     fn = reg.get(endpoint)
     if fn is None:
         raise RuntimeError(f"Endpoint not schedulable: {endpoint}")
     sig = inspect.signature(fn)
-    allowed = set(sig.parameters.keys())
-    kwargs = {k: _coerce(k, v) for k, v in (params or {}).items() if k in allowed}
+    supplied = params or {}
+    kwargs = {}
+    for name, param in sig.parameters.items():
+        if param.kind in (inspect.Parameter.VAR_POSITIONAL,
+                           inspect.Parameter.VAR_KEYWORD):
+            continue
+        if name in supplied and supplied[name] is not None:
+            kwargs[name] = _coerce(name, supplied[name])
+        else:
+            # Not provided (or provided as None) → use a safe concrete default,
+            # never a leftover FastAPI Depends()/Query() marker object.
+            kwargs[name] = _safe_default(param)
     rows = fn(**kwargs)
     # Endpoint functions return list[dict] (qdf) or occasionally a dict; normalise
     if isinstance(rows, dict):
@@ -147,6 +182,47 @@ def build_csv(report: dict, rows: list[dict]) -> bytes:
     for r in rows:
         w.writerow([r.get(fid, "") for fid, _ in cols])
     return buf.getvalue().encode("utf-8-sig")   # BOM → Excel opens UTF-8 cleanly
+
+
+def build_xlsx(report: dict, rows: list[dict]) -> bytes:
+    """Build an .xlsx workbook (bold header, frozen top row, auto-ish widths)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    cols = _columns(report, rows)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = (report.get("title") or report.get("name") or "Report")[:31]
+    hdr_fill = PatternFill("solid", fgColor="EEF2FF")
+    hdr_font = Font(bold=True, color="3730A3")
+    for ci, (_, label) in enumerate(cols, start=1):
+        c = ws.cell(row=1, column=ci, value=label)
+        c.fill = hdr_fill; c.font = hdr_font
+        c.alignment = Alignment(vertical="center")
+    for ri, r in enumerate(rows, start=2):
+        for ci, (fid, _) in enumerate(cols, start=1):
+            v = r.get(fid)
+            if isinstance(v, (list, dict)):
+                v = str(v)
+            ws.cell(row=ri, column=ci, value=v)
+    # column widths from header + a sample of the data
+    for ci, (fid, label) in enumerate(cols, start=1):
+        w = len(str(label))
+        for r in rows[:200]:
+            w = max(w, len(str(r.get(fid, ""))))
+        ws.column_dimensions[ws.cell(row=1, column=ci).column_letter].width = min(max(w + 2, 8), 48)
+    ws.freeze_panes = "A2"
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def build_attachment(report: dict, rows: list[dict], fmt: str):
+    """Return (bytes, mime, extension) for the requested attachment format."""
+    fmt = (fmt or "csv").lower()
+    if fmt in ("xlsx", "excel"):
+        return build_xlsx(report, rows), \
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
+    return build_csv(report, rows), "text/csv", "csv"
 
 
 def build_preview_html(report: dict, rows: list[dict]) -> str:

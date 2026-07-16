@@ -92,6 +92,7 @@ export default function GridExportBar({
   const [schedWeekday,setSchedWeekday] = useState(0)
   const [schedDay,    setSchedDay  ] = useState(1)
   const [schedDate,   setSchedDate ] = useState('')
+  const [schedFmt,    setSchedFmt  ] = useState<'csv' | 'excel'>('excel')
   const [reportTypes, setReportTypes] = useState<Record<string, string>>({})
   const [creating,    setCreating  ] = useState(false)
   const WEEKDAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
@@ -126,6 +127,7 @@ export default function GridExportBar({
         date_to:   reportParams?.date_to ?? null,
         columns: cols,
         title: title ?? filename, view: view ?? '', filters: filters ?? '',
+        fmt: schedFmt,
         time: schedTime, freq: schedFreq,
         weekday: schedWeekday, day: schedDay, date: schedDate || null,
         stores: '', recipients, enabled: true,
@@ -475,6 +477,14 @@ export default function GridExportBar({
                 <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('At')}</Typography>
                 <TextField type="time" size="small" value={schedTime} onChange={e => setSchedTime(e.target.value)} sx={{ width: 120 }} />
               </Box>
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Attachment format')}</Typography>
+              <ToggleButtonGroup exclusive size="small" value={schedFmt} onChange={(_, v) => v && setSchedFmt(v)}
+                sx={{ '& .Mui-selected': { bgcolor: `${ACCENT}18 !important`, color: `${ACCENT} !important` } }}>
+                <ToggleButton value="excel" sx={{ textTransform: 'none', px: 2 }}><FileDownloadIcon sx={{ fontSize: 16, mr: 0.7 }} />Excel</ToggleButton>
+                <ToggleButton value="csv" sx={{ textTransform: 'none', px: 2 }}>CSV</ToggleButton>
+              </ToggleButtonGroup>
             </Box>
             <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>
               {tr('The report is emailed automatically on this schedule. Manage or remove it any time in Settings → Reports.')}
