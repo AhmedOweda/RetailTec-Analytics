@@ -11,6 +11,7 @@ import {
   Select, MenuItem, Drawer, useMediaQuery, useTheme,
 } from '@mui/material'
 import DashboardIcon        from '@mui/icons-material/Dashboard'
+import HomeIcon             from '@mui/icons-material/Home'
 import TrendingUpIcon       from '@mui/icons-material/TrendingUp'
 import InventoryIcon        from '@mui/icons-material/Inventory2'
 import ReceiptLongIcon      from '@mui/icons-material/ReceiptLong'
@@ -399,6 +400,11 @@ export default function AppShell() {
         <Box sx={{ flex:1, overflowY:'auto', overflowX:'hidden',
                    '&::-webkit-scrollbar':{ width:4 },
                    '&::-webkit-scrollbar-thumb':{ bgcolor:'rgba(255,255,255,0.12)', borderRadius:2 } }}>
+
+          {/* Home dashboard — top link */}
+          <Box sx={{ px:1.5, pt:1.5 }}>
+            <NavItem to="/home" icon={<HomeIcon />} label="Home" />
+          </Box>
 
           {/* AI Assistant — prominent top link. Admins ALWAYS see it (so they
               can reach the setup even while it's off); other users only once

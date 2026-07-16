@@ -687,6 +687,106 @@ def journal_search_dcs(q: str = Query(..., min_length=1, max_length=100)):
     """, [pat, pat, pat])
 
 
+# ── Home dashboard summary (KPIs + comparison + trend + alerts) ───────────────
+
+@router.get("/api/home/summary")
+def home_summary(stores: Optional[str] = Depends(scoped_stores)):
+    """One-shot dashboard payload: 30d-vs-prior-30d KPIs, a 30-day trend, top
+    stores/items, and computed alerts. Windows anchor to the warehouse's latest
+    invoice date (an offline warehouse may lag today)."""
+    sf, sp = store_filter(stores, alias="INV")
+
+    kpi = _q(f"""
+        WITH b AS (SELECT MAX(INVC_POST_DATE::DATE) AS as_of FROM FACT_SALES_INVOICES),
+        inv AS (
+            SELECT INV.INVC_POST_DATE::DATE AS d, INV.NET_SALES_WOTAX AS net,
+                   INV.RECEIPT_TYPE AS rt, INV.DOC_SID AS doc
+            FROM FACT_SALES_INVOICES INV, b
+            WHERE INV.INVC_POST_DATE::DATE >= b.as_of - 59 {sf}
+        )
+        SELECT
+          (SELECT as_of FROM b)                                                          AS as_of,
+          COALESCE(SUM(CASE WHEN d >= (SELECT as_of FROM b)-29 AND rt=0 THEN net END),0)  AS net_30,
+          COALESCE(SUM(CASE WHEN d BETWEEN (SELECT as_of FROM b)-59 AND (SELECT as_of FROM b)-30 AND rt=0 THEN net END),0) AS net_prev,
+          COALESCE(SUM(CASE WHEN d = (SELECT as_of FROM b) AND rt=0 THEN net END),0)       AS net_today,
+          COUNT(DISTINCT CASE WHEN d >= (SELECT as_of FROM b)-29 AND rt=0 THEN doc END)    AS inv_30,
+          COUNT(DISTINCT CASE WHEN d BETWEEN (SELECT as_of FROM b)-59 AND (SELECT as_of FROM b)-30 AND rt=0 THEN doc END) AS inv_prev,
+          COALESCE(SUM(CASE WHEN d >= (SELECT as_of FROM b)-29 AND rt=1 THEN net END),0)   AS ret_30
+        FROM inv
+    """, sp)[0]
+
+    as_of, net_30, net_prev, net_today, inv_30, inv_prev, ret_30 = kpi
+    avg_30   = (net_30 / inv_30) if inv_30 else 0
+    avg_prev = (net_prev / inv_prev) if inv_prev else 0
+
+    trend = _qdf(f"""
+        SELECT INV.INVC_POST_DATE::DATE::VARCHAR AS date,
+               ROUND(SUM(CASE WHEN INV.RECEIPT_TYPE=0 THEN INV.NET_SALES_WOTAX ELSE 0 END),2) AS net
+        FROM FACT_SALES_INVOICES INV
+        WHERE INV.INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29 {sf}
+        GROUP BY 1 ORDER BY 1
+    """, sp)
+
+    top_stores = _qdf(f"""
+        SELECT COALESCE(S.STORE_NAME,'(Unknown)') AS name,
+               ROUND(SUM(CASE WHEN INV.RECEIPT_TYPE=0 THEN INV.NET_SALES_WOTAX ELSE 0 END),2) AS net
+        FROM FACT_SALES_INVOICES INV LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
+        WHERE INV.INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29 {sf}
+        GROUP BY 1 ORDER BY net DESC LIMIT 5
+    """, sp)
+
+    top_items = _qdf("""
+        SELECT I.ALU AS alu, I.DESCRIPTION1 AS name,
+               ROUND(SUM(FI.TOTAL_PRICE_WOTAX),2) AS net
+        FROM FACT_SALES_ITEMS FI LEFT JOIN DIM_ITEM I ON I.SID = FI.ITEM_SID
+        WHERE FI.INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29
+          AND FI.ITEM_TYPE = 'Sale'
+        GROUP BY 1,2 ORDER BY net DESC LIMIT 5
+    """)
+
+    stagnant = _q("""
+        SELECT COUNT(*) FROM (
+          SELECT ITEM_SID,
+            SUM(CASE WHEN INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES)-29 THEN QTY ELSE 0 END) AS q30,
+            SUM(CASE WHEN INVC_POST_DATE::DATE BETWEEN (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES)-89
+                     AND (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES)-30 THEN QTY ELSE 0 END) AS qprev
+          FROM FACT_SALES_ITEMS
+          WHERE INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES)-89
+          GROUP BY ITEM_SID
+        ) t WHERE q30 = 0 AND qprev > 0
+    """)[0][0]
+
+    def pct(cur, prev):
+        return round((cur - prev) / prev * 100, 1) if prev else None
+
+    alerts = []
+    dnet = pct(net_30, net_prev)
+    if dnet is not None and dnet <= -10:
+        alerts.append({"level": "warning", "title": "Sales down vs prior 30 days",
+                       "detail": f"{dnet:.1f}% vs the previous 30-day period", "link": "/sales/overview"})
+    ret_rate = (ret_30 / net_30 * 100) if net_30 else 0
+    if ret_rate >= 5:
+        alerts.append({"level": "warning", "title": "Returns elevated",
+                       "detail": f"Returns are {ret_rate:.1f}% of net sales (last 30 days)", "link": "/sales/journals?type=return"})
+    if stagnant > 0:
+        alerts.append({"level": "info", "title": f"{int(stagnant):,} stagnant SKUs",
+                       "detail": "Sold in the prior 60 days but nothing in the last 30", "link": "/inventory/coverage"})
+    if not alerts:
+        alerts.append({"level": "ok", "title": "All clear", "detail": "No threshold alerts for the last 30 days.", "link": ""})
+
+    return {
+        "as_of": str(as_of) if as_of else None,
+        "kpis": {
+            "net_30": net_30, "net_prev": net_prev, "net_delta": pct(net_30, net_prev),
+            "net_today": net_today,
+            "inv_30": int(inv_30), "inv_prev": int(inv_prev), "inv_delta": pct(inv_30, inv_prev),
+            "avg_30": round(avg_30, 2), "avg_prev": round(avg_prev, 2), "avg_delta": pct(avg_30, avg_prev),
+        },
+        "trend": trend, "top_stores": top_stores, "top_items": top_items,
+        "stagnant_skus": int(stagnant), "alerts": alerts,
+    }
+
+
 # ── Performance: Store detail (invoices-level — real discounts + return rate) ──
 
 @router.get("/api/sales/perf/stores")

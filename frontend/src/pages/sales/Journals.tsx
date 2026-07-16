@@ -11,6 +11,7 @@ import {
   ToggleButton, ToggleButtonGroup, Switch, FormControlLabel, InputAdornment,
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
+import SavedViewsBar from '../../components/SavedViewsBar'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
@@ -215,6 +216,16 @@ export default function Journals() {
 
   const journalFilters = `${dateFrom} → ${dateTo} · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}${type !== 'all' ? ` · ${type}` : ''}`
 
+  // Saved views: serialise/restore the whole slicer set.
+  const currentView = { preset, dateFrom, dateTo, stores, type, docNo, custSel, vendSel, dcsSel, itemSel, search }
+  const applyView = (s: any) => {
+    if (!s) return
+    setPreset(s.preset ?? ''); setDateFrom(s.dateFrom ?? dateFrom); setDateTo(s.dateTo ?? dateTo)
+    setStores(s.stores ?? []); setType(s.type ?? 'all'); setDocNo(s.docNo ?? '')
+    setCustSel(s.custSel ?? null); setVendSel(s.vendSel ?? null)
+    setDcsSel(s.dcsSel ?? null); setItemSel(s.itemSel ?? null); setSearch(s.search ?? '')
+  }
+
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3, minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* ── Header + slicers (standard sticky pattern) ── */}
@@ -248,6 +259,8 @@ export default function Journals() {
           <Autocomplete multiple size="small" options={allStores} value={stores}
             onChange={(_, v) => setStores(v)} sx={{ minWidth: 200, maxWidth: 320 }}
             renderInput={p => <TextField {...p} label={tr('Store')} />} limitTags={1} />
+          <Box sx={{ flex: 1 }} />
+          <SavedViewsBar pageKey="journals" current={currentView} onApply={applyView} />
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mt: 1 }}>

@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import AppShell              from './layout/AppShell'
 import ProtectedRoute        from './components/ProtectedRoute'
 import Login                 from './pages/auth/Login'
+import Home                  from './pages/Home'
 import Overview              from './pages/sales/Overview'
 import Performance           from './pages/sales/Performance'
 import Products              from './pages/sales/Products'
@@ -36,7 +37,8 @@ export const router = createBrowserRouter([
     path: '/',
     element: <ProtectedRoute><AppShell /></ProtectedRoute>,
     children: [
-      { index: true, element: <Navigate to="/sales/overview" replace /> },
+      { index: true, element: <Navigate to="/home" replace /> },
+      { path: 'home',                    element: <Home />                  },
       { path: 'assistant',              element: <Assistant />             },
       { path: 'sales/overview',          element: <Overview />              },
       { path: 'sales/performance',       element: <Performance />           },
