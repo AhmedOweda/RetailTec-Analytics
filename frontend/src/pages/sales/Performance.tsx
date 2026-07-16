@@ -602,6 +602,8 @@ export default function Performance() {
           <TableSection title="Top Associates" subtitle="Ranked by net sales · disc % amber >10% · return % red >5%" loading={assocLoad} height={320}
             toolbar={<GridExportBar gridRef={assocGridRef} filename="top_associates" title="Top Associates"
               filters={rptFilters}
+              reportEndpoint="/api/sales/perf/associates" reportPeriod={period ?? 'custom'}
+              reportParams={{ date_from: from, date_to: to, ...(storesKey ? { stores: storesKey } : {}) }}
               colDefs={assocCols as any} onResetColumns={colsAssoc.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
               <AgGridReact ref={assocGridRef} rowData={(assocData??[]) as any[]} columnDefs={trCols(assocCols as any[])}
@@ -616,6 +618,8 @@ export default function Performance() {
           <TableSection title="Top Customers" subtitle="Ranked by net spend for the selected period" loading={custLoad} height={320}
             toolbar={<GridExportBar gridRef={custGridRef} filename="top_customers" title="Top Customers"
               filters={rptFilters}
+              reportEndpoint="/api/sales/perf/customers" reportPeriod={period ?? 'custom'}
+              reportParams={{ date_from: from, date_to: to, ...(storesKey ? { stores: storesKey } : {}) }}
               colDefs={custCols as any} onResetColumns={colsCust.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
               <AgGridReact ref={custGridRef} rowData={(custData??[]) as any[]} columnDefs={trCols(custCols as any[])}

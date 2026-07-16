@@ -151,7 +151,9 @@ export default function InventoryHistory() {
             <Typography variant="subtitle1" fontWeight={600}>
               Change Log ({details.length.toLocaleString()} rows)
             </Typography>
-            <GridExportBar gridRef={detailsGridRef} filename="history_details" title="Inventory History — Change Log" />
+            <GridExportBar gridRef={detailsGridRef} filename="history_details" title="Inventory History"
+              view={tr('Change Log')} filters={`${dateFrom} → ${dateTo} · ${store ? tr('Selected stores') : tr('All stores')}`}
+              reportEndpoint="/api/inventory/history/details" reportPeriod="custom" reportParams={params} />
           </Box>
           <Box className="ag-theme-alpine" sx={{ height: 450 }}>
             <AgGridReact ref={detailsGridRef} overlayNoRowsTemplate={noRowsOverlay()} rowData={details} columnDefs={detailCols} defaultColDef={gridDefault} animateRows onGridReady={colsB.onGridReady} onColumnMoved={colsB.onColumnChanged} onColumnResized={colsB.onColumnChanged} onColumnVisible={colsB.onColumnChanged} onColumnPinned={colsB.onColumnChanged} />

@@ -43,6 +43,9 @@ def _registry() -> dict:
         "/api/sales/products":          sales.products,
         "/api/sales/journal/invoices":  getattr(sales, "journal_invoices", None),
         "/api/sales/journal/items":     getattr(sales, "journal_items", None),
+        "/api/sales/perf/associates":   getattr(sales, "perf_associates", None),
+        "/api/sales/perf/customers":    getattr(sales, "perf_customers", None),
+        "/api/sales/perf/stores":       getattr(sales, "perf_stores", None),
         # Inventory
         "/api/inventory/items":         getattr(inventory, "inv_items", None),
         "/api/inventory/movement-by":   getattr(inventory, "inv_movement_by", None),

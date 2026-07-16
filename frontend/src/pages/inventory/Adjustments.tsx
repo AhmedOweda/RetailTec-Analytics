@@ -369,6 +369,7 @@ export default function Adjustments() {
           <GridExportBar gridRef={gridRef} filename="adjustments" title="Adjustments"
             view={[tr('By Type'), tr('By Store'), tr('Details')][tab]}
             filters={`${dateFrom} → ${dateTo} · ${selStores.length ? `${selStores.length} ${tr('store(s)')}` : tr('All stores')}`}
+            reportEndpoint="/api/inventory/adjustments/details" reportPeriod="custom" reportParams={qParams}
             colDefs={tabCols[tab]} />
         </Box>
         <Box className="ag-theme-alpine" sx={{ height:360 }}>

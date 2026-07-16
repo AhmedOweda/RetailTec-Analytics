@@ -212,6 +212,7 @@ export default function DimCustomers() {
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
           <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Customer Detail — {{n}} customers',{n:rows.length})}</Typography>
           <GridExportBar gridRef={gridRef} filename="customers_crm" title="CRM — Customer Intelligence"
+            reportEndpoint="/api/sales/perf/customers" reportPeriod="custom" reportParams={params}
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 460 }}>
