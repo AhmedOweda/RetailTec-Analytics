@@ -265,7 +265,8 @@ def _send_grid_report(report: dict) -> str:
     rows = report_grid.run_grid(endpoint, params)
     fmt = (report.get("fmt") or report.get("format") or "csv").lower()
     content, mime, ext = report_grid.build_attachment(report, rows, fmt)
-    preview   = report_grid.build_preview_html(report, rows)
+    # No inline HTML preview for PDF — the attachment already is the visual.
+    preview = "" if fmt == "pdf" else report_grid.build_preview_html(report, rows)
 
     name  = report.get("name") or report.get("title") or "Report"
     today = date.today().isoformat()
