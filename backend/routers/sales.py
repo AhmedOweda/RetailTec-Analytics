@@ -480,6 +480,155 @@ def transactions(
 
 
 
+# ── Journals (master-detail: invoice headers + item lines) ──────────────────
+
+def _journal_item_exists(vendor, dcs, item):
+    """EXISTS fragment: keep only invoices that contain ≥1 matching line."""
+    conds, params = [], []
+    if vendor:
+        conds.append("V2.VEND_NAME ILIKE ?"); params.append(f"%{vendor}%")
+    if dcs:
+        conds.append("(D2.D_NAME ILIKE ? OR D2.C_NAME ILIKE ? OR D2.S_NAME ILIKE ?)")
+        params += [f"%{dcs}%", f"%{dcs}%", f"%{dcs}%"]
+    if item:
+        conds.append("(I2.ALU ILIKE ? OR I2.DESCRIPTION1 ILIKE ?)")
+        params += [f"%{item}%", f"%{item}%"]
+    if not conds:
+        return "", []
+    frag = f"""
+        AND EXISTS (SELECT 1 FROM FACT_SALES_ITEMS FI2
+            LEFT JOIN DIM_ITEM   I2 ON I2.SID = FI2.ITEM_SID
+            LEFT JOIN DIM_DCS    D2 ON D2.SID = I2.DCS_SID AND D2.SBS_SID = I2.SBS_SID
+            LEFT JOIN DIM_VENDOR V2 ON V2.SID = I2.VEND_SID
+            WHERE FI2.DOC_SID = INV.DOC_SID AND {' AND '.join(conds)})
+    """
+    return frag, params
+
+
+@router.get("/api/sales/journal/invoices")
+def journal_invoices(
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:       Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
+    type:     Optional[str] = Query(None),   # 'sale' | 'return' | None
+    doc_no:   Optional[str] = Query(None),
+    customer: Optional[str] = Query(None),
+    vendor:   Optional[str] = Query(None),
+    dcs:      Optional[str] = Query(None),
+    item:     Optional[str] = Query(None),
+    search:   str = Query(""),
+    limit:    Optional[int] = Query(None, ge=0),
+    offset:   int = Query(0, ge=0),
+):
+    sf, sp = store_filter(stores, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="INV")
+    where = f"INV.INVC_POST_DATE::DATE BETWEEN ? AND ? {sf} {subf}"
+    params = [date_from, date_to] + sp + subp
+    if type in ("sale", "return"):
+        where += " AND INV.RECEIPT_TYPE = ?"; params.append(0 if type == "sale" else 1)
+    if doc_no:
+        where += " AND INV.DOC_NO::VARCHAR ILIKE ?"; params.append(f"%{doc_no}%")
+    if customer:
+        where += " AND (C.FULL_NAME ILIKE ? OR INV.BT_CUID::VARCHAR ILIKE ?)"
+        params += [f"%{customer}%", f"%{customer}%"]
+    if search.strip():
+        pat = f"%{search.strip()}%"
+        where += (" AND (INV.DOC_NO::VARCHAR ILIKE ? OR COALESCE(S.STORE_NAME,'') ILIKE ?"
+                  " OR COALESCE(C.FULL_NAME,'') ILIKE ? OR COALESCE(E.FULL_NAME,'') ILIKE ?)")
+        params += [pat, pat, pat, pat]
+    exf, exp = _journal_item_exists(vendor, dcs, item)
+    where += exf; params += exp
+
+    base_from = """
+        FROM FACT_SALES_INVOICES INV
+        LEFT JOIN DIM_STORE    S ON S.SID = INV.STORE_SID
+        LEFT JOIN DIM_CUSTOMER C ON C.SID = INV.BT_CUID
+        LEFT JOIN DIM_EMPLOYEE E ON E.SID = INV.EMPLOYEE1_SID
+    """
+    total = _q(f"SELECT COUNT(*) {base_from} WHERE {where}", params)[0][0]
+    lim = f"LIMIT {int(limit)} OFFSET {int(offset)}" if limit else ""
+    rows = _qdf(f"""
+        SELECT INV.INVC_POST_DATE::VARCHAR   AS created_datetime,
+               INV.DOC_SID                   AS doc_sid,
+               INV.DOC_NO                    AS doc_no,
+               CASE INV.RECEIPT_TYPE WHEN 0 THEN 'Sales' WHEN 1 THEN 'Return' ELSE 'Order' END AS invoice_type,
+               S.STORE_CODE                  AS store_code,
+               S.STORE_NAME                  AS store_name,
+               ROUND(INV.TOTAL_WTAX, 2)      AS net_sales_wtax,
+               ROUND(INV.NET_SALES_WOTAX, 2) AS net_sales,
+               COALESCE(IC.n, 0)             AS product_count,
+               INV.BT_CUID                   AS customer_id,
+               C.FULL_NAME                   AS customer_name,
+               E.FULL_NAME                   AS associate_name
+        {base_from}
+        LEFT JOIN (SELECT DOC_SID, COUNT(*) AS n FROM FACT_SALES_ITEMS
+                   WHERE INVC_POST_DATE BETWEEN ? AND ? GROUP BY DOC_SID) IC ON IC.DOC_SID = INV.DOC_SID
+        WHERE {where}
+        ORDER BY INV.INVC_POST_DATE DESC
+        {lim}
+    """, [date_from, date_to] + params)
+    return {"total": int(total), "rows": rows}
+
+
+@router.get("/api/sales/journal/items")
+def journal_items(
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:       Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
+    type:     Optional[str] = Query(None),
+    doc_sid:  Optional[int] = Query(None),   # drill to one invoice
+    vendor:   Optional[str] = Query(None),
+    dcs:      Optional[str] = Query(None),
+    item:     Optional[str] = Query(None),
+    limit:    Optional[int] = Query(None, ge=0),
+):
+    sf, sp = store_filter(stores, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    where = f"FI.INVC_POST_DATE BETWEEN ? AND ? {sf} {subf}"
+    params = [date_from, date_to] + sp + subp
+    if doc_sid is not None:
+        where += " AND FI.DOC_SID = ?"; params.append(doc_sid)
+    if type in ("sale", "return"):
+        where += " AND FI.ITEM_TYPE = ?"; params.append("Sale" if type == "sale" else "Return")
+    if vendor:
+        where += " AND V.VEND_NAME ILIKE ?"; params.append(f"%{vendor}%")
+    if dcs:
+        where += " AND (D.D_NAME ILIKE ? OR D.C_NAME ILIKE ? OR D.S_NAME ILIKE ?)"
+        params += [f"%{dcs}%", f"%{dcs}%", f"%{dcs}%"]
+    if item:
+        where += " AND (I.ALU ILIKE ? OR I.DESCRIPTION1 ILIKE ?)"
+        params += [f"%{item}%", f"%{item}%"]
+    lim = f"LIMIT {int(limit)}" if limit else "LIMIT 20000"
+    return _qdf(f"""
+        SELECT INV.DOC_NO                     AS doc_no,
+               FI.ITEM_TYPE                   AS item_type,
+               I.ALU                          AS alu,
+               I.DESCRIPTION1                 AS description1,
+               D.D_NAME                       AS department,
+               D.C_NAME                       AS class,
+               D.S_NAME                       AS subclass,
+               V.VEND_NAME                    AS vendor_name,
+               ROUND(FI.QTY, 2)               AS qty,
+               ROUND(FI.TOTAL_COST, 2)        AS extended_cost,
+               ROUND(FI.TOTAL_PRICE_WOTAX, 2) AS extended_price_after_disc,
+               ROUND(FI.TOTAL_ORIG_PRICE_WOTAX - FI.TOTAL_PRICE_WOTAX, 2) AS extended_discount,
+               E.FULL_NAME                    AS associate_name,
+               INV.EMPLOYEE1_SID              AS associate_id
+        FROM FACT_SALES_ITEMS FI
+        LEFT JOIN FACT_SALES_INVOICES INV ON INV.DOC_SID = FI.DOC_SID
+        LEFT JOIN DIM_STORE    S ON S.SID = FI.STORE_SID
+        LEFT JOIN DIM_ITEM     I ON I.SID = FI.ITEM_SID
+        LEFT JOIN DIM_DCS      D ON D.SID = I.DCS_SID AND D.SBS_SID = I.SBS_SID
+        LEFT JOIN DIM_VENDOR   V ON V.SID = I.VEND_SID
+        LEFT JOIN DIM_EMPLOYEE E ON E.SID = INV.EMPLOYEE1_SID
+        WHERE {where}
+        ORDER BY INV.DOC_NO, I.DESCRIPTION1
+        {lim}
+    """, params)
+
+
 # ── Performance: Store detail (invoices-level — real discounts + return rate) ──
 
 @router.get("/api/sales/perf/stores")
