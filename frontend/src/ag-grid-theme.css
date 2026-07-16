@@ -1,0 +1,130 @@
+/*
+ * Global AG Grid polish — one shared, premium "Power BI"-style theme applied to
+ * every grid in the app (all grids use className="ag-theme-alpine").
+ * The doubled `.ag-theme-alpine.ag-theme-alpine` selector raises specificity so
+ * these win over the stock Alpine theme regardless of stylesheet load order,
+ * without needing !important. Per-page sx tweaks still layer on top.
+ */
+
+.ag-theme-alpine.ag-theme-alpine {
+  /* Typography — match the app font */
+  --ag-font-family: 'Plus Jakarta Sans', 'Inter', 'Manrope', system-ui, sans-serif;
+  --ag-font-size: 12.5px;
+  --ag-foreground-color: #1e293b;
+  --ag-data-color: #1e293b;
+  --ag-secondary-foreground-color: #64748b;
+
+  /* Header */
+  --ag-header-foreground-color: #475569;
+  --ag-header-background-color: #f6f5ff;
+  --ag-header-cell-hover-background-color: #ece9fe;
+  --ag-header-height: 42px;
+
+  /* Rows */
+  --ag-row-height: 38px;
+  --ag-background-color: #ffffff;
+  --ag-odd-row-background-color: #fbfbff;
+  --ag-row-hover-color: #f5f3ff;
+  --ag-selected-row-background-color: #ece9fe;
+  --ag-row-border-color: #eef1f7;
+
+  /* Borders / structure */
+  --ag-border-color: #e9e4ff;
+  --ag-borders: solid 1px;
+  --ag-borders-critical: solid 1px;
+  --ag-cell-horizontal-border: none;         /* flat — no vertical gridlines */
+  --ag-header-column-separator-display: none;
+  --ag-cell-horizontal-padding: 12px;
+  --ag-grid-size: 4px;
+  --ag-wrapper-border-radius: 10px;
+
+  /* Accent (purple brand) */
+  --ag-alpine-active-color: #7c3aed;
+  --ag-range-selection-border-color: #7c3aed;
+  --ag-range-selection-background-color: rgba(124, 58, 237, 0.10);
+  --ag-input-focus-border-color: #7c3aed;
+  --ag-checkbox-checked-color: #7c3aed;
+  --ag-header-column-resize-handle-color: #e2e8f0;
+}
+
+/* Rounded, soft-bordered container */
+.ag-theme-alpine.ag-theme-alpine .ag-root-wrapper {
+  border-radius: 10px;
+  border-color: #e9e4ff;
+}
+
+/* Header: bolder text, crisp bottom rule */
+.ag-theme-alpine.ag-theme-alpine .ag-header {
+  border-bottom: 1px solid #e6e2fb;
+}
+.ag-theme-alpine.ag-theme-alpine .ag-header-cell-text {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+/* Cells: vertically centered, no right border (flat look) */
+.ag-theme-alpine.ag-theme-alpine .ag-cell {
+  border-right: none;
+  display: flex;
+  align-items: center;
+}
+
+/* Selected row: subtle left accent bar */
+.ag-theme-alpine.ag-theme-alpine .ag-row {
+  transition: background-color 0.12s ease;
+}
+.ag-theme-alpine.ag-theme-alpine .ag-row-selected::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: #7c3aed;
+  z-index: 1;
+}
+
+/* Pinned columns: gentle shadow so they read as "frozen" */
+.ag-theme-alpine.ag-theme-alpine .ag-pinned-left-cols-container,
+.ag-theme-alpine.ag-theme-alpine .ag-pinned-left-header {
+  box-shadow: 3px 0 6px -3px rgba(15, 23, 42, 0.10);
+}
+
+/* Paging panel */
+.ag-theme-alpine.ag-theme-alpine .ag-paging-panel {
+  border-top: 1px solid #eef1f7;
+  color: #475569;
+  height: 40px;
+}
+
+/* Filter / column menus: rounded + soft shadow */
+.ag-theme-alpine.ag-theme-alpine .ag-menu,
+.ag-theme-alpine.ag-theme-alpine .ag-popup-child {
+  border-radius: 10px;
+  border: 1px solid #e9e4ff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+/* Slimmer, softer scrollbars inside grids */
+.ag-theme-alpine.ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar,
+.ag-theme-alpine.ag-theme-alpine .ag-body-vertical-scroll-viewport::-webkit-scrollbar,
+.ag-theme-alpine.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.ag-theme-alpine.ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb,
+.ag-theme-alpine.ag-theme-alpine .ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb,
+.ag-theme-alpine.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb {
+  background: #d9d4ee;
+  border-radius: 8px;
+}
+.ag-theme-alpine.ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover,
+.ag-theme-alpine.ag-theme-alpine .ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb:hover {
+  background: #c4bce6;
+}
+
+/* Totals / pinned bottom row: slightly emphasized */
+.ag-theme-alpine.ag-theme-alpine .ag-floating-bottom {
+  border-top: 1px solid #e6e2fb;
+  font-weight: 700;
+  background: #faf9ff;
+}
