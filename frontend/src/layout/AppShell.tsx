@@ -12,6 +12,7 @@ import {
 } from '@mui/material'
 import DashboardIcon        from '@mui/icons-material/Dashboard'
 import HomeIcon             from '@mui/icons-material/Home'
+import SearchIcon           from '@mui/icons-material/Search'
 import TrendingUpIcon       from '@mui/icons-material/TrendingUp'
 import InventoryIcon        from '@mui/icons-material/Inventory2'
 import ReceiptLongIcon      from '@mui/icons-material/ReceiptLong'
@@ -673,6 +674,16 @@ export default function AppShell() {
             </Box>
           </Box>
           <Box sx={{ display:'flex', alignItems:'center', gap:{ xs:0.75, md:1.5 }, flexShrink:0 }}>
+            {/* Global search / command palette opener (Ctrl-K) */}
+            <Box onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+              sx={{ display:'flex', alignItems:'center', gap:0.8, px:{ xs:1, md:1.5 }, py:0.5, borderRadius:99,
+                    bgcolor:'#f1f5f9', border:'1px solid #e2e8f0', cursor:'pointer', color:'#64748b',
+                    '&:hover':{ bgcolor:'#eef2ff', borderColor:'#c7d2fe' } }}>
+              <SearchIcon sx={{ fontSize:16 }} />
+              <Typography sx={{ fontSize:12, fontWeight:600, display:{ xs:'none', md:'block' } }}>{tr('Search')}</Typography>
+              <Box component="span" sx={{ display:{ xs:'none', md:'inline' }, fontSize:10, fontWeight:700,
+                    px:0.6, py:0.1, borderRadius:1, bgcolor:'#fff', border:'1px solid #e2e8f0', color:'#94a3b8' }}>Ctrl K</Box>
+            </Box>
             {(brandSettings?.connection?.alias || brandSettings?.connection?.host) && (
               <Tooltip title={`${brandSettings?.connection?.host ?? ''}${brandSettings?.connection?.sid ? ' · ' + brandSettings.connection.sid : ''}`}>
                 <Box sx={{

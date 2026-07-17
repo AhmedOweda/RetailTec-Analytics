@@ -482,27 +482,38 @@ def transactions(
 
 # ── Journals (master-detail: invoice headers + item lines) ──────────────────
 
+def _multi_ilike(cols, raw, sep="|"):
+    """Build a filter for a MULTI-VALUE slicer. `raw` is a sep-joined list of
+    tokens (free text or a picked value). Tokens are OR'd (match any); within a
+    token, the columns are OR'd (e.g. name OR phone OR id). Returns a fragment
+    that STARTS with ' AND (...)' plus its params, or ('', [])."""
+    toks = [t.strip() for t in (raw or "").split(sep) if t.strip()]
+    if not toks:
+        return "", []
+    groups, params = [], []
+    for t in toks:
+        groups.append("(" + " OR ".join(f"{c} ILIKE ?" for c in cols) + ")")
+        params += [f"%{t}%"] * len(cols)
+    return " AND (" + " OR ".join(groups) + ")", params
+
+
 def _journal_item_exists(vendor, dcs, item):
-    """EXISTS fragment: keep only invoices that contain ≥1 matching line."""
-    conds, params = [], []
-    if vendor:
-        conds.append("V2.VEND_NAME ILIKE ?"); params.append(f"%{vendor}%")
-    if dcs:
-        conds.append("(D2.D_NAME ILIKE ? OR D2.C_NAME ILIKE ? OR D2.S_NAME ILIKE ?)")
-        params += [f"%{dcs}%", f"%{dcs}%", f"%{dcs}%"]
-    if item:
-        conds.append("(I2.ALU ILIKE ? OR I2.DESCRIPTION1 ILIKE ?)")
-        params += [f"%{item}%", f"%{item}%"]
-    if not conds:
+    """EXISTS fragment: keep only invoices that contain ≥1 matching line.
+    vendor/dcs/item are each a '|'-joined multi-value token list."""
+    vf, vp = _multi_ilike(["V2.VEND_NAME"], vendor)
+    df, dp = _multi_ilike(["D2.D_NAME", "D2.C_NAME", "D2.S_NAME"], dcs)
+    itf, itp = _multi_ilike(["I2.ALU", "I2.DESCRIPTION1"], item)
+    inner = f"{vf}{df}{itf}"
+    if not inner:
         return "", []
     frag = f"""
         AND EXISTS (SELECT 1 FROM FACT_SALES_ITEMS FI2
             LEFT JOIN DIM_ITEM   I2 ON I2.SID = FI2.ITEM_SID
             LEFT JOIN DIM_DCS    D2 ON D2.SID = I2.DCS_SID AND D2.SBS_SID = I2.SBS_SID
             LEFT JOIN DIM_VENDOR V2 ON V2.SID = I2.VEND_SID
-            WHERE FI2.DOC_SID = INV.DOC_SID AND {' AND '.join(conds)})
+            WHERE FI2.DOC_SID = INV.DOC_SID{inner})
     """
-    return frag, params
+    return frag, vp + dp + itp
 
 
 @router.get("/api/sales/journal/invoices")
@@ -532,9 +543,8 @@ def journal_invoices(
         where += " AND INV.DOC_NO::VARCHAR ILIKE ?"; params.append(f"%{doc_no}%")
     if customer_id:
         where += " AND INV.BT_CUID::VARCHAR = ?"; params.append(str(customer_id))
-    if customer:
-        where += " AND (C.FULL_NAME ILIKE ? OR INV.BT_CUID::VARCHAR ILIKE ? OR C.PHONE ILIKE ?)"
-        params += [f"%{customer}%", f"%{customer}%", f"%{customer}%"]
+    cf, cp = _multi_ilike(["C.FULL_NAME", "INV.BT_CUID::VARCHAR", "C.PHONE"], customer)
+    where += cf; params += cp
     if search.strip():
         pat = f"%{search.strip()}%"
         where += (" AND (INV.DOC_NO::VARCHAR ILIKE ? OR COALESCE(S.STORE_NAME,'') ILIKE ?"
@@ -600,14 +610,9 @@ def journal_items(
         where += " AND FI.DOC_SID = ?"; params.append(doc_sid)
     if type in ("sale", "return"):
         where += " AND FI.ITEM_TYPE = ?"; params.append("Sale" if type == "sale" else "Return")
-    if vendor:
-        where += " AND V.VEND_NAME ILIKE ?"; params.append(f"%{vendor}%")
-    if dcs:
-        where += " AND (D.D_NAME ILIKE ? OR D.C_NAME ILIKE ? OR D.S_NAME ILIKE ?)"
-        params += [f"%{dcs}%", f"%{dcs}%", f"%{dcs}%"]
-    if item:
-        where += " AND (I.ALU ILIKE ? OR I.DESCRIPTION1 ILIKE ?)"
-        params += [f"%{item}%", f"%{item}%"]
+    vf, vp = _multi_ilike(["V.VEND_NAME"], vendor);            where += vf; params += vp
+    df2, dp2 = _multi_ilike(["D.D_NAME", "D.C_NAME", "D.S_NAME"], dcs); where += df2; params += dp2
+    itf, itp = _multi_ilike(["I.ALU", "I.DESCRIPTION1"], item); where += itf; params += itp
     # No cap when drilling a single invoice; a generous safety cap otherwise.
     if doc_no or doc_sid is not None:
         lim = ""
@@ -648,7 +653,7 @@ def journal_search_customers(q: str = Query(..., min_length=1, max_length=100)):
     """Search customers by name, id (SID) or phone for the Journals slicer."""
     pat = f"%{q.strip()}%"
     return _qdf("""
-        SELECT C.SID AS customer_id, C.FULL_NAME AS name, C.PHONE AS phone
+        SELECT C.SID::VARCHAR AS customer_id, C.FULL_NAME AS name, C.PHONE AS phone
         FROM DIM_CUSTOMER C
         WHERE C.FULL_NAME ILIKE ? OR C.SID::VARCHAR ILIKE ? OR C.PHONE ILIKE ?
         ORDER BY C.FULL_NAME
@@ -759,18 +764,47 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
     def pct(cur, prev):
         return round((cur - prev) / prev * 100, 1) if prev else None
 
+    dnet   = pct(net_30, net_prev)
+    dinv   = pct(inv_30, inv_prev)
+    davg   = pct(avg_30, avg_prev)
+    ret_rate = (ret_30 / net_30 * 100) if net_30 else 0
+    top_share = 0
+    if top_stores:
+        tot = sum(float(s.get("net") or 0) for s in top_stores)
+        top_share = (float(top_stores[0].get("net") or 0) / tot * 100) if tot else 0
+
+    # Warehouse freshness (an offline copy may lag).
+    stale_days = None
+    try:
+        stale_days = (date.today() - as_of).days if as_of else None
+    except Exception:
+        stale_days = None
+
     alerts = []
-    dnet = pct(net_30, net_prev)
+    if stale_days is not None and stale_days >= 2:
+        alerts.append({"level": "warning", "title": "Warehouse data is behind",
+                       "detail": f"Latest data is {stale_days} days old (as of {as_of}). Run a sync.", "link": "/settings"})
     if dnet is not None and dnet <= -10:
         alerts.append({"level": "warning", "title": "Sales down vs prior 30 days",
                        "detail": f"{dnet:.1f}% vs the previous 30-day period", "link": "/sales/overview"})
-    ret_rate = (ret_30 / net_30 * 100) if net_30 else 0
+    if dnet is not None and dnet >= 10:
+        alerts.append({"level": "ok", "title": "Sales growing",
+                       "detail": f"Up {dnet:.1f}% vs the previous 30-day period", "link": "/sales/overview"})
+    if dinv is not None and dinv <= -10:
+        alerts.append({"level": "warning", "title": "Fewer invoices",
+                       "detail": f"Invoice count down {abs(dinv):.1f}% vs prior 30 days", "link": "/sales/journals"})
+    if davg is not None and davg <= -10:
+        alerts.append({"level": "info", "title": "Average basket shrinking",
+                       "detail": f"Avg basket down {abs(davg):.1f}% vs prior 30 days", "link": "/sales/performance"})
     if ret_rate >= 5:
         alerts.append({"level": "warning", "title": "Returns elevated",
                        "detail": f"Returns are {ret_rate:.1f}% of net sales (last 30 days)", "link": "/sales/journals?type=return"})
     if stagnant > 0:
         alerts.append({"level": "info", "title": f"{int(stagnant):,} stagnant SKUs",
                        "detail": "Sold in the prior 60 days but nothing in the last 30", "link": "/inventory/coverage"})
+    if top_share >= 45:
+        alerts.append({"level": "info", "title": "Sales concentrated in one store",
+                       "detail": f"Top store is {top_share:.0f}% of the last-30-day sales", "link": "/dimensions/stores"})
     if not alerts:
         alerts.append({"level": "ok", "title": "All clear", "detail": "No threshold alerts for the last 30 days.", "link": ""})
 
@@ -1085,7 +1119,7 @@ def perf_customers(
         )
         SELECT
             C.FULL_NAME                                                            AS customer_name,
-            MAX(F.BT_CUID)                                                         AS customer_id,
+            MAX(F.BT_CUID)::VARCHAR                                                AS customer_id,
             MAX(C.PHONE)                                                           AS phone,
             COUNT(*)                                                               AS invoice_count,
             ROUND(SUM(F.NET_SALES_WOTAX),2)                                       AS net_sales,

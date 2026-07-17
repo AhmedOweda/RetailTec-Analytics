@@ -10,6 +10,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { useNavigate } from 'react-router-dom'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
@@ -46,6 +47,7 @@ function daysSince(dateStr: string | null | undefined): number {
 }
 
 export default function DimStores() {
+  const navigate = useNavigate()
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('dim-stores')
   const [dateFrom, setDateFrom] = useState(prior)
@@ -197,7 +199,8 @@ export default function DimStores() {
           <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
             overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
-            rowHeight={36} headerHeight={38} suppressCellFocus
+            rowHeight={36} headerHeight={38} suppressCellFocus rowStyle={{ cursor: 'pointer' }}
+            onRowClicked={e => { if (e.data?.store_name) navigate(`/sales/journals?stores=${encodeURIComponent(e.data.store_name)}`) }}
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged} onColumnVisible={onColumnChanged} />
         </div>

@@ -20,7 +20,9 @@ import WarehouseIcon    from '@mui/icons-material/Warehouse'
 import PeopleIcon       from '@mui/icons-material/People'
 import AssessmentIcon   from '@mui/icons-material/Assessment'
 import SmartToyIcon     from '@mui/icons-material/SmartToy'
+import OpenInNewIcon    from '@mui/icons-material/OpenInNew'
 import { money, num } from '../utils/formatters'
+import { MoneyText } from '../components/RiyalSign'
 import { tr } from '../i18n'
 import TitleLoader from '../components/TitleLoader'
 
@@ -38,7 +40,7 @@ function Delta({ v, invert = false }: { v: number | null; invert?: boolean }) {
   )
 }
 
-function Kpi({ label, value, delta, sub, invert }: { label: string; value: string; delta?: number | null; sub?: string; invert?: boolean }) {
+function Kpi({ label, value, delta, sub, invert }: { label: string; value: React.ReactNode; delta?: number | null; sub?: string; invert?: boolean }) {
   return (
     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
       <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</Typography>
@@ -107,10 +109,10 @@ export default function Home() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={104} />)
         ) : (
           <>
-            <Kpi label={tr('Net Sales (30d)')}   value={money(k.net_30)} delta={k.net_delta} sub={tr('vs prev 30d')} />
+            <Kpi label={tr('Net Sales (30d)')}   value={<MoneyText text={money(k.net_30)} />} delta={k.net_delta} sub={tr('vs prev 30d')} />
             <Kpi label={tr('Invoices (30d)')}    value={num(k.inv_30, 0)} delta={k.inv_delta} sub={tr('vs prev 30d')} />
-            <Kpi label={tr('Avg Basket (30d)')}  value={money(k.avg_30)} delta={k.avg_delta} sub={tr('vs prev 30d')} />
-            <Kpi label={tr("Today's Sales")}     value={money(k.net_today)} sub={tr('latest warehouse day')} />
+            <Kpi label={tr('Avg Basket (30d)')}  value={<MoneyText text={money(k.avg_30)} />} delta={k.avg_delta} sub={tr('vs prev 30d')} />
+            <Kpi label={tr("Today's Sales")}     value={<MoneyText text={money(k.net_today)} />} sub={tr('latest warehouse day')} />
           </>
         )}
       </Box>
@@ -150,7 +152,7 @@ export default function Home() {
             {(data?.top_stores ?? []).map((s: any, i: number) => (
               <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid #f1f5f9' }}>
                 <Typography sx={{ fontSize: 12.5, color: '#334155' }}>{s.name}</Typography>
-                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>{money(s.net)}</Typography>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}><MoneyText text={money(s.net)} /></Typography>
               </Box>
             ))}
           </Stack>
@@ -161,8 +163,10 @@ export default function Home() {
             {(data?.top_items ?? []).map((it: any, i: number) => (
               <Box key={i} onClick={() => navigate(`/sales/journals?item=${encodeURIComponent(it.alu)}&item_desc=${encodeURIComponent(it.name ?? '')}`)}
                 sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid #f1f5f9', cursor: 'pointer', '&:hover': { bgcolor: '#f8fafc' } }}>
-                <Typography sx={{ fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>{it.name || it.alu}</Typography>
-                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>{money(it.net)}</Typography>
+                <Typography sx={{ fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <OpenInNewIcon sx={{ fontSize: 13, color: '#c4b5fd' }} />{it.name || it.alu}
+                </Typography>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}><MoneyText text={money(it.net)} /></Typography>
               </Box>
             ))}
           </Stack>
