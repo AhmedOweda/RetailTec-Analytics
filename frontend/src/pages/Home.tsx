@@ -5,7 +5,7 @@
  */
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Box, Typography, Stack, Paper, Chip, Skeleton } from '@mui/material'
+import { Box, Typography, Stack, Paper, Chip, Skeleton, Tooltip } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import ReactECharts from 'echarts-for-react'
 import axios from 'axios'
@@ -129,7 +129,8 @@ export default function Home() {
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Alerts')}</Typography>
           <Stack spacing={1}>
             {(data?.alerts ?? []).map((a: any, i: number) => (
-              <Box key={i} onClick={() => a.link && navigate(a.link)}
+              <Tooltip key={i} title={a.link ? tr('Click to open the related screen') : ''} arrow placement="left">
+              <Box onClick={() => a.link && navigate(a.link)}
                 sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', p: 1, borderRadius: 1.5,
                       cursor: a.link ? 'pointer' : 'default', bgcolor: '#f8fafc',
                       '&:hover': a.link ? { bgcolor: '#f1f5f9' } : {} }}>
@@ -138,7 +139,7 @@ export default function Home() {
                   <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>{tr(a.title)}</Typography>
                   <Typography sx={{ fontSize: 11.5, color: '#64748b' }}>{tr(a.detail)}</Typography>
                 </Box>
-              </Box>
+              </Box></Tooltip>
             ))}
           </Stack>
         </Paper>
@@ -161,13 +162,13 @@ export default function Home() {
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Top items (30d)')}</Typography>
           <Stack spacing={0.5}>
             {(data?.top_items ?? []).map((it: any, i: number) => (
-              <Box key={i} onClick={() => navigate(`/sales/journals?item=${encodeURIComponent(it.alu)}&item_desc=${encodeURIComponent(it.name ?? '')}`)}
+              <Tooltip key={i} title={tr('Click to open this item in Journals')} arrow placement="left"><Box onClick={() => navigate(`/sales/journals?item=${encodeURIComponent(it.alu)}&item_desc=${encodeURIComponent(it.name ?? '')}`)}
                 sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid #f1f5f9', cursor: 'pointer', '&:hover': { bgcolor: '#f8fafc' } }}>
                 <Typography sx={{ fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <OpenInNewIcon sx={{ fontSize: 13, color: '#c4b5fd' }} />{it.name || it.alu}
                 </Typography>
                 <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}><MoneyText text={money(it.net)} /></Typography>
-              </Box>
+              </Box></Tooltip>
             ))}
           </Stack>
         </Paper>

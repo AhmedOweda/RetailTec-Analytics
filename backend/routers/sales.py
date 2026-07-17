@@ -502,7 +502,7 @@ def _journal_item_exists(vendor, dcs, item):
     vendor/dcs/item are each a '|'-joined multi-value token list."""
     vf, vp = _multi_ilike(["V2.VEND_NAME"], vendor)
     df, dp = _multi_ilike(["D2.D_NAME", "D2.C_NAME", "D2.S_NAME"], dcs)
-    itf, itp = _multi_ilike(["I2.ALU", "I2.DESCRIPTION1"], item)
+    itf, itp = _multi_ilike(["I2.ALU", "I2.UPC", "I2.DESCRIPTION1"], item)
     inner = f"{vf}{df}{itf}"
     if not inner:
         return "", []
@@ -612,7 +612,7 @@ def journal_items(
         where += " AND FI.ITEM_TYPE = ?"; params.append("Sale" if type == "sale" else "Return")
     vf, vp = _multi_ilike(["V.VEND_NAME"], vendor);            where += vf; params += vp
     df2, dp2 = _multi_ilike(["D.D_NAME", "D.C_NAME", "D.S_NAME"], dcs); where += df2; params += dp2
-    itf, itp = _multi_ilike(["I.ALU", "I.DESCRIPTION1"], item); where += itf; params += itp
+    itf, itp = _multi_ilike(["I.ALU", "I.UPC", "I.DESCRIPTION1"], item); where += itf; params += itp
     # No cap when drilling a single invoice; a generous safety cap otherwise.
     if doc_no or doc_sid is not None:
         lim = ""
@@ -676,19 +676,14 @@ def journal_search_vendors(q: str = Query(..., min_length=1, max_length=100)):
 
 @router.get("/api/sales/journal/search/dcs")
 def journal_search_dcs(q: str = Query(..., min_length=1, max_length=100)):
-    """Distinct department / class / subclass labels matching the query."""
+    """Distinct department / class / subclass rows matching the query (any level)."""
     pat = f"%{q.strip()}%"
     return _qdf("""
-        SELECT label, lvl FROM (
-            SELECT DISTINCT D_NAME AS label, 'Department' AS lvl FROM DIM_DCS WHERE D_NAME ILIKE ?
-            UNION
-            SELECT DISTINCT C_NAME AS label, 'Class' AS lvl FROM DIM_DCS WHERE C_NAME ILIKE ?
-            UNION
-            SELECT DISTINCT S_NAME AS label, 'Subclass' AS lvl FROM DIM_DCS WHERE S_NAME ILIKE ?
-        ) t
-        WHERE label IS NOT NULL AND TRIM(label) <> ''
-        ORDER BY label
-        LIMIT 40
+        SELECT DISTINCT D_NAME AS department, C_NAME AS class, S_NAME AS subclass
+        FROM DIM_DCS
+        WHERE D_NAME ILIKE ? OR C_NAME ILIKE ? OR S_NAME ILIKE ?
+        ORDER BY department, class, subclass
+        LIMIT 60
     """, [pat, pat, pat])
 
 
