@@ -350,6 +350,37 @@ def put_reports(req: ReportsPut, _admin: dict = Depends(require_admin)):
     return {"ok": True}
 
 
+# ── Governance alert rules (auto-email digests) ────────────────────────────────
+
+class AlertRule(BaseModel):
+    id:         Optional[str] = None
+    condition:  str
+    name:       str = ""
+    threshold:  float = 0
+    recipients: str = ""
+    enabled:    bool = False
+    time:       str = "07:00"
+    last_sent:  Optional[str] = None
+
+
+class AlertsPut(BaseModel):
+    rules: list[AlertRule]
+
+
+@router.get("/api/admin/alerts")
+def list_alerts(_admin: dict = Depends(require_admin)):
+    from services.report_email import get_alert_rules, ALERT_DEFS
+    return {"defs": ALERT_DEFS, "rules": get_alert_rules()}
+
+
+@router.put("/api/admin/alerts")
+def put_alerts(req: AlertsPut, _admin: dict = Depends(require_admin)):
+    from services.report_email import save_alert_rules
+    save_alert_rules([r.dict() for r in req.rules])
+    record_audit(_admin["username"], "alert_rules_saved", f"{len(req.rules)} rule(s)")
+    return {"ok": True}
+
+
 class SendReportReq(BaseModel):
     report: ReportDef   # send this definition as-is (doesn't have to be saved)
 

@@ -243,6 +243,155 @@ def save_reports(reports: list[dict]) -> None:
     save_settings(s)
 
 
+# ── Governance alert rules (auto-email the offending journal) ──────────────────
+# Daily digest: once/day (server local time) each enabled rule queries the prior
+# day's offending invoice lines and, if any, emails them as a CSV to recipients.
+
+ALERT_DEFS = {
+    "below_cost":   {"name": "Sold below cost",        "threshold": 0,   "unit": ""},
+    "big_discount": {"name": "Big discount on a line", "threshold": 30,  "unit": "%"},
+    "large_return": {"name": "Large return",           "threshold": 500, "unit": ""},
+}
+
+
+def _default_alert_rules() -> list[dict]:
+    return [{"id": k, "condition": k, "name": v["name"], "threshold": v["threshold"],
+             "recipients": "", "enabled": False, "time": "07:00", "last_sent": None}
+            for k, v in ALERT_DEFS.items()]
+
+
+def get_alert_rules(settings: dict | None = None) -> list[dict]:
+    s = settings or load_settings()
+    rules = (s.get("email") or {}).get("alert_rules")
+    if rules is None:
+        return _default_alert_rules()
+    have = {r.get("condition") for r in rules}
+    for k, v in ALERT_DEFS.items():
+        if k not in have:
+            rules.append({"id": k, "condition": k, "name": v["name"], "threshold": v["threshold"],
+                          "recipients": "", "enabled": False, "time": "07:00", "last_sent": None})
+    return rules
+
+
+def save_alert_rules(rules: list[dict]) -> None:
+    s = load_settings()
+    email = s.setdefault("email", {})
+    for r in rules:
+        if not r.get("id"):
+            r["id"] = uuid.uuid4().hex[:8]
+    email["alert_rules"] = rules
+    save_settings(s)
+
+
+def _alert_offenders(condition: str, threshold: float, df: str, dt: str) -> list[dict]:
+    """Offending journal rows for a condition in the [df, dt] posting-date range."""
+    from routers.common import qdf   # list[dict] query helper
+    if condition == "below_cost":
+        return qdf("""
+            SELECT INV.DOC_NO AS doc_no, INV.INVC_POST_DATE::VARCHAR AS post_date,
+                   S.STORE_NAME AS store, I.ALU AS alu, I.DESCRIPTION1 AS description,
+                   E.FULL_NAME AS associate, ROUND(FI.QTY,2) AS qty,
+                   ROUND(FI.TOTAL_COST,2) AS cost, ROUND(FI.TOTAL_PRICE_WOTAX,2) AS price,
+                   ROUND(FI.TOTAL_PRICE_WOTAX - FI.TOTAL_COST,2) AS margin
+            FROM FACT_SALES_ITEMS FI
+            LEFT JOIN FACT_SALES_INVOICES INV ON INV.DOC_SID = FI.DOC_SID
+            LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
+            LEFT JOIN DIM_ITEM  I ON I.SID = FI.ITEM_SID
+            LEFT JOIN DIM_EMPLOYEE E ON E.SID = INV.EMPLOYEE1_SID
+            WHERE FI.INVC_POST_DATE::DATE BETWEEN ? AND ? AND FI.ITEM_TYPE='Sale'
+              AND FI.TOTAL_COST > 0 AND FI.TOTAL_PRICE_WOTAX < FI.TOTAL_COST
+            ORDER BY margin ASC LIMIT 5000
+        """, [df, dt])
+    if condition == "big_discount":
+        return qdf("""
+            SELECT INV.DOC_NO AS doc_no, INV.INVC_POST_DATE::VARCHAR AS post_date,
+                   S.STORE_NAME AS store, I.ALU AS alu, I.DESCRIPTION1 AS description,
+                   E.FULL_NAME AS associate, ROUND(FI.QTY,2) AS qty,
+                   ROUND(FI.TOTAL_ORIG_PRICE_WOTAX,2) AS orig_price,
+                   ROUND(FI.TOTAL_PRICE_WOTAX,2) AS price,
+                   ROUND((FI.TOTAL_ORIG_PRICE_WOTAX - FI.TOTAL_PRICE_WOTAX),2) AS discount,
+                   ROUND((FI.TOTAL_ORIG_PRICE_WOTAX - FI.TOTAL_PRICE_WOTAX)
+                         / NULLIF(FI.TOTAL_ORIG_PRICE_WOTAX,0) * 100, 1) AS discount_pct
+            FROM FACT_SALES_ITEMS FI
+            LEFT JOIN FACT_SALES_INVOICES INV ON INV.DOC_SID = FI.DOC_SID
+            LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
+            LEFT JOIN DIM_ITEM  I ON I.SID = FI.ITEM_SID
+            LEFT JOIN DIM_EMPLOYEE E ON E.SID = INV.EMPLOYEE1_SID
+            WHERE FI.INVC_POST_DATE::DATE BETWEEN ? AND ? AND FI.ITEM_TYPE='Sale'
+              AND FI.TOTAL_ORIG_PRICE_WOTAX > 0
+              AND (FI.TOTAL_ORIG_PRICE_WOTAX - FI.TOTAL_PRICE_WOTAX) / FI.TOTAL_ORIG_PRICE_WOTAX >= ?
+            ORDER BY discount_pct DESC LIMIT 5000
+        """, [df, dt, (threshold or 30) / 100.0])
+    if condition == "large_return":
+        return qdf("""
+            SELECT INV.DOC_NO AS doc_no, INV.INVC_POST_DATE::VARCHAR AS post_date,
+                   S.STORE_NAME AS store, C.FULL_NAME AS customer, E.FULL_NAME AS associate,
+                   ROUND(INV.NET_SALES_WOTAX,2) AS net_amount
+            FROM FACT_SALES_INVOICES INV
+            LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
+            LEFT JOIN DIM_CUSTOMER C ON C.SID = INV.BT_CUID
+            LEFT JOIN DIM_EMPLOYEE E ON E.SID = INV.EMPLOYEE1_SID
+            WHERE INV.INVC_POST_DATE::DATE BETWEEN ? AND ? AND INV.RECEIPT_TYPE = 1
+              AND ABS(INV.NET_SALES_WOTAX) >= ?
+            ORDER BY net_amount ASC LIMIT 5000
+        """, [df, dt, threshold or 500])
+    return []
+
+
+def _send_alert_digest(rule: dict, rows: list[dict], day: str) -> None:
+    import csv, io
+    from services import report_grid
+    cols = list(rows[0].keys())
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(cols)
+    for r in rows:
+        w.writerow([r.get(c, "") for c in cols])
+    content = buf.getvalue().encode("utf-8-sig")
+    recipients = [x.strip() for x in (rule.get("recipients") or "").split(",") if x.strip()]
+    subject = f"Alert: {rule.get('name')} — {day} ({len(rows)})"
+    fname = f"alert_{rule.get('condition')}_{day}.csv"
+    details = {"Alert": rule.get("name"), "Day": day, "Matches": f"{len(rows):,}"}
+    preview = report_grid.build_preview_html(
+        {"columns": [{"id": c, "label": c} for c in cols]}, rows)
+    send_attachment(recipients, subject, f"Automatic governance alert for {day}.",
+                    fname, content, "text/csv", details, extra_html=preview)
+
+
+def maybe_send_alerts() -> None:
+    """Called every minute; each enabled rule sends a once-daily digest of the
+    PRIOR day's offending rows at/after its configured time. last_sent guards one
+    send per day (set even when 0 matches, so it doesn't re-scan all day)."""
+    rules = get_alert_rules()
+    now, today = datetime.now(), str(date.today())
+    yday = str(date.today() - timedelta(days=1))
+    changed = False
+    for r in rules:
+        if not r.get("enabled") or r.get("last_sent") == today:
+            continue
+        try:
+            hh, mm = (r.get("time") or "07:00").split(":")
+            if not (now.hour > int(hh) or (now.hour == int(hh) and now.minute >= int(mm))):
+                continue
+        except Exception:
+            if now.hour < 7:
+                continue
+        recipients = [x.strip() for x in (r.get("recipients") or "").split(",") if x.strip()]
+        if not recipients:
+            continue
+        try:
+            rows = _alert_offenders(r.get("condition"), float(r.get("threshold") or 0), yday, yday)
+            if rows:
+                _send_alert_digest(r, rows, yday)
+                log.info(f"Alert '{r.get('name')}' digest sent: {len(rows)} rows")
+            r["last_sent"] = today
+            changed = True
+        except Exception as e:
+            log.error(f"Alert '{r.get('name')}' failed: {e}")
+    if changed:
+        save_alert_rules(rules)
+
+
 # ── Sending ───────────────────────────────────────────────────────────────────
 
 def _send_grid_report(report: dict) -> str:
