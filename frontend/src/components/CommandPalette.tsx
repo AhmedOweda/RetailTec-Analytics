@@ -6,9 +6,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Dialog, Box, TextField, InputAdornment, Typography, List, ListItemButton, Chip,
+  Dialog, Box, TextField, InputAdornment, Typography, List, ListItemButton, Chip, IconButton,
 } from '@mui/material'
 import SearchIcon      from '@mui/icons-material/Search'
+import CloseIcon       from '@mui/icons-material/Close'
 import PersonIcon      from '@mui/icons-material/Person'
 import Inventory2Icon  from '@mui/icons-material/Inventory2'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
@@ -54,13 +55,18 @@ export default function CommandPalette() {
   const [active, setActive] = useState(0)
   const listRef = useRef<HTMLUListElement>(null)
 
-  // Ctrl/Cmd-K toggles; Esc closes.
+  // Ctrl/Cmd-K toggles; a custom event (from the header search box) opens it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setOpen(o => !o) }
     }
+    const onOpen = () => setOpen(true)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('open-command-palette', onOpen as EventListener)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('open-command-palette', onOpen as EventListener)
+    }
   }, [])
 
   useEffect(() => { if (!open) { setQ(''); setCust([]); setItems([]); setActive(0) } }, [open])
@@ -97,7 +103,7 @@ export default function CommandPalette() {
     ...cust.map(c => ({
       kind: 'customer' as const, label: c.name || `#${c.customer_id}`,
       sub: `#${c.customer_id}${c.phone ? ` · ${c.phone}` : ''}`,
-      run: () => go(`/sales/journals?customer_id=${c.customer_id}&customer_name=${encodeURIComponent(c.name || '')}`),
+      run: () => go(`/sales/journals?customer=${encodeURIComponent(c.name || '')}`),
     })),
     ...items.map(it => ({
       kind: 'item' as const, label: `${it.ALU} — ${it.DESCRIPTION1}`, sub: tr('Item'),
@@ -124,10 +130,11 @@ export default function CommandPalette() {
   return (
     <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth
       PaperProps={{ sx: { borderRadius: 3, mt: '-20vh' } }}>
-      <Box sx={{ p: 1.5, borderBottom: '1px solid #eef2f7' }}>
+      <Box sx={{ p: 1.5, borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', gap: 1 }}>
         <TextField autoFocus fullWidth size="small" value={q} placeholder={tr('Search pages, customers, items…')}
           onChange={e => setQ(e.target.value)} onKeyDown={onInputKey}
           InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#94a3b8' }} /></InputAdornment> }} />
+        <IconButton size="small" onClick={() => setOpen(false)} aria-label={tr('Close')}><CloseIcon sx={{ fontSize: 20, color: '#64748b' }} /></IconButton>
       </Box>
       <List ref={listRef} sx={{ maxHeight: 380, overflowY: 'auto', py: 0.5 }}>
         {actions.length === 0 && (

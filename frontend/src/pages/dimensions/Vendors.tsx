@@ -8,6 +8,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
+import { useNavigate } from 'react-router-dom'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import axios from 'axios'
 import { useRef } from 'react'
@@ -49,6 +50,7 @@ const TIER_META: Record<string, { color: string; desc: string }> = {
 }
 
 export default function DimVendors() {
+  const navigate = useNavigate()
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('dim-vendors')
   const [dateFrom, setDateFrom] = useState(prior)
@@ -227,7 +229,8 @@ export default function DimVendors() {
         <div className="ag-theme-alpine" style={{ height: 420 }}>
           <AgGridReact ref={gridRef} overlayNoRowsTemplate={noRowsOverlay()} rowData={merged} columnDefs={trCols(colDefs as any[])}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
-            rowHeight={36} headerHeight={38} suppressCellFocus
+            rowHeight={36} headerHeight={38} suppressCellFocus rowStyle={{ cursor: 'pointer' }}
+            onRowClicked={e => { if (e.data?.vendor) navigate(`/sales/journals?vendor=${encodeURIComponent(e.data.vendor)}`) }}
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged} onColumnVisible={onColumnChanged} />
         </div>

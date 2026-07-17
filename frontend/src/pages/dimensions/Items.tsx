@@ -232,7 +232,10 @@ export default function DimItems() {
 
       <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-          <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Item Detail — {{n}} SKUs',{n:rows.length})}</Typography>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Item Detail — {{n}} SKUs',{n:rows.length})}</Typography>
+            <Chip size="small" label={tr('↗ click a row to view invoices')} sx={{ height:20, fontSize:10, bgcolor:'#ede9fe', color:'#6d28d9', fontWeight:600 }} />
+          </Stack>
           <GridExportBar gridRef={gridRef} filename="items_sku_analysis" title="Item / SKU Intelligence"
             reportEndpoint="/api/sales/products" reportPeriod="custom" reportParams={params}
             colDefs={colDefs} onResetColumns={resetColumns} />
@@ -242,7 +245,7 @@ export default function DimItems() {
             overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             pagination paginationPageSize={25}
-            rowHeight={36} headerHeight={38} suppressCellFocus
+            rowHeight={36} headerHeight={38} suppressCellFocus rowStyle={{ cursor: 'pointer' }}
             onRowClicked={e => { if (e.data?.ALU) navigate(`/sales/journals?item=${encodeURIComponent(e.data.ALU)}&item_desc=${encodeURIComponent(e.data.DESCRIPTION1 ?? '')}`) }}
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged} onColumnVisible={onColumnChanged} />

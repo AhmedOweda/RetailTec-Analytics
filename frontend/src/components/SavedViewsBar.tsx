@@ -10,6 +10,7 @@ import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder'
 import DeleteOutlineIcon  from '@mui/icons-material/DeleteOutline'
 import AddIcon            from '@mui/icons-material/Add'
 import { useSavedViews } from '../hooks/useSavedViews'
+import { useAuth } from '../contexts/AuthContext'
 import { tr } from '../i18n'
 
 const ACCENT = '#7c3aed'
@@ -19,7 +20,9 @@ export default function SavedViewsBar({ pageKey, current, onApply }: {
   current: any
   onApply: (state: any) => void
 }) {
-  const { views, save, remove } = useSavedViews(pageKey)
+  const { user } = useAuth()
+  // Per-user key so different users on the same machine keep separate views.
+  const { views, save, remove } = useSavedViews(`${user?.username || 'anon'}__${pageKey}`)
   const [anchor, setAnchor] = useState<null | HTMLElement>(null)
   const [naming, setNaming] = useState(false)
   const [name, setName]     = useState('')

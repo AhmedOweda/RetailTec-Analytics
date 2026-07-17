@@ -212,7 +212,10 @@ export default function DimCustomers() {
 
       <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-          <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Customer Detail — {{n}} customers',{n:rows.length})}</Typography>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Customer Detail — {{n}} customers',{n:rows.length})}</Typography>
+            <Chip size="small" label={tr('↗ click a row to view invoices')} sx={{ height:20, fontSize:10, bgcolor:'#ede9fe', color:'#6d28d9', fontWeight:600 }} />
+          </Stack>
           <GridExportBar gridRef={gridRef} filename="customers_crm" title="CRM — Customer Intelligence"
             reportEndpoint="/api/sales/perf/customers" reportPeriod="custom" reportParams={params}
             colDefs={colDefs} onResetColumns={resetColumns} />
@@ -222,8 +225,8 @@ export default function DimCustomers() {
             overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             pagination paginationPageSize={25}
-            rowHeight={36} headerHeight={38} suppressCellFocus
-            onRowClicked={e => { if (e.data?.customer_id != null) navigate(`/sales/journals?customer_id=${e.data.customer_id}&customer_name=${encodeURIComponent(e.data.customer_name ?? '')}`) }}
+            rowHeight={36} headerHeight={38} suppressCellFocus rowStyle={{ cursor: 'pointer' }}
+            onRowClicked={e => { if (e.data?.customer_name) navigate(`/sales/journals?customer=${encodeURIComponent(e.data.customer_name)}`) }}
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged} onColumnVisible={onColumnChanged} />
         </div>
