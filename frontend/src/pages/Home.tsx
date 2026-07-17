@@ -117,6 +117,20 @@ export default function Home() {
         )}
       </Box>
 
+      {/* Purchasing + Inventory KPIs */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(4,1fr)' }, gap: 2, mt: 2 }}>
+        {isLoading || !data ? (
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={104} />)
+        ) : (
+          <>
+            <Kpi label={tr('Purchases (30d)')} value={<MoneyText text={money(data.purchasing?.value_30 ?? 0)} />} delta={data.purchasing?.value_delta} sub={tr('vs prev 30d')} />
+            <Kpi label={tr('Stock Value')}     value={<MoneyText text={money(data.inventory?.stock_cost ?? 0)} />} sub={tr('on-hand × cost')} />
+            <Kpi label={tr('Active SKUs')}     value={num(data.inventory?.sku_count ?? 0, 0)} sub={tr('with stock on hand')} />
+            <Kpi label={tr('Negative Stock')}  value={num(data.inventory?.neg_stock ?? 0, 0)} sub={tr('item × store rows')} invert delta={undefined} />
+          </>
+        )}
+      </Box>
+
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2, mt: 2 }}>
         {/* Trend */}
         <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
@@ -145,8 +159,8 @@ export default function Home() {
         </Paper>
       </Box>
 
-      {/* Top stores + items */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mt: 2 }}>
+      {/* Top stores + items + suppliers */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3,1fr)' }, gap: 2, mt: 2 }}>
         <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Top stores (30d)')}</Typography>
           <Stack spacing={0.5}>
@@ -170,6 +184,20 @@ export default function Home() {
                 <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}><MoneyText text={money(it.net)} /></Typography>
               </Box></Tooltip>
             ))}
+          </Stack>
+        </Paper>
+        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Top suppliers (30d)')}</Typography>
+          <Stack spacing={0.5}>
+            {((data?.purchasing?.top_vendors ?? []) as any[]).map((v: any, i: number) => (
+              <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid #f1f5f9' }}>
+                <Typography sx={{ fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{v.name}</Typography>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}><MoneyText text={money(v.net)} /></Typography>
+              </Box>
+            ))}
+            {(!data?.purchasing?.top_vendors || data.purchasing.top_vendors.length === 0) && (
+              <Typography sx={{ fontSize: 12, color: '#94a3b8', py: 1 }}>{tr('No purchases in the last 30 days')}</Typography>
+            )}
           </Stack>
         </Paper>
       </Box>
