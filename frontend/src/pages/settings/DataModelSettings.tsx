@@ -152,14 +152,20 @@ function SectionCard({ title, icon, children, headerRight, defaultClosed }:
     })
   }
   return (
-    <Card elevation={0} sx={{ border:'1px solid #e2e8f0', borderRadius:2, mb:3 }}>
-      <CardContent sx={{ p:3, '&:last-child':{ pb: open ? 3 : 2 } }}>
+    <Card elevation={0} sx={{ border:'1px solid #eef0f5', borderRadius:3, mb:2.5,
+                              boxShadow:'0 1px 2px rgba(16,24,40,0.04)', overflow:'hidden',
+                              transition:'box-shadow .15s, border-color .15s',
+                              '&:hover':{ boxShadow:'0 4px 16px rgba(16,24,40,0.06)', borderColor:'#e5e7f0' } }}>
+      <CardContent sx={{ p:2.75, '&:last-child':{ pb: open ? 2.75 : 2 } }}>
         <Box onClick={toggle}
-          sx={{ display:'flex', alignItems:'center', gap:1, mb: open ? 2.5 : 0,
+          sx={{ display:'flex', alignItems:'center', gap:1.25, mb: open ? 2.5 : 0,
                 cursor:'pointer', userSelect:'none',
                 '&:hover .sc-chevron': { color:'#0f172a' } }}>
-          <Box sx={{ color:ACCENT }}>{icon}</Box>
-          <Typography sx={{ fontWeight:700, fontSize:15, color:'#0f172a' }}>{tr(title)}</Typography>
+          <Box sx={{ width:34, height:34, borderRadius:2, flexShrink:0,
+                     bgcolor:`${ACCENT}0F`, color:ACCENT,
+                     display:'flex', alignItems:'center', justifyContent:'center',
+                     '& svg':{ fontSize:19 } }}>{icon}</Box>
+          <Typography sx={{ fontWeight:700, fontSize:15, color:'#0f172a', letterSpacing:'-0.2px' }}>{tr(title)}</Typography>
           <Box sx={{ flex:1, display:'flex', alignItems:'center', gap:1.5,
                      justifyContent:'flex-end', minWidth:0 }}>{headerRight}</Box>
           <ExpandMoreIcon className="sc-chevron"
@@ -171,6 +177,15 @@ function SectionCard({ title, icon, children, headerRight, defaultClosed }:
     </Card>
   )
 }
+
+// Settings categories for the left rail (indices match the `tab` state).
+const SETTINGS_CATS = [
+  { i: 0, label: 'Connection & Data',  desc: 'Database, domains, refresh' },
+  { i: 1, label: 'Display',            desc: 'Currency, language, fields' },
+  { i: 2, label: 'AI Assistant',       desc: 'Provider & model' },
+  { i: 3, label: 'Reports & Email',    desc: 'SMTP & schedules' },
+  { i: 4, label: 'Maintenance',        desc: 'Backup, compact, about' },
+]
 
 export default function DataModelSettings() {
   const qc = useQueryClient()
@@ -315,30 +330,43 @@ export default function DataModelSettings() {
   if (loadingSettings) return <Box sx={{ p:3 }}><LinearProgress /></Box>
 
   return (
-    <Box sx={{ p:3, maxWidth:720,
+    <Box sx={{ p:3, maxWidth:1120,
                // Fix: notched-outline labels overlapped the border (legend gap
                // stayed collapsed after late font load) — force the notch open
                // for every shrunk label on this page.
                '& .MuiInputLabel-shrink ~ .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline legend':
                  { maxWidth: '100%' } }}>
-      <Typography variant="h6" sx={{ fontWeight:700, color:'#0f172a', mb:0.5 }}>{tr('Settings')}<TitleLoader /></Typography>
+      <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color:'#0f172a', letterSpacing:'-0.3px', mb:0.5 }}>{tr('Settings')}<TitleLoader /></Typography>
       <Typography sx={{ fontSize:13, color:'#64748b', mb:3 }}>
         {tr('Manage your database connection, data refresh, display, AI assistant, reports and maintenance.')}
       </Typography>
 
-      {/* ── Tab bar (pure UI grouping — no settings logic changes) ── */}
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable"
-        scrollButtons="auto" allowScrollButtonsMobile
-        sx={{ mb:3, minHeight:40,
-              '& .MuiTab-root': { textTransform:'none', fontWeight:600, fontSize:13, minHeight:40, py:0.5 },
-              '& .Mui-selected': { color:`${ACCENT} !important` },
-              '& .MuiTabs-indicator': { bgcolor:ACCENT } }}>
-        <Tab label={tr('Connection & Data')} />
-        <Tab label={tr('Display')} />
-        <Tab label={tr('AI Assistant')} />
-        <Tab label={tr('Reports')} />
-        <Tab label={tr('Maintenance')} />
-      </Tabs>
+      <Box sx={{ display:'flex', gap:3, alignItems:'flex-start' }}>
+        {/* ── Left category rail (desktop) ── */}
+        <Box sx={{ width:236, flexShrink:0, position:'sticky', top:12, alignSelf:'flex-start',
+                   display:{ xs:'none', md:'block' } }}>
+          {SETTINGS_CATS.map(c => (
+            <Box key={c.i} onClick={() => setTab(c.i)} sx={{
+              display:'flex', flexDirection:'column', gap:0.1, px:1.5, py:1, mb:0.5, borderRadius:2,
+              cursor:'pointer', borderLeft:'3px solid', transition:'all .12s',
+              borderColor: tab===c.i ? ACCENT : 'transparent',
+              bgcolor: tab===c.i ? `${ACCENT}0F` : 'transparent',
+              '&:hover':{ bgcolor: tab===c.i ? `${ACCENT}18` : '#f4f5f9' } }}>
+              <Typography sx={{ fontSize:13.5, fontWeight: tab===c.i ? 700 : 600,
+                                color: tab===c.i ? ACCENT : '#334155' }}>{tr(c.label)}</Typography>
+              <Typography sx={{ fontSize:11, color:'#94a3b8' }}>{tr(c.desc)}</Typography>
+            </Box>
+          ))}
+        </Box>
+
+        {/* ── Content column ── */}
+        <Box sx={{ flex:1, minWidth:0 }}>
+        {/* Mobile category selector */}
+        <Box sx={{ display:{ xs:'block', md:'none' }, mb:2 }}>
+          <Select fullWidth size="small" value={tab} onChange={e => setTab(Number(e.target.value))}>
+            {SETTINGS_CATS.map(c => <MenuItem key={c.i} value={c.i}>{tr(c.label)}</MenuItem>)}
+          </Select>
+        </Box>
 
       {/* ── Tab 0: Connection & Data ── */}
       <Box sx={{ display: tab === 0 ? 'block' : 'none' }}>
@@ -998,6 +1026,9 @@ export default function DataModelSettings() {
       {/* ── Scheduled reports (per-store, per-type) ──────────────── */}
       <ReportsCard />
       </Box>{/* end Tab 3 */}
+
+        </Box>{/* end content column */}
+      </Box>{/* end rail + content row */}
 
       <SyncHistoryDialog open={histOpen} onClose={() => setHistOpen(false)}
         history={history ?? []} refetch={refetchHistory} fetching={histFetching} />
