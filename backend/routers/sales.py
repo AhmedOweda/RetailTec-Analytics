@@ -756,6 +756,24 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
         ) t WHERE q30 = 0 AND qprev > 0
     """)[0][0]
 
+    # Governance conditions (last 30 days): extra discount, below-cost / negative
+    # margin, and large returns. Anchored to the warehouse's latest date.
+    gov = _q("""
+        SELECT
+          COUNT(*) FILTER (WHERE ITEM_TYPE='Sale' AND TOTAL_ORIG_PRICE_WOTAX > 0
+                           AND (TOTAL_ORIG_PRICE_WOTAX - TOTAL_PRICE_WOTAX) / TOTAL_ORIG_PRICE_WOTAX >= 0.30) AS disc_lines,
+          COUNT(*) FILTER (WHERE ITEM_TYPE='Sale' AND TOTAL_COST > 0
+                           AND TOTAL_PRICE_WOTAX < TOTAL_COST)                                             AS below_cost
+        FROM FACT_SALES_ITEMS
+        WHERE INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29
+    """)[0]
+    disc_lines, below_cost = int(gov[0] or 0), int(gov[1] or 0)
+    ret_cnt = int(_q("""
+        SELECT COUNT(*) FROM FACT_SALES_INVOICES
+        WHERE RECEIPT_TYPE = 1
+          AND INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29
+    """)[0][0] or 0)
+
     def pct(cur, prev):
         return round((cur - prev) / prev * 100, 1) if prev else None
 
@@ -800,6 +818,16 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
     if top_share >= 45:
         alerts.append({"level": "info", "title": "Sales concentrated in one store",
                        "detail": f"Top store is {top_share:.0f}% of the last-30-day sales", "link": "/dimensions/stores"})
+    # Governance / oversight
+    if below_cost > 0:
+        alerts.append({"level": "warning", "title": f"{below_cost:,} lines sold below cost",
+                       "detail": "Selling price under item cost (negative/zero margin) in the last 30 days", "link": "/sales/journals"})
+    if disc_lines > 0:
+        alerts.append({"level": "warning", "title": f"{disc_lines:,} lines with a big discount",
+                       "detail": "Discount ≥ 30% of original price in the last 30 days", "link": "/sales/journals"})
+    if ret_cnt > 0:
+        alerts.append({"level": "info", "title": f"{ret_cnt:,} return invoices (30d)",
+                       "detail": "Returns logged in the last 30 days — review for large or unusual returns", "link": "/sales/journals?type=return"})
     if not alerts:
         alerts.append({"level": "ok", "title": "All clear", "detail": "No threshold alerts for the last 30 days.", "link": ""})
 
