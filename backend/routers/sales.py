@@ -756,6 +756,39 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
         ) t WHERE q30 = 0 AND qprev > 0
     """)[0][0]
 
+    # Purchasing (last 30d vs prior 30d, by voucher date) + top suppliers.
+    psf, psp = store_filter(stores, alias="S")
+    pur = _q(f"""
+        WITH b AS (SELECT MAX(VOU_DATE::DATE) AS as_of FROM FACT_PURCHASES)
+        SELECT
+          COALESCE(SUM(CASE WHEN FP.VOU_DATE::DATE >= (SELECT as_of FROM b)-29 THEN FP.VOU_TOTAL END),0),
+          COALESCE(SUM(CASE WHEN FP.VOU_DATE::DATE BETWEEN (SELECT as_of FROM b)-59 AND (SELECT as_of FROM b)-30 THEN FP.VOU_TOTAL END),0),
+          COUNT(DISTINCT CASE WHEN FP.VOU_DATE::DATE >= (SELECT as_of FROM b)-29 THEN FP.VOU_SID END)
+        FROM FACT_PURCHASES FP LEFT JOIN DIM_STORE S ON S.SID = FP.STORE_SID
+        WHERE FP.VOU_DATE::DATE >= (SELECT as_of FROM b) - 59 {psf}
+    """, psp)[0]
+    pur_30, pur_prev, vou_cnt = float(pur[0] or 0), float(pur[1] or 0), int(pur[2] or 0)
+    top_vendors = _qdf(f"""
+        SELECT COALESCE(V.VEND_NAME,'(Unknown)') AS name, ROUND(SUM(FP.VOU_TOTAL),2) AS net
+        FROM FACT_PURCHASES FP LEFT JOIN DIM_VENDOR V ON V.SID = FP.VEND_SID
+             LEFT JOIN DIM_STORE S ON S.SID = FP.STORE_SID
+        WHERE FP.VOU_DATE::DATE >= (SELECT MAX(VOU_DATE::DATE) FROM FACT_PURCHASES) - 29 {psf}
+        GROUP BY 1 ORDER BY net DESC LIMIT 5
+    """, psp)
+
+    # Inventory snapshot value + health (on-hand × cost; negative-stock rows).
+    isf, isp = store_filter(stores, alias="S")
+    stock = _q(f"""
+        SELECT ROUND(COALESCE(SUM(FI.ON_HAND_QTY * FI.COST), 0), 2), COUNT(DISTINCT FI.ITEM_SID)
+        FROM FACT_INVENTORY FI LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
+        WHERE FI.ON_HAND_QTY > 0 {isf}
+    """, isp)[0]
+    stock_cost, sku_cnt = float(stock[0] or 0), int(stock[1] or 0)
+    neg_stock = int(_q(f"""
+        SELECT COUNT(*) FROM FACT_INVENTORY FI LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
+        WHERE FI.ON_HAND_QTY < 0 {isf}
+    """, isp)[0][0] or 0)
+
     # Governance conditions (last 30 days): extra discount, below-cost / negative
     # margin, and large returns. Anchored to the warehouse's latest date.
     gov = _q("""
@@ -828,6 +861,9 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
     if ret_cnt > 0:
         alerts.append({"level": "info", "title": f"{ret_cnt:,} return invoices (30d)",
                        "detail": "Returns logged in the last 30 days — review for large or unusual returns", "link": "/sales/journals?type=return"})
+    if neg_stock > 0:
+        alerts.append({"level": "warning", "title": f"{neg_stock:,} negative-stock rows",
+                       "detail": "Item × store rows with on-hand below zero — investigate", "link": "/inventory/overview"})
     if not alerts:
         alerts.append({"level": "ok", "title": "All clear", "detail": "No threshold alerts for the last 30 days.", "link": ""})
 
@@ -839,6 +875,11 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
             "inv_30": int(inv_30), "inv_prev": int(inv_prev), "inv_delta": pct(inv_30, inv_prev),
             "avg_30": round(avg_30, 2), "avg_prev": round(avg_prev, 2), "avg_delta": pct(avg_30, avg_prev),
         },
+        "purchasing": {
+            "value_30": round(pur_30, 2), "value_prev": round(pur_prev, 2),
+            "value_delta": pct(pur_30, pur_prev), "vou_count": vou_cnt, "top_vendors": top_vendors,
+        },
+        "inventory": {"stock_cost": stock_cost, "sku_count": sku_cnt, "neg_stock": neg_stock},
         "trend": trend, "top_stores": top_stores, "top_items": top_items,
         "stagnant_skus": int(stagnant), "alerts": alerts,
     }
