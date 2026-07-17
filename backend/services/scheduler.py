@@ -270,6 +270,12 @@ async def background_loop():
             maybe_send_scheduled()
         except Exception as e:
             log.error(f"Report schedule check failed: {e}")
+        # Governance alert digests (no-op unless a rule is enabled in Settings)
+        try:
+            from services.report_email import maybe_send_alerts
+            maybe_send_alerts()
+        except Exception as e:
+            log.error(f"Alert digest check failed: {e}")
         # Weekly housekeeping (opt-out via settings.auto_maintenance)
         try:
             _maybe_auto_maintenance(_load_settings())

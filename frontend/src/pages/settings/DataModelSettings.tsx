@@ -1025,6 +1025,9 @@ export default function DataModelSettings() {
 
       {/* ── Scheduled reports (per-store, per-type) ──────────────── */}
       <ReportsCard />
+
+      {/* ── Governance alert emails (auto digest) ─────────────────── */}
+      <AlertsCard />
       </Box>{/* end Tab 3 */}
 
         </Box>{/* end content column */}
@@ -1708,6 +1711,71 @@ function ReportsCard() {
 
       {msg && <Typography sx={{ fontSize:12, color:'#16a34a', mt:1.5, fontWeight:600 }}>✓ {msg}</Typography>}
       {err && <Alert severity="error" sx={{ mt:1.5, fontSize:12 }}>{err}</Alert>}
+    </SectionCard>
+  )
+}
+
+/* ── Governance alert emails: per-condition daily digest rules ─────────────── */
+function AlertsCard() {
+  const qc = useQueryClient()
+  const [rules, setRules] = useState<any[]>([])
+  const [defs,  setDefs]  = useState<Record<string, any>>({})
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+
+  useQuery({
+    queryKey: ['alert-rules'],
+    queryFn: () => axios.get('/api/admin/alerts').then(r => {
+      setRules(r.data?.rules ?? []); setDefs(r.data?.defs ?? {}); return r.data
+    }),
+  })
+
+  const save = useMutation({
+    mutationFn: () => axios.put('/api/admin/alerts', { rules }),
+    onSuccess: () => { setErr(''); setMsg(tr('Alert rules saved')); setTimeout(() => setMsg(''), 4000);
+                       qc.invalidateQueries({ queryKey:['alert-rules'] }) },
+    onError: (e: any) => setErr(e?.response?.data?.detail ?? tr('Save failed')),
+  })
+  const upd = (i: number, patch: any) => setRules(rs => rs.map((r, j) => j === i ? { ...r, ...patch } : r))
+
+  return (
+    <SectionCard title="Governance Alert Emails" icon={<ScheduleIcon />}>
+      <Typography sx={{ fontSize:12.5, color:'#64748b', mb:2 }}>
+        {tr('Each enabled rule emails a daily digest — a CSV of the prior day\'s offending invoices — at its chosen time. Uses the SMTP settings above.')}
+      </Typography>
+      {rules.map((r, i) => {
+        const unit = defs[r.condition]?.unit || ''
+        return (
+          <Box key={r.id || i} sx={{ border:'1px solid #eef0f5', borderRadius:2, p:2, mb:1.5 }}>
+            <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
+              <FormControlLabel
+                control={<Switch size="small" checked={!!r.enabled} onChange={e => upd(i, { enabled: e.target.checked })}
+                  sx={{ '& .Mui-checked': { color: ACCENT }, '& .Mui-checked + .MuiSwitch-track': { bgcolor: `${ACCENT} !important` } }} />}
+                label={<Typography sx={{ fontSize:13, fontWeight:700 }}>{tr(r.name)}</Typography>} />
+              <Box sx={{ flex:1 }} />
+              {r.condition !== 'below_cost' && (
+                <TextField size="small" type="number" label={unit === '%' ? tr('Discount %') : tr('Amount ≥')}
+                  value={r.threshold} onChange={e => upd(i, { threshold: Number(e.target.value) })}
+                  InputLabelProps={{ shrink:true }} sx={{ width:150 }} />
+              )}
+              <TextField size="small" type="time" label={tr('Send at')} value={r.time || '07:00'}
+                onChange={e => upd(i, { time: e.target.value })} InputLabelProps={{ shrink:true }} sx={{ width:120 }} />
+            </Box>
+            <TextField size="small" fullWidth label={tr('Recipients (comma-separated)')}
+              placeholder="owner@company.com, manager@company.com"
+              value={r.recipients || ''} onChange={e => upd(i, { recipients: e.target.value })}
+              InputLabelProps={{ shrink:true }} sx={{ mt:1.5 }} />
+          </Box>
+        )
+      })}
+      <Box sx={{ display:'flex', alignItems:'center', gap:2, mt:1 }}>
+        <Button variant="contained" size="small" onClick={() => save.mutate()} disabled={save.isPending}
+          sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, boxShadow:'none', '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
+          {save.isPending ? tr('Saving…') : tr('Save Alert Rules')}
+        </Button>
+        {msg && <Typography sx={{ fontSize:12, color:'#16a34a', fontWeight:600 }}>✓ {msg}</Typography>}
+        {err && <Alert severity="error" sx={{ fontSize:12 }}>{err}</Alert>}
+      </Box>
     </SectionCard>
   )
 }
