@@ -12,6 +12,8 @@ import {
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import SavedViewsBar from '../../components/SavedViewsBar'
+import MultiSlicer from '../../components/MultiSlicer'
+import { useAppSettings } from '../../context/AppSettings'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
@@ -67,43 +69,50 @@ export default function Journals() {
   const [docNo,    setDocNo]    = useState('')
   const [search,   setSearch]   = useState('')
 
-  // ── Multi-value slicers: pick several suggestions AND/OR type free text.
-  //    Each holds an array of tokens; the backend OR-matches (ILIKE) any token.
-  const [custTok, setCustTok] = useState<string[]>([]); const [custQ, setCustQ] = useState('')
-  const [vendTok, setVendTok] = useState<string[]>([]); const [vendQ, setVendQ] = useState('')
-  const [dcsTok,  setDcsTok ] = useState<string[]>([]); const [dcsQ,  setDcsQ ] = useState('')
-  const [itemTok, setItemTok] = useState<string[]>([]); const [itemQ, setItemQ] = useState('')
+  // ── Multi-value slicers: rich dropdown (code | description), multi-select,
+  //    and free text. State holds a mix of option objects and typed strings.
+  const { productCodeField } = useAppSettings()   // 'alu' | 'upc'
+  const [custSel, setCustSel] = useState<any[]>([]); const [custQ, setCustQ] = useState('')
+  const [vendSel, setVendSel] = useState<any[]>([]); const [vendQ, setVendQ] = useState('')
+  const [dcsSel,  setDcsSel ] = useState<any[]>([]); const [dcsQ,  setDcsQ ] = useState('')
+  const [itemSel, setItemSel] = useState<any[]>([]); const [itemQ, setItemQ] = useState('')
 
-  const custOptions = ((useQuery({
+  const custOpts = (useQuery({
     queryKey: ['jr-cust', custQ],
     queryFn: () => axios.get('/api/sales/journal/search/customers', { params: { q: custQ } }).then(r => r.data as any[]),
     enabled: custQ.trim().length >= 2, staleTime: 30_000,
-  }).data ?? []) as any[]).map(c => c.name as string).filter(Boolean)
-  const vendOptions = ((useQuery({
+  }).data ?? []) as any[]
+  const vendOpts = (useQuery({
     queryKey: ['jr-vend', vendQ],
     queryFn: () => axios.get('/api/sales/journal/search/vendors', { params: { q: vendQ } }).then(r => r.data as any[]),
     enabled: vendQ.trim().length >= 2, staleTime: 30_000,
-  }).data ?? []) as any[]).map(v => v.vendor as string).filter(Boolean)
-  const dcsOptions = ((useQuery({
+  }).data ?? []) as any[]
+  const dcsOpts = (useQuery({
     queryKey: ['jr-dcs', dcsQ],
     queryFn: () => axios.get('/api/sales/journal/search/dcs', { params: { q: dcsQ } }).then(r => r.data as any[]),
     enabled: dcsQ.trim().length >= 2, staleTime: 30_000,
-  }).data ?? []) as any[]).map(d => d.label as string).filter(Boolean)
-  const itemOptions = ((useQuery({
+  }).data ?? []) as any[]
+  const itemOpts = (useQuery({
     queryKey: ['jr-item', itemQ],
     queryFn: () => axios.get('/api/inventory/items-search', { params: { q: itemQ } }).then(r => r.data as any[]),
     enabled: itemQ.trim().length >= 2, staleTime: 30_000,
-  }).data ?? []) as any[]).map(i => (i.DESCRIPTION1 || i.ALU) as string).filter(Boolean)
+  }).data ?? []) as any[]
+
+  // token extractors (what the backend filters on for each chosen/typed value)
+  const custToken = (o: any) => typeof o === 'string' ? o : (o.name ?? String(o.customer_id ?? ''))
+  const vendToken = (o: any) => typeof o === 'string' ? o : (o.vendor ?? '')
+  const dcsToken  = (o: any) => typeof o === 'string' ? o : (o.subclass || o.class || o.department || '')
+  const itemToken = (o: any) => typeof o === 'string' ? o : ((productCodeField === 'upc' ? o.UPC : o.ALU) || o.ALU || '')
 
   // Drill-through: preset slicers from URL params (command palette / dimension pages).
   const [sp] = useSearchParams()
   useEffect(() => {
     const cust = sp.get('customer') || sp.get('customer_name')
-    if (cust) setCustTok([cust])
+    if (cust) setCustSel([cust])
     const it = sp.get('item') || sp.get('item_desc')
-    if (it) setItemTok([it])
-    const vd = sp.get('vendor'); if (vd) setVendTok([vd])
-    const dc = sp.get('dcs');    if (dc) setDcsTok([dc])
+    if (it) setItemSel([it])
+    const vd = sp.get('vendor'); if (vd) setVendSel([vd])
+    const dc = sp.get('dcs');    if (dc) setDcsSel([dc])
     const st = sp.get('stores'); if (st) setStores(st.split(',').filter(Boolean))
     if (sp.get('type') === 'return') setType('return')
     else if (sp.get('type') === 'sale') setType('sale')
@@ -129,12 +138,12 @@ export default function Journals() {
     ...(stores.length ? { stores: stores.join(',') } : {}),
     ...(type !== 'all' ? { type } : {}),
     ...(docNo.trim()    ? { doc_no: docNo.trim() } : {}),
-    ...(custTok.length ? { customer: custTok.join('|') } : {}),
-    ...(vendTok.length ? { vendor: vendTok.join('|') } : {}),
-    ...(dcsTok.length  ? { dcs: dcsTok.join('|') } : {}),
-    ...(itemTok.length ? { item: itemTok.join('|') } : {}),
+    ...(custSel.length ? { customer: custSel.map(custToken).filter(Boolean).join('|') } : {}),
+    ...(vendSel.length ? { vendor: vendSel.map(vendToken).filter(Boolean).join('|') } : {}),
+    ...(dcsSel.length  ? { dcs: dcsSel.map(dcsToken).filter(Boolean).join('|') } : {}),
+    ...(itemSel.length ? { item: itemSel.map(itemToken).filter(Boolean).join('|') } : {}),
     ...(search.trim()   ? { search: search.trim() } : {}),
-  }), [dateFrom, dateTo, stores, type, docNo, custTok, vendTok, dcsTok, itemTok, search])
+  }), [dateFrom, dateTo, stores, type, docNo, custSel, vendSel, dcsSel, itemSel, search])   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Master: invoice headers (no hardcoded cap — bounded by the date/filters)
   const { data: invData, isFetching: invFetching, refetch: refetchInv } = useQuery({
@@ -218,13 +227,13 @@ export default function Journals() {
   const journalFilters = `${dateFrom} → ${dateTo} · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}${type !== 'all' ? ` · ${type}` : ''}`
 
   // Saved views: serialise/restore the whole slicer set.
-  const currentView = { preset, dateFrom, dateTo, stores, type, docNo, custTok, vendTok, dcsTok, itemTok, search }
+  const currentView = { preset, dateFrom, dateTo, stores, type, docNo, custSel, vendSel, dcsSel, itemSel, search }
   const applyView = (s: any) => {
     if (!s) return
     setPreset(s.preset ?? ''); setDateFrom(s.dateFrom ?? dateFrom); setDateTo(s.dateTo ?? dateTo)
     setStores(s.stores ?? []); setType(s.type ?? 'all'); setDocNo(s.docNo ?? '')
-    setCustTok(s.custTok ?? []); setVendTok(s.vendTok ?? [])
-    setDcsTok(s.dcsTok ?? []); setItemTok(s.itemTok ?? []); setSearch(s.search ?? '')
+    setCustSel(s.custSel ?? []); setVendSel(s.vendSel ?? [])
+    setDcsSel(s.dcsSel ?? []); setItemSel(s.itemSel ?? []); setSearch(s.search ?? '')
   }
 
   return (
@@ -267,37 +276,25 @@ export default function Journals() {
         <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mt: 1 }}>
           <TextField size="small" placeholder={tr('Document No.')} value={docNo} onChange={e => setDocNo(e.target.value)} sx={{ width: 130 }} />
 
-          {/* Customer — name / id / phone; pick several or type free text */}
-          <Autocomplete multiple freeSolo size="small" sx={{ minWidth: 240, maxWidth: 340 }}
-            options={custOptions} value={custTok} limitTags={2}
-            onInputChange={(_, v) => setCustQ(v)} onChange={(_, v) => setCustTok(v as string[])}
-            filterOptions={x => x}
-            noOptionsText={custQ.length < 2 ? tr('Type 2+ chars…') : tr('No match — press Enter to filter by text')}
-            renderInput={p => <TextField {...p} placeholder={tr('Customer (name / id / phone)')} size="small" />} />
+          {/* Customer — name | phone | id */}
+          <MultiSlicer sx={{ minWidth: 220, maxWidth: 340 }} value={custSel} onChange={setCustSel}
+            options={custOpts} getToken={custToken} onInput={setCustQ} placeholder={tr('Customer (name / phone / id)')}
+            renderLabel={(o: any) => ({ code: o.name || String(o.customer_id || ''), rest: [o.phone, o.customer_id].filter(Boolean).join(' | ') })} />
 
           {/* Vendor */}
-          <Autocomplete multiple freeSolo size="small" sx={{ minWidth: 190, maxWidth: 320 }}
-            options={vendOptions} value={vendTok} limitTags={2}
-            onInputChange={(_, v) => setVendQ(v)} onChange={(_, v) => setVendTok(v as string[])}
-            filterOptions={x => x}
-            noOptionsText={vendQ.length < 2 ? tr('Type 2+ chars…') : tr('No match — press Enter to filter by text')}
-            renderInput={p => <TextField {...p} placeholder={tr('Vendor')} size="small" />} />
+          <MultiSlicer sx={{ minWidth: 180, maxWidth: 300 }} value={vendSel} onChange={setVendSel}
+            options={vendOpts} getToken={vendToken} onInput={setVendQ} placeholder={tr('Vendor')}
+            renderLabel={(o: any) => ({ code: o.vendor })} />
 
-          {/* Dept / Class / Subclass */}
-          <Autocomplete multiple freeSolo size="small" sx={{ minWidth: 210, maxWidth: 340 }}
-            options={dcsOptions} value={dcsTok} limitTags={2}
-            onInputChange={(_, v) => setDcsQ(v)} onChange={(_, v) => setDcsTok(v as string[])}
-            filterOptions={x => x}
-            noOptionsText={dcsQ.length < 2 ? tr('Type 2+ chars…') : tr('No match — press Enter to filter by text')}
-            renderInput={p => <TextField {...p} placeholder={tr('Dept / Class / Subclass')} size="small" />} />
+          {/* Dept | Class | Subclass */}
+          <MultiSlicer sx={{ minWidth: 220, maxWidth: 360 }} value={dcsSel} onChange={setDcsSel}
+            options={dcsOpts} getToken={dcsToken} onInput={setDcsQ} placeholder={tr('Dept / Class / Subclass')}
+            renderLabel={(o: any) => ({ code: o.department || '—', rest: [o.class, o.subclass].filter(Boolean).join(' | ') })} />
 
-          {/* ALU / Item */}
-          <Autocomplete multiple freeSolo size="small" sx={{ minWidth: 240, maxWidth: 360 }}
-            options={itemOptions} value={itemTok} limitTags={2}
-            onInputChange={(_, v) => setItemQ(v)} onChange={(_, v) => setItemTok(v as string[])}
-            filterOptions={x => x}
-            noOptionsText={itemQ.length < 2 ? tr('Type 2+ chars…') : tr('No match — press Enter to filter by text')}
-            renderInput={p => <TextField {...p} placeholder={tr('ALU / Item')} size="small" />} />
+          {/* Item — code | description */}
+          <MultiSlicer sx={{ minWidth: 240, maxWidth: 380 }} value={itemSel} onChange={setItemSel}
+            options={itemOpts} getToken={itemToken} onInput={setItemQ} placeholder={tr('Item (code / description)')}
+            renderLabel={(o: any) => ({ code: (productCodeField === 'upc' ? o.UPC : o.ALU) || o.ALU, rest: o.DESCRIPTION1 })} />
 
           <TextField size="small" placeholder={tr('Quick search...')} value={search} onChange={e => setSearch(e.target.value)}
             sx={{ width: 200 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: '#94a3b8' }} /></InputAdornment> }} />
