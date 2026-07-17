@@ -71,6 +71,13 @@ export function createAppTheme(mode: 'light' | 'dark',
     ] as any,
 
     components: {
+      // App-wide: never let field labels FLOAT. They sit statically on the top
+      // border (shrunk) so they can't animate up and overlap the field frame
+      // while typing — fixes the overlapping "dynamic title" boxes everywhere
+      // (slicers, dialogs, Settings) in one place. Placeholders still show.
+      MuiInputLabel:  { defaultProps: { shrink: true } },
+      MuiTextField:   { defaultProps: { InputLabelProps: { shrink: true } } },
+
       // Single default for every Paper: drop MUI's elevation-overlay tint so
       // paper backgrounds stay consistent. Intentionally no border/shadow here
       // so existing inline elevation/border/sx on cards still win (no regression).
