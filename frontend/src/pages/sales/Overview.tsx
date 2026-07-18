@@ -137,7 +137,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
 
   return (
     <Card elevation={0} sx={{
-      border:'1px solid #e9e4ff',
+      border:'1px solid var(--rt-border)',
       borderRadius:2.5,
       height:'100%',
       transition:'box-shadow .2s, transform .2s',
@@ -164,7 +164,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
         ) : (
           <>
             {/* Primary metric */}
-            <Typography sx={{ fontSize:{ xs:23, md:30 }, fontWeight:800, color:'#0f172a',
+            <Typography sx={{ fontSize:{ xs:23, md:30 }, fontWeight:800, color: 'var(--rt-text)',
                               lineHeight:1.05, letterSpacing:'-0.5px', fontVariantNumeric:'tabular-nums',
                               whiteSpace:'nowrap' }}>
               {showCurrency && (
@@ -183,7 +183,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
               <ChangeBadge curr={net} prev={prevData.net_sales} label={prevLabel}/>
             )}
 
-            <Divider sx={{ my:1.5, borderColor:'#f1f5f9' }}/>
+            <Divider sx={{ my:1.5, borderColor:'var(--rt-border)' }}/>
 
             {/* Secondary metrics — 2-col grid */}
             <Box sx={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:1 }}>
@@ -198,7 +198,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
                   {tr('Invoices')}
                 </Typography>
                 <Box sx={{ display:'flex', alignItems:'center', gap:0.6, mt:0.15 }}>
-                  <Typography sx={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>
+                  <Typography sx={{ fontSize:13, fontWeight:700, color: 'var(--rt-text)' }}>
                     {fmtInt(inv)}
                   </Typography>
                 </Box>
@@ -245,7 +245,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
                   {tr('Discount')}
                 </Typography>
                 <Box sx={{ display:'flex', alignItems:'center', gap:0.6, mt:0.15 }}>
-                  <Typography sx={{ fontSize:13, fontWeight:700, color:'#1e293b' }}>
+                  <Typography sx={{ fontSize:13, fontWeight:700, color: 'var(--rt-text)' }}>
                     {num(disc)}
                   </Typography>
                   {disc > 0 && (
@@ -281,7 +281,7 @@ function MiniChart({ title, subtitle, option, loading }: {
   const exportPng = () => {
     const inst = chartRef.current?.getEchartsInstance()
     if (!inst) return
-    const url = inst.getDataURL({ type:'png', backgroundColor:'#fff', pixelRatio:2 })
+    const url = inst.getDataURL({ type:'png', backgroundColor: 'var(--rt-surface)', pixelRatio:2 })
     const a = document.createElement('a')
     a.href = url; a.download = `${title.replace(/\W+/g,'_')}.png`; a.click()
   }
@@ -303,11 +303,11 @@ function MiniChart({ title, subtitle, option, loading }: {
 
   return (
     <>
-      <Card elevation={0} sx={{ border:'1px solid #e9e4ff', borderRadius:2.5, height:'100%' }}>
+      <Card elevation={0} sx={{ border:'1px solid var(--rt-border)', borderRadius:2.5, height:'100%' }}>
         <CardContent sx={{ p:2, '&:last-child':{ pb:2 } }}>
           <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', mb:0.5 }}>
             <Box>
-              <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:13, lineHeight:1.2 }}>{tr(title)}</Typography>
+              <Typography sx={{ fontWeight:800, color: 'var(--rt-text)', fontSize:13, lineHeight:1.2 }}>{tr(title)}</Typography>
               {subtitle && <Typography sx={{ fontSize:11, color:'#94a3b8', mt:0.2 }}>{tr(subtitle)}</Typography>}
             </Box>
             {toolbar}
@@ -321,7 +321,7 @@ function MiniChart({ title, subtitle, option, loading }: {
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xl" fullWidth
         PaperProps={{ sx:{ borderRadius:3, m:2 } }}>
-        <DialogTitle sx={{ fontWeight:800, color:'#0f172a', fontSize:16, pr:6, pb:0.5 }}>
+        <DialogTitle sx={{ fontWeight:800, color: 'var(--rt-text)', fontSize:16, pr:6, pb:0.5 }}>
           {tr(title)}
           {subtitle && <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.3 }}>{tr(subtitle)}</Typography>}
         </DialogTitle>
@@ -357,7 +357,7 @@ export default function Overview() {
   const exportTrendPng = () => {
     const inst = trendChartRef.current?.getEchartsInstance()
     if (!inst) return
-    const url = inst.getDataURL({ type:'png', backgroundColor:'#fff', pixelRatio:2 })
+    const url = inst.getDataURL({ type:'png', backgroundColor: 'var(--rt-surface)', pixelRatio:2 })
     const a = document.createElement('a')
     a.href = url; a.download = 'Sales_Trend.png'; a.click()
   }
@@ -412,8 +412,8 @@ export default function Overview() {
       grid: { top:44, right:72, bottom:36, left:74 },
       tooltip: {
         trigger: 'axis',
-        backgroundColor: '#fff',
-        borderColor: '#e9e4ff',
+        backgroundColor: 'var(--rt-surface)',
+        borderColor: 'var(--rt-border)',
         borderWidth: 1,
         textStyle: { color:'#0f172a', fontSize:12 },
         axisPointer: { type:'cross', lineStyle:{ color:'#ede9fe', width:1 } },
@@ -685,7 +685,7 @@ export default function Overview() {
 
       {/* ── Page header ── */}
       <Box>
-        <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px' }}>
+        <Typography variant="h6" sx={{ fontWeight:800, color: 'var(--rt-text)', letterSpacing:'-0.3px' }}>
           {tr('Sales Overview')}
           <TitleLoader />
         </Typography>
@@ -729,14 +729,14 @@ export default function Overview() {
       </Box>
 
       {/* ── Sales Trend ── */}
-      <Card elevation={0} sx={{ border:'1px solid #e9e4ff', borderRadius:2.5 }}>
+      <Card elevation={0} sx={{ border:'1px solid var(--rt-border)', borderRadius:2.5 }}>
         <CardContent sx={{ p:2.5, '&:last-child':{ pb:2.5 } }}>
 
           <Box sx={{ display:'flex', flexDirection:{ xs:'column', md:'row' },
                      alignItems:{ xs:'stretch', md:'center' }, justifyContent:'space-between',
                      gap:{ xs:1.25, md:0 }, mb:2 }}>
             <Box>
-              <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:15 }}>
+              <Typography sx={{ fontWeight:800, color: 'var(--rt-text)', fontSize:15 }}>
                 {tr('Sales Trend')}
               </Typography>
               <Typography noWrap sx={{ fontSize:12, color:'#94a3b8', mt:0.2 }}>
@@ -746,7 +746,7 @@ export default function Overview() {
 
             {/* Right side: period selector + toolbar */}
             <Box sx={{ display:'flex', alignItems:'center', gap:1, flexWrap:'wrap' }}>
-              <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor:'#f8f7ff', borderRadius:2 }}>
+              <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor: 'var(--rt-surface-2)', borderRadius:2 }}>
                 {TREND_PERIODS.map(tp => (
                   <Chip key={tp.label} label={tr(tp.label)} size="small"
                     onClick={() => setTrendPeriod(tp.label)}
@@ -789,7 +789,7 @@ export default function Overview() {
       {/* Sales Trend fullscreen dialog */}
       <Dialog open={trendOpen} onClose={() => setTrendOpen(false)} maxWidth="xl" fullWidth
         PaperProps={{ sx:{ borderRadius:3, m:2 } }}>
-        <DialogTitle sx={{ fontWeight:800, color:'#0f172a', fontSize:16, pr:6, pb:0.5 }}>
+        <DialogTitle sx={{ fontWeight:800, color: 'var(--rt-text)', fontSize:16, pr:6, pb:0.5 }}>
           {tr('Sales Trend')}
           <Typography sx={{ fontSize:12, color:'#94a3b8', mt:0.3 }}>
             {tr('Net sales · invoices · return rate by day')}

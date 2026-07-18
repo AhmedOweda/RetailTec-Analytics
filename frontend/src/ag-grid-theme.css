@@ -127,3 +127,51 @@
   font-weight: 700;
   background: #faf9ff;
 }
+
+/* ── Dark mode ───────────────────────────────────────────────────────────────
+   AG Grid is entirely CSS-variable driven, so a single override block flips
+   every registered grid to a dark palette that matches the app's purple theme
+   — no per-page JSX change needed. */
+html[data-theme="dark"] .ag-theme-alpine.ag-theme-alpine {
+  --ag-foreground-color: #EDE8F8;
+  --ag-data-color: #EDE8F8;
+  --ag-secondary-foreground-color: #B9A7D8;
+
+  --ag-header-foreground-color: #C8A8E8;
+  --ag-header-background-color: #1C0E42;
+  --ag-header-cell-hover-background-color: #241452;
+
+  --ag-background-color: #160D3A;
+  --ag-odd-row-background-color: #190E3E;
+  --ag-row-hover-color: #241452;
+  --ag-selected-row-background-color: #2C1760;
+  --ag-row-border-color: rgba(155,101,208,0.12);
+
+  --ag-border-color: rgba(155,101,208,0.20);
+  --ag-alpine-active-color: #9B65D0;
+  --ag-range-selection-border-color: #9B65D0;
+  --ag-range-selection-background-color: rgba(155,101,208,0.14);
+  --ag-input-focus-border-color: #9B65D0;
+  --ag-checkbox-checked-color: #9B65D0;
+  --ag-header-column-resize-handle-color: rgba(155,101,208,0.25);
+  --ag-control-panel-background-color: #160D3A;
+  --ag-subheader-background-color: #1C0E42;
+  --ag-input-background-color: #241452;
+  --ag-invalid-color: #E05B5B;
+}
+html[data-theme="dark"] .ag-theme-alpine.ag-theme-alpine .ag-floating-bottom {
+  border-top: 1px solid rgba(155,101,208,0.22);
+  background: #1C0E42;
+}
+html[data-theme="dark"] .ag-theme-alpine.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb,
+html[data-theme="dark"] .ag-theme-alpine.ag-theme-alpine .ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb,
+html[data-theme="dark"] .ag-theme-alpine.ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+  background: #4E2A99;
+}
+/* Menus / popups (filter, column) — keep them dark too */
+html[data-theme="dark"] .ag-theme-alpine .ag-menu,
+html[data-theme="dark"] .ag-theme-alpine .ag-popup-child {
+  background: #160D3A;
+  border-color: rgba(155,101,208,0.22);
+  color: #EDE8F8;
+}

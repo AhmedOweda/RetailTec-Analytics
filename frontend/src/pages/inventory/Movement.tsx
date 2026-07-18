@@ -74,12 +74,12 @@ function ChartCard({ title, subtitle, option, height = 300 }: {
 
   return (
     <>
-      <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
+      <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius: 2.5, border: '1px solid var(--rt-border)',
                  boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2, display: 'flex',
                  flexDirection: 'column', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{tr(title)}</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--rt-text)' }}>{tr(title)}</Typography>
             {subtitle && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{tr(subtitle)}</Typography>}
           </Box>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -237,7 +237,7 @@ export default function InventoryMovement() {
             const r = rows[p.dataIndex] ?? {}
             return `{val|${num(p.value)}}  {gp|GM:${r.gm_pct ?? 0}%}`
           },
-          rich: { val: { color: '#475569', fontSize: 10 }, gp: { color: '#065f46', fontSize: 10, fontWeight: 700 } },
+          rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 }, gp: { color: '#065f46', fontSize: 10, fontWeight: 700 } },
         },
       }],
     }
@@ -334,7 +334,7 @@ export default function InventoryMovement() {
     // dept
     return [
       rankCol,
-      { field: 'department', headerName: 'Department', width: 220, pinned: 'left', cellStyle: { fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+      { field: 'department', headerName: 'Department', width: 220, pinned: 'left', cellStyle: { fontWeight: 700, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' } },
       skuCol, soldCol, retCol, revCol, gpCol,
     ]
   }, [tableData, view, codeField])
@@ -346,9 +346,9 @@ export default function InventoryMovement() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
 
       {/* ── Header ── */}
-      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
-                 borderBottom: '1px solid #e9e4ff', px: 3, pt: 3, pb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'var(--rt-surface)',
+                 borderBottom: '1px solid var(--rt-border)', px: 3, pt: 3, pb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: 'var(--rt-text)', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Stock Movement')}
           <TitleLoader />
         </Typography>
@@ -409,10 +409,10 @@ export default function InventoryMovement() {
         <ChartCard title="Department Velocity" subtitle="Revenue · GM% annotated · sorted by revenue" option={deptVelOpt} height={260} />
 
         {/* ── Row 3: Detail Grid ── */}
-        <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
+        <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius: 2.5, border: '1px solid var(--rt-border)',
                    boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>{tr('Movement Detail')}</Typography>
+            <Typography sx={{ fontWeight: 700, color: 'var(--rt-text)', fontSize: 13 }}>{tr('Movement Detail')}</Typography>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               {(['dept','dcs','vendor','store','item'] as const).map(v => (
                 <Chip key={v} label={tr(v === 'dept' ? 'By Dept' : v === 'dcs' ? 'DCS' : v === 'vendor' ? 'By Item Vendor' : v === 'store' ? 'By Store' : 'By Item')}

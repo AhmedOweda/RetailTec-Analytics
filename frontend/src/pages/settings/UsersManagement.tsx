@@ -129,7 +129,7 @@ function StorePickerDialog({
           <Button size="small" variant="outlined" sx={{ fontSize: 11, textTransform: 'none', py: 0.3 }}
             onClick={() => setLocal([])}>{tr('Clear')}</Button>
         </Box>
-        <Box sx={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 1.5, p: 1 }}>
+        <Box sx={{ maxHeight: 300, overflowY: 'auto', border: '1px solid var(--rt-border)', borderRadius: 1.5, p: 1 }}>
           {allStores.length === 0 && (
             <Typography fontSize={12} color="#94a3b8" sx={{ p: 1 }}>{tr('No stores found')}</Typography>
           )}
@@ -137,7 +137,7 @@ function StorePickerDialog({
             <Box key={s} onClick={() => toggle(s)}
               sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5,
                     borderRadius: 1, cursor: 'pointer',
-                    '&:hover': { bgcolor: '#f8fafc' },
+                    '&:hover': { bgcolor: 'var(--rt-surface-2)' },
                     bgcolor: local.includes(s) ? '#ede9fe' : 'transparent' }}>
               <Checkbox checked={local.includes(s)} size="small"
                 sx={{ p: 0.3, color: '#6366f1', '&.Mui-checked': { color: '#6366f1' } }} />
@@ -297,18 +297,18 @@ export default function UsersManagement() {
 
       {!isLoading && (
         <TableContainer component={Paper} elevation={0}
-          sx={{ border: '1px solid #e2e8f0', borderRadius: 2 }}>
+          sx={{ border: '1px solid var(--rt-border)', borderRadius: 2 }}>
           <Table size="small">
-            <TableHead sx={{ bgcolor: '#f8fafc' }}>
+            <TableHead sx={{ bgcolor: 'var(--rt-surface-2)' }}>
               <TableRow>
                 {['User', 'Role', 'Stores', 'Pages', 'Status', 'Created', 'Actions'].map(h => tr(h)).map(h => (
-                  <TableCell key={h} sx={{ fontWeight: 700, color: '#475569', fontSize: 12 }}>{h}</TableCell>
+                  <TableCell key={h} sx={{ fontWeight: 700, color: 'var(--rt-text-2)', fontSize: 12 }}>{h}</TableCell>
                 ))}
               </TableRow>
             </TableHead>
             <TableBody>
               {users.map(u => (
-                <TableRow key={u.id} sx={{ '&:hover': { bgcolor: '#f8fafc' } }}>
+                <TableRow key={u.id} sx={{ '&:hover': { bgcolor: 'var(--rt-surface-2)' } }}>
                   <TableCell>
                     <Typography fontWeight={600} fontSize={13}>{u.full_name || u.username}</Typography>
                     <Typography fontSize={11} color="#94a3b8">@{u.username}</Typography>
@@ -425,7 +425,7 @@ export default function UsersManagement() {
 
           {/* ── Role privilege info ─────────────────────────────────── */}
           {form.role && (
-            <Box sx={{ bgcolor: '#f8fafc', borderRadius: 1.5, border: '1px solid #e2e8f0', p: 1.5 }}>
+            <Box sx={{ bgcolor: 'var(--rt-surface-2)', borderRadius: 1.5, border: '1px solid var(--rt-border)', p: 1.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
                   <SecurityIcon sx={{ fontSize: 15, color: ROLE_COLORS[form.role] }} />
@@ -462,8 +462,8 @@ export default function UsersManagement() {
                 {selectedStores.length > 0 ? tr('Edit Stores') : tr('Select Stores')}
               </Button>
             </Box>
-            <Box sx={{ minHeight: 40, border: '1px solid #e2e8f0', borderRadius: 1.5, p: 1,
-                        display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center', bgcolor: '#f8fafc' }}>
+            <Box sx={{ minHeight: 40, border: '1px solid var(--rt-border)', borderRadius: 1.5, p: 1,
+                        display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center', bgcolor: 'var(--rt-surface-2)' }}>
               {selectedStores.length === 0 ? (
                 <Typography fontSize={12} color="#94a3b8" sx={{ fontStyle: 'italic' }}>
                   {tr('All stores (no restriction)')}
@@ -563,7 +563,7 @@ export default function UsersManagement() {
                     {sel.size === 0 ? tr('All pages (no restriction)') : trf('{{n}} of {{b}} pages', { n: sel.size, b: ALL_PAGE_KEYS.length })}
                   </Typography>
                 </Box>
-                <Box sx={{ border:'1px solid #e2e8f0', borderRadius:1.5, p:1.5, bgcolor:'#f8fafc',
+                <Box sx={{ border:'1px solid var(--rt-border)', borderRadius:1.5, p:1.5, bgcolor: 'var(--rt-surface-2)',
                            display:'grid', gridTemplateColumns:'1fr 1fr', gap:1.5 }}>
                   {PAGE_DOMAINS.map(dom => {
                     const keys = dom.pages.map(p => p.key)

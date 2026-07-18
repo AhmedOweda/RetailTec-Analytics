@@ -95,15 +95,15 @@ export default function SendHistoryDialog({ open, onClose }: { open: boolean; on
               const ok = (r.status ?? 'sent') === 'sent'
               return (
                 <Box key={i} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, p: 1.25,
-                                   borderRadius: 2, border: '1px solid #eef2f7', bgcolor: ok ? '#fff' : '#fff7f7' }}>
+                                   borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: ok ? '#fff' : '#fff7f7' }}>
                   <Chip size="small" label={ok ? tr('Sent') : tr('Failed')}
                     sx={{ height: 22, fontSize: 11, fontWeight: 700,
                           bgcolor: ok ? '#dcfce7' : '#fee2e2', color: ok ? '#15803d' : '#b91c1c' }} />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }} noWrap>
+                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--rt-text)' }} noWrap>
                       {r.subject || r.filename || tr('Report')}
                     </Typography>
-                    <Typography sx={{ fontSize: 12, color: '#475569' }} noWrap>
+                    <Typography sx={{ fontSize: 12, color: 'var(--rt-text-2)' }} noWrap>
                       {tr('To')}: {(r.recipients ?? []).join(', ') || '—'}
                     </Typography>
                     <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>

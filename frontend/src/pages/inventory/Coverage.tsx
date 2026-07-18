@@ -218,11 +218,11 @@ export default function InventoryCoverage() {
 
       {/* â”€â”€ Sticky header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <Box sx={{
-        position: 'sticky', top: 0, zIndex: 10, bgcolor: '#f8fafc',
-        mx: -3, px: 3, pt: 2.5, pb: 1.5, mb: 2, borderBottom: '1px solid #e9e4ff',
+        position: 'sticky', top: 0, zIndex: 10, bgcolor: 'var(--rt-surface-2)',
+        mx: -3, px: 3, pt: 2.5, pb: 1.5, mb: 2, borderBottom: '1px solid var(--rt-border)',
       }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" mb={1.5}>
-          <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color:'#0f172a', letterSpacing:'-0.3px' }}>
+          <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color: 'var(--rt-text)', letterSpacing:'-0.3px' }}>
             {tr('Coverage & Replenishment Planning')}
             <TitleLoader />
           </Typography>
@@ -238,7 +238,7 @@ export default function InventoryCoverage() {
               options={f.options} value={f.value}
               onChange={(_, v) => f.set(v as string[])}
               sx={{ minWidth: 200,
-                    '& .MuiOutlinedInput-root': { borderRadius: 2.5, bgcolor: '#fff' } }}
+                    '& .MuiOutlinedInput-root': { borderRadius: 2.5, bgcolor: 'var(--rt-surface)' } }}
               renderInput={p => <TextField {...p} placeholder={f.label} size="small" />}
               renderTags={(val, gtp) => val.map((o, i) =>
                 <Chip label={o} size="small" {...gtp({ index: i })} />
@@ -249,7 +249,7 @@ export default function InventoryCoverage() {
           <TextField size="small" label={trf('Search item ({{code}} / description)', { code: codeFieldUpper })}
             value={itemSearch} onChange={e => setItemSearch(e.target.value)}
             sx={{ width: 260,
-                  '& .MuiOutlinedInput-root': { borderRadius: 2.5, bgcolor: '#fff' } }} />
+                  '& .MuiOutlinedInput-root': { borderRadius: 2.5, bgcolor: 'var(--rt-surface)' } }} />
 
           {/* Period selector */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -287,7 +287,7 @@ export default function InventoryCoverage() {
 
       {/* â”€â”€ Coverage bucket bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <Box sx={{
-        bgcolor: '#fff', borderRadius: 2, border: '1px solid #e2e8f0',
+        bgcolor: 'var(--rt-surface)', borderRadius: 2, border: '1px solid var(--rt-border)',
         p: 1.5, mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap',
       }}>
         {BUCKETS.map(b => {
@@ -319,7 +319,7 @@ export default function InventoryCoverage() {
       </Box>
 
       {/* â”€â”€ Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <Box sx={{ bgcolor: '#fff', borderRadius: 2, border: '1px solid #e2e8f0', p: 2 }}>
+      <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius: 2, border: '1px solid var(--rt-border)', p: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
           <Box>
             <Typography sx={{ fontWeight: 700, fontSize: 13 }}>

@@ -125,7 +125,7 @@ export default function FirstRunWizard({ onDone }: { onDone: () => void }) {
         )}
 
         {step === 3 && (
-          <Typography sx={{ fontSize: 13, color: '#475569' }}>
+          <Typography sx={{ fontSize: 13, color: 'var(--rt-text-2)' }}>
             {tr('Ready to load. This runs in the background and may take a while for large databases.')}
           </Typography>
         )}

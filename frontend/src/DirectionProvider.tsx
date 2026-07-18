@@ -17,7 +17,7 @@ const ltrCache = createCache({ key: 'mui' })
 const rtlCache = createCache({ key: 'mui-rtl', stylisPlugins: [prefixer, rtlPlugin] })
 
 export default function DirectionProvider({ children }: { children: ReactNode }) {
-  const { language } = useAppSettings()
+  const { language, themeMode } = useAppSettings()
   const rtl = language === 'ar'
 
   useEffect(() => {
@@ -25,7 +25,9 @@ export default function DirectionProvider({ children }: { children: ReactNode })
     document.documentElement.lang = language
   }, [rtl, language])
 
-  const theme = useMemo(() => createAppTheme('light', rtl ? 'rtl' : 'ltr'), [rtl])
+  const theme = useMemo(
+    () => createAppTheme(themeMode, rtl ? 'rtl' : 'ltr'),
+    [rtl, themeMode])
 
   return (
     <CacheProvider value={rtl ? rtlCache : ltrCache}>

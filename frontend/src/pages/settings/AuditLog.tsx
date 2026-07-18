@@ -111,8 +111,8 @@ export default function AuditLog() {
 
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
-      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
-                 mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
+      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor: 'var(--rt-surface-2)',
+                 mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid var(--rt-border)' }}>
         <Typography variant="h5" fontWeight={700} mb={0.3}>{tr('Audit Log')}<TitleLoader /></Typography>
         <Typography sx={{ fontSize:12, color:'#64748b', mb:1.5 }}>
           {tr('Logins, user changes, settings and data actions')}
@@ -140,7 +140,7 @@ export default function AuditLog() {
           <Button size="small" variant="outlined" startIcon={<RefreshIcon sx={{ fontSize: '17px !important' }} />}
             onClick={() => qc.invalidateQueries({ queryKey: ['audit'] })}
             sx={{ textTransform:'none', borderRadius:2, fontWeight:600, height:32,
-                  borderColor:'#e2e8f0', color:'#475569',
+                  borderColor:'var(--rt-border)', color: 'var(--rt-text-2)',
                   '&:hover':{ borderColor:'#7c3aed', color:'#7c3aed', bgcolor:'#ede9fe' } }}>
             {tr('Refresh')}
           </Button>
@@ -149,7 +149,7 @@ export default function AuditLog() {
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{tr('Failed to load audit log')}</Alert>}
 
-      <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2 }}>
+      <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius:2, border:'1px solid var(--rt-border)', p:2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
           <Typography sx={{ fontWeight:700, fontSize:13 }}>
             {trf('{{n}} events', { n: rows.length })}

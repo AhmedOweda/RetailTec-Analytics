@@ -54,12 +54,12 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2
 /* â”€â”€ AG Grid shared styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const GRID_SX = {
   '& .ag-root-wrapper':     { borderRadius: 1.5 },
-  '& .ag-header':           { bgcolor: '#f8f7ff !important', borderBottom: '1px solid #e9e4ff' },
+  '& .ag-header':           { bgcolor: '#f8f7ff !important', borderBottom: '1px solid var(--rt-border)' },
   '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
-  '& .ag-row-even':         { bgcolor: '#ffffff' },
-  '& .ag-row-odd':          { bgcolor: '#faf9ff' },
+  '& .ag-row-even':         { bgcolor: 'var(--rt-surface)' },
+  '& .ag-row-odd':          { bgcolor: 'var(--rt-surface-2)' },
   '& .ag-row:hover':        { bgcolor: '#f3f0ff !important' },
-  '& .ag-paging-panel':     { borderTop: '1px solid #e9e4ff', color: '#475569' },
+  '& .ag-paging-panel':     { borderTop: '1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
 }
 const DEF_COL: ColDef = { sortable: true, resizable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true, cellStyle: { display:'flex', alignItems:'center' } }
 
@@ -75,7 +75,7 @@ function ChartPanel({
   const exportPng = () => {
     const inst = chartRef.current?.getEchartsInstance()
     if (!inst) return
-    const url = inst.getDataURL({ type: 'png', backgroundColor: '#fff', pixelRatio: 2 })
+    const url = inst.getDataURL({ type: 'png', backgroundColor: 'var(--rt-surface)', pixelRatio: 2 })
     const a = document.createElement('a')
     a.href = url; a.download = `${title.replace(/\W+/g,'_')}.png`; a.click()
   }
@@ -96,11 +96,11 @@ function ChartPanel({
   )
 
   return (
-    <Card elevation={0} sx={{ border:'1px solid #e9e4ff', borderRadius:2.5 }}>
+    <Card elevation={0} sx={{ border:'1px solid var(--rt-border)', borderRadius:2.5 }}>
       <CardContent sx={{ p:2.5, '&:last-child':{ pb:2.5 } }}>
         <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', mb:1.5 }}>
           <Box>
-            <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:14 }}>{tr(title)}</Typography>
+            <Typography sx={{ fontWeight:800, color: 'var(--rt-text)', fontSize:14 }}>{tr(title)}</Typography>
             {subtitle && <Typography sx={{ fontSize:12, color:C_SLATE, mt:0.2 }}>{tr(subtitle)}</Typography>}
           </Box>
           {toolbar}
@@ -112,7 +112,7 @@ function ChartPanel({
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xl" fullWidth
         PaperProps={{ sx:{ borderRadius:3, m:2 } }}>
-        <DialogTitle sx={{ fontWeight:800, color:'#0f172a', fontSize:16, pr:6, pb:0.5 }}>
+        <DialogTitle sx={{ fontWeight:800, color: 'var(--rt-text)', fontSize:16, pr:6, pb:0.5 }}>
           {tr(title)}
           {subtitle && <Typography sx={{ fontSize:12, color:C_SLATE, mt:0.3 }}>{tr(subtitle)}</Typography>}
         </DialogTitle>
@@ -135,11 +135,11 @@ function TableSection({
   title: string; subtitle?: string; children: React.ReactNode; loading?: boolean; height?: number; toolbar?: React.ReactNode
 }) {
   return (
-    <Card elevation={0} sx={{ border:'1px solid #e9e4ff', borderRadius:2.5 }}>
+    <Card elevation={0} sx={{ border:'1px solid var(--rt-border)', borderRadius:2.5 }}>
       <CardContent sx={{ p:2.5, '&:last-child':{ pb:2.5 } }}>
         <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', mb:1.5, gap:2 }}>
           <Box>
-            <Typography sx={{ fontWeight:800, color:'#0f172a', fontSize:14 }}>{tr(title)}</Typography>
+            <Typography sx={{ fontWeight:800, color: 'var(--rt-text)', fontSize:14 }}>{tr(title)}</Typography>
             {subtitle && <Typography sx={{ fontSize:12, color:C_SLATE, mt:0.2 }}>{tr(subtitle)}</Typography>}
           </Box>
           {toolbar}
@@ -455,7 +455,7 @@ export default function Performance() {
         valueGetter:(p:any) => (p.node?.rowIndex ?? 0) + 1,
         cellStyle:{ color:C_SLATE, fontSize:11, fontWeight:500, display:'flex', alignItems:'center' } },
       { field:'employee_name', headerName:'Associate', width:175, pinned:'left',
-        cellStyle:{ fontWeight:600, color:'#1e293b', display:'flex', alignItems:'center' } },
+        cellStyle:{ fontWeight:600, color: 'var(--rt-text)', display:'flex', alignItems:'center' } },
       { field:'store_name',    headerName:'Store',      width:155 },
       { field:'invoice_count', headerName:'Invoices',   width:100, type:'numericColumn', valueFormatter:(p:any) => (+p.value||0).toLocaleString() },
       { field:'net_sales',     headerName:'Net Sales',  width:130, type:'numericColumn',
@@ -495,7 +495,7 @@ export default function Performance() {
         valueGetter:(p:any) => (p.node?.rowIndex ?? 0) + 1,
         cellStyle:{ color:C_SLATE, fontSize:11, fontWeight:500, display:'flex', alignItems:'center' } },
       { field:'customer_name', headerName:'Customer',   width:210, pinned:'left',
-        cellStyle:{ fontWeight:600, color:'#1e293b', display:'flex', alignItems:'center' } },
+        cellStyle:{ fontWeight:600, color: 'var(--rt-text)', display:'flex', alignItems:'center' } },
       { field:'invoice_count', headerName:'Visits',     width:90,  type:'numericColumn', valueFormatter:(p:any) => (+p.value||0).toLocaleString() },
       { field:'net_sales',     headerName:'Net Spend',  width:130, type:'numericColumn',
         valueFormatter:(p:any) => num(p.value ?? 0),
@@ -520,9 +520,9 @@ export default function Performance() {
     <Box sx={{ display:'flex', flexDirection:'column', gap:2.5 }}>
 
       {/* â”€â”€ Sticky header: title + date selector â”€â”€ */}
-      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#ffffff',
-          borderBottom:'1px solid #e9e4ff', px:{ xs:1.5, md:3 }, pt:{ xs:2, md:3 }, pb:2, mx:0 }}>
-        <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>
+      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor: 'var(--rt-surface)',
+          borderBottom:'1px solid var(--rt-border)', px:{ xs:1.5, md:3 }, pt:{ xs:2, md:3 }, pb:2, mx:0 }}>
+        <Typography variant="h6" sx={{ fontWeight:800, color: 'var(--rt-text)', letterSpacing:'-0.3px', mb:0.3 }}>
           {tr('Performance')}
           <TitleLoader />
         </Typography>
@@ -530,7 +530,7 @@ export default function Performance() {
 
         {/* Date selector bar */}
         <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
-          <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor:'#f1f5f9', borderRadius:2 }}>
+          <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor: 'var(--rt-surface-3)', borderRadius:2 }}>
             {PERIODS.map(p => (
               <Chip key={p.label} label={tr(p.label)} size="small" onClick={() => selectPeriod(p.label)}
                 sx={{ fontWeight:700, fontSize:12, height:28, px:0.5, transition:'all .18s ease',
@@ -541,7 +541,7 @@ export default function Performance() {
               />
             ))}
           </Box>
-          <Divider orientation="vertical" flexItem sx={{ borderColor:'#e9e4ff', mx:0.5, display:{ xs:'none', md:'block' } }} />
+          <Divider orientation="vertical" flexItem sx={{ borderColor:'var(--rt-border)', mx:0.5, display:{ xs:'none', md:'block' } }} />
           <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1, flexWrap:'wrap', rowGap:1 }}>
             <CalendarMonthIcon sx={{ fontSize:16, color:C_SLATE }} />
             <TextField type="date" size="small" label={tr('From')} value={customFrom}
@@ -560,7 +560,7 @@ export default function Performance() {
               {tr('Apply')}
             </Button>
           </Box>
-          <Divider orientation="vertical" flexItem sx={{ borderColor:'#e9e4ff', mx:0.5 }} />
+          <Divider orientation="vertical" flexItem sx={{ borderColor:'var(--rt-border)', mx:0.5 }} />
           <Autocomplete
             multiple
             size="small"
@@ -570,7 +570,7 @@ export default function Performance() {
             disableCloseOnSelect
             limitTags={2}
             renderInput={p => (
-              <TextField {...p} placeholder={tr('Stores')} placeholder={selectedStores.length === 0 ? tr('All stores') : ''}
+              <TextField {...p} placeholder={selectedStores.length === 0 ? tr('All stores') : tr('Stores')}
                 sx={{ minWidth:230, '& .MuiOutlinedInput-root':{ borderRadius:2, fontSize:13 } }} />
             )}
             renderTags={(value, getTagProps) =>

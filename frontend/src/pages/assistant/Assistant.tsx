@@ -57,17 +57,17 @@ function ResultTable({ columns, rows, truncated }: { columns: string[]; rows: an
   if (!columns?.length) return null
   const money = (c: string) => /cost|value|revenue|price|rev|amount|sales|gp|margin/i.test(c)
   return (
-    <Box sx={{ overflowX: 'auto', mt: 1.5, border: '1px solid #eef0f5', borderRadius: 2.5 }}>
-      <Table size="small" stickyHeader sx={{ '& td, & th': { borderColor: '#f1f2f7' } }}>
+    <Box sx={{ overflowX: 'auto', mt: 1.5, border: '1px solid var(--rt-border)', borderRadius: 2.5 }}>
+      <Table size="small" stickyHeader sx={{ '& td, & th': { borderColor: 'var(--rt-border)' } }}>
         <TableHead>
           <TableRow>{columns.map((c, i) => (
-            <TableCell key={i} sx={{ fontWeight: 700, fontSize: 12, color: '#475569',
-              bgcolor: '#faf9ff', letterSpacing: .2, whiteSpace: 'nowrap' }}>{c}</TableCell>
+            <TableCell key={i} sx={{ fontWeight: 700, fontSize: 12, color: 'var(--rt-text-2)',
+              bgcolor: 'var(--rt-surface-2)', letterSpacing: .2, whiteSpace: 'nowrap' }}>{c}</TableCell>
           ))}</TableRow>
         </TableHead>
         <TableBody>
           {rows.slice(0, 200).map((r, ri) => (
-            <TableRow key={ri} hover sx={{ '&:hover': { bgcolor: '#faf9ff' } }}>
+            <TableRow key={ri} hover sx={{ '&:hover': { bgcolor: 'var(--rt-surface-2)' } }}>
               {r.map((cell, ci) => (
                 <TableCell key={ci} sx={{ fontSize: 12.5, color: INK,
                   textAlign: typeof cell === 'number' ? 'right' : 'left',
@@ -171,7 +171,7 @@ function ConfigDialog({ open, onClose }: { open: boolean; onClose: () => void })
             helperText={tr('Stored encrypted on this machine. Leave blank to keep the current key.')} />
         )}
         {cfg.provider !== 'ollama' && (
-          <Alert severity="info" icon={false} sx={{ fontSize: 12, borderRadius: 2, bgcolor: '#f5f3ff', color: '#5b21b6' }}>
+          <Alert severity="info" icon={false} sx={{ fontSize: 12, borderRadius: 2, bgcolor: 'var(--rt-surface-3)', color: '#5b21b6' }}>
             {tr('Cloud providers need internet. Your question and the data schema are sent to the provider; row data stays local except a small preview used to phrase the answer.')}
           </Alert>
         )}
@@ -247,7 +247,7 @@ export default function Assistant() {
         {isAdmin && (
           <Tooltip title={tr('Open Settings')}>
             <IconButton onClick={() => navigate('/settings')}
-              sx={{ bgcolor: '#f5f3ff', '&:hover': { bgcolor: '#ede9fe' } }}>
+              sx={{ bgcolor: 'var(--rt-surface-3)', '&:hover': { bgcolor: '#ede9fe' } }}>
               <SettingsIcon sx={{ color: ACCENT }} />
             </IconButton>
           </Tooltip>
@@ -284,14 +284,14 @@ export default function Assistant() {
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5, textAlign: 'left' }}>
                 {STARTERS.map((s, i) => (
                   <Paper key={i} onClick={() => send(s.q)} elevation={0}
-                    sx={{ p: 1.75, borderRadius: 3, border: '1px solid #eceafd', cursor: 'pointer',
+                    sx={{ p: 1.75, borderRadius: 3, border: '1px solid var(--rt-border)', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', gap: 1.5, transition: 'all .18s ease',
                           '&:hover': { borderColor: ACCENT, boxShadow: '0 8px 22px rgba(124,58,237,.12)', transform: 'translateY(-2px)' },
                           ...(i === STARTERS.length - 1 ? { gridColumn: { sm: '1 / -1' } } : {}) }}>
-                    <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: '#f5f3ff', color: ACCENT,
+                    <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: 'var(--rt-surface-3)', color: ACCENT,
                                display: 'flex', alignItems: 'center', justifyContent: 'center',
                                '& svg': { fontSize: 19 } }}>{s.icon}</Box>
-                    <Typography sx={{ fontSize: 13.5, color: '#334155', fontWeight: 500 }}>{tr(s.q)}</Typography>
+                    <Typography sx={{ fontSize: 13.5, color: 'var(--rt-text-2)', fontWeight: 500 }}>{tr(s.q)}</Typography>
                   </Paper>
                 ))}
               </Box>
@@ -314,7 +314,7 @@ export default function Assistant() {
                        width: m.columns?.length ? '94%' : 'auto' }}>
               <Box sx={{ pt: .5 }}><Sparkle /></Box>
               <Paper elevation={0} sx={{ px: 2.25, py: 1.75, borderRadius: '4px 18px 18px 18px',
-                border: '1px solid #eef0f5', flex: 1, minWidth: 0,
+                border: '1px solid var(--rt-border)', flex: 1, minWidth: 0,
                 boxShadow: '0 4px 16px rgba(15,23,42,.04)' }}>
                 {m.loading ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, color: MUTED, py: .5 }}>
@@ -331,7 +331,7 @@ export default function Assistant() {
                       <>
                         <Button size="small" startIcon={<CodeIcon sx={{ fontSize: 16 }} />}
                           sx={{ mt: 1.25, textTransform: 'none', color: MUTED, borderRadius: 2,
-                                bgcolor: '#f8fafc', '&:hover': { bgcolor: '#f1f5f9' }, px: 1.25 }}
+                                bgcolor: 'var(--rt-surface-2)', '&:hover': { bgcolor: 'var(--rt-surface-3)' }, px: 1.25 }}
                           onClick={() => setOpenSql(openSql === i ? null : i)}>
                           {openSql === i ? tr('Hide query') : tr('View query')}
                         </Button>
@@ -358,10 +358,10 @@ export default function Assistant() {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
           InputProps={{
-            sx: { borderRadius: 3.5, bgcolor: '#fff', pr: .75, fontSize: 14.5,
+            sx: { borderRadius: 3.5, bgcolor: 'var(--rt-surface)', pr: .75, fontSize: 14.5,
                   boxShadow: '0 4px 20px rgba(15,23,42,.06)',
-                  '& fieldset': { borderColor: '#e9e7f5' },
-                  '&:hover fieldset': { borderColor: '#d6d1f0' },
+                  '& fieldset': { borderColor: 'var(--rt-border)' },
+                  '&:hover fieldset': { borderColor: 'var(--rt-border)' },
                   '&.Mui-focused fieldset': { borderColor: ACCENT, borderWidth: 2 } },
             endAdornment: (
               <InputAdornment position="end">

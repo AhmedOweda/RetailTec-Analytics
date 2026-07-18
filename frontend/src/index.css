@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design tokens (light default) ──────────────────────────────────────────
+   Inline page colours were converted to these vars so a single [data-theme]
+   flip repaints every surface/border/text without touching chart canvases or
+   white-on-colour button text. See DirectionProvider + AppSettings.themeMode. */
+:root {
+  --rt-surface:   #ffffff;   /* raised cards / dialogs / menus            */
+  --rt-surface-2: #f8fafc;   /* page background / recessed wells (darkest) */
+  --rt-surface-3: #f1f5f9;   /* hover / active / chip fills (lightest)     */
+  --rt-border:    #e2e8f0;   /* hairlines, dividers, field outlines        */
+  --rt-text:      #0f172a;   /* primary text                               */
+  --rt-text-2:    #475569;   /* secondary / muted text                     */
+}
+html[data-theme="dark"] {
+  --rt-surface:   #160D3A;
+  --rt-surface-2: #0E0824;
+  --rt-surface-3: #241452;
+  --rt-border:    rgba(155,101,208,0.18);
+  --rt-text:      #EDE8F8;
+  --rt-text-2:    #B9A7D8;
+}
+
 /* ── Saudi Riyal symbol (U+20C1) web-font ──────────────────────────────────────
    The new Saudi Riyal sign (Unicode 17, Sept 2025) isn't in older OS fonts
    (e.g. Windows Server 2022), so it renders as a box there. This embedded font
@@ -44,7 +65,7 @@ body { margin: 0; font-family: 'RiyalSymbol', 'Manrope', sans-serif; background:
    ("Restore from backup", "Monthly backups to keep", every Settings field).
    A solid chip behind the label fixes it regardless of notch state. ── */
 label.MuiInputLabel-root.MuiInputLabel-shrink {
-  background: #fff;
+  background: var(--rt-surface);
   padding: 0 6px;
   margin-inline-start: -2px;
   border-radius: 4px;
@@ -95,4 +116,29 @@ label.MuiInputLabel-root.MuiInputLabel-shrink {
 .ag-theme-alpine .ag-header-group-cell {
   padding-left: 8px !important;
   padding-right: 8px !important;
+}
+
+/* ── Dark-mode overrides for the plain-CSS surfaces (MUI sx is handled by the
+   theme + design tokens; these are the hand-written classes in this file). ── */
+html[data-theme="dark"] body { background: #0E0824; color: #EDE8F8; }
+html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #4E2A99; }
+html[data-theme="dark"] .chart-card {
+  background: #160D3A;
+  border-color: rgba(155,101,208,0.18);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.35);
+}
+html[data-theme="dark"] .section-title {
+  color: #B9A7D8;
+  border-bottom-color: rgba(155,101,208,0.22);
+}
+html[data-theme="dark"] .data-table th {
+  background: #1C0E42; color: #B9A7D8; border-bottom-color: rgba(155,101,208,0.22);
+}
+html[data-theme="dark"] .data-table td {
+  color: #EDE8F8; border-bottom-color: rgba(155,101,208,0.12);
+}
+html[data-theme="dark"] .data-table tr:hover td { background: #241452; }
+html[data-theme="dark"] .kpi-card:hover { box-shadow: 0 8px 28px rgba(0,0,0,0.45) !important; }
+html[data-theme="dark"] .react-datepicker {
+  background: #160D3A !important; border-color: rgba(155,101,208,0.25) !important; color: #EDE8F8;
 }

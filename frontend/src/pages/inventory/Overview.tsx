@@ -68,12 +68,12 @@ function ChartCard({ title, subtitle, option, height = 340, children }: {
 
   return (
     <>
-      <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
+      <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius: 2.5, border: '1px solid var(--rt-border)',
                  boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2, display: 'flex',
                  flexDirection: 'column', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{tr(title)}</Typography>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--rt-text)' }}>{tr(title)}</Typography>
             {subtitle && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{tr(subtitle)}</Typography>}
           </Box>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -270,10 +270,10 @@ export default function InventoryOverview() {
         type: 'scatter',
         data,
         label: {
-          show: true, position: 'top', fontSize: 10, color: '#475569', fontWeight: 600,
+          show: true, position: 'top', fontSize: 10, color: 'var(--rt-text-2)', fontWeight: 600,
           formatter: (p: any) => p.data?.name ?? '',
         },
-        emphasis: { focus: 'self', label: { fontWeight: 800, color: '#1e293b' } },
+        emphasis: { focus: 'self', label: { fontWeight: 800, color: 'var(--rt-text)' } },
         labelLayout: { hideOverlap: true },
         markLine: {
           silent: true, symbol: 'none',
@@ -401,7 +401,7 @@ export default function InventoryOverview() {
             const r = rows[p.dataIndex] ?? {}
             return `{val|${num(p.value)}}  {gm|GM:${r.gm_pct ?? 0}%}`
           },
-          rich: { val: { color: '#475569', fontSize: 10 }, gm: { color: '#065f46', fontSize: 10, fontWeight: 700 } },
+          rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 }, gm: { color: '#065f46', fontSize: 10, fontWeight: 700 } },
         },
       }],
     }
@@ -426,7 +426,7 @@ export default function InventoryOverview() {
       series: [{
         type: 'bar', data: vals, barMaxWidth: 18,
         itemStyle: { borderRadius: [0, 4, 4, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: 'rgba(8,145,178,0.25)' }, { offset: 1, color: '#0891b2' }] } },
-        label: { show: true, position: 'right', formatter: (p: any) => `{val|${num(p.value)}}`, rich: { val: { color: '#475569', fontSize: 10 } } },
+        label: { show: true, position: 'right', formatter: (p: any) => `{val|${num(p.value)}}`, rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 } } },
       }],
     }
   }, [storeData])
@@ -455,7 +455,7 @@ export default function InventoryOverview() {
 
     if (view === 'dept') return [
       rankCol,
-      { field: 'department', headerName: 'Department', width: 220, pinned: 'left', cellStyle: { fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+      { field: 'department', headerName: 'Department', width: 220, pinned: 'left', cellStyle: { fontWeight: 700, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' } },
       skuCol, qtyCol, costCol, retailCol, gmCol,
     ]
 
@@ -472,7 +472,7 @@ export default function InventoryOverview() {
       rankCol,
       { field: 'vendor', headerName: 'Item Vendor', width: 250, pinned: 'left',
         headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from',
-        cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+        cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' } },
       skuCol, qtyCol, costCol, retailCol, gmCol,
     ]
 
@@ -492,7 +492,7 @@ export default function InventoryOverview() {
 
     if (view === 'item_store') return [
       rankCol,
-      { field: 'store_name',   headerName: 'Store',       width: 180, pinned: 'left', cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+      { field: 'store_name',   headerName: 'Store',       width: 180, pinned: 'left', cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' } },
       { field: 'ALU',          headerName: 'ALU',         width: 110, cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
       { field: 'DESCRIPTION1', headerName: 'Description', flex: 1, minWidth: 180 },
       { field: 'department',   headerName: 'Dept',        width: 130 },
@@ -505,7 +505,7 @@ export default function InventoryOverview() {
 
     return [  // store
       rankCol,
-      { field: 'store_name', headerName: 'Store', width: 240, pinned: 'left', cellStyle: { fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center' } },
+      { field: 'store_name', headerName: 'Store', width: 240, pinned: 'left', cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' } },
       skuCol, qtyCol, costCol, retailCol,
     ]
   }, [tableData, view, itemFields])
@@ -517,9 +517,9 @@ export default function InventoryOverview() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
 
       {/* ── Header ── */}
-      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
-                 borderBottom: '1px solid #e9e4ff', px: 3, pt: 3, pb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'var(--rt-surface)',
+                 borderBottom: '1px solid var(--rt-border)', px: 3, pt: 3, pb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: 'var(--rt-text)', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Stock Levels')}
           <TitleLoader />
         </Typography>
@@ -594,10 +594,10 @@ export default function InventoryOverview() {
         </Box>
 
         {/* ── Row 3: Detail Grid ── */}
-        <Box sx={{ bgcolor: '#fff', borderRadius: 2.5, border: '1px solid #e9e4ff',
+        <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius: 2.5, border: '1px solid var(--rt-border)',
                    boxShadow: '0 1px 6px rgba(124,58,237,0.06)', p: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontWeight: 700, color: '#0f172a', fontSize: 13 }}>{tr('Stock Detail')}</Typography>
+            <Typography sx={{ fontWeight: 700, color: 'var(--rt-text)', fontSize: 13 }}>{tr('Stock Detail')}</Typography>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
               {([
                 { v: 'dept',       label: 'By Dept'     },

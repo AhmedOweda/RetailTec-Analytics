@@ -345,7 +345,7 @@ export default function GridExportBar({
 
   const btnSx = (color: string) => ({
     textTransform: 'none', borderRadius: 2, fontWeight: 600, height: 32,
-    borderColor: '#e2e8f0', color, '&:hover': { borderColor: color, bgcolor: `${color}10` },
+    borderColor: 'var(--rt-border)', color, '&:hover': { borderColor: color, bgcolor: `${color}10` },
   }) as const
 
   const showPicker = colDefs && colDefs.length > 0
@@ -366,7 +366,7 @@ export default function GridExportBar({
             anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
             <Box sx={{ p: 1.5, minWidth: 210 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: 0.5 }}>COLUMNS</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'var(--rt-text-2)', letterSpacing: 0.5 }}>COLUMNS</Typography>
                 <Stack direction="row" spacing={0.5}>
                   <Button size="small" onClick={showAll} sx={{ fontSize: 10, py: 0, minWidth: 0, textTransform: 'none', color: ACCENT }}>{tr('Show All')}</Button>
                   {onResetColumns && <Button size="small" onClick={handleReset} sx={{ fontSize: 10, py: 0, minWidth: 0, textTransform: 'none', color: '#64748b' }}>{tr('Reset')}</Button>}
@@ -424,7 +424,7 @@ export default function GridExportBar({
             )}
             {mode === 'now' && (
             <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Format')}</Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('Format')}</Typography>
               <ToggleButtonGroup exclusive size="small" value={fmt} onChange={(_, v) => v && setFmt(v)}
                 sx={{ '& .Mui-selected': { bgcolor: `${ACCENT}18 !important`, color: `${ACCENT} !important` } }}>
                 <ToggleButton value="pdf" sx={{ textTransform: 'none', px: 2 }}><PictureAsPdfIcon sx={{ fontSize: 16, mr: 0.7 }} />PDF</ToggleButton>
@@ -434,7 +434,7 @@ export default function GridExportBar({
             )}
             {mode === 'schedule' && (
             <>
-            <Box sx={{ p: 1.25, bgcolor: '#f8f7ff', border: '1px solid #ede9fe', borderRadius: 2 }}>
+            <Box sx={{ p: 1.25, bgcolor: 'var(--rt-surface-2)', border: '1px solid #ede9fe', borderRadius: 2 }}>
               <Typography sx={{ fontSize: 12, fontWeight: 700, color: ACCENT }}>{definiteLabel}</Typography>
               <Typography sx={{ fontSize: 11.5, color: '#64748b', mt: 0.25 }}>
                 {tr('This grid is regenerated with its current filters and emailed on the schedule below.')}
@@ -443,7 +443,7 @@ export default function GridExportBar({
             </Box>
             <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Box>
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Frequency')}</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('Frequency')}</Typography>
                 <Select size="small" value={schedFreq} onChange={e => setSchedFreq(e.target.value as any)} sx={{ minWidth: 150 }}>
                   <MenuItem value="daily">{tr('Daily')}</MenuItem>
                   <MenuItem value="weekly">{tr('Weekly')}</MenuItem>
@@ -453,7 +453,7 @@ export default function GridExportBar({
               </Box>
               {schedFreq === 'weekly' && (
                 <Box>
-                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('On')}</Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('On')}</Typography>
                   <Select size="small" value={schedWeekday} onChange={e => setSchedWeekday(Number(e.target.value))} sx={{ minWidth: 130 }}>
                     {WEEKDAYS.map((d, i) => <MenuItem key={i} value={i}>{tr(d)}</MenuItem>)}
                   </Select>
@@ -461,7 +461,7 @@ export default function GridExportBar({
               )}
               {schedFreq === 'monthly' && (
                 <Box>
-                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Day of month')}</Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('Day of month')}</Typography>
                   <TextField type="number" size="small" value={schedDay}
                     onChange={e => setSchedDay(Math.max(1, Math.min(31, Number(e.target.value) || 1)))}
                     inputProps={{ min: 1, max: 31 }} sx={{ width: 110 }} />
@@ -469,17 +469,17 @@ export default function GridExportBar({
               )}
               {schedFreq === 'once' && (
                 <Box>
-                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Date')}</Typography>
+                  <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('Date')}</Typography>
                   <TextField type="date" size="small" value={schedDate} onChange={e => setSchedDate(e.target.value)} InputLabelProps={{ shrink: true }} />
                 </Box>
               )}
               <Box>
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('At')}</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('At')}</Typography>
                 <TextField type="time" size="small" value={schedTime} onChange={e => setSchedTime(e.target.value)} sx={{ width: 120 }} />
               </Box>
             </Box>
             <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Attachment format')}</Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('Attachment format')}</Typography>
               <ToggleButtonGroup exclusive size="small" value={schedFmt} onChange={(_, v) => v && setSchedFmt(v)}
                 sx={{ '& .Mui-selected': { bgcolor: `${ACCENT}18 !important`, color: `${ACCENT} !important` } }}>
                 <ToggleButton value="pdf" sx={{ textTransform: 'none', px: 2 }}><PictureAsPdfIcon sx={{ fontSize: 16, mr: 0.7 }} />PDF</ToggleButton>
@@ -494,13 +494,13 @@ export default function GridExportBar({
             )}
             {mode === 'now' && (
             <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Subject / title')}</Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('Subject / title')}</Typography>
               <TextField size="small" fullWidth value={subject} onChange={e => setSubject(e.target.value)} />
             </Box>
             )}
             <Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>{tr('Recipients')}</Typography>
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)' }}>{tr('Recipients')}</Typography>
                 {lists.length > 0 && (
                   <Select size="small" value="" displayEmpty onChange={e => {
                       const l = lists.find(x => x.name === e.target.value); if (!l) return
@@ -521,7 +521,7 @@ export default function GridExportBar({
             </Box>
             {mode === 'now' && (
             <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Message (optional)')}</Typography>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('Message (optional)')}</Typography>
               <TextField size="small" fullWidth multiline minRows={2} value={note} onChange={e => setNote(e.target.value)} />
             </Box>
             )}

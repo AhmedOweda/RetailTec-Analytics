@@ -130,7 +130,7 @@ export default function CommandPalette() {
   return (
     <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth
       PaperProps={{ sx: { borderRadius: 3, mt: '-20vh' } }}>
-      <Box sx={{ p: 1.5, borderBottom: '1px solid #eef2f7', display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ p: 1.5, borderBottom: '1px solid var(--rt-border)', display: 'flex', alignItems: 'center', gap: 1 }}>
         <TextField autoFocus fullWidth size="small" value={q} placeholder={tr('Search pages, customers, items…')}
           onChange={e => setQ(e.target.value)} onKeyDown={onInputKey}
           InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#94a3b8' }} /></InputAdornment> }} />
@@ -146,14 +146,14 @@ export default function CommandPalette() {
             sx={{ py: 0.75, px: 2, gap: 1.25, '&.Mui-selected': { bgcolor: `${ACCENT}12` } }}>
             {iconFor(a.kind)}
             <Box sx={{ minWidth: 0, flex: 1 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.label}</Typography>
+              <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--rt-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.label}</Typography>
               <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>{a.sub}</Typography>
             </Box>
-            {a.kind !== 'page' && <Chip size="small" label={tr('Open in Journals')} sx={{ height: 20, fontSize: 10, bgcolor: '#f1f5f9', color: '#64748b' }} />}
+            {a.kind !== 'page' && <Chip size="small" label={tr('Open in Journals')} sx={{ height: 20, fontSize: 10, bgcolor: 'var(--rt-surface-3)', color: '#64748b' }} />}
           </ListItemButton>
         ))}
       </List>
-      <Box sx={{ px: 2, py: 1, borderTop: '1px solid #eef2f7', display: 'flex', gap: 2 }}>
+      <Box sx={{ px: 2, py: 1, borderTop: '1px solid var(--rt-border)', display: 'flex', gap: 2 }}>
         <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>↑↓ {tr('to navigate')}</Typography>
         <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>↵ {tr('to open')}</Typography>
         <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>Ctrl-K {tr('to toggle')}</Typography>

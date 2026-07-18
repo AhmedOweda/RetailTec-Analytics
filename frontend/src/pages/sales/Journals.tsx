@@ -52,12 +52,12 @@ function TypeBadge({ value }: { value: string }) {
 
 const GRID_SX = {
   width: '100%',
-  '& .ag-header': { bgcolor: '#f8f7ff !important', borderBottom: '1px solid #e9e4ff' },
+  '& .ag-header': { bgcolor: '#f8f7ff !important', borderBottom: '1px solid var(--rt-border)' },
   '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
-  '& .ag-row-even': { bgcolor: '#ffffff' },
-  '& .ag-row-odd': { bgcolor: '#faf9ff' },
+  '& .ag-row-even': { bgcolor: 'var(--rt-surface)' },
+  '& .ag-row-odd': { bgcolor: 'var(--rt-surface-2)' },
   '& .ag-row-selected': { bgcolor: '#ede9fe !important' },
-  '& .ag-paging-panel': { borderTop: '1px solid #e9e4ff', color: '#475569' },
+  '& .ag-paging-panel': { borderTop: '1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
 } as const
 
 export default function Journals() {
@@ -239,9 +239,9 @@ export default function Journals() {
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3, minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* ── Header + slicers (standard sticky pattern) ── */}
-      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff', mx: -3, px: 3, pt: 3, pb: 2,
-        borderBottom: '1px solid #e9e4ff' }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'var(--rt-surface)', mx: -3, px: 3, pt: 3, pb: 2,
+        borderBottom: '1px solid var(--rt-border)' }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: 'var(--rt-text)', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Journals')}<TitleLoader />
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>{dateFrom} — {dateTo}</Typography>
@@ -253,7 +253,7 @@ export default function Journals() {
                 variant={preset === p ? 'filled' : 'outlined'}
                 sx={{ fontWeight: 600, fontSize: 11, ...(preset === p
                   ? { bgcolor: ACCENT, color: '#fff', '&:hover': { bgcolor: '#6d28d9' } }
-                  : { borderColor: '#e2e8f0', color: '#64748b' }) }} />
+                  : { borderColor: 'var(--rt-border)', color: '#64748b' }) }} />
             ))}
           </Stack>
           <TextField label={tr('From')} type="date" size="small" sx={{ width: 150 }} InputLabelProps={{ shrink: true }}
@@ -310,9 +310,9 @@ export default function Journals() {
       </Box>
 
       {/* ── Invoice master grid ── */}
-      <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', overflow: 'hidden', mt: 2 }}>
+      <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid var(--rt-border)', overflow: 'hidden', mt: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 1.5, py: 1 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: 'var(--rt-text)' }}>
             {tr('Invoice Details')} <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {num(invTotal, 0)}</span>
           </Typography>
           <GridExportBar gridRef={invGridRef} filename="journal_invoices" title="Journals" view={tr('Invoices')}
@@ -332,9 +332,9 @@ export default function Journals() {
       </Paper>
 
       {/* ── Item detail grid ── */}
-      <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', overflow: 'hidden', mt: 2, mb: 1 }}>
+      <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid var(--rt-border)', overflow: 'hidden', mt: 2, mb: 1 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 1.5, py: 1, flexWrap: 'wrap', gap: 1 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: 'var(--rt-text)' }}>
             {tr('Item Details')}
             {selDoc && !showAll ? <span style={{ color: ACCENT }}> · #{selDoc}</span>
               : (showAll ? <span style={{ color: '#94a3b8', fontWeight: 500 }}> · {tr('all filtered lines')}</span> : '')}

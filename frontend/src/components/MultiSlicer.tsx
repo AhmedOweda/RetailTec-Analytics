@@ -34,7 +34,7 @@ export default function MultiSlicer({
         return (
           <Box component="li" {...props} key={getToken(o)}
             sx={{ py: '3px !important', px: '10px !important', minHeight: 'auto !important', display: 'block !important' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#0f172a' }}>{l.code}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text)' }}>{l.code}</span>
             {l.rest && <span style={{ fontSize: 11.5, color: '#94a3b8', marginInlineStart: 6 }}>| {l.rest}</span>}
           </Box>
         )

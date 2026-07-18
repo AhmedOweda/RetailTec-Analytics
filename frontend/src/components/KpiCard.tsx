@@ -85,7 +85,7 @@ export default function KpiCard({
 
   // ── B: left accent border ──────────────────────────────────────────────────
   if (variant === 'B') return (
-    <Box sx={{ ...base, bgcolor: '#fff', border: '0.5px solid #e2e8f0',
+    <Box sx={{ ...base, bgcolor: 'var(--rt-surface)', border: '0.5px solid var(--rt-border)',
                borderLeft: `4px solid ${color}`, borderRadius: '0 8px 8px 0',
                px: 2, py: 1.5, justifyContent: 'center' }}>
       <Tag tag={tag} />
@@ -101,7 +101,7 @@ export default function KpiCard({
   // ── C: icon chip ───────────────────────────────────────────────────────────
   if (variant === 'C') return (
     <Box sx={{ ...base, flexDirection: 'row', alignItems: 'center', gap: 1.5,
-               bgcolor: '#fff', border: '0.5px solid #e2e8f0', borderRadius: 2,
+               bgcolor: 'var(--rt-surface)', border: '0.5px solid var(--rt-border)', borderRadius: 2,
                px: 2, py: 1.5 }}>
       <Tag tag={tag} />
       <Box sx={{ width: 40, height: 40, borderRadius: 2.5, bgcolor: `${color}18`,
@@ -139,7 +139,7 @@ export default function KpiCard({
 
   // ── E: minimal flat ────────────────────────────────────────────────────────
   if (variant === 'E') return (
-    <Box sx={{ ...base, bgcolor: '#f8fafc', borderRadius: 2, px: 2, py: 1.5,
+    <Box sx={{ ...base, bgcolor: 'var(--rt-surface-2)', borderRadius: 2, px: 2, py: 1.5,
                justifyContent: 'center' }}>
       <Tag tag={tag} />
       <Typography sx={{ ...labelSx, color: '#94a3b8' }}>{label}</Typography>
@@ -153,7 +153,7 @@ export default function KpiCard({
 
   // ── F: top accent bar ──────────────────────────────────────────────────────
   if (variant === 'F') return (
-    <Box sx={{ ...base, bgcolor: '#fff', border: '0.5px solid #e2e8f0',
+    <Box sx={{ ...base, bgcolor: 'var(--rt-surface)', border: '0.5px solid var(--rt-border)',
                borderTop: `3px solid ${color}`, borderRadius: '0 0 8px 8px',
                px: 2, py: 1.5, justifyContent: 'center' }}>
       <Tag tag={tag} />
@@ -171,8 +171,8 @@ export default function KpiCard({
 
   // ── A (default): tinted header band ────────────────────────────────────────
   return (
-    <Box sx={{ ...base, bgcolor: '#fff', borderRadius: 2,
-               border: '0.5px solid #e2e8f0', overflow: 'hidden',
+    <Box sx={{ ...base, bgcolor: 'var(--rt-surface)', borderRadius: 2,
+               border: '0.5px solid var(--rt-border)', overflow: 'hidden',
                boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
       <Tag tag={tag} />
       <Box sx={{ bgcolor: `${color}18`, px: 2, py: 1.2,

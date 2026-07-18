@@ -39,6 +39,9 @@ import HistoryIcon        from '@mui/icons-material/History'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 import InsightsIcon       from '@mui/icons-material/Insights'
 import MenuIcon           from '@mui/icons-material/Menu'
+import DarkModeIcon       from '@mui/icons-material/DarkModeOutlined'
+import LightModeIcon      from '@mui/icons-material/LightModeOutlined'
+import { useAppSettings } from '../context/AppSettings'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios             from 'axios'
 import api               from '../api/client'
@@ -136,17 +139,17 @@ function ForcePasswordDialog() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {/* Caption labels above plain fields — MUI notched labels overlap in RTL */}
           <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Current password')}</Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('Current password')}</Typography>
             <TextField type="password" size="small" fullWidth
               value={cur} onChange={e => setCur(e.target.value)} autoFocus />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('New password (min 8 chars)')}</Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('New password (min 8 chars)')}</Typography>
             <TextField type="password" size="small" fullWidth
               value={pw1} onChange={e => setPw1(e.target.value)} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#475569', mb: 0.5 }}>{tr('Repeat new password')}</Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--rt-text-2)', mb: 0.5 }}>{tr('Repeat new password')}</Typography>
             <TextField type="password" size="small" fullWidth
               value={pw2} onChange={e => setPw2(e.target.value)} />
           </Box>
@@ -252,7 +255,7 @@ function SubsidiarySelect() {
       MenuProps={{ disableScrollLock: true }}
       sx={{
         minWidth: { xs: 92, md: 140 }, height: 30, fontSize: 12, fontWeight: 600,
-        color: '#475569', bgcolor: 'rgba(124,58,237,0.06)', borderRadius: 99,
+        color: 'var(--rt-text-2)', bgcolor: 'rgba(124,58,237,0.06)', borderRadius: 99,
         '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(124,58,237,0.12)' },
         '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(124,58,237,0.30)' },
         '& .MuiSelect-select': { py: 0.5, pl: 1.5 },
@@ -316,6 +319,8 @@ export default function AppShell() {
   // ── Responsive (declared early so it can gate the nav below) ──
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const dark = theme.palette.mode === 'dark'
+  const { themeMode, setThemeMode } = useAppSettings()
   // On mobile, hide pure-table pages (their grids are hidden on phones): Sales/
   // Purchases Transactions + every Dimensions page. Settings/Users/Audit are
   // hidden separately in the footer block below.
@@ -627,8 +632,10 @@ export default function AppShell() {
           height: HEADER_H, flexShrink:0, position:'relative',
           display:'flex', alignItems:'center', justifyContent:'space-between',
           px:{ xs:1.5, md:3 },
-          background:'linear-gradient(90deg, #ffffff 0%, #faf9ff 55%, #f6f4ff 100%)',
-          borderBottom:'1px solid rgba(124,58,237,0.10)',
+          background: dark
+            ? 'linear-gradient(90deg, #160D3A 0%, #1A0E44 55%, #1E1150 100%)'
+            : 'linear-gradient(90deg, #ffffff 0%, #faf9ff 55%, #f6f4ff 100%)',
+          borderBottom: dark ? '1px solid rgba(155,101,208,0.16)' : '1px solid rgba(124,58,237,0.10)',
           boxShadow:'0 2px 10px rgba(15,23,42,0.05)',
           // signature gradient hairline along the bottom edge
           '&::after': {
@@ -642,7 +649,7 @@ export default function AppShell() {
           <Box sx={{ display:'flex', alignItems:'center', gap:1.5, minWidth:0, overflow:'hidden' }}>
             {/* Mobile-only hamburger — opens the nav Drawer; hidden on desktop */}
             <IconButton onClick={() => setDrawerOpen(true)} size="small"
-              sx={{ display:{ xs:'inline-flex', md:'none' }, color:'#475569', ml:-0.5, mr:0.5 }}>
+              sx={{ display:{ xs:'inline-flex', md:'none' }, color: 'var(--rt-text-2)', ml:-0.5, mr:0.5 }}>
               <MenuIcon />
             </IconButton>
             <Box sx={{ minWidth:0 }}>
@@ -656,7 +663,7 @@ export default function AppShell() {
                   const first = parts.length > 1 ? parts[0] : ''
                   const rest  = parts.length > 1 ? parts.slice(1).join(' ') : brandName
                   return (<>
-                    {first && <Box component="span" sx={{ color:'#0f172a' }}>{first}&nbsp;</Box>}
+                    {first && <Box component="span" sx={{ color: 'var(--rt-text)' }}>{first}&nbsp;</Box>}
                     <Box component="span" sx={{
                       background:'linear-gradient(90deg, #7c3aed, #22d3ee)',
                       WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent',
@@ -677,13 +684,23 @@ export default function AppShell() {
             {/* Global search / command palette opener (Ctrl-K) */}
             <Box onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
               sx={{ display:'flex', alignItems:'center', gap:0.8, px:{ xs:1, md:1.5 }, py:0.5, borderRadius:99,
-                    bgcolor:'#f1f5f9', border:'1px solid #e2e8f0', cursor:'pointer', color:'#64748b',
-                    '&:hover':{ bgcolor:'#eef2ff', borderColor:'#c7d2fe' } }}>
+                    bgcolor: 'var(--rt-surface-3)', border:'1px solid var(--rt-border)', cursor:'pointer', color:'#64748b',
+                    '&:hover':{ bgcolor: 'var(--rt-surface-3)', borderColor:'var(--rt-border)' } }}>
               <SearchIcon sx={{ fontSize:16 }} />
               <Typography sx={{ fontSize:12, fontWeight:600, display:{ xs:'none', md:'block' } }}>{tr('Search')}</Typography>
               <Box component="span" sx={{ display:{ xs:'none', md:'inline' }, fontSize:10, fontWeight:700,
-                    px:0.6, py:0.1, borderRadius:1, bgcolor:'#fff', border:'1px solid #e2e8f0', color:'#94a3b8' }}>Ctrl K</Box>
+                    px:0.6, py:0.1, borderRadius:1, bgcolor: 'var(--rt-surface)', border:'1px solid var(--rt-border)', color:'#94a3b8' }}>Ctrl K</Box>
             </Box>
+            {/* Light / dark theme toggle */}
+            <Tooltip title={themeMode === 'dark' ? tr('Switch to light mode') : tr('Switch to dark mode')}>
+              <IconButton size="small" onClick={() => setThemeMode(themeMode === 'dark' ? 'light' : 'dark')}
+                sx={{ color: dark ? '#C8A8E8' : '#7c3aed',
+                      bgcolor: dark ? 'rgba(155,101,208,0.14)' : 'rgba(124,58,237,0.06)',
+                      border: dark ? '1px solid rgba(155,101,208,0.22)' : '1px solid rgba(124,58,237,0.12)',
+                      '&:hover': { bgcolor: dark ? 'rgba(155,101,208,0.22)' : 'rgba(124,58,237,0.12)' } }}>
+                {themeMode === 'dark' ? <LightModeIcon sx={{ fontSize:18 }} /> : <DarkModeIcon sx={{ fontSize:18 }} />}
+              </IconButton>
+            </Tooltip>
             {(brandSettings?.connection?.alias || brandSettings?.connection?.host) && (
               <Tooltip title={`${brandSettings?.connection?.host ?? ''}${brandSettings?.connection?.sid ? ' · ' + brandSettings.connection.sid : ''}`}>
                 <Box sx={{
@@ -692,7 +709,7 @@ export default function AppShell() {
                   bgcolor:'rgba(6,182,212,0.06)', border:'1px solid rgba(6,182,212,0.18)',
                 }}>
                   <Box sx={{ width:6, height:6, borderRadius:'50%', bgcolor:'#06b6d4' }} />
-                  <Typography sx={{ fontSize:12, color:'#475569', fontWeight:600, maxWidth:180,
+                  <Typography sx={{ fontSize:12, color: 'var(--rt-text-2)', fontWeight:600, maxWidth:180,
                                     whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                     {brandSettings?.connection?.alias?.trim() || brandSettings?.connection?.host}
                   </Typography>
@@ -708,7 +725,7 @@ export default function AppShell() {
               bgcolor:'rgba(124,58,237,0.06)', border:'1px solid rgba(124,58,237,0.12)',
             }}>
               <Box sx={{ width:6, height:6, borderRadius:'50%', bgcolor:'#7c3aed' }} />
-              <Typography noWrap sx={{ fontSize:12, color:'#475569', fontWeight:600 }}>
+              <Typography noWrap sx={{ fontSize:12, color: 'var(--rt-text-2)', fontWeight:600 }}>
                 {new Date().toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' })}
               </Typography>
             </Box>
@@ -716,7 +733,7 @@ export default function AppShell() {
         </Box>
 
         {/* Page content */}
-        <Box sx={{ flex:1, overflow:'auto', bgcolor:'#f8fafc' }}>
+        <Box sx={{ flex:1, overflow:'auto', bgcolor: 'var(--rt-surface-2)' }}>
           <Outlet />
         </Box>
       </Box>

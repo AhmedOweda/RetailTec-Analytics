@@ -42,9 +42,9 @@ function Delta({ v, invert = false }: { v: number | null; invert?: boolean }) {
 
 function Kpi({ label, value, delta, sub, invert }: { label: string; value: React.ReactNode; delta?: number | null; sub?: string; invert?: boolean }) {
   return (
-    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
       <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</Typography>
-      <Typography sx={{ fontSize: 24, fontWeight: 800, color: '#0f172a', mt: 0.5, lineHeight: 1.1 }}>{value}</Typography>
+      <Typography sx={{ fontSize: 24, fontWeight: 800, color: 'var(--rt-text)', mt: 0.5, lineHeight: 1.1 }}>{value}</Typography>
       <Box sx={{ mt: 0.5, display: 'flex', gap: 1, alignItems: 'center' }}>
         {delta !== undefined && <Delta v={delta} invert={invert} />}
         {sub && <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>{sub}</Typography>}
@@ -94,8 +94,8 @@ export default function Home() {
 
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
-      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: '#f8fafc', mx: -3, px: 3, pt: 2.5, pb: 1.5, mb: 2, borderBottom: '1px solid #e9e4ff' }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: '#0f172a', letterSpacing: '-0.3px' }}>
+      <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'var(--rt-surface-2)', mx: -3, px: 3, pt: 2.5, pb: 1.5, mb: 2, borderBottom: '1px solid var(--rt-border)' }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: 'var(--rt-text)', letterSpacing: '-0.3px' }}>
           {tr('Home')}<TitleLoader />
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b' }}>
@@ -133,24 +133,24 @@ export default function Home() {
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2, mt: 2 }}>
         {/* Trend */}
-        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Sales trend — last 30 days')}</Typography>
           {isLoading ? <Skeleton variant="rounded" height={240} /> : <ReactECharts option={trendOpt} style={{ height: 240 }} />}
         </Paper>
 
         {/* Alerts */}
-        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Alerts')}</Typography>
           <Stack spacing={1}>
             {(data?.alerts ?? []).map((a: any, i: number) => (
               <Tooltip key={i} title={a.link ? tr('Click to open the related screen') : ''} arrow placement="left">
               <Box onClick={() => a.link && navigate(a.link)}
                 sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', p: 1, borderRadius: 1.5,
-                      cursor: a.link ? 'pointer' : 'default', bgcolor: '#f8fafc',
-                      '&:hover': a.link ? { bgcolor: '#f1f5f9' } : {} }}>
+                      cursor: a.link ? 'pointer' : 'default', bgcolor: 'var(--rt-surface-2)',
+                      '&:hover': a.link ? { bgcolor: 'var(--rt-surface-3)' } : {} }}>
                 {alertIcon(a.level)}
                 <Box>
-                  <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}>{tr(a.title)}</Typography>
+                  <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'var(--rt-text)' }}>{tr(a.title)}</Typography>
                   <Typography sx={{ fontSize: 11.5, color: '#64748b' }}>{tr(a.detail)}</Typography>
                 </Box>
               </Box></Tooltip>
@@ -161,38 +161,38 @@ export default function Home() {
 
       {/* Top stores + items + suppliers */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3,1fr)' }, gap: 2, mt: 2 }}>
-        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Top stores (30d)')}</Typography>
           <Stack spacing={0.5}>
             {(data?.top_stores ?? []).map((s: any, i: number) => (
-              <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid #f1f5f9' }}>
-                <Typography sx={{ fontSize: 12.5, color: '#334155' }}>{s.name}</Typography>
-                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}><MoneyText text={money(s.net)} /></Typography>
+              <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid var(--rt-border)' }}>
+                <Typography sx={{ fontSize: 12.5, color: 'var(--rt-text-2)' }}>{s.name}</Typography>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'var(--rt-text)' }}><MoneyText text={money(s.net)} /></Typography>
               </Box>
             ))}
           </Stack>
         </Paper>
-        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Top items (30d)')}</Typography>
           <Stack spacing={0.5}>
             {(data?.top_items ?? []).map((it: any, i: number) => (
               <Tooltip key={i} title={tr('Click to open this item in Journals')} arrow placement="left"><Box onClick={() => navigate(`/sales/journals?item=${encodeURIComponent(it.alu)}&item_desc=${encodeURIComponent(it.name ?? '')}`)}
-                sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid #f1f5f9', cursor: 'pointer', '&:hover': { bgcolor: '#f8fafc' } }}>
-                <Typography sx={{ fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid var(--rt-border)', cursor: 'pointer', '&:hover': { bgcolor: 'var(--rt-surface-2)' } }}>
+                <Typography sx={{ fontSize: 12.5, color: 'var(--rt-text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260, display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <OpenInNewIcon sx={{ fontSize: 13, color: '#c4b5fd' }} />{it.name || it.alu}
                 </Typography>
-                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}><MoneyText text={money(it.net)} /></Typography>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'var(--rt-text)' }}><MoneyText text={money(it.net)} /></Typography>
               </Box></Tooltip>
             ))}
           </Stack>
         </Paper>
-        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Top suppliers (30d)')}</Typography>
           <Stack spacing={0.5}>
             {((data?.purchasing?.top_vendors ?? []) as any[]).map((v: any, i: number) => (
-              <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid #f1f5f9' }}>
-                <Typography sx={{ fontSize: 12.5, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{v.name}</Typography>
-                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a' }}><MoneyText text={money(v.net)} /></Typography>
+              <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid var(--rt-border)' }}>
+                <Typography sx={{ fontSize: 12.5, color: 'var(--rt-text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{v.name}</Typography>
+                <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'var(--rt-text)' }}><MoneyText text={money(v.net)} /></Typography>
               </Box>
             ))}
             {(!data?.purchasing?.top_vendors || data.purchasing.top_vendors.length === 0) && (
@@ -203,15 +203,15 @@ export default function Home() {
       </Box>
 
       {/* Quick links */}
-      <Typography sx={{ fontWeight: 700, fontSize: 13, mt: 3, mb: 1, color: '#475569' }}>{tr('Quick links')}</Typography>
+      <Typography sx={{ fontWeight: 700, fontSize: 13, mt: 3, mb: 1, color: 'var(--rt-text-2)' }}>{tr('Quick links')}</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', md: 'repeat(6,1fr)' }, gap: 1.5 }}>
         {QUICK_LINKS.map(q => (
           <Paper key={q.to} elevation={0} onClick={() => navigate(q.to)}
-            sx={{ p: 1.75, borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff', cursor: 'pointer',
+            sx={{ p: 1.75, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)', cursor: 'pointer',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75, textAlign: 'center',
                   color: ACCENT, transition: 'all .15s', '&:hover': { borderColor: ACCENT, boxShadow: '0 4px 12px rgba(124,58,237,0.12)' } }}>
             {q.icon}
-            <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: '#334155' }}>{tr(q.label)}</Typography>
+            <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: 'var(--rt-text-2)' }}>{tr(q.label)}</Typography>
           </Paper>
         ))}
       </Box>

@@ -101,8 +101,8 @@ export default function InventoryHistory() {
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
       {/* ── Sticky filter bar ── */}
-      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
-                 mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
+      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor: 'var(--rt-surface-2)',
+                 mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid var(--rt-border)' }}>
         <Typography variant="h6" fontWeight={700} sx={{ fontSize: 20 }} mb={1.5}>{tr('Inventory History')}<TitleLoader /></Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap">
         <TextField size="small" label="From" type="date" value={dateFrom}
