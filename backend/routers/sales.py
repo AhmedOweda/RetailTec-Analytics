@@ -563,6 +563,7 @@ def journal_invoices(
     lim = f"LIMIT {int(limit)} OFFSET {int(offset)}" if limit else ""
     rows = _qdf(f"""
         SELECT INV.INVC_POST_DATE::VARCHAR   AS created_datetime,
+               INV.INVC_POST_DATE::VARCHAR   AS invc_post_date,
                INV.DOC_SID                   AS doc_sid,
                INV.DOC_NO                    AS doc_no,
                CASE INV.RECEIPT_TYPE WHEN 0 THEN 'Sales' WHEN 1 THEN 'Return' ELSE 'Order' END AS invoice_type,

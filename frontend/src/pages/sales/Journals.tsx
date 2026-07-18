@@ -185,6 +185,7 @@ export default function Journals() {
 
   const invColDefs = useMemo<ColDef[]>(() => [
     { field: 'created_datetime', headerName: 'Created DateTime', width: 165, pinned: 'left' },
+    { field: 'invc_post_date', headerName: 'Invoice Post Date', width: 165 },
     { field: 'doc_no', headerName: 'Document No.', width: 120, pinned: 'left',
       cellStyle: { fontFamily: 'monospace', fontWeight: 700, color: ACCENT } },
     { field: 'invoice_type', headerName: 'Type', width: 90, cellRenderer: TypeBadge },
