@@ -695,14 +695,18 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
     """One-shot dashboard payload: 30d-vs-prior-30d KPIs, a 30-day trend, top
     stores/items, and computed alerts. Windows anchor to the warehouse's latest
     invoice date (an offline warehouse may lag today)."""
-    sf, sp = store_filter(stores, alias="INV")
+    # store_filter matches <alias>.STORE_NAME, so any query that filters by store
+    # must join DIM_STORE (alias S). Without a store scope sf is empty (admins).
+    sf, sp = store_filter(stores, alias="S")
 
     kpi = _q(f"""
         WITH b AS (SELECT MAX(INVC_POST_DATE::DATE) AS as_of FROM FACT_SALES_INVOICES),
         inv AS (
             SELECT INV.INVC_POST_DATE::DATE AS d, INV.NET_SALES_WOTAX AS net,
                    INV.RECEIPT_TYPE AS rt, INV.DOC_SID AS doc
-            FROM FACT_SALES_INVOICES INV, b
+            FROM FACT_SALES_INVOICES INV
+            LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
+            CROSS JOIN b
             WHERE INV.INVC_POST_DATE::DATE >= b.as_of - 59 {sf}
         )
         SELECT
@@ -724,6 +728,7 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
         SELECT INV.INVC_POST_DATE::DATE::VARCHAR AS date,
                ROUND(SUM(CASE WHEN INV.RECEIPT_TYPE=0 THEN INV.NET_SALES_WOTAX ELSE 0 END),2) AS net
         FROM FACT_SALES_INVOICES INV
+        LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
         WHERE INV.INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29 {sf}
         GROUP BY 1 ORDER BY 1
     """, sp)
