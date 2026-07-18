@@ -152,20 +152,20 @@ function SectionCard({ title, icon, children, headerRight, defaultClosed }:
     })
   }
   return (
-    <Card elevation={0} sx={{ border:'1px solid #eef0f5', borderRadius:3, mb:2.5,
+    <Card elevation={0} sx={{ border:'1px solid var(--rt-border)', borderRadius:3, mb:2.5,
                               boxShadow:'0 1px 2px rgba(16,24,40,0.04)', overflow:'hidden',
                               transition:'box-shadow .15s, border-color .15s',
-                              '&:hover':{ boxShadow:'0 4px 16px rgba(16,24,40,0.06)', borderColor:'#e5e7f0' } }}>
+                              '&:hover':{ boxShadow:'0 4px 16px rgba(16,24,40,0.06)', borderColor:'var(--rt-border)' } }}>
       <CardContent sx={{ p:2.75, '&:last-child':{ pb: open ? 2.75 : 2 } }}>
         <Box onClick={toggle}
           sx={{ display:'flex', alignItems:'center', gap:1.25, mb: open ? 2.5 : 0,
                 cursor:'pointer', userSelect:'none',
-                '&:hover .sc-chevron': { color:'#0f172a' } }}>
+                '&:hover .sc-chevron': { color: 'var(--rt-text)' } }}>
           <Box sx={{ width:34, height:34, borderRadius:2, flexShrink:0,
                      bgcolor:`${ACCENT}0F`, color:ACCENT,
                      display:'flex', alignItems:'center', justifyContent:'center',
                      '& svg':{ fontSize:19 } }}>{icon}</Box>
-          <Typography sx={{ fontWeight:700, fontSize:15, color:'#0f172a', letterSpacing:'-0.2px' }}>{tr(title)}</Typography>
+          <Typography sx={{ fontWeight:700, fontSize:15, color: 'var(--rt-text)', letterSpacing:'-0.2px' }}>{tr(title)}</Typography>
           <Box sx={{ flex:1, display:'flex', alignItems:'center', gap:1.5,
                      justifyContent:'flex-end', minWidth:0 }}>{headerRight}</Box>
           <ExpandMoreIcon className="sc-chevron"
@@ -336,7 +336,7 @@ export default function DataModelSettings() {
                // for every shrunk label on this page.
                '& .MuiInputLabel-shrink ~ .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline legend':
                  { maxWidth: '100%' } }}>
-      <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color:'#0f172a', letterSpacing:'-0.3px', mb:0.5 }}>{tr('Settings')}<TitleLoader /></Typography>
+      <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color: 'var(--rt-text)', letterSpacing:'-0.3px', mb:0.5 }}>{tr('Settings')}<TitleLoader /></Typography>
       <Typography sx={{ fontSize:13, color:'#64748b', mb:3 }}>
         {tr('Manage your database connection, data refresh, display, AI assistant, reports and maintenance.')}
       </Typography>
@@ -425,7 +425,7 @@ export default function DataModelSettings() {
 
       {/* ── Display Settings ────────────────────────────────────── */}
       <SectionCard title="Display Settings" icon={<TuneIcon />}>
-        <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+        <Typography sx={{ fontSize:13, color: 'var(--rt-text-2)', mb:2 }}>
           {tr('Choose which product code appears alongside the item description in charts and tables throughout the dashboard.')}
         </Typography>
         <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap', rowGap:1 }}>
@@ -472,7 +472,7 @@ export default function DataModelSettings() {
               <Switch size="small" checked={showCurrency}
                 onChange={e => setShowCurrency(e.target.checked)} />
             }
-            label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>{tr('Show sign on money values')}</Typography>}
+            label={<Typography sx={{ fontSize:12.5, color: 'var(--rt-text-2)' }}>{tr('Show sign on money values')}</Typography>}
           />
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
             {showCurrency ? `e.g. ${currency.symbol} 17.2M` : tr('e.g. 17.2M (no sign)')}
@@ -497,7 +497,7 @@ export default function DataModelSettings() {
               <Switch size="small" checked={abbreviateNumbers}
                 onChange={e => setAbbreviateNumbers(e.target.checked)} />
             }
-            label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>{tr('Abbreviate large numbers (1.2M / 340K)')}</Typography>}
+            label={<Typography sx={{ fontSize:12.5, color: 'var(--rt-text-2)' }}>{tr('Abbreviate large numbers (1.2M / 340K)')}</Typography>}
           />
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
             {abbreviateNumbers ? 'e.g. 1.23M' : `e.g. 1,234,${moneyDecimals === 2 ? '567.89' : '568'}`}
@@ -568,7 +568,7 @@ export default function DataModelSettings() {
         </Box>
 
         {/* ── Branding (whitelabel) ── */}
-        <Box sx={{ mt:3, pt:2.5, borderTop:'1px solid #e2e8f0' }}>
+        <Box sx={{ mt:3, pt:2.5, borderTop:'1px solid var(--rt-border)' }}>
           <Typography sx={{ fontSize:13, fontWeight:600, color:'#374151', mb:0.3 }}>
             {tr('Branding')}
           </Typography>
@@ -632,9 +632,9 @@ export default function DataModelSettings() {
             </Box>
             <Typography sx={{ fontSize:12.5, color:'#64748b', whiteSpace:'nowrap', overflow:'hidden',
                               textOverflow:'ellipsis' }}>
-              {tr('Timezone:')} <b style={{ color:'#0f172a' }}>{dm.timezone}</b>
-              {'   ·   '}{tr('Re-check last:')} <b style={{ color:'#0f172a' }}>{trf('{{n}} days', { n: dm.default_incremental_days })}</b>
-              {'   ·   '}{tr('Quiet hours:')} <b style={{ color:'#0f172a' }}>
+              {tr('Timezone:')} <b style={{ color: 'var(--rt-text)' }}>{dm.timezone}</b>
+              {'   ·   '}{tr('Re-check last:')} <b style={{ color: 'var(--rt-text)' }}>{trf('{{n}} days', { n: dm.default_incremental_days })}</b>
+              {'   ·   '}{tr('Quiet hours:')} <b style={{ color: 'var(--rt-text)' }}>
                 {dm.quiet_hours ? `${dm.quiet_hours.from}–${dm.quiet_hours.to}` : tr('off')}</b>
             </Typography>
           </>
@@ -721,7 +721,7 @@ export default function DataModelSettings() {
 
       {/* ── Your data — one row per domain ─────────────────────────── */}
       <SectionCard title="Your data" icon={<ScheduleIcon />}>
-        <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+        <Typography sx={{ fontSize:13, color: 'var(--rt-text-2)', mb:2 }}>
           {tr('Everything about each data type in one row — how much history to keep, how it refreshes, and when old line-detail is cleaned up. Daily summaries are kept forever. Remember to Save Settings.')}
         </Typography>
 
@@ -743,7 +743,7 @@ export default function DataModelSettings() {
           const sch = cfg.schedule ?? { mode: 'manual' as const }
           return (
             <Box key={d.key}
-              sx={{ border:'1px solid #e2e8f0', borderRadius:1.5, px:1.5, py:1, mb:1,
+              sx={{ border:'1px solid var(--rt-border)', borderRadius:1.5, px:1.5, py:1, mb:1,
                     opacity: cfg.enabled ? 1 : 0.55 }}>
               <Box sx={{ display:'grid', alignItems:'center', gap:1,
                          gridTemplateColumns: DATA_GRID_COLS }}>
@@ -754,7 +754,7 @@ export default function DataModelSettings() {
                   }
                   label={
                     <Tooltip title={tr(d.desc)} placement="top" arrow>
-                      <Typography sx={{ fontSize:13.5, fontWeight:700, color:'#0f172a' }}>
+                      <Typography sx={{ fontSize:13.5, fontWeight:700, color: 'var(--rt-text)' }}>
                         {tr(d.label)}
                       </Typography>
                     </Tooltip>
@@ -829,7 +829,7 @@ export default function DataModelSettings() {
         })}
 
         {/* Live progress + global actions */}
-        <Box sx={{ borderTop:'1px solid #e2e8f0', pt:2, mt:2 }}>
+        <Box sx={{ borderTop:'1px solid var(--rt-border)', pt:2, mt:2 }}>
           {isRunning && (
             <Box sx={{ mb:2, p:1.5, bgcolor:'rgba(124,58,237,0.06)', borderRadius:1.5 }}>
               <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:0.5 }}>
@@ -877,7 +877,7 @@ export default function DataModelSettings() {
                 <Button variant="outlined" size="small"
                   onClick={() => dimsLoad.mutate()}
                   disabled={dimsLoad.isPending}
-                  sx={{ borderColor:'#94a3b8', color:'#475569', textTransform:'none', fontWeight:600,
+                  sx={{ borderColor:'#94a3b8', color: 'var(--rt-text-2)', textTransform:'none', fontWeight:600,
                         '&:hover':{ borderColor:'#64748b', bgcolor:'rgba(100,116,139,0.04)' } }}>
                   {tr('Refresh Dimensions only')}
                 </Button>
@@ -895,7 +895,7 @@ export default function DataModelSettings() {
             {!isRunning && (
               <Button variant="outlined" size="small"
                 onClick={() => setRangeOpen(o => !o)}
-                sx={{ borderColor:'#94a3b8', color:'#475569', textTransform:'none', fontWeight:600,
+                sx={{ borderColor:'#94a3b8', color: 'var(--rt-text-2)', textTransform:'none', fontWeight:600,
                       '&:hover':{ borderColor:'#64748b', bgcolor:'rgba(100,116,139,0.04)' } }}>
                 {tr('Load a date range…')}
               </Button>
@@ -934,21 +934,21 @@ export default function DataModelSettings() {
 
       {/* ── Loaded data coverage ────────────────────────────────── */}
       <SectionCard title="Loaded Data" icon={<StorageIcon />}>
-        <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+        <Typography sx={{ fontSize:13, color: 'var(--rt-text-2)', mb:2 }}>
           {tr('The date span actually present in the warehouse, per domain.')}
         </Typography>
         <Box sx={{ display:'grid', gridTemplateColumns:'1.2fr 1fr 1fr 0.8fr',
                    rowGap:0.8, columnGap:2, fontSize:12.5 }}>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>{tr('Domain')}</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>{tr('From')}</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155' }}>{tr('To')}</Typography>
-          <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right' }}>{tr('Rows')}</Typography>
+          <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)' }}>{tr('Domain')}</Typography>
+          <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)' }}>{tr('From')}</Typography>
+          <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)' }}>{tr('To')}</Typography>
+          <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)', textAlign:'right' }}>{tr('Rows')}</Typography>
           {(coverage ?? []).map((c:any) => (
             <Box key={c.domain} sx={{ display:'contents' }}>
-              <Typography sx={{ color:'#0f172a', fontWeight:600 }}>{c.domain}</Typography>
-              <Typography sx={{ color:'#475569' }}>{c.from ?? '-'}</Typography>
-              <Typography sx={{ color:'#475569' }}>{c.to ?? (c.synced_at ? tr('snapshot') : '-')}</Typography>
-              <Typography sx={{ color:'#475569', textAlign:'right' }}>
+              <Typography sx={{ color: 'var(--rt-text)', fontWeight:600 }}>{c.domain}</Typography>
+              <Typography sx={{ color: 'var(--rt-text-2)' }}>{c.from ?? '-'}</Typography>
+              <Typography sx={{ color: 'var(--rt-text-2)' }}>{c.to ?? (c.synced_at ? tr('snapshot') : '-')}</Typography>
+              <Typography sx={{ color: 'var(--rt-text-2)', textAlign:'right' }}>
                 {(c.rows ?? 0).toLocaleString()}
               </Typography>
             </Box>
@@ -964,7 +964,7 @@ export default function DataModelSettings() {
       {/* ── Sync history — compact card + filterable dialog ─────── */}
       <SectionCard title="Sync History" icon={<SyncIcon />}>
         <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <Typography sx={{ fontSize:13, color:'#475569' }}>
+          <Typography sx={{ fontSize:13, color: 'var(--rt-text-2)' }}>
             {history?.length
               ? trf('Last run: {{type}} · {{status}}', { type: history[0].run_type, status: history[0].status }) +
                 (history[0].duration_sec ? ` · ${fmtDur(history[0].duration_sec)}` : '')
@@ -1038,7 +1038,7 @@ export default function DataModelSettings() {
 
       {/* ── Sticky save bar — always visible, no more hunting mid-page ── */}
       <Box sx={{ position:'sticky', bottom:0, zIndex:10, mt:2, mx:-3, px:3, py:1.5,
-                 bgcolor:'#ffffff', borderTop:'1px solid #e9e4ff',
+                 bgcolor: 'var(--rt-surface)', borderTop:'1px solid var(--rt-border)',
                  display:'flex', alignItems:'center', gap:2,
                  boxShadow:'0 -4px 12px rgba(15,23,42,0.06)' }}>
         <Button variant="contained"
@@ -1090,7 +1090,7 @@ function AboutCard() {
   const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
     <>
       <Typography sx={{ fontSize:12.5, color:'#64748b' }}>{tr(label)}</Typography>
-      <Typography sx={{ fontSize:12.5, color:'#0f172a', fontWeight:600 }}>{value}</Typography>
+      <Typography sx={{ fontSize:12.5, color: 'var(--rt-text)', fontWeight:600 }}>{value}</Typography>
     </>
   )
 
@@ -1193,7 +1193,7 @@ function AssistantCard() {
 
   return (
     <SectionCard title="AI Assistant (Data Analyst)" icon={<InsightsIcon />}>
-      <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+      <Typography sx={{ fontSize:13, color: 'var(--rt-text-2)', mb:2 }}>
         {tr('Lets users ask questions about the data in plain language. Choose where the AI runs and connect it.')}
       </Typography>
       <FormControlLabel control={
@@ -1273,12 +1273,12 @@ function BrowseDialog({ open, mode, onClose, onPick }:
         {mode === 'folder' ? tr('Choose a folder on the server') : tr('Choose a backup file on the server')}
       </DialogTitle>
       <DialogContent dividers sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#f8fafc', borderBottom: '1px solid #eef0f5' }}>
+        <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'var(--rt-surface-2)', borderBottom: '1px solid var(--rt-border)' }}>
           <IconButton size="small" disabled={!path}
             onClick={() => setPath(data?.parent ?? null)}>
             <ArrowUpwardIcon sx={{ fontSize: 18 }} />
           </IconButton>
-          <Typography sx={{ fontSize: 12.5, fontFamily: 'monospace', color: '#475569', wordBreak: 'break-all' }}>
+          <Typography sx={{ fontSize: 12.5, fontFamily: 'monospace', color: 'var(--rt-text-2)', wordBreak: 'break-all' }}>
             {data?.path ?? tr('This PC (drives)')}
           </Typography>
         </Box>
@@ -1287,7 +1287,7 @@ function BrowseDialog({ open, mode, onClose, onPick }:
           {(data?.dirs ?? []).map((d: string) => (
             <Box key={'d' + d} onClick={() => setPath(join(data?.path ?? null, d))}
               sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1, cursor: 'pointer',
-                    '&:hover': { bgcolor: '#f5f3ff' } }}>
+                    '&:hover': { bgcolor: 'var(--rt-surface-3)' } }}>
               <FolderIcon sx={{ fontSize: 19, color: '#f59e0b' }} />
               <Typography sx={{ fontSize: 13.5 }}>{d}</Typography>
             </Box>
@@ -1357,7 +1357,7 @@ function MaintenanceCard() {
 
   return (
     <SectionCard title="Maintenance" icon={<StorageIcon />}>
-      <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+      <Typography sx={{ fontSize:13, color: 'var(--rt-text-2)', mb:2 }}>
         {tr('Back up the local warehouse file (safe while the app is running), or compact it to flush pending writes and reclaim space.')}
       </Typography>
       <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
@@ -1465,7 +1465,7 @@ function EmailCard() {
 
   return (
     <SectionCard title="Email (SMTP)" icon={<SyncIcon />}>
-      <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+      <Typography sx={{ fontSize:13, color: 'var(--rt-text-2)', mb:2 }}>
         {tr('Used for sending reports and alerts. Works with your company mail server or Gmail (smtp.gmail.com, port 587, app password). The password is stored encrypted.')}
       </Typography>
       <Box sx={{ display:'grid', gridTemplateColumns:'2fr 1fr', gap:2, mb:2 }}>
@@ -1492,7 +1492,7 @@ function EmailCard() {
         <FormControlLabel sx={{ mt:2 }}
           control={<Switch size="small" checked={cfg.use_tls}
             onChange={e => setCfg({ ...cfg, use_tls: e.target.checked })} />}
-          label={<Typography sx={{ fontSize:12.5, color:'#475569' }}>{tr('Use TLS')}</Typography>} />
+          label={<Typography sx={{ fontSize:12.5, color: 'var(--rt-text-2)' }}>{tr('Use TLS')}</Typography>} />
       </Box>
       <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
         <Button variant="contained" size="small" disabled={save.isPending}
@@ -1567,13 +1567,13 @@ function ReportsCard() {
 
   return (
     <SectionCard title="Scheduled Reports" icon={<ScheduleIcon />}>
-      <Typography sx={{ fontSize:13, color:'#475569', mb:2 }}>
+      <Typography sx={{ fontSize:13, color: 'var(--rt-text-2)', mb:2 }}>
         {tr('Each report has its own type, send time, store scope and recipients — e.g. a morning sales report for all stores to the owner, plus a separate one per branch manager scoped to their store. Uses the SMTP settings above. Remember to Save Report Schedules.')}
       </Typography>
 
       {reports.map((r, i) => (
         <Box key={r.id ?? i}
-          sx={{ border:'1px solid #e2e8f0', borderRadius:1.5, p:1.5, mb:1.5,
+          sx={{ border:'1px solid var(--rt-border)', borderRadius:1.5, p:1.5, mb:1.5,
                 opacity: r.enabled ? 1 : 0.6 }}>
           <Box sx={{ display:'flex', gap:1.5, alignItems:'flex-end', flexWrap:'wrap', mb:1 }}>
             <FormControlLabel sx={{ mr:0 }}
@@ -1589,7 +1589,7 @@ function ReportsCard() {
                 <Box sx={{ display:'flex', alignItems:'center', gap:0.75, minWidth:230, height:40 }}>
                   <Chip size="small" label={tr('Custom grid')}
                     sx={{ bgcolor:'#ede9fe', color:'#6d28d9', fontWeight:700, fontSize:11 }} />
-                  <Typography sx={{ fontSize:12, color:'#475569' }} noWrap>
+                  <Typography sx={{ fontSize:12, color: 'var(--rt-text-2)' }} noWrap>
                     {[r.title, r.view].filter(Boolean).join(' — ') || r.name}
                   </Typography>
                 </Box>
@@ -1746,7 +1746,7 @@ function AlertsCard() {
       {rules.map((r, i) => {
         const unit = defs[r.condition]?.unit || ''
         return (
-          <Box key={r.id || i} sx={{ border:'1px solid #eef0f5', borderRadius:2, p:2, mb:1.5 }}>
+          <Box key={r.id || i} sx={{ border:'1px solid var(--rt-border)', borderRadius:2, p:2, mb:1.5 }}>
             <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
               <FormControlLabel
                 control={<Switch size="small" checked={!!r.enabled} onChange={e => upd(i, { enabled: e.target.checked })}
@@ -1851,16 +1851,16 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
           <Box sx={{ display:'grid',
                      gridTemplateColumns:'0.8fr 0.8fr 1.6fr 1.2fr 0.9fr 0.6fr',
                      rowGap:0.7, columnGap:1.5, fontSize:12.5 }}>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Type')}</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('By')}</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Range')}</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Started')}</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Status')}</Typography>
-            <Typography sx={{ fontWeight:700, color:'#334155', textAlign:'right', position:'sticky', top:0, bgcolor:'#fff' }}>{tr('Duration')}</Typography>
+            <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)', position:'sticky', top:0, bgcolor: 'var(--rt-surface)' }}>{tr('Type')}</Typography>
+            <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)', position:'sticky', top:0, bgcolor: 'var(--rt-surface)' }}>{tr('By')}</Typography>
+            <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)', position:'sticky', top:0, bgcolor: 'var(--rt-surface)' }}>{tr('Range')}</Typography>
+            <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)', position:'sticky', top:0, bgcolor: 'var(--rt-surface)' }}>{tr('Started')}</Typography>
+            <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)', position:'sticky', top:0, bgcolor: 'var(--rt-surface)' }}>{tr('Status')}</Typography>
+            <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)', textAlign:'right', position:'sticky', top:0, bgcolor: 'var(--rt-surface)' }}>{tr('Duration')}</Typography>
             {rows.map((r: any) => (
               <Box key={r.run_id} sx={{ display:'contents' }}>
-                <Typography sx={{ color:'#0f172a', fontWeight:600 }}>{r.run_type}</Typography>
-                <Typography sx={{ color:'#475569' }}>{r.triggered_by}</Typography>
+                <Typography sx={{ color: 'var(--rt-text)', fontWeight:600 }}>{r.run_type}</Typography>
+                <Typography sx={{ color: 'var(--rt-text-2)' }}>{r.triggered_by}</Typography>
                 <Typography sx={{ color:'#64748b', whiteSpace:'nowrap' }}>
                   {(r.date_from ?? '-')} → {(r.date_to ?? '-')}
                 </Typography>
@@ -1869,7 +1869,7 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
                     { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '-'}
                 </Typography>
                 <Typography sx={{ color:statusColor(r.status), fontWeight:600 }}>{r.status}</Typography>
-                <Typography sx={{ color:'#475569', textAlign:'right' }}>{fmtDur(r.duration_sec)}</Typography>
+                <Typography sx={{ color: 'var(--rt-text-2)', textAlign:'right' }}>{fmtDur(r.duration_sec)}</Typography>
               </Box>
             ))}
             {rows.length === 0 && (

@@ -50,6 +50,9 @@ interface AppSettings {
   /** UI language: 'en' | 'ar' — 'ar' also flips the whole layout to RTL */
   language:            string
   setLanguage:         (v: string) => void
+  /** UI theme: 'light' | 'dark' — drives MUI palette + the data-theme attr */
+  themeMode:           'light' | 'dark'
+  setThemeMode:        (v: 'light' | 'dark') => void
 }
 
 const DEFAULT_CURRENCY = CURRENCIES[0]
@@ -72,6 +75,8 @@ const AppSettingsContext = createContext<AppSettings>({
   setItemFields:       () => {},
   language:            'en',
   setLanguage:         () => {},
+  themeMode:           'light',
+  setThemeMode:        () => {},
 })
 
 function loadThresholds(): Thresholds {
@@ -153,6 +158,18 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     import('../i18n').then(m => m.default.changeLanguage(v))
   }
 
+  // ── Theme mode (light / dark) ──────────────────────────────────────────────
+  const [themeMode, setThemeState] = useState<'light' | 'dark'>(
+    () => (localStorage.getItem('themeMode') === 'dark' ? 'dark' : 'light'))
+  const setThemeMode = (v: 'light' | 'dark') => {
+    localStorage.setItem('themeMode', v)
+    setThemeState(v)
+  }
+  // Reflect the mode on <html data-theme> so plain-CSS tokens flip too
+  useEffect(() => {
+    document.documentElement.dataset.theme = themeMode
+  }, [themeMode])
+
   const moneyPrefix = showCurrency ? currency.symbol + ' ' : ''
 
   // keep the module-level helpers (used by page formatters) in sync
@@ -170,7 +187,8 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
                                           abbreviateNumbers, setAbbreviateNumbers,
                                           thresholds, setThreshold,
                                           itemFields, setItemFields,
-                                          language, setLanguage }}>
+                                          language, setLanguage,
+                                          themeMode, setThemeMode }}>
       {children}
     </AppSettingsContext.Provider>
   )

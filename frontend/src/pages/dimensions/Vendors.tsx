@@ -170,9 +170,9 @@ export default function DimVendors() {
 
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
-      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
-                 mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color:'#0f172a', letterSpacing:'-0.3px', mb:0.3 }}>{tr('SRM — Supplier Intelligence')}<TitleLoader /></Typography>
+      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor: 'var(--rt-surface-2)',
+                 mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid var(--rt-border)' }}>
+        <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color: 'var(--rt-text)', letterSpacing:'-0.3px', mb:0.3 }}>{tr('SRM — Supplier Intelligence')}<TitleLoader /></Typography>
         <Typography sx={{ fontSize:12, color:'#64748b', mb:1.5 }}>
           {tr('Ranked by purchase vouchers (supplier bought from) — item catalogs elsewhere use the item-master vendor')}
         </Typography>
@@ -213,13 +213,13 @@ export default function DimVendors() {
         ))}
       </Stack>
 
-      <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2, mb:2.5 }}>
+      <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius:2, border:'1px solid var(--rt-border)', p:2, mb:2.5 }}>
         <Typography sx={{ fontWeight:700, fontSize:13, mb:0.5 }}>{tr('Top 12 by Purchase Value')}</Typography>
         <Typography sx={{ fontSize:11, color: C_SLATE, mb:1.5 }}>{tr('Bar colour = SRM tier')}</Typography>
         <ReactECharts option={chartOpt} style={{ height: 320 }} />
       </Box>
 
-      <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2 }}>
+      <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius:2, border:'1px solid var(--rt-border)', p:2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
           <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Supplier Detail — {{n}} suppliers',{n:merged.length})}</Typography>
           <GridExportBar gridRef={gridRef} filename="suppliers_srm" title="SRM — Supplier Intelligence"

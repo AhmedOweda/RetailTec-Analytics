@@ -207,10 +207,10 @@ export default function PurchasesOverview() {
       {/* ── Header (standard page pattern — matches Stock Movement) ──── */}
       <Box sx={{
         position: 'sticky', top: 0, zIndex: 10,
-        bgcolor: '#ffffff', mx: -3, px: 3, pt: 3, pb: 2,
-        borderBottom: '1px solid #e9e4ff',
+        bgcolor: 'var(--rt-surface)', mx: -3, px: 3, pt: 3, pb: 2,
+        borderBottom: '1px solid var(--rt-border)',
       }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: 'var(--rt-text)', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Purchases Overview')}
           <TitleLoader />
         </Typography>
@@ -282,7 +282,7 @@ export default function PurchasesOverview() {
       </Box>
 
       {/* ── Daily Trend ───────────────────────────────────────────────── */}
-      <Paper elevation={0} sx={{ mt: 3, p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+      <Paper elevation={0} sx={{ mt: 3, p: 2, borderRadius: 2, border: '1px solid var(--rt-border)' }}>
         <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>{tr('Daily Purchase Trend')}</Typography>
         {trendQ.isLoading
           ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
@@ -293,7 +293,7 @@ export default function PurchasesOverview() {
       {/* ── By Vendor + By Dept ───────────────────────────────────────── */}
       <Grid container spacing={2} sx={{ mt: 0 }}>
         <Grid item xs={12} md={6}>
-          <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+          <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)' }}>
             <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{tr('Top Suppliers by Cost')}</Typography>
             <Typography sx={{ fontSize: 11, color: '#94a3b8', mb: 1.5 }}>{tr('Supplier on the purchase voucher')}</Typography>
             {vendQ.isLoading
@@ -303,7 +303,7 @@ export default function PurchasesOverview() {
           </Paper>
         </Grid>
         <Grid item xs={12} md={6}>
-          <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+          <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)' }}>
             <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1.5 }}>{tr('Top Departments by Cost')}</Typography>
             {deptQ.isLoading
               ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
@@ -316,7 +316,7 @@ export default function PurchasesOverview() {
       {/* ── By Store + By Status ──────────────────────────────────────── */}
       <Grid container spacing={2} sx={{ mt: 0, mb: 2 }}>
         <Grid item xs={12} md={6}>
-          <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+          <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)' }}>
             <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>{tr('Cost by Store')}</Typography>
             {storeQ.isLoading
               ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>
@@ -325,7 +325,7 @@ export default function PurchasesOverview() {
           </Paper>
         </Grid>
         <Grid item xs={12} md={6}>
-          <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0' }}>
+          <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)' }}>
             <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>{tr('PO Status Split')}</Typography>
             {statusQ.isLoading
               ? <Box sx={{ display:'flex', justifyContent:'center', py:5 }}><CircularProgress size={28} /></Box>

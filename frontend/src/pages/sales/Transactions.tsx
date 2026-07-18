@@ -65,7 +65,7 @@ const COL_DEFS: ColDef[] = [
   { field:'doc_no',        headerName:'Doc No',      width:130, pinned:'left',
     cellStyle:(p:any) => p.node?.rowPinned
       ? { fontWeight:800, color:ACCENT, display:'flex', alignItems:'center' }
-      : { fontWeight:600, color:'#1e293b', display:'flex', alignItems:'center' } },
+      : { fontWeight:600, color: 'var(--rt-text)', display:'flex', alignItems:'center' } },
   { field:'post_date',     headerName:'Date',         width:170 },
   { field:'store_name',    headerName:'Store',        width:170 },
   { field:'employee_name', headerName:'Associate',    width:155 },
@@ -273,15 +273,15 @@ export default function Transactions() {
 
       {/* == Toolbar == */}
       <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:SURFACE,
-                 mx:-2.5, px:2.5, pt:2.5, pb:1.5, borderBottom:'1px solid #e9e4ff',
+                 mx:-2.5, px:2.5, pt:2.5, pb:1.5, borderBottom:'1px solid var(--rt-border)',
                  display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
-        <Typography variant="h6" sx={{ fontWeight:800, color:'#0f172a', letterSpacing:'-0.3px', mr:'auto' }}>
+        <Typography variant="h6" sx={{ fontWeight:800, color: 'var(--rt-text)', letterSpacing:'-0.3px', mr:'auto' }}>
           {tr('Invoices')}
           <TitleLoader />
         </Typography>
 
         {/* Period selector */}
-        <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor:'#f1f5f9', borderRadius:2 }}>
+        <Box sx={{ display:'flex', gap:0.75, p:0.5, bgcolor: 'var(--rt-surface-3)', borderRadius:2 }}>
           {QUICK.map(q => (
             <Chip key={q.label} label={tr(q.label)} size="small"
               onClick={() => { setCustom(null); setDays(q.days) }}
@@ -299,10 +299,10 @@ export default function Transactions() {
 
         {/* Custom date range — hidden on mobile (keep quick presets) */}
         <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1, flexWrap:'wrap', rowGap:1 }}>
-          <TextField label={tr('From')} type="date" size="small" sx={{ width:150, bgcolor:'#fff', borderRadius:2 }}
+          <TextField label={tr('From')} type="date" size="small" sx={{ width:150, bgcolor: 'var(--rt-surface)', borderRadius:2 }}
             InputLabelProps={{ shrink:true }}
             value={draftFrom} onChange={e => setDraftFrom(e.target.value)} />
-          <TextField label={tr('To')} type="date" size="small" sx={{ width:150, bgcolor:'#fff', borderRadius:2 }}
+          <TextField label={tr('To')} type="date" size="small" sx={{ width:150, bgcolor: 'var(--rt-surface)', borderRadius:2 }}
             InputLabelProps={{ shrink:true }}
             value={draftTo} onChange={e => setDraftTo(e.target.value)} />
           <Button size="small" variant={custom ? 'contained' : 'outlined'}
@@ -336,7 +336,7 @@ export default function Transactions() {
           sx={{
             width:240,
             '& .MuiOutlinedInput-root':{
-              borderRadius:2.5, bgcolor:'#fff',
+              borderRadius:2.5, bgcolor: 'var(--rt-surface)',
               '&:hover':     { boxShadow:'0 0 0 2px #ede9fe' },
               '&.Mui-focused':{ boxShadow:`0 0 0 2px ${ACCENT}40` },
             },
@@ -372,7 +372,7 @@ export default function Transactions() {
         onClose={() => setColAnchor(null)}
         anchorOrigin={{ vertical:'bottom', horizontal:'left' }}
         transformOrigin={{ vertical:'top', horizontal:'left' }}
-        PaperProps={{ sx:{ borderRadius:2, border:'1px solid #e9e4ff', boxShadow:'0 8px 24px rgba(15,23,42,.12)', minWidth:200 } }}
+        PaperProps={{ sx:{ borderRadius:2, border:'1px solid var(--rt-border)', boxShadow:'0 8px 24px rgba(15,23,42,.12)', minWidth:200 } }}
       >
         <Box sx={{ px:2, pt:1.5, pb:0.5, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <Typography sx={{ fontWeight:700, fontSize:12, color:'#374151' }}>{tr('Show / Hide Columns')}</Typography>
@@ -381,7 +381,7 @@ export default function Transactions() {
             {tr('Show all')}
           </Button>
         </Box>
-        <Divider sx={{ borderColor:'#f1f5f9', my:0.5 }} />
+        <Divider sx={{ borderColor:'var(--rt-border)', my:0.5 }} />
         <Box sx={{ px:1.5, pb:1.5, maxHeight:320, overflowY:'auto' }}>
           {TOGGLE_COLS.map(col => {
             const id      = (col.field ?? col.colId ?? '') as string
@@ -404,12 +404,12 @@ export default function Transactions() {
       {/* == AG Grid == */}
       <Box className="ag-theme-alpine" sx={{
         flex:1, width:'100%', minHeight:0,
-        '& .ag-header':{ bgcolor:'#f8f7ff !important', borderBottom:'1px solid #e9e4ff' },
+        '& .ag-header':{ bgcolor:'#f8f7ff !important', borderBottom:'1px solid var(--rt-border)' },
         '& .ag-header-cell-text':{ fontWeight:700, color:'#374151', fontSize:12 },
-        '& .ag-row-even':{ bgcolor:'#ffffff' },
-        '& .ag-row-odd': { bgcolor:'#faf9ff' },
+        '& .ag-row-even':{ bgcolor: 'var(--rt-surface)' },
+        '& .ag-row-odd': { bgcolor: 'var(--rt-surface-2)' },
         '& .ag-row:hover':{ bgcolor:'#f3f0ff !important' },
-        '& .ag-paging-panel':{ borderTop:'1px solid #e9e4ff', color:'#475569' },
+        '& .ag-paging-panel':{ borderTop:'1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
       }}>
         <AgGridReact
           ref={gridRef}

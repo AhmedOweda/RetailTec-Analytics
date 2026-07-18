@@ -64,10 +64,10 @@ const VIEW_LABELS: Record<View, string> = {
 /* â”€â”€ AG Grid shared styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const GRID_SX = {
   '& .ag-root-wrapper':     { borderRadius: 1.5 },
-  '& .ag-header':           { bgcolor: '#f8f7ff !important', borderBottom: '1px solid #e9e4ff' },
+  '& .ag-header':           { bgcolor: '#f8f7ff !important', borderBottom: '1px solid var(--rt-border)' },
   '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
-  '& .ag-row-even':         { bgcolor: '#ffffff' },
-  '& .ag-row-odd':          { bgcolor: '#faf9ff' },
+  '& .ag-row-even':         { bgcolor: 'var(--rt-surface)' },
+  '& .ag-row-odd':          { bgcolor: 'var(--rt-surface-2)' },
   '& .ag-row:hover':        { bgcolor: '#f3f0ff !important' },
 }
 const DEF_COL: ColDef = {
@@ -88,17 +88,17 @@ function ChartCard({
   const exportPng = () => {
     const inst = ref.current?.getEchartsInstance()
     if (!inst) return
-    const url = inst.getDataURL({ type: 'png', backgroundColor: '#fff', pixelRatio: 2 })
+    const url = inst.getDataURL({ type: 'png', backgroundColor: 'var(--rt-surface)', pixelRatio: 2 })
     const a = document.createElement('a')
     a.href = url; a.download = `${title.replace(/\W+/g, '_')}.png`; a.click()
   }
 
   return (
-    <Card elevation={0} sx={{ border: '1px solid #e9e4ff', borderRadius: 2.5, display: 'flex', flexDirection: 'column' }}>
+    <Card elevation={0} sx={{ border: '1px solid var(--rt-border)', borderRadius: 2.5, display: 'flex', flexDirection: 'column' }}>
       <CardContent sx={{ p: 2.5, flex: 1, '&:last-child': { pb: 2.5 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
           <Box>
-            <Typography sx={{ fontWeight: 800, color: '#0f172a', fontSize: 14 }}>{tr(title)}</Typography>
+            <Typography sx={{ fontWeight: 800, color: 'var(--rt-text)', fontSize: 14 }}>{tr(title)}</Typography>
             {subtitle && (
               <Typography sx={{ fontSize: 11, color: C_SLATE, mt: 0.3 }}>{tr(subtitle)}</Typography>
             )}
@@ -125,7 +125,7 @@ function ChartCard({
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xl" fullWidth
         PaperProps={{ sx: { borderRadius: 3, m: 2 } }}>
-        <DialogTitle sx={{ fontWeight: 800, color: '#0f172a', fontSize: 16, pr: 6, pb: 0.5 }}>
+        <DialogTitle sx={{ fontWeight: 800, color: 'var(--rt-text)', fontSize: 16, pr: 6, pb: 0.5 }}>
           {title}
           {subtitle && (
             <Typography sx={{ fontSize: 12, color: C_SLATE, mt: 0.3 }}>{subtitle}</Typography>
@@ -312,10 +312,10 @@ export default function Products() {
         type: 'scatter',
         data,
         label: {
-          show: true, position: 'top', fontSize: 10, color: '#475569', fontWeight: 600,
+          show: true, position: 'top', fontSize: 10, color: 'var(--rt-text-2)', fontWeight: 600,
           formatter: (p: any) => p.data?.name ?? '',
         },
-        emphasis: { focus: 'self', label: { fontWeight: 800, color: '#1e293b' } },
+        emphasis: { focus: 'self', label: { fontWeight: 800, color: 'var(--rt-text)' } },
         labelLayout: { hideOverlap: true },
         markLine: {
           silent: true, symbol: 'none',
@@ -485,7 +485,7 @@ export default function Products() {
           color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: 'rgba(6,182,212,0.3)' }, { offset: 1, color: C_CYAN }] },
         },
         label: {
-          show: true, position: 'right', fontSize: 10, color: '#475569',
+          show: true, position: 'right', fontSize: 10, color: 'var(--rt-text-2)',
           formatter: (p: any) => {
             const r  = rows[p.dataIndex] ?? {}
             const v  = +p.value
@@ -494,7 +494,7 @@ export default function Products() {
             return `{val|${kb}}  {gp|GP:${r.gp_pct ?? 0}%}`
           },
           rich: {
-            val: { color: '#475569', fontSize: 10 },
+            val: { color: 'var(--rt-text-2)', fontSize: 10 },
             gp:  { color: '#065f46', fontSize: 10, fontWeight: 700 },
           },
         },
@@ -541,7 +541,7 @@ export default function Products() {
       },
       {
         field: 'DESCRIPTION1', headerName: 'Description', width: 240, pinned: 'left',
-        cellStyle: { fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center' },
+        cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' },
       },
       { field: 'VEND_NAME', headerName: 'Item Vendor', width: 160,
         headerTooltip: 'Vendor from the item master (catalog) â€” not necessarily the supplier purchased from' },
@@ -558,7 +558,7 @@ export default function Products() {
       },
       {
         field: 'department', headerName: 'Department', width: 170,
-        cellStyle: { fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center' },
+        cellStyle: { fontWeight: 700, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' },
       },
       { field: 'class',    headerName: 'Class',    width: 160 },
       { field: 'subclass', headerName: 'Subclass', width: 160 },
@@ -570,7 +570,7 @@ export default function Products() {
       {
         field: 'name', headerName: 'Item Vendor', width: 240, pinned: 'left',
         headerTooltip: 'Vendor from the item master (catalog) â€” not necessarily the supplier purchased from',
-        cellStyle: { fontWeight: 600, color: '#1e293b', display: 'flex', alignItems: 'center' },
+        cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' },
       },
       qtyCol, revCol, gpCol, gpPctCol,
     ]
@@ -579,7 +579,7 @@ export default function Products() {
       rankCol,
       {
         field: 'name', headerName: 'Department', width: 230, pinned: 'left',
-        cellStyle: { fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center' },
+        cellStyle: { fontWeight: 700, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' },
       },
       qtyCol, revCol, gpCol, gpPctCol,
     ]
@@ -594,10 +594,10 @@ export default function Products() {
 
       {/* â”€â”€ Sticky header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <Box sx={{
-        position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
-        borderBottom: '1px solid #e9e4ff', px: 3, pt: 3, pb: 2,
+        position: 'sticky', top: 0, zIndex: 10, bgcolor: 'var(--rt-surface)',
+        borderBottom: '1px solid var(--rt-border)', px: 3, pt: 3, pb: 2,
       }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: 'var(--rt-text)', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Products')}
           <TitleLoader />
         </Typography>
@@ -605,7 +605,7 @@ export default function Products() {
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
           {/* Period chips */}
-          <Box sx={{ display: 'flex', gap: 0.75, p: 0.5, bgcolor: '#f1f5f9', borderRadius: 2 }}>
+          <Box sx={{ display: 'flex', gap: 0.75, p: 0.5, bgcolor: 'var(--rt-surface-3)', borderRadius: 2 }}>
             {PERIODS.map(p => (
               <Chip key={p.label} label={tr(p.label)} size="small" onClick={() => selectPeriod(p.label)}
                 sx={{
@@ -619,7 +619,7 @@ export default function Products() {
             ))}
           </Box>
 
-          <Divider orientation="vertical" flexItem className="rt-mobile-hide" sx={{ borderColor: '#e9e4ff', mx: 0.5 }} />
+          <Divider orientation="vertical" flexItem className="rt-mobile-hide" sx={{ borderColor: 'var(--rt-border)', mx: 0.5 }} />
 
           {/* Custom date range â€” hidden on mobile (keep period chips) */}
           <Box className="rt-mobile-hide" sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', rowGap: 1 }}>
@@ -643,7 +643,7 @@ export default function Products() {
             </Button>
           </Box>
 
-          <Divider orientation="vertical" flexItem sx={{ borderColor: '#e9e4ff', mx: 0.5 }} />
+          <Divider orientation="vertical" flexItem sx={{ borderColor: 'var(--rt-border)', mx: 0.5 }} />
 
           {/* Store filter */}
           <Autocomplete
@@ -651,8 +651,8 @@ export default function Products() {
             onChange={(_, v) => setSelectedStores(v)}
             size="small" disableCloseOnSelect
             renderInput={p => (
-              <TextField {...p} placeholder="Stores"
-                placeholder={selectedStores.length ? '' : 'All stores'}
+              <TextField {...p}
+                placeholder={selectedStores.length ? 'Stores' : 'All stores'}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }} />
             )}
             sx={{ minWidth: 220 }}
@@ -703,13 +703,13 @@ export default function Products() {
 
       {/* â”€â”€ Detail grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <Box sx={{ px: 3, pb: 3 }}>
-        <Card elevation={0} sx={{ border: '1px solid #e9e4ff', borderRadius: 2.5 }}>
+        <Card elevation={0} sx={{ border: '1px solid var(--rt-border)', borderRadius: 2.5 }}>
           <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
 
             {/* Tab row */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 2, flexWrap: 'wrap' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-              <Box sx={{ display: 'flex', gap: 0.75, p: 0.5, bgcolor: '#f1f5f9', borderRadius: 2 }}>
+              <Box sx={{ display: 'flex', gap: 0.75, p: 0.5, bgcolor: 'var(--rt-surface-3)', borderRadius: 2 }}>
                 {VIEWS.map(v => (
                   <Chip key={v} label={tr(VIEW_LABELS[v])} size="small" onClick={() => setView(v)}
                     sx={{

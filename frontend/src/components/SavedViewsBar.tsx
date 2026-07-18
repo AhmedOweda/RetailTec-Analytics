@@ -33,7 +33,7 @@ export default function SavedViewsBar({ pageKey, current, onApply }: {
     <>
       <Button size="small" variant="outlined" startIcon={<BookmarkBorderIcon sx={{ fontSize: 16 }} />}
         onClick={e => setAnchor(e.currentTarget)}
-        sx={{ textTransform: 'none', borderColor: '#e2e8f0', color: '#475569', fontWeight: 600 }}>
+        sx={{ textTransform: 'none', borderColor: 'var(--rt-border)', color: 'var(--rt-text-2)', fontWeight: 600 }}>
         {tr('Views')}{views.length ? ` (${views.length})` : ''}
       </Button>
       <Menu anchorEl={anchor} open={!!anchor} onClose={() => { setAnchor(null); setNaming(false) }}

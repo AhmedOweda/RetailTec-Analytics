@@ -170,7 +170,7 @@ export default function PurchasesTransactions() {
       cellStyle: { color: '#e11d48' } },
     { field: 'total_cost',   headerName: 'Total Cost',  width: 115, type: 'numericColumn',
       valueFormatter: (p: any) => fmtC(p.value),
-      cellStyle: { fontWeight: 700, color: '#0f172a' } },
+      cellStyle: { fontWeight: 700, color: 'var(--rt-text)' } },
     { field: 'total_retail', headerName: 'Total Retail',width: 120, type: 'numericColumn',
       valueFormatter: (p: any) => fmtC(p.value),
       cellStyle: { color: '#7c3aed' } },
@@ -196,10 +196,10 @@ export default function PurchasesTransactions() {
       {/* ── Header (standard page pattern — matches Stock Movement) ──── */}
       <Box sx={{
         position: 'sticky', top: 0, zIndex: 10,
-        bgcolor: '#ffffff', mx: -3, px: 3, pt: 3, pb: 2,
-        borderBottom: '1px solid #e9e4ff',
+        bgcolor: 'var(--rt-surface)', mx: -3, px: 3, pt: 3, pb: 2,
+        borderBottom: '1px solid var(--rt-border)',
       }}>
-        <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 800, color: 'var(--rt-text)', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Vouchers')}
           <TitleLoader />
         </Typography>
@@ -281,16 +281,16 @@ export default function PurchasesTransactions() {
       </Stack>
 
       {/* ── AG Grid ───────────────────────────────────────────────────── */}
-      <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(15,23,42,.08)' }}>
+      <Box sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid var(--rt-border)', boxShadow: '0 1px 4px rgba(15,23,42,.08)' }}>
         <Box className="ag-theme-alpine" sx={{
           width: '100%', height: 580,
           '& .ag-root-wrapper': { borderRadius: 0 },
-          '& .ag-header': { bgcolor: '#f8f7ff !important', borderBottom: '1px solid #e9e4ff' },
+          '& .ag-header': { bgcolor: '#f8f7ff !important', borderBottom: '1px solid var(--rt-border)' },
           '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
-          '& .ag-row-even': { bgcolor: '#ffffff' },
-          '& .ag-row-odd': { bgcolor: '#faf9ff' },
+          '& .ag-row-even': { bgcolor: 'var(--rt-surface)' },
+          '& .ag-row-odd': { bgcolor: 'var(--rt-surface-2)' },
           '& .ag-row:hover': { bgcolor: '#f3f0ff !important' },
-          '& .ag-paging-panel': { borderTop: '1px solid #e9e4ff', color: '#475569' },
+          '& .ag-paging-panel': { borderTop: '1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
         }}>
           <AgGridReact
             ref={gridRef}

@@ -164,9 +164,9 @@ export default function DimCustomers() {
 
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
-      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor:'#f8fafc',
-                 mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid #e9e4ff' }}>
-        <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color:'#0f172a', letterSpacing:'-0.3px', mb:1.5 }}>{tr('CRM — Customer Intelligence')}<TitleLoader /></Typography>
+      <Box sx={{ position:'sticky', top:0, zIndex:10, bgcolor: 'var(--rt-surface-2)',
+                 mx:-3, px:3, pt:2.5, pb:1.5, mb:2, borderBottom:'1px solid var(--rt-border)' }}>
+        <Typography variant="h6" sx={{ fontWeight:700, fontSize:20, color: 'var(--rt-text)', letterSpacing:'-0.3px', mb:1.5 }}>{tr('CRM — Customer Intelligence')}<TitleLoader /></Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" alignItems="center">
           <TextField size="small" label={tr('From')} type="date" value={dateFrom}
             onChange={e => setDateFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
@@ -204,13 +204,13 @@ export default function DimCustomers() {
         ))}
       </Stack>
 
-      <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2, mb:2.5 }}>
+      <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius:2, border:'1px solid var(--rt-border)', p:2, mb:2.5 }}>
         <Typography sx={{ fontWeight:700, fontSize:13, mb:0.5 }}>{tr('Top 15 by Lifetime Value')}</Typography>
         <Typography sx={{ fontSize:11, color: C_SLATE, mb:1.5 }}>{tr('Bar colour = CRM segment')}</Typography>
         <ReactECharts option={chartOpt} style={{ height: 360 }} />
       </Box>
 
-      <Box sx={{ bgcolor:'#fff', borderRadius:2, border:'1px solid #e2e8f0', p:2 }}>
+      <Box sx={{ bgcolor: 'var(--rt-surface)', borderRadius:2, border:'1px solid var(--rt-border)', p:2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Typography sx={{ fontWeight:700, fontSize:13 }}>{trf('Customer Detail — {{n}} customers',{n:rows.length})}</Typography>

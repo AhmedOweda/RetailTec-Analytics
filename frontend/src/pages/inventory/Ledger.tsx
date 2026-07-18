@@ -216,10 +216,10 @@ export default function InventoryLedger() {
 
       {/* ── Header (standard page pattern — matches Stock Movement) ── */}
       <Box sx={{
-        position: 'sticky', top: 0, zIndex: 10, bgcolor: '#ffffff',
-        mx: -3, px: 3, pt: 3, pb: 2, borderBottom: '1px solid #e9e4ff',
+        position: 'sticky', top: 0, zIndex: 10, bgcolor: 'var(--rt-surface)',
+        mx: -3, px: 3, pt: 3, pb: 2, borderBottom: '1px solid var(--rt-border)',
       }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: '#0f172a', letterSpacing: '-0.3px', mb: 0.3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, fontSize: 20, color: 'var(--rt-text)', letterSpacing: '-0.3px', mb: 0.3 }}>
           {tr('Inventory Ledger')}
           <TitleLoader />
         </Typography>
@@ -303,7 +303,7 @@ export default function InventoryLedger() {
 
       {/* ── AG Grid ── */}
       <Paper elevation={0} sx={{
-        borderRadius: 2, border: '1px solid #e2e8f0',
+        borderRadius: 2, border: '1px solid var(--rt-border)',
         overflow: 'hidden', flex: 1, minHeight: 440,
       }}>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 1.5, pt: 1.5, pb: 1.5 }}>
