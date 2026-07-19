@@ -358,7 +358,7 @@ export default function GridExportBar({
           <Button size="small" variant="outlined" onClick={e => setColAnchor(e.currentTarget)}
             startIcon={<ViewColumnIcon sx={{ fontSize: '17px !important' }} />}
             sx={{ ...btnSx(hiddenCols.size > 0 ? ACCENT : 'var(--rt-text-2)'),
-                  borderColor: hiddenCols.size > 0 ? ACCENT : '#e2e8f0',
+                  borderColor: hiddenCols.size > 0 ? ACCENT : 'var(--rt-border)',
                   bgcolor: hiddenCols.size > 0 ? '#ede9fe' : 'transparent' }}>
             {tr('Columns')}{hiddenCols.size > 0 ? ` (${hiddenCols.size})` : ''}
           </Button>

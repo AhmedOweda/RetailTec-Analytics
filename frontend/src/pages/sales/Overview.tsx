@@ -224,7 +224,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
                     <Box sx={{
                       px:0.7, py:0.1, borderRadius:1,
                       bgcolor: rr > 5 ? 'var(--rt-neg-bg)' : '#f1f5f9',
-                      border:`1px solid ${rr > 5 ? 'var(--rt-neg-bg)' : '#e2e8f0'}`,
+                      border:`1px solid ${rr > 5 ? 'var(--rt-neg-bg)' : 'var(--rt-border)'}`,
                     }}>
                       <Typography sx={{ fontSize:10, fontWeight:800, lineHeight:1.5,
                                         color: rr > 5 ? '#ef4444' : '#64748b' }}>

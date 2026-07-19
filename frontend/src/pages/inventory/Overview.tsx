@@ -273,7 +273,7 @@ export default function InventoryOverview() {
           show: true, position: 'top', fontSize: 10, color: 'var(--rt-text-2)', fontWeight: 600,
           formatter: (p: any) => p.data?.name ?? '',
         },
-        emphasis: { focus: 'self', label: { fontWeight: 800, color: 'var(--rt-text)' } },
+        emphasis: { focus: 'self', label: { fontWeight: 800, color: '#0f172a' } },
         labelLayout: { hideOverlap: true },
         markLine: {
           silent: true, symbol: 'none',
@@ -401,7 +401,7 @@ export default function InventoryOverview() {
             const r = rows[p.dataIndex] ?? {}
             return `{val|${num(p.value)}}  {gm|GM:${r.gm_pct ?? 0}%}`
           },
-          rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 }, gm: { color: 'var(--rt-pos-fg)', fontSize: 10, fontWeight: 700 } },
+          rich: { val: { color: '#475569', fontSize: 10 }, gm: { color: '#065f46', fontSize: 10, fontWeight: 700 } },
         },
       }],
     }
@@ -426,7 +426,7 @@ export default function InventoryOverview() {
       series: [{
         type: 'bar', data: vals, barMaxWidth: 18,
         itemStyle: { borderRadius: [0, 4, 4, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: 'rgba(8,145,178,0.25)' }, { offset: 1, color: '#0891b2' }] } },
-        label: { show: true, position: 'right', formatter: (p: any) => `{val|${num(p.value)}}`, rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 } } },
+        label: { show: true, position: 'right', formatter: (p: any) => `{val|${num(p.value)}}`, rich: { val: { color: '#475569', fontSize: 10 } } },
       }],
     }
   }, [storeData])
@@ -611,8 +611,8 @@ export default function InventoryOverview() {
                   size="small" onClick={() => setView(v)}
                   sx={{ fontWeight: 600, cursor: 'pointer',
                         bgcolor: view === v ? C_PURPLE : 'transparent',
-                        color: view === v ? '#fff' : C_SLATE,
-                        border: `1px solid ${view === v ? C_PURPLE : '#e2e8f0'}` }} />
+                        color: view === v ? '#fff' : 'var(--rt-text-2)',
+                        border: `1px solid ${view === v ? C_PURPLE : 'var(--rt-border)'}` }} />
               ))}
               <GridExportBar gridRef={gridRef} filename="inventory_stock_levels" title="Stock Levels"
                 view={view} filters={`${tr('Current stock')} · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}`}

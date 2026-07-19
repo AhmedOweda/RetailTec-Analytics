@@ -291,7 +291,7 @@ export default function Transactions() {
                 bgcolor: !custom && days===q.days ? ACCENT : 'transparent',
                 color:   !custom && days===q.days ? '#fff' : '#64748b',
                 boxShadow: !custom && days===q.days ? '0 2px 8px rgba(124,58,237,.35)' : 'none',
-                '&:hover':{ bgcolor: !custom && days===q.days ? ACCENT2 : '#e2e8f0' },
+                '&:hover':{ bgcolor: !custom && days===q.days ? ACCENT2 : 'var(--rt-surface-3)' },
               }}
             />
           ))}
