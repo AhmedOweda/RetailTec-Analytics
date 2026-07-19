@@ -98,7 +98,7 @@ export default function SendHistoryDialog({ open, onClose }: { open: boolean; on
                                    borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: ok ? '#fff' : '#fff7f7' }}>
                   <Chip size="small" label={ok ? tr('Sent') : tr('Failed')}
                     sx={{ height: 22, fontSize: 11, fontWeight: 700,
-                          bgcolor: ok ? '#dcfce7' : '#fee2e2', color: ok ? '#15803d' : '#b91c1c' }} />
+                          bgcolor: ok ? 'var(--rt-pos-bg)' : 'var(--rt-neg-bg)', color: ok ? 'var(--rt-pos-fg)' : 'var(--rt-neg-fg)' }} />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--rt-text)' }} noWrap>
                       {r.subject || r.filename || tr('Report')}
@@ -111,7 +111,7 @@ export default function SendHistoryDialog({ open, onClose }: { open: boolean; on
                       {r.filename ? ` · ${r.filename}` : ''}
                     </Typography>
                     {!ok && r.error && (
-                      <Typography sx={{ fontSize: 11, color: '#b91c1c', mt: 0.25 }}>{r.error}</Typography>
+                      <Typography sx={{ fontSize: 11, color: 'var(--rt-neg-fg)', mt: 0.25 }}>{r.error}</Typography>
                     )}
                   </Box>
                 </Box>

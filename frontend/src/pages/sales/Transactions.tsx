@@ -36,7 +36,7 @@ import { arabicTableToPdf } from '../../utils/pdfImage'
 /* -- Theme ------------------------------------------------------------ */
 const ACCENT  = '#7c3aed'
 const ACCENT2 = '#6d28d9'
-const SURFACE = '#faf9ff'
+const SURFACE = 'var(--rt-surface-2)'   // page + sticky-header fill; flips with the theme
 
 const QUICK = [
   { label:'7D',  days:7  },
@@ -46,9 +46,9 @@ const QUICK = [
 ]
 
 const TYPE_COLOR: Record<string, { text:string; bg:string }> = {
-  Sale:   { text:'#16a34a', bg:'#dcfce7' },
-  Return: { text:'#dc2626', bg:'#fee2e2' },
-  Order:  { text:'#d97706', bg:'#fef3c7' },
+  Sale:   { text:'var(--rt-pos-fg)', bg:'var(--rt-pos-bg)' },
+  Return: { text:'var(--rt-neg-fg)', bg:'var(--rt-neg-bg)' },
+  Order:  { text:'#d97706', bg:'var(--rt-warn-bg)' },
 }
 
 /* -- Column definitions ----------------------------------------------- */
@@ -74,7 +74,7 @@ const COL_DEFS: ColDef[] = [
     field:'type', headerName:'Type', width:95,
     cellRenderer:(p:any) => {
       if (p.node?.rowPinned || !p.value) return ''
-      const c = TYPE_COLOR[p.value] ?? { text:'#64748b', bg:'#f1f5f9' }
+      const c = TYPE_COLOR[p.value] ?? { text:'var(--rt-text-2)', bg:'var(--rt-surface-3)' }
       return <span style={{ display:'inline-block', padding:'2px 10px', borderRadius:'99px', background:c.bg, color:c.text, fontWeight:700, fontSize:11 }}>{p.value ?? ''}</span>
     },
   },
@@ -404,11 +404,11 @@ export default function Transactions() {
       {/* == AG Grid == */}
       <Box className="ag-theme-alpine" sx={{
         flex:1, width:'100%', minHeight:0,
-        '& .ag-header':{ bgcolor:'#f8f7ff !important', borderBottom:'1px solid var(--rt-border)' },
-        '& .ag-header-cell-text':{ fontWeight:700, color:'#374151', fontSize:12 },
+        '& .ag-header':{ bgcolor:'var(--rt-grid-header-bg) !important', borderBottom:'1px solid var(--rt-border)' },
+        '& .ag-header-cell-text':{ fontWeight:700, color:'var(--rt-grid-header-fg)', fontSize:12 },
         '& .ag-row-even':{ bgcolor: 'var(--rt-surface)' },
         '& .ag-row-odd': { bgcolor: 'var(--rt-surface-2)' },
-        '& .ag-row:hover':{ bgcolor:'#f3f0ff !important' },
+        '& .ag-row:hover':{ bgcolor:'var(--rt-grid-hover) !important' },
         '& .ag-paging-panel':{ borderTop:'1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
       }}>
         <AgGridReact

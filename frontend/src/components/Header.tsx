@@ -71,8 +71,8 @@ export default function Header({ host, cached }: HeaderProps) {
               fontFamily: '"Plus Jakarta Sans", sans-serif',
               fontWeight: 600,
               fontSize: '0.65rem',
-              background: cached ? '#ECFDF5' : PURPLE_BRAND[50],
-              color: cached ? '#15803D' : PURPLE_BRAND[600],
+              background: cached ? 'var(--rt-pos-bg)' : PURPLE_BRAND[50],
+              color: cached ? 'var(--rt-pos-fg)' : PURPLE_BRAND[600],
               border: `1px solid ${cached ? '#A7F3D0' : PURPLE_BRAND[200]}`,
             }}
           />

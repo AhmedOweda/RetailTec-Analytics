@@ -92,8 +92,8 @@ function StatusCell({ value }: { value: string }) {
     <Box sx={{
       display: 'inline-flex', alignItems: 'center',
       px: 1, py: 0.2, borderRadius: 1, fontSize: 11, fontWeight: 700,
-      bgcolor: ok ? '#dcfce7' : '#fef3c7',
-      color:   ok ? '#15803d' : '#92400e',
+      bgcolor: ok ? 'var(--rt-pos-bg)' : 'var(--rt-warn-bg)',
+      color:   ok ? 'var(--rt-pos-fg)' : 'var(--rt-warn-fg)',
     }}>
       {value}
     </Box>
@@ -285,11 +285,11 @@ export default function PurchasesTransactions() {
         <Box className="ag-theme-alpine" sx={{
           width: '100%', height: 580,
           '& .ag-root-wrapper': { borderRadius: 0 },
-          '& .ag-header': { bgcolor: '#f8f7ff !important', borderBottom: '1px solid var(--rt-border)' },
-          '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
+          '& .ag-header': { bgcolor: 'var(--rt-grid-header-bg) !important', borderBottom: '1px solid var(--rt-border)' },
+          '& .ag-header-cell-text': { fontWeight: 700, color: 'var(--rt-grid-header-fg)', fontSize: 12 },
           '& .ag-row-even': { bgcolor: 'var(--rt-surface)' },
           '& .ag-row-odd': { bgcolor: 'var(--rt-surface-2)' },
-          '& .ag-row:hover': { bgcolor: '#f3f0ff !important' },
+          '& .ag-row:hover': { bgcolor: 'var(--rt-grid-hover) !important' },
           '& .ag-paging-panel': { borderTop: '1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
         }}>
           <AgGridReact

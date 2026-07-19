@@ -138,7 +138,7 @@ export default function LoadingProgress({ steps, total = 8 }: Props) {
                 {hasErr && (
                   <Chip label="error" size="small" sx={{
                     height: 18, fontSize: '0.58rem', fontWeight: 700,
-                    background: '#FECACA', color: '#B91C1C',
+                    background: 'var(--rt-neg-bg)', color: 'var(--rt-neg-fg)',
                     '& .MuiChip-label': { px: 0.8 },
                   }} />
                 )}

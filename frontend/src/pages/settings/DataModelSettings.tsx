@@ -888,7 +888,7 @@ export default function DataModelSettings() {
                 onClick={() => stopLoad.mutate()}
                 disabled={stopLoad.isPending}
                 sx={{ borderColor:'#ef4444', color:'#ef4444', textTransform:'none', fontWeight:600,
-                      '&:hover':{ borderColor:'#dc2626', bgcolor:'rgba(239,68,68,0.04)' } }}>
+                      '&:hover':{ borderColor:'var(--rt-neg-fg)', bgcolor:'rgba(239,68,68,0.04)' } }}>
                 {tr('Stop Load')}
               </Button>
             )}
@@ -1127,7 +1127,7 @@ function AboutCard() {
           <Row label="License Status"    value={licChip()} />
           <Row label="License File"      value={
             <Typography component="span" sx={{ fontSize:11.5, fontFamily:'monospace',
-                                               color: data?.license_file_present ? '#16a34a' : '#b45309',
+                                               color: data?.license_file_present ? '#16a34a' : 'var(--rt-warn-fg)',
                                                wordBreak:'break-all' }}>
               {data?.license_file_path ?? '—'}
               {data?.license_file_path && (data?.license_file_present

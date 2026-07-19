@@ -401,7 +401,7 @@ export default function InventoryOverview() {
             const r = rows[p.dataIndex] ?? {}
             return `{val|${num(p.value)}}  {gm|GM:${r.gm_pct ?? 0}%}`
           },
-          rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 }, gm: { color: '#065f46', fontSize: 10, fontWeight: 700 } },
+          rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 }, gm: { color: 'var(--rt-pos-fg)', fontSize: 10, fontWeight: 700 } },
         },
       }],
     }
@@ -541,12 +541,12 @@ export default function InventoryOverview() {
 
       {/* ── No data banner ── */}
       {noData && (
-        <Box sx={{ mx: 3, p: 2.5, bgcolor: '#fffbeb', border: '1px solid #fde68a',
+        <Box sx={{ mx: 3, p: 2.5, bgcolor: 'var(--rt-warn-bg)', border: '1px solid #fde68a',
                    borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <WarningAmberIcon sx={{ color: C_AMBER }} />
           <Box>
-            <Typography sx={{ fontWeight: 700, color: '#92400e' }}>Inventory snapshot not yet available</Typography>
-            <Typography sx={{ fontSize: 12, color: '#78350f' }}>
+            <Typography sx={{ fontWeight: 700, color: 'var(--rt-warn-fg)' }}>Inventory snapshot not yet available</Typography>
+            <Typography sx={{ fontSize: 12, color: 'var(--rt-warn-fg)' }}>
               Trigger a data sync to populate stock levels. The Movement page uses sales history and is available now.
             </Typography>
           </Box>
