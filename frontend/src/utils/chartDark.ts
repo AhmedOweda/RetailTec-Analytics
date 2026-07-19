@@ -57,7 +57,12 @@ const isWhiteish = (c: unknown) =>
 function themeLabel(lb: any): any {
   if (!lb || typeof lb !== 'object') return lb
   let out: any = { ...lb }
-  if (isUnreadable(lb.color)) out.color = fix(lb.color)
+  // A label with NO colour is the common case (e.g. bar value labels): ECharts
+  // then picks its own near-black default and leans on the white halo to keep
+  // it readable. Removing the halo alone would leave dark-on-dark text, so the
+  // colour has to be set explicitly too.
+  if (lb.color === undefined) out.color = CHART_DARK.labelText
+  else if (isUnreadable(lb.color)) out.color = fix(lb.color)
   if (isWhiteish(lb.backgroundColor)) out.backgroundColor = 'rgba(22,13,58,0.85)'
   out = noHalo(out)                       // drop the implicit white text stroke
   if (lb.rich && typeof lb.rich === 'object') {
