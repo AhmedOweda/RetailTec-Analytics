@@ -41,6 +41,22 @@ _MAX_ROWS = int(os.environ.get("RETAILTEC_MAX_REPORT_ROWS", "500000"))
 _PREVIEW_ROWS = 30         # rows shown inline in the email body
 
 
+def max_report_rows() -> int:
+    """Effective cap: Settings → Reports & Email wins, else the default above.
+
+    Admin-editable so a site can raise/lower it without a rebuild. Never let a
+    bad stored value collapse the cap to something that truncates silently.
+    """
+    try:
+        from services.config import load_settings
+        v = int((load_settings().get("email") or {}).get("max_report_rows") or 0)
+        if v > 0:
+            return v
+    except Exception:
+        pass
+    return _MAX_ROWS
+
+
 # ── Endpoint registry (path → callable) ──────────────────────────────────────
 
 def _registry() -> dict:
@@ -159,8 +175,10 @@ def run_grid(endpoint: str, params: dict) -> list[dict]:
     if isinstance(rows, dict):
         rows = rows.get("rows") or rows.get("data") or []
     rows = list(rows or [])
-    if len(rows) > _MAX_ROWS:
-        rows = rows[:_MAX_ROWS]
+    cap = max_report_rows()
+    if len(rows) > cap:
+        log.warning("Report %s truncated: %d rows -> cap %d", endpoint, len(rows), cap)
+        rows = rows[:cap]
     return rows
 
 
