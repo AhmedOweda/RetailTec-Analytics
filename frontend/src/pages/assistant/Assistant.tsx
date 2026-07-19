@@ -31,7 +31,9 @@ import { tr } from '../../i18n'
 const ACCENT   = '#7c3aed'
 const ACCENT_D = '#6d28d9'
 const GRAD     = `linear-gradient(135deg, ${ACCENT} 0%, #9333ea 55%, #a855f7 100%)`
-const INK      = '#0f172a'
+// Theme token, NOT a fixed hex — a hard-coded near-black is invisible once the
+// surrounding surfaces turn dark in dark mode.
+const INK      = 'var(--rt-text)'
 const MUTED    = '#64748b'
 
 const STARTERS = [
