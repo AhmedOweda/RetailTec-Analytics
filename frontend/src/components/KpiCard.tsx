@@ -38,7 +38,9 @@ interface KpiCardProps {
 
 const DEFAULT_COLOR = '#7c3aed'
 const C_SLATE       = '#64748b'
-const C_INK         = '#0f172a'
+// Theme token, NOT a fixed hex: the KPI value sits on a card that turns dark in
+// dark mode, so a hard-coded near-black (#0f172a) rendered the number invisible.
+const C_INK         = 'var(--rt-text)'
 
 function Trend({ trend }: { trend?: number }) {
   if (trend == null) return null
