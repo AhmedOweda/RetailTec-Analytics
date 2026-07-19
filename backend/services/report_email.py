@@ -395,8 +395,12 @@ def maybe_send_alerts() -> None:
 # ── Sending ───────────────────────────────────────────────────────────────────
 
 def _send_grid_report(report: dict) -> str:
-    """Regenerate a dashboard grid server-side and email it as a CSV attachment
-    with an inline preview + report-details block."""
+    """Regenerate a dashboard grid server-side and email it as an attachment.
+
+    The body carries a report-details block only (what the data is, the period,
+    the filters and the row count) — NOT a sample of the rows. Owner request
+    19 Jul 2026: "i dont want to make a preview or data sample .. just adequate
+    info about the data sent and attach the data sheet"."""
     from services import report_grid
     recipients = [x.strip() for x in (report.get("recipients") or "").split(",") if x.strip()]
     if not recipients:
@@ -414,8 +418,6 @@ def _send_grid_report(report: dict) -> str:
     rows = report_grid.run_grid(endpoint, params)
     fmt = (report.get("fmt") or report.get("format") or "csv").lower()
     content, mime, ext = report_grid.build_attachment(report, rows, fmt)
-    # No inline HTML preview for PDF — the attachment already is the visual.
-    preview = "" if fmt == "pdf" else report_grid.build_preview_html(report, rows)
 
     name  = report.get("name") or report.get("title") or "Report"
     today = date.today().isoformat()
@@ -431,9 +433,12 @@ def _send_grid_report(report: dict) -> str:
     if report.get("filters"):
         details["Filters"] = report["filters"]
     details["Rows"] = f"{len(rows):,}"
+    details["Columns"] = f"{len(report_grid._columns(report, rows)):,}"
+    details["Attachment"] = f"{filename}  ({len(content) / 1024:,.0f} KB)"
 
+    # extra_html deliberately omitted — no inline row preview / data sample.
     return send_attachment(recipients, subject, None, filename, content,
-                           mime, details, extra_html=preview)
+                           mime, details)
 
 
 def send_one(report: dict) -> str:

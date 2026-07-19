@@ -1,6 +1,6 @@
 ﻿/**
- * Products â€” Full professional redesign
- * KPI strip Â· Department treemap Â· DCS sunburst (drill-down) Â· Vendor ranking Â· AG Grid
+ * Products — Full professional redesign
+ * KPI strip · Department treemap · DCS sunburst (drill-down) · Vendor ranking · AG Grid
  */
 import { useState, useMemo, useRef } from 'react'
 import {
@@ -33,7 +33,7 @@ import { useAppSettings } from '../../context/AppSettings'
 import { CHART_CATEGORICAL } from '../../theme/chartPalette'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 
-/* â”€â”€ Theme â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Theme ─────────────────────────────────────────────────────────── */
 const ACCENT  = '#7c3aed'
 const ACCENT2 = '#6d28d9'
 const C_GREEN = '#10b981'
@@ -45,7 +45,7 @@ const C_CYAN  = '#06b6d4'
 // Unified with the shared brand palette so department colours match app-wide.
 const DEPT_COLORS = CHART_CATEGORICAL
 
-/* â”€â”€ Period presets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Period presets ─────────────────────────────────────────────────── */
 const PERIODS = [
   { label: '7D',  days:  7 },
   { label: '30D', days: 30 },
@@ -54,14 +54,14 @@ const PERIODS = [
 ] as const
 type Period = typeof PERIODS[number]['label']
 
-/* â”€â”€ Views â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Views ──────────────────────────────────────────────────────────── */
 const VIEWS = ['item', 'dcs', 'vendor', 'department'] as const
 type View   = typeof VIEWS[number]
 const VIEW_LABELS: Record<View, string> = {
   item: 'Top Items', dcs: 'DCS Breakdown', vendor: 'By Item Vendor', department: 'By Department',
 }
 
-/* â”€â”€ AG Grid shared styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── AG Grid shared styles ──────────────────────────────────────────── */
 const GRID_SX = {
   '& .ag-root-wrapper':     { borderRadius: 1.5 },
   '& .ag-header':           { bgcolor: 'var(--rt-grid-header-bg) !important', borderBottom: '1px solid var(--rt-border)' },
@@ -76,7 +76,7 @@ const DEF_COL: ColDef = {
   cellStyle: { display: 'flex', alignItems: 'center' },
 }
 
-/* â”€â”€ ChartCard â€” EChart wrapper with fullscreen + PNG export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── ChartCard — EChart wrapper with fullscreen + PNG export ─────────── */
 function ChartCard({
   title, subtitle, option, height = 300, loading,
 }: {
@@ -145,7 +145,7 @@ function ChartCard({
 
 
 
-/* â”€â”€ GP% cell style helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── GP% cell style helpers ─────────────────────────────────────────── */
 const gpPctStyle = (p: any) => {
   const v = +(p.value ?? 0)
   return {
@@ -161,7 +161,7 @@ const gpAbsStyle = (p: any) => ({
   display:    'flex', alignItems: 'center',
 })
 
-/* â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Main component ─────────────────────────────────────────────────── */
 export default function Products() {
   const { productCodeField, itemFields } = useAppSettings()
   const todayStr = format(new Date(), 'yyyy-MM-dd')
@@ -195,38 +195,38 @@ export default function Products() {
   const storeQS   = storesKey ? `&stores=${encodeURIComponent(storesKey)}` : ''
   const qOpts     = { refetchOnMount: 'always' as const, gcTime: 0, retry: false }
 
-  /* â”€â”€ Queries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Queries ────────────────────────────────────────────────────── */
   const { data: storesList = [] } = useQuery({
     queryKey: ['stores-list'],
     queryFn:  () => axios.get('/api/sales/stores-list').then(r => r.data as string[]),
     staleTime: 3_600_000,
   })
 
-  /* Department data â€” for treemap + KPIs */
+  /* Department data — for treemap + KPIs */
   const { data: deptData,   isLoading: deptLoad, isFetching: deptFetching, refetch: refetchDept } = useQuery({
     queryKey: ['prod-dept',   from, to, storesKey],
     queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=department&limit=20${storeQS}`).then(r => r.data),
     ...qOpts,
   })
 
-  /* DCS data â€” for sunburst hierarchy (all rows, high limit) */
+  /* DCS data — for sunburst hierarchy (all rows, high limit) */
   const { data: dcsData,    isLoading: dcsLoad    } = useQuery({
     queryKey: ['prod-dcs',    from, to, storesKey],
     queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=dcs&limit=500${storeQS}`).then(r => r.data),
     ...qOpts,
   })
 
-  /* Vendor data â€” for bar chart */
+  /* Vendor data — for bar chart */
   const { data: vendorData, isLoading: vendorLoad } = useQuery({
     queryKey: ['prod-vendor', from, to, storesKey],
     queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=vendor&limit=15${storeQS}`).then(r => r.data),
     ...qOpts,
   })
 
-  /* Table data â€” changes per view tab */
+  /* Table data — changes per view tab */
   const { data: tableData,  isLoading: tableLoad, isFetching: tableFetching, refetch: refetchTable } = useQuery({
     queryKey: ['prod-table',  from, to, view, storesKey, itemFields.join(',')],
-    queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=${view}${storeQS}${view === 'item' ? itemFieldsQS(itemFields) : ''}`).then(r => r.data),  // no limit â€” grid paginates
+    queryFn:  () => axios.get(`/api/sales/products?date_from=${from}&date_to=${to}&group_by=${view}${storeQS}${view === 'item' ? itemFieldsQS(itemFields) : ''}`).then(r => r.data),  // no limit — grid paginates
     ...qOpts,
   })
 
@@ -234,7 +234,7 @@ export default function Products() {
   useRetryIfEmpty(((deptData ?? []) as any[]).length === 0, deptFetching, refetchDept)
   useRetryIfEmpty(((tableData ?? []) as any[]).length === 0, tableFetching, refetchTable)
 
-  /* â”€â”€ KPIs from department totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── KPIs from department totals ──────────────────────────────── */
   const kpi = useMemo(() => {
     const rows      = (deptData ?? []) as any[]
     const totalRev  = rows.reduce((s, r) => s + +(r.revenue ?? 0), 0)
@@ -245,13 +245,13 @@ export default function Products() {
     return { totalRev, totalGP, gpPct, totalQty, deptCount }
   }, [deptData])
 
-  /* â”€â”€ Chart: Department Margin vs Volume (scatter / bubble matrix) â”€â”€
-     Replaces the earlier "Top Departments by Revenue" bar â€” that repeated the
+  /* ── Chart: Department Margin vs Volume (scatter / bubble matrix) ──
+     Replaces the earlier "Top Departments by Revenue" bar — that repeated the
      revenue ranking the DCS treemap beside it already shows. This adds a NEW
      analytical dimension: each department is plotted by Revenue (x) vs GP% (y)
      with bubble size = units sold, coloured by GP tier. It reveals the
      high-revenue-but-low-margin vs high-margin-niche departments the treemap
-     cannot convey. A dashed line marks the average GP%. â”€â”€ */
+     cannot convey. A dashed line marks the average GP%. ── */
   const deptOpt = useMemo(() => {
     const all = (deptData ?? []) as any[]
     if (!all.length) return {}
@@ -327,7 +327,7 @@ export default function Products() {
     }
   }, [deptData])
 
-  /* â”€â”€ Chart: DCS Sunburst (Dept â†’ Class â†’ Subclass) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Chart: DCS Sunburst (Dept → Class → Subclass) ───────────── */
   const sunburstOpt = useMemo(() => {
     const rows = (dcsData ?? []) as any[]
     if (!rows.length) return {}
@@ -369,7 +369,7 @@ export default function Products() {
       deptMap[dept].classMap[cls].subMap[sub] += rev
     })
 
-    /* Grand total across all leaves â€” for share-of-total in the tooltip */
+    /* Grand total across all leaves — for share-of-total in the tooltip */
     const grandTotal = rows.reduce((s, r) => s + +(r.revenue ?? 0), 0)
 
     /* Flatten to ECharts sunburst format */
@@ -393,7 +393,7 @@ export default function Products() {
       tooltip: {
         formatter: (p: any) => {
           const trail = (p.treePathInfo as any[] ?? []).slice(1)
-          const path  = trail.map((n: any) => n.name).join(' â€º ')
+          const path  = trail.map((n: any) => n.name).join(' › ')
           // Depth-aware label: Dept / Class / Subclass
           const level = ['Department', 'Class', 'Subclass'][trail.length - 1] ?? ''
           const shr   = grandTotal > 0 ? (+p.value / grandTotal * 100).toFixed(1) : '0'
@@ -402,7 +402,7 @@ export default function Products() {
             <b>${path || p.name}</b><br/>
             Revenue: <b>${(+p.value).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
             Share of total: ${shr}%<br/>
-            <span style="font-size:10px;color:#94a3b8">Click a box to drill down Â· breadcrumb to go back</span>
+            <span style="font-size:10px;color:#94a3b8">Click a box to drill down · breadcrumb to go back</span>
           </div>`
         },
       },
@@ -412,7 +412,7 @@ export default function Products() {
         roam:          false,
         nodeClick:     'zoomToNode',
         leafDepth:     2,            // show Dept â†’ Class at once; click to drill into Subclass
-        drillDownIcon: 'â–¸',
+        drillDownIcon: '▸',
         width:  '100%', height: '100%',
         top: 4, left: 4, right: 4, bottom: 26,
         visibleMin: 300,            // suppress unreadable slivers; still reachable via drill
@@ -454,7 +454,7 @@ export default function Products() {
     }
   }, [dcsData])
 
-  /* â”€â”€ Chart: Vendor bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── Chart: Vendor bar ────────────────────────────────────────── */
   const vendorOpt = useMemo(() => {
     const rows  = ((vendorData ?? []) as any[]).slice(0, 10).reverse()
     const names = rows.map(r => r.name ?? '(Unknown)')
@@ -508,7 +508,7 @@ export default function Products() {
     }
   }, [vendorData])
 
-  /* â”€â”€ AG Grid columns per view tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── AG Grid columns per view tab ─────────────────────────────── */
   const tableCols = useMemo<ColDef[]>(() => {
     const rows   = (tableData ?? []) as any[]
     const maxRev = rows.length ? Math.max(...rows.map(r => +(r.revenue ?? 0))) : 1
@@ -544,7 +544,7 @@ export default function Products() {
         cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' },
       },
       { field: 'VEND_NAME', headerName: 'Item Vendor', width: 160,
-        headerTooltip: 'Vendor from the item master (catalog) â€” not necessarily the supplier purchased from' },
+        headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
       { field: 'DCS_CODE',  headerName: 'DCS Code', width: 100, cellStyle: { fontSize: 11, color: C_SLATE, display: 'flex', alignItems: 'center' } },
       qtyCol, revCol, gpCol, gpPctCol,
       ...itemFieldCols(itemFields),
@@ -569,7 +569,7 @@ export default function Products() {
       rankCol,
       {
         field: 'name', headerName: 'Item Vendor', width: 240, pinned: 'left',
-        headerTooltip: 'Vendor from the item master (catalog) â€” not necessarily the supplier purchased from',
+        headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from',
         cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' },
       },
       qtyCol, revCol, gpCol, gpPctCol,
@@ -588,11 +588,11 @@ export default function Products() {
   const gpColor = kpi.gpPct >= 30 ? 'var(--rt-pos-fg)' : kpi.gpPct >= 10 ? 'var(--rt-warn-fg)' : 'var(--rt-neg-fg)'
   const gpLabel = kpi.gpPct >= 30 ? 'Excellent margin' : kpi.gpPct >= 10 ? 'Healthy margin' : 'Low margin'
 
-  /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ─────────────────────────────────────────────────────────────── */
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
 
-      {/* â”€â”€ Sticky header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Sticky header ──────────────────────────────────────── */}
       <Box sx={{
         position: 'sticky', top: 0, zIndex: 10, bgcolor: 'var(--rt-surface)',
         borderBottom: '1px solid var(--rt-border)', px: 3, pt: 3, pb: 2,
@@ -621,7 +621,7 @@ export default function Products() {
 
           <Divider orientation="vertical" flexItem className="rt-mobile-hide" sx={{ borderColor: 'var(--rt-border)', mx: 0.5 }} />
 
-          {/* Custom date range â€” hidden on mobile (keep period chips) */}
+          {/* Custom date range — hidden on mobile (keep period chips) */}
           <Box className="rt-mobile-hide" sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', rowGap: 1 }}>
             <CalendarMonthIcon sx={{ fontSize: 16, color: C_SLATE }} />
             <TextField type="date" size="small" label="From" value={customFrom}
@@ -660,7 +660,7 @@ export default function Products() {
         </Box>
       </Box>
 
-      {/* â”€â”€ KPI strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── KPI strip ──────────────────────────────────────────── */}
       <Box sx={{ display: 'flex', gap: 2, px: 3, flexWrap: 'wrap' }}>
         <KpiCard label="Total Revenue"  value={money(kpi.totalRev)} icon="ti-cash" />
         <KpiCard label="Total GP"       value={money(kpi.totalGP)}
@@ -672,36 +672,36 @@ export default function Products() {
           sub="active in period" color={ACCENT} icon="ti-category" />
       </Box>
 
-      {/* â”€â”€ Row 1: Treemap (left) + Sunburst (centre, wider) â”€â”€â”€â”€â”€ */}
+      {/* ── Row 1: Treemap (left) + Sunburst (centre, wider) ───── */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1.2fr' }, gap: 2, px: 3 }}>
         <ChartCard
           title="Department Margin vs Volume"
-          subtitle="Revenue Ã— GP% Â· bubble size = units sold"
+          subtitle="Revenue × GP% · bubble size = units sold"
           option={deptOpt}
           height={440}
           loading={deptLoad}
         />
         <ChartCard
-          title="DCS Hierarchy â€” Treemap"
-          subtitle="Department â€º Class â€º Subclass Â· click a box to drill down Â· breadcrumb to go back"
+          title="DCS Hierarchy — Treemap"
+          subtitle="Department › Class › Subclass · click a box to drill down · breadcrumb to go back"
           option={sunburstOpt}
           height={440}
           loading={dcsLoad}
         />
       </Box>
 
-      {/* â”€â”€ Row 2: Vendor bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Row 2: Vendor bar ─────────────────────────────────── */}
       <Box sx={{ px: 3 }}>
         <ChartCard
           title="Top Item Vendors"
-          subtitle="Item-master (catalog) vendor Â· revenue ranking Â· GP% annotated"
+          subtitle="Item-master (catalog) vendor · revenue ranking · GP% annotated"
           option={vendorOpt}
           height={240}
           loading={vendorLoad}
         />
       </Box>
 
-      {/* â”€â”€ Detail grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Detail grid ───────────────────────────────────────── */}
       <Box sx={{ px: 3, pb: 3 }}>
         <Card elevation={0} sx={{ border: '1px solid var(--rt-border)', borderRadius: 2.5 }}>
           <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
@@ -724,18 +724,18 @@ export default function Products() {
               </Box>
               {view === 'dcs' && (
                 <Typography sx={{ fontSize: 11, color: C_SLATE, fontStyle: 'italic' }}>
-                  {tr('DCS = Department Â· Class Â· Subclass')}
+                  {tr('DCS = Department · Class · Subclass')}
                 </Typography>
               )}
               {view === 'item' && (
                 <Typography sx={{ fontSize: 11, color: C_SLATE }}>
-                  {tr('Showing')} <b style={{ color: ACCENT }}>{productCodeField.toUpperCase()}</b> {tr('code Â· change in Settings')}
+                  {tr('Showing')} <b style={{ color: ACCENT }}>{productCodeField.toUpperCase()}</b> {tr('code · change in Settings')}
                 </Typography>
               )}
               </Box>
               <GridExportBar gridRef={gridRef} filename="products_detail" title="Product Performance"
                 view={tr(VIEW_LABELS[view])}
-                filters={`${appliedFrom} â†’ ${appliedTo} Â· ${selectedStores.length ? `${selectedStores.length} ${tr('store(s)')}` : tr('All stores')}`}
+                filters={`${appliedFrom} → ${appliedTo} · ${selectedStores.length ? `${selectedStores.length} ${tr('store(s)')}` : tr('All stores')}`}
                 reportEndpoint="/api/sales/products" reportPeriod={period ?? 'custom'}
                 reportParams={{
                   date_from: from, date_to: to, group_by: view,

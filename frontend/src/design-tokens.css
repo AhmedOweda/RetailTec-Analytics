@@ -62,6 +62,19 @@ html[data-theme="dark"] {
 /* Dark-mode touch-ups for surfaces MUI's theme doesn't reach */
 html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #4E2A99; }
 
+/* Inputs: MUI's default outline is nearly invisible on the dark page, so text
+   fields and selects read as floating text with no box. Lift the outline and
+   the placeholder so every filter control is clearly a control. */
+html[data-theme="dark"] .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(155,101,208,0.38);
+}
+html[data-theme="dark"] .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(155,101,208,0.60);
+}
+html[data-theme="dark"] .MuiInputBase-input::placeholder { color: #B9A7D8; opacity: 0.75; }
+/* The label sits in a chip cut into the outline — it must match the field fill */
+html[data-theme="dark"] label.MuiInputLabel-root { color: #C8A8E8; }
+
 /* react-datepicker ships its own light chrome */
 html[data-theme="dark"] .react-datepicker {
   background: #160D3A !important;
