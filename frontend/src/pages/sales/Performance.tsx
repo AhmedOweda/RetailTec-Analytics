@@ -218,7 +218,7 @@ export default function Performance() {
           const pct = avg > 0 ? ((v - avg) / avg * 100).toFixed(1) : '0'
           const sign = +pct >= 0 ? '+' : ''
           return `<div style="min-width:190px">
-            <b style="color:#0f172a">${p[0].name}</b><br/>
+            <b style="color:var(--rt-text)">${p[0].name}</b><br/>
             <span style="color:#64748b">Net Sales:</span> <b>${v.toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>
             <span style="color:#64748b">Invoices:</span> ${(+r.invoice_count||0).toLocaleString()}<br/>
             <span style="color:#64748b">Avg Basket:</span> ${r.invoice_count ? (v/(+r.invoice_count)).toLocaleString('en-US',{maximumFractionDigits:0}) : 'â€”'}<br/>
@@ -469,7 +469,7 @@ export default function Performance() {
       { field:'disc_rate',     headerName:'Disc %',     width:90,  type:'numericColumn',
         valueFormatter:(p:any) => `${p.value ?? 0}%`,
         cellStyle:(p:any) => ({
-          color:           (p.value??0)>10 ? '#92400e'  : '#1e293b',
+          color:           (p.value??0)>10 ? '#92400e'  : 'var(--rt-text)',
           fontWeight:      (p.value??0)>10 ? 700 : 400,
           backgroundColor: (p.value??0)>10 ? '#fef3c7' : 'transparent',
           display:'flex', alignItems:'center',
@@ -477,7 +477,7 @@ export default function Performance() {
       { field:'return_rate',   headerName:'Return %',   width:100, type:'numericColumn',
         valueFormatter:(p:any) => `${p.value ?? 0}%`,
         cellStyle:(p:any) => ({
-          color:           (p.value??0)>5 ? '#991b1b'  : '#1e293b',
+          color:           (p.value??0)>5 ? '#991b1b'  : 'var(--rt-text)',
           fontWeight:      (p.value??0)>5 ? 700 : 400,
           backgroundColor: (p.value??0)>5 ? '#fee2e2' : 'transparent',
           display:'flex', alignItems:'center',

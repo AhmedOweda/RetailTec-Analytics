@@ -102,7 +102,7 @@ function Stat({ label, value, red = false }: { label:string; value:string|number
                         textTransform:'uppercase', letterSpacing:0.8 }}>
         {label}
       </Typography>
-      <Typography sx={{ fontSize:13, fontWeight:700, color: red ? '#ef4444' : '#1e293b' }}>
+      <Typography sx={{ fontSize:13, fontWeight:700, color: red ? '#ef4444' : 'var(--rt-text)' }}>
         {value}
       </Typography>
     </Box>
@@ -212,7 +212,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
                 </Typography>
                 {/* Count */}
                 <Typography sx={{ fontSize:13, fontWeight:700, mt:0.15,
-                                  color: ret > 0 ? '#ef4444' : '#1e293b' }}>
+                                  color: ret > 0 ? '#ef4444' : 'var(--rt-text)' }}>
                   {fmtInt(ret)}
                 </Typography>
                 {/* Value + Rate badge on same row */}
@@ -433,7 +433,7 @@ export default function Overview() {
             </div>`
           }).join('')
           return `<div style="min-width:195px;padding:4px 2px">
-            <div style="font-weight:700;color:#0f172a;margin-bottom:5px;font-size:12px">${day}</div>
+            <div style="font-weight:700;color:var(--rt-text);margin-bottom:5px;font-size:12px">${day}</div>
             ${lines}
           </div>`
         },

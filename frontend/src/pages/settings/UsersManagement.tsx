@@ -281,7 +281,7 @@ export default function UsersManagement() {
     <Box sx={{ p: 3, maxWidth: 960, mx: 'auto' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Box>
-          <Typography variant="h5" fontWeight={700} color="#0f172a">{tr('Users Management')}<TitleLoader /></Typography>
+          <Typography variant="h5" fontWeight={700} color="var(--rt-text)">{tr('Users Management')}<TitleLoader /></Typography>
           <Typography variant="body2" color="#64748b" mt={0.5}>
             {tr('Manage who can access RetailTec Analytics and what they can see.')}
           </Typography>
@@ -452,7 +452,7 @@ export default function UsersManagement() {
           {/* ── Store Access ─────────────────────────────────────────── */}
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
-              <Typography fontSize={12} fontWeight={600} color="#475569"
+              <Typography fontSize={12} fontWeight={600} color="var(--rt-text-2)"
                 sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <StorefrontIcon sx={{ fontSize: 15 }} /> {tr('Store Access')}
               </Typography>
@@ -480,7 +480,7 @@ export default function UsersManagement() {
           {subsidiaryList.length > 1 && (
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.8 }}>
-                <Typography fontSize={12} fontWeight={600} color="#475569"
+                <Typography fontSize={12} fontWeight={600} color="var(--rt-text-2)"
                   sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <StorefrontIcon sx={{ fontSize: 15 }} /> {tr('Subsidiaries')}
                 </Typography>
@@ -554,7 +554,7 @@ export default function UsersManagement() {
             return (
               <Box>
                 <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between', mb:0.8 }}>
-                  <Typography fontSize={12} fontWeight={600} color="#475569"
+                  <Typography fontSize={12} fontWeight={600} color="var(--rt-text-2)"
                     sx={{ display:'flex', alignItems:'center', gap:0.5 }}>
                     <SecurityIcon sx={{ fontSize:15 }} /> {tr('Page Access')}
                   </Typography>
@@ -578,7 +578,7 @@ export default function UsersManagement() {
                               sx={{ p:0.4, color:'#6366f1', '&.Mui-checked':{ color:'#6366f1' },
                                     '&.MuiCheckbox-indeterminate':{ color:'#6366f1' } }} />
                           }
-                          label={<Typography fontSize={12} fontWeight={700} color="#334155">{tr(dom.domain)}</Typography>}
+                          label={<Typography fontSize={12} fontWeight={700} color="var(--rt-text-2)">{tr(dom.domain)}</Typography>}
                         />
                         {dom.pages.map(p => (
                           <FormControlLabel key={p.key} sx={{ display:'flex', ml:1, mb:-0.6 }}
@@ -587,7 +587,7 @@ export default function UsersManagement() {
                                 onChange={() => togglePage(p.key)}
                                 sx={{ p:0.4, color:'#94a3b8', '&.Mui-checked':{ color:'#6366f1' } }} />
                             }
-                            label={<Typography fontSize={12} color="#475569">{tr(p.label)}</Typography>}
+                            label={<Typography fontSize={12} color="var(--rt-text-2)">{tr(p.label)}</Typography>}
                           />
                         ))}
                       </Box>
@@ -648,7 +648,7 @@ export default function UsersManagement() {
                   )}
                 </Box>
                 {items.map(item => (
-                  <Typography key={item} fontSize={12} color="#475569" sx={{ pl: 1.5, mb: 0.3 }}>
+                  <Typography key={item} fontSize={12} color="var(--rt-text-2)" sx={{ pl: 1.5, mb: 0.3 }}>
                     ✓ {tr(item)}
                   </Typography>
                 ))}
