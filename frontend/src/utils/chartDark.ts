@@ -56,16 +56,17 @@ const isWhiteish = (c: unknown) =>
 /** Recolour a label object: its own colour, its chip, and any rich sub-styles. */
 function themeLabel(lb: any): any {
   if (!lb || typeof lb !== 'object') return lb
-  const out: any = { ...lb }
+  let out: any = { ...lb }
   if (isUnreadable(lb.color)) out.color = fix(lb.color)
   if (isWhiteish(lb.backgroundColor)) out.backgroundColor = 'rgba(22,13,58,0.85)'
+  out = noHalo(out)                       // drop the implicit white text stroke
   if (lb.rich && typeof lb.rich === 'object') {
     const rich: any = {}
     for (const [k, v] of Object.entries<any>(lb.rich)) {
       rich[k] = v && typeof v === 'object'
-        ? { ...v,
+        ? noHalo({ ...v,
             ...(isUnreadable(v.color) ? { color: fix(v.color) } : {}),
-            ...(isWhiteish(v.backgroundColor) ? { backgroundColor: 'rgba(22,13,58,0.85)' } : {}) }
+            ...(isWhiteish(v.backgroundColor) ? { backgroundColor: 'rgba(22,13,58,0.85)' } : {}) })
         : v
     }
     out.rich = rich
@@ -73,11 +74,29 @@ function themeLabel(lb: any): any {
   return out
 }
 
+/**
+ * Kill ECharts' implicit WHITE text halo.
+ *
+ * ECharts stamps a white `textBorder` around label text so it stays readable on
+ * top of coloured graphics. On a white page that halo is invisible; on a dark
+ * one it becomes a bright outline around every glyph, which reads as doubled or
+ * blurred text ("grey outlined with white").
+ *
+ * Only the implicit/white case is removed — a chart that deliberately sets its
+ * own dark outline (e.g. the treemap labels drawn over bright tiles) keeps it.
+ */
+function noHalo(o: Record<string, any>): Record<string, any> {
+  const hasOwn = o.textBorderWidth !== undefined || o.textBorderColor !== undefined
+  if (!hasOwn) return { ...o, textBorderWidth: 0 }
+  if (isWhiteish(o.textBorderColor)) return { ...o, textBorderWidth: 0 }
+  return o
+}
+
 /** Recolour a text-bearing sub-object (axisLabel, nameTextStyle, textStyle…). */
 function ink<T extends Record<string, any> | undefined>(o: T, color: string): T {
-  if (o === undefined) return { color } as T
+  if (o === undefined) return { color, textBorderWidth: 0 } as T
   if (typeof o !== 'object' || o === null) return o
-  return { ...o, color } as T
+  return noHalo({ ...o, color }) as T
 }
 
 /** Recolour a lineStyle-bearing sub-object (axisLine, splitLine). */
@@ -110,7 +129,10 @@ function themeSeries(series: any): any {
   const one = (s: any) => {
     if (!s || typeof s !== 'object') return s
     const out: any = { ...s }
-    if (s.label)      out.label      = themeLabel(s.label)
+    // Always pass through themeLabel — even when the series defines no label —
+    // so the implicit white halo is cleared on series that draw labels by
+    // default (pie/treemap). It does not switch labels on: `show` is untouched.
+    out.label = themeLabel(s.label || {})
     if (s.labelLine)  out.labelLine  = s.labelLine
     if (s.emphasis?.label) {
       out.emphasis = { ...s.emphasis, label: themeLabel(s.emphasis.label) }
