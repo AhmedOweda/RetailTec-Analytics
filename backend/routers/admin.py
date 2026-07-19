@@ -258,6 +258,15 @@ def compact(_admin: dict = Depends(require_admin)):
 
 # ── Email (SMTP) ───────────────────────────────────────────────────────────────
 
+def _report_rows_default() -> int:
+    """The built-in cap used when max_report_rows is 0/blank."""
+    try:
+        from services.report_grid import _MAX_ROWS
+        return int(_MAX_ROWS)
+    except Exception:
+        return 0
+
+
 class EmailCfg(BaseModel):
     host:      str = ""
     port:      int = 587
@@ -265,6 +274,9 @@ class EmailCfg(BaseModel):
     password:  Optional[str] = None   # None = keep stored password
     from_addr: str = ""
     use_tls:   bool = True
+    # Body/content preferences for every generated email
+    include_preview:  bool = False    # embed a sample of the rows in the body
+    max_report_rows:  int  = 0        # 0 = use the built-in default cap
 
 
 @router.get("/api/admin/email")
@@ -278,6 +290,10 @@ def get_email(_admin: dict = Depends(require_admin)):
         "from_addr": email.get("from_addr", ""),
         "use_tls":   email.get("use_tls", True),
         "has_password": bool(email.get("password")),
+        "include_preview": bool(email.get("include_preview", False)),
+        "max_report_rows": int(email.get("max_report_rows") or 0),
+        # so the UI can show what 0 actually means
+        "max_report_rows_default": _report_rows_default(),
     }
 
 
@@ -289,6 +305,8 @@ def put_email(cfg: EmailCfg, _admin: dict = Depends(require_admin)):
         "host": cfg.host.strip(), "port": cfg.port,
         "username": cfg.username.strip(),
         "from_addr": cfg.from_addr.strip(), "use_tls": cfg.use_tls,
+        "include_preview": bool(cfg.include_preview),
+        "max_report_rows": max(0, int(cfg.max_report_rows or 0)),
     })
     if cfg.password:                       # empty/None = keep existing
         email["password"] = cfg.password

@@ -1435,7 +1435,9 @@ function MaintenanceCard() {
 /* ── Email (SMTP) card ───────────────────────────────────────────────────────── */
 function EmailCard() {
   const [cfg, setCfg] = useState({ host:'', port:587, username:'', password:'',
-                                   from_addr:'', use_tls:true, has_password:false })
+                                   from_addr:'', use_tls:true, has_password:false,
+                                   include_preview:false, max_report_rows:0,
+                                   max_report_rows_default:0 })
   const [testTo, setTestTo] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -1453,6 +1455,8 @@ function EmailCard() {
       host: cfg.host, port: +cfg.port, username: cfg.username,
       password: cfg.password || null,   // empty = keep stored
       from_addr: cfg.from_addr, use_tls: cfg.use_tls,
+      include_preview: cfg.include_preview,
+      max_report_rows: +cfg.max_report_rows || 0,
     }),
     onSuccess: () => { setErr(null); setMsg(tr('Email settings saved')) },
     onError: (e: any) => { setMsg(null); setErr(e?.response?.data?.detail ?? tr('Save failed')) },
@@ -1493,6 +1497,33 @@ function EmailCard() {
           control={<Switch size="small" checked={cfg.use_tls}
             onChange={e => setCfg({ ...cfg, use_tls: e.target.checked })} />}
           label={<Typography sx={{ fontSize:12.5, color: 'var(--rt-text-2)' }}>{tr('Use TLS')}</Typography>} />
+      </Box>
+
+      {/* ── What goes in the email body ─────────────────────────────────── */}
+      <Typography sx={{ fontSize:11, fontWeight:700, color:'var(--rt-text-2)',
+                        textTransform:'uppercase', letterSpacing:0.6, mt:2.5, mb:1 }}>
+        {tr('Email content')}
+      </Typography>
+      <Box sx={{ display:'flex', gap:3, alignItems:'flex-start', flexWrap:'wrap' }}>
+        <Box sx={{ maxWidth:420 }}>
+          <FormControlLabel
+            control={<Switch size="small" checked={!!cfg.include_preview}
+              onChange={e => setCfg({ ...cfg, include_preview: e.target.checked })} />}
+            label={<Typography sx={{ fontSize:12.5, color: 'var(--rt-text-2)' }}>
+              {tr('Include a data sample in the email body')}</Typography>} />
+          <Typography sx={{ fontSize:11.5, color:'#94a3b8', mt:0.3 }}>
+            {tr('Off (recommended): the email carries only a summary of what was sent — the rows travel in the attachment. Applies to scheduled reports and alert digests.')}
+          </Typography>
+        </Box>
+        <LabeledCtl label="Max rows per emailed report">
+          <TextField size="small" type="number" sx={{ width:190 }}
+            value={cfg.max_report_rows}
+            onChange={e => setCfg({ ...cfg, max_report_rows: Math.max(0, +e.target.value || 0) })}
+            helperText={cfg.max_report_rows
+              ? tr('Rows beyond this are cut from the file.')
+              : `${tr('Using the default')}: ${(cfg.max_report_rows_default || 0).toLocaleString()}`}
+            FormHelperTextProps={{ sx:{ fontSize:11, color:'#94a3b8', mx:0 } }} />
+        </LabeledCtl>
       </Box>
       <Box sx={{ display:'flex', gap:2, alignItems:'flex-end', flexWrap:'wrap' }}>
         <Button variant="contained" size="small" disabled={save.isPending}

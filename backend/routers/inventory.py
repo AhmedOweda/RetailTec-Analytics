@@ -1114,7 +1114,10 @@ def invh_details(
     date_to:   date = Query(...),
     stores:    Optional[str] = Depends(scoped_stores),
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
-    limit:     int = Query(1000, ge=1, le=100000),
+    # No cap unless the caller asks — matches the other *_details grids
+    # (transfers/adjustments/purchases). The old default of 1000 silently
+    # truncated a SCHEDULED History export to 1,000 rows.
+    limit:     Optional[int] = Query(None, ge=1, le=1000000),
 ):
     """Raw inventory history rows for AG Grid."""
     sf, sp = store_filter(stores, alias="S")
@@ -1139,7 +1142,7 @@ def invh_details(
         LEFT JOIN DIM_VENDOR  V  ON V.SID  = I.VEND_SID
         WHERE FH.ACTION_DATE BETWEEN ? AND ? {sf} {subf}
         ORDER BY FH.ACTION_DATE DESC, FH.HISTORY_SID DESC
-        LIMIT {limit}
+        {f'LIMIT {int(limit)}' if limit else ''}
     """, [date_from, date_to] + sp + subp)
 
 

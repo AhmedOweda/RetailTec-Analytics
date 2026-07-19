@@ -338,6 +338,26 @@ def _alert_offenders(condition: str, threshold: float, df: str, dt: str) -> list
     return []
 
 
+def get_email_prefs() -> dict:
+    """Email-body preferences, admin-editable in Settings → Reports & Email.
+
+    include_preview: embed a sample of the rows in the email body. Default OFF
+        (owner request 19 Jul 2026 — "no email data preview at any email").
+        The data always travels in the attachment.
+    max_report_rows: hard cap for a server-generated report. 0/blank = use the
+        built-in default (see report_grid._MAX_ROWS).
+    """
+    e = load_settings().get("email") or {}
+    try:
+        cap = int(e.get("max_report_rows") or 0)
+    except (TypeError, ValueError):
+        cap = 0
+    return {
+        "include_preview": bool(e.get("include_preview", False)),
+        "max_report_rows": cap if cap > 0 else 0,
+    }
+
+
 def _send_alert_digest(rule: dict, rows: list[dict], day: str) -> None:
     import csv, io
     from services import report_grid
@@ -351,9 +371,14 @@ def _send_alert_digest(rule: dict, rows: list[dict], day: str) -> None:
     recipients = [x.strip() for x in (rule.get("recipients") or "").split(",") if x.strip()]
     subject = f"Alert: {rule.get('name')} — {day} ({len(rows)})"
     fname = f"alert_{rule.get('condition')}_{day}.csv"
-    details = {"Alert": rule.get("name"), "Day": day, "Matches": f"{len(rows):,}"}
-    preview = report_grid.build_preview_html(
-        {"columns": [{"id": c, "label": c} for c in cols]}, rows)
+    details = {"Alert": rule.get("name"), "Day": day, "Matches": f"{len(rows):,}",
+               "Columns": f"{len(cols):,}",
+               "Attachment": f"{fname}  ({len(content) / 1024:,.0f} KB)"}
+    # Row sample only when the admin has explicitly enabled it (default OFF).
+    preview = ""
+    if get_email_prefs()["include_preview"]:
+        preview = report_grid.build_preview_html(
+            {"columns": [{"id": c, "label": c} for c in cols]}, rows)
     send_attachment(recipients, subject, f"Automatic governance alert for {day}.",
                     fname, content, "text/csv", details, extra_html=preview)
 
@@ -436,9 +461,14 @@ def _send_grid_report(report: dict) -> str:
     details["Columns"] = f"{len(report_grid._columns(report, rows)):,}"
     details["Attachment"] = f"{filename}  ({len(content) / 1024:,.0f} KB)"
 
-    # extra_html deliberately omitted — no inline row preview / data sample.
+    # Row sample only when the admin has explicitly enabled it (default OFF);
+    # never for PDF, where the attachment already is the visual.
+    preview = ""
+    if fmt != "pdf" and get_email_prefs()["include_preview"]:
+        preview = report_grid.build_preview_html(report, rows)
+
     return send_attachment(recipients, subject, None, filename, content,
-                           mime, details)
+                           mime, details, extra_html=preview)
 
 
 def send_one(report: dict) -> str:
