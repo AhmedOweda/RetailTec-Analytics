@@ -1,4 +1,4 @@
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '../ReactEChartsThemed'
 import type { MonthlyRow } from '../../types'
 import { sar } from '../../utils/formatters'
 

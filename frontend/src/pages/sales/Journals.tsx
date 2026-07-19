@@ -174,7 +174,7 @@ export default function Journals() {
   const heat = (v: number) => {
     const a = Math.min(0.85, Math.abs(v) / maxPrice)
     return { backgroundColor: `rgba(220,38,38,${(a * 0.6).toFixed(3)})`,
-             color: a > 0.6 ? '#fff' : '#0f172a', fontWeight: 600 }
+             color: a > 0.6 ? '#fff' : 'var(--rt-text)', fontWeight: 600 }
   }
 
   const kpi = useMemo(() => {

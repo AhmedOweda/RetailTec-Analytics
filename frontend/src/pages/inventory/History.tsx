@@ -4,7 +4,7 @@ import axios from 'axios'
 import {
   Box, Typography, Stack, TextField, MenuItem, Card, CardContent,
 } from '@mui/material'
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '../../components/ReactEChartsThemed'
 import { AgGridReact } from 'ag-grid-react'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'

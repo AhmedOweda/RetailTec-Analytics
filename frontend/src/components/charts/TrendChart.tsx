@@ -1,4 +1,4 @@
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '../ReactEChartsThemed'
 import type { TrendRow } from '../../types'
 import { sar } from '../../utils/formatters'
 

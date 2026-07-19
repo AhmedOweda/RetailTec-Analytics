@@ -10,7 +10,7 @@ import {
 } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import axios from 'axios'
-import ReactECharts from 'echarts-for-react'
+import ReactECharts from '../../components/ReactEChartsThemed'
 import KpiCard      from '../../components/KpiCard'
 import { moneyPrefix, money, num, moneyExact } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'

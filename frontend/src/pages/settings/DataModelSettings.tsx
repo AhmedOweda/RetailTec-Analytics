@@ -353,7 +353,7 @@ export default function DataModelSettings() {
               bgcolor: tab===c.i ? `${ACCENT}0F` : 'transparent',
               '&:hover':{ bgcolor: tab===c.i ? `${ACCENT}18` : '#f4f5f9' } }}>
               <Typography sx={{ fontSize:13.5, fontWeight: tab===c.i ? 700 : 600,
-                                color: tab===c.i ? ACCENT : '#334155' }}>{tr(c.label)}</Typography>
+                                color: tab===c.i ? ACCENT : 'var(--rt-text-2)' }}>{tr(c.label)}</Typography>
               <Typography sx={{ fontSize:11, color:'#94a3b8' }}>{tr(c.desc)}</Typography>
             </Box>
           ))}
