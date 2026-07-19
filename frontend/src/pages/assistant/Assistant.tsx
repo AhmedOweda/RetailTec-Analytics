@@ -370,7 +370,7 @@ export default function Assistant() {
                 <IconButton onClick={() => send()} disabled={disabled || !input.trim()}
                   sx={{ background: GRAD, color: '#fff', width: 38, height: 38,
                         '&:hover': { background: GRAD, filter: 'brightness(1.08)' },
-                        '&.Mui-disabled': { background: '#e2e8f0', color: '#fff' } }}>
+                        '&.Mui-disabled': { background: 'var(--rt-surface-3)', color: '#fff' } }}>
                   <SendIcon sx={{ fontSize: 20 }} />
                 </IconButton>
               </InputAdornment>

@@ -315,7 +315,7 @@ export default function Products() {
           show: true, position: 'top', fontSize: 10, color: 'var(--rt-text-2)', fontWeight: 600,
           formatter: (p: any) => p.data?.name ?? '',
         },
-        emphasis: { focus: 'self', label: { fontWeight: 800, color: 'var(--rt-text)' } },
+        emphasis: { focus: 'self', label: { fontWeight: 800, color: '#0f172a' } },
         labelLayout: { hideOverlap: true },
         markLine: {
           silent: true, symbol: 'none',
@@ -613,7 +613,7 @@ export default function Products() {
                   bgcolor:    period === p.label ? ACCENT  : 'transparent',
                   color:      period === p.label ? '#fff'  : '#64748b',
                   boxShadow:  period === p.label ? '0 2px 8px rgba(124,58,237,.35)' : 'none',
-                  '&:hover':  { bgcolor: period === p.label ? ACCENT2 : '#e2e8f0' },
+                  '&:hover':  { bgcolor: period === p.label ? ACCENT2 : 'var(--rt-surface-3)' },
                 }}
               />
             ))}
@@ -717,7 +717,7 @@ export default function Products() {
                       bgcolor:    view === v ? ACCENT  : 'transparent',
                       color:      view === v ? '#fff'  : '#64748b',
                       boxShadow:  view === v ? '0 2px 8px rgba(124,58,237,.35)' : 'none',
-                      '&:hover':  { bgcolor: view === v ? ACCENT2 : '#e2e8f0' },
+                      '&:hover':  { bgcolor: view === v ? ACCENT2 : 'var(--rt-surface-3)' },
                     }}
                   />
                 ))}

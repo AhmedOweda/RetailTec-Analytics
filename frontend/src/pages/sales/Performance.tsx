@@ -537,7 +537,7 @@ export default function Performance() {
                   bgcolor: period===p.label ? ACCENT  : 'transparent',
                   color:   period===p.label ? '#fff'  : '#64748b',
                   boxShadow: period===p.label ? '0 2px 8px rgba(124,58,237,.35)' : 'none',
-                  '&:hover':{ bgcolor: period===p.label ? ACCENT2 : '#e2e8f0' } }}
+                  '&:hover':{ bgcolor: period===p.label ? ACCENT2 : 'var(--rt-surface-3)' } }}
               />
             ))}
           </Box>

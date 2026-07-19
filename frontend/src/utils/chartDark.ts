@@ -29,12 +29,49 @@ export const CHART_DARK = {
 }
 
 /** Light-mode text colours that are unreadable on a dark surface. */
-const DARK_ON_DARK = new Set([
-  '#0f172a', '#1e293b', '#334155', '#475569', '#1a0d45', '#4e3a72', '#64748b',
-])
+const DARK_ON_DARK: Record<string, string> = {
+  '#0f172a': CHART_DARK.labelText, '#1e293b': CHART_DARK.labelText,
+  '#1a0d45': CHART_DARK.labelText, '#334155': CHART_DARK.axisText,
+  '#475569': CHART_DARK.axisText,  '#4e3a72': CHART_DARK.axisText,
+  '#64748b': CHART_DARK.axisText,
+  // semantic dark statuses -> their light-on-dark equivalents
+  '#065f46': '#6EE7B7', '#15803d': '#6EE7B7', '#166534': '#6EE7B7',
+  '#991b1b': '#FCA5A5', '#7f1d1d': '#FCA5A5', '#b91c1c': '#FCA5A5',
+  '#78350f': '#FCD34D', '#92400e': '#FCD34D',
+}
 
 const isUnreadable = (c: unknown) =>
-  typeof c === 'string' && DARK_ON_DARK.has(c.toLowerCase())
+  typeof c === 'string' && c.toLowerCase() in DARK_ON_DARK
+
+/** Swap an unreadable colour for its dark-mode counterpart (else keep it). */
+const fix = (c: unknown) =>
+  (typeof c === 'string' && DARK_ON_DARK[c.toLowerCase()]) || c
+
+/** Near-white label chips (e.g. rgba(255,255,255,0.85)) become dark plates. */
+const isWhiteish = (c: unknown) =>
+  typeof c === 'string' &&
+  (/^#f{3,6}$/i.test(c.replace(/[^#0-9a-f]/gi, '')) ||
+   /rgba?\(\s*2[45][0-9]\s*,\s*2[45][0-9]\s*,\s*2[45][0-9]/i.test(c))
+
+/** Recolour a label object: its own colour, its chip, and any rich sub-styles. */
+function themeLabel(lb: any): any {
+  if (!lb || typeof lb !== 'object') return lb
+  const out: any = { ...lb }
+  if (isUnreadable(lb.color)) out.color = fix(lb.color)
+  if (isWhiteish(lb.backgroundColor)) out.backgroundColor = 'rgba(22,13,58,0.85)'
+  if (lb.rich && typeof lb.rich === 'object') {
+    const rich: any = {}
+    for (const [k, v] of Object.entries<any>(lb.rich)) {
+      rich[k] = v && typeof v === 'object'
+        ? { ...v,
+            ...(isUnreadable(v.color) ? { color: fix(v.color) } : {}),
+            ...(isWhiteish(v.backgroundColor) ? { backgroundColor: 'rgba(22,13,58,0.85)' } : {}) }
+        : v
+    }
+    out.rich = rich
+  }
+  return out
+}
 
 /** Recolour a text-bearing sub-object (axisLabel, nameTextStyle, textStyle…). */
 function ink<T extends Record<string, any> | undefined>(o: T, color: string): T {
@@ -63,19 +100,23 @@ function themeAxis(axis: any): any {
   return Array.isArray(axis) ? axis.map(one) : one(axis)
 }
 
-/** Series labels: only repaint ones that were an unreadable dark colour. */
+/**
+ * Series: repaint labels (including rich sub-styles, white label chips and the
+ * emphasis/hover label) plus markLine/markPoint labels. Bar/line fill colours
+ * are left alone — those are deliberate brand/semantic choices.
+ */
 function themeSeries(series: any): any {
   if (!series) return series
   const one = (s: any) => {
     if (!s || typeof s !== 'object') return s
     const out: any = { ...s }
-    if (s.label && isUnreadable(s.label.color)) {
-      out.label = { ...s.label, color: CHART_DARK.labelText }
+    if (s.label)      out.label      = themeLabel(s.label)
+    if (s.labelLine)  out.labelLine  = s.labelLine
+    if (s.emphasis?.label) {
+      out.emphasis = { ...s.emphasis, label: themeLabel(s.emphasis.label) }
     }
     for (const k of ['markLine', 'markPoint'] as const) {
-      if (s[k]?.label && isUnreadable(s[k].label.color)) {
-        out[k] = { ...s[k], label: { ...s[k].label, color: CHART_DARK.labelText } }
-      }
+      if (s[k]?.label) out[k] = { ...s[k], label: themeLabel(s[k].label) }
     }
     return out
   }

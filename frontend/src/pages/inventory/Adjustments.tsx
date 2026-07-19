@@ -302,7 +302,7 @@ export default function Adjustments() {
               sx={{ fontWeight:700, cursor:'pointer',
                     bgcolor: period===i ? ACCENT : 'transparent',
                     color:   period===i ? '#fff' : '#64748b',
-                    border: `1px solid ${period===i ? ACCENT : '#e2e8f0'}` }} />
+                    border: `1px solid ${period===i ? ACCENT : 'var(--rt-border)'}` }} />
           ))}
           <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1 }}>
           <TextField type="date" size="small" value={dateFrom}

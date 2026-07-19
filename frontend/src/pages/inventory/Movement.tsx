@@ -237,7 +237,7 @@ export default function InventoryMovement() {
             const r = rows[p.dataIndex] ?? {}
             return `{val|${num(p.value)}}  {gp|GM:${r.gm_pct ?? 0}%}`
           },
-          rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 }, gp: { color: 'var(--rt-pos-fg)', fontSize: 10, fontWeight: 700 } },
+          rich: { val: { color: '#475569', fontSize: 10 }, gp: { color: '#065f46', fontSize: 10, fontWeight: 700 } },
         },
       }],
     }
@@ -362,8 +362,8 @@ export default function InventoryMovement() {
             <Chip key={p.label} label={tr(p.label)} size="small" onClick={() => applyPeriod(p.days)}
               sx={{ fontWeight: 700, cursor: 'pointer',
                     bgcolor: period === p.days ? C_PURPLE : 'transparent',
-                    color: period === p.days ? '#fff' : C_SLATE,
-                    border: `1px solid ${period === p.days ? C_PURPLE : '#e2e8f0'}` }} />
+                    color: period === p.days ? '#fff' : 'var(--rt-text-2)',
+                    border: `1px solid ${period === p.days ? C_PURPLE : 'var(--rt-border)'}` }} />
           ))}
           <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1 }}>
           <TextField size="small" type="date" value={from}
@@ -419,8 +419,8 @@ export default function InventoryMovement() {
                   size="small" onClick={() => setView(v)}
                   sx={{ fontWeight: 600, cursor: 'pointer',
                         bgcolor: view === v ? C_PURPLE : 'transparent',
-                        color: view === v ? '#fff' : C_SLATE,
-                        border: `1px solid ${view === v ? C_PURPLE : '#e2e8f0'}` }} />
+                        color: view === v ? '#fff' : 'var(--rt-text-2)',
+                        border: `1px solid ${view === v ? C_PURPLE : 'var(--rt-border)'}` }} />
               ))}
               <GridExportBar gridRef={gridRef} filename="inventory_movement" title="Stock Movement"
                 view={view} filters={`${from} → ${to} · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}`}

@@ -302,7 +302,7 @@ export default function InventoryCoverage() {
               sx={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 px: 2, py: 1, borderRadius: 2, cursor: 'pointer', minWidth: 90,
-                border: `2px solid ${active ? b.color : '#e2e8f0'}`,
+                border: `2px solid ${active ? b.color : 'var(--rt-border)'}`,
                 bgcolor: active ? `${b.color}12` : '#fafafa',
                 transition: 'all 0.15s',
                 '&:hover': { borderColor: b.color, bgcolor: `${b.color}08` },
