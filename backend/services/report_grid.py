@@ -21,6 +21,7 @@ To make a new grid schedulable: add its endpoint path → function to REGISTRY.
 """
 import csv
 import io
+import os
 import logging
 import inspect
 from datetime import date, datetime, timedelta
@@ -32,7 +33,11 @@ except Exception:                       # pragma: no cover
 
 log = logging.getLogger(__name__)
 
-_MAX_ROWS = 20000          # hard cap so a scheduled email never balloons
+# Hard cap so a scheduled email can never balloon. Raised from 20,000 on
+# 19 Jul 2026: a Coverage export is one row per item x store (~74k rows here),
+# so the old cap silently truncated the sheet. CSV/Excel handle this size fine;
+# PDF stays capped separately at _PDF_MAX_ROWS. Override with RETAILTEC_MAX_REPORT_ROWS.
+_MAX_ROWS = int(os.environ.get("RETAILTEC_MAX_REPORT_ROWS", "500000"))
 _PREVIEW_ROWS = 30         # rows shown inline in the email body
 
 
