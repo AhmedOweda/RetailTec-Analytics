@@ -46,17 +46,17 @@ function TypeBadge({ value }: { value: string }) {
   const ret = value === 'Return'
   return (
     <Box sx={{ display: 'inline-flex', px: 1, py: 0.2, borderRadius: 1, fontSize: 11, fontWeight: 700,
-      bgcolor: ret ? '#fef2f2' : '#dcfce7', color: ret ? '#dc2626' : '#15803d' }}>{value}</Box>
+      bgcolor: ret ? 'var(--rt-neg-bg)' : 'var(--rt-pos-bg)', color: ret ? 'var(--rt-neg-fg)' : 'var(--rt-pos-fg)' }}>{value}</Box>
   )
 }
 
 const GRID_SX = {
   width: '100%',
-  '& .ag-header': { bgcolor: '#f8f7ff !important', borderBottom: '1px solid var(--rt-border)' },
-  '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
+  '& .ag-header': { bgcolor: 'var(--rt-grid-header-bg) !important', borderBottom: '1px solid var(--rt-border)' },
+  '& .ag-header-cell-text': { fontWeight: 700, color: 'var(--rt-grid-header-fg)', fontSize: 12 },
   '& .ag-row-even': { bgcolor: 'var(--rt-surface)' },
   '& .ag-row-odd': { bgcolor: 'var(--rt-surface-2)' },
-  '& .ag-row-selected': { bgcolor: '#ede9fe !important' },
+  '& .ag-row-selected': { bgcolor: 'var(--rt-grid-selected) !important' },
   '& .ag-paging-panel': { borderTop: '1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
 } as const
 
@@ -216,7 +216,7 @@ export default function Journals() {
       valueFormatter: p => fmtMoney(p.value), cellStyle: p => heat(+(p.value ?? 0)) },
     { field: 'extended_discount', headerName: 'Extended Discount', width: 130, type: 'numericColumn',
       valueFormatter: p => fmtMoney(p.value),
-      cellStyle: p => (+(p.value ?? 0) > 0 ? { backgroundColor: '#fee2e2', color: '#b91c1c', fontWeight: 600 } : undefined) },
+      cellStyle: p => (+(p.value ?? 0) > 0 ? { backgroundColor: 'var(--rt-neg-bg)', color: 'var(--rt-neg-fg)', fontWeight: 600 } : undefined) },
     { field: 'associate_name', headerName: 'Associate', width: 150 },
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [maxPrice])

@@ -393,8 +393,8 @@ export default function GridExportBar({
         sx={btnSx('#16a34a')}>{tr('Excel')}</Button>
 
       <Button size="small" variant="outlined" disabled={!!exporting} onClick={exportPdf}
-        startIcon={exporting === 'pdf' ? <CircularProgress size={13} sx={{ color: '#dc2626' }} /> : <PictureAsPdfIcon sx={{ fontSize: '17px !important' }} />}
-        sx={btnSx('#dc2626')}>{tr('PDF')}</Button>
+        startIcon={exporting === 'pdf' ? <CircularProgress size={13} sx={{ color: 'var(--rt-neg-fg)' }} /> : <PictureAsPdfIcon sx={{ fontSize: '17px !important' }} />}
+        sx={btnSx('var(--rt-neg-fg)')}>{tr('PDF')}</Button>
 
       <Button size="small" variant="outlined" onClick={() => { setMode('now'); setEmailOpen(true) }}
         startIcon={<EmailIcon sx={{ fontSize: '17px !important' }} />}

@@ -153,7 +153,7 @@ function ForcePasswordDialog() {
             <TextField type="password" size="small" fullWidth
               value={pw2} onChange={e => setPw2(e.target.value)} />
           </Box>
-          {err && <Typography sx={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>{err}</Typography>}
+          {err && <Typography sx={{ fontSize: 12, color: 'var(--rt-neg-fg)', fontWeight: 600 }}>{err}</Typography>}
           <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
             <Button variant="contained" fullWidth disabled={busy} onClick={submit}
               sx={{ bgcolor: ACCENT, textTransform: 'none', fontWeight: 700,
@@ -184,7 +184,7 @@ function ValidationBadge() {
     <Tooltip title={bad.map(b => `${b.check_name ?? b.CHECK_NAME}: ${b.pct ?? b.PCT}% matched`).join(' · ')}>
       <Box sx={{ display:'flex', alignItems:'center', gap:0.5, px:1, py:0.3,
                  bgcolor:'rgba(239,68,68,0.12)', borderRadius:1, cursor:'default' }}>
-        <Typography variant="caption" sx={{ color:'#dc2626', fontWeight:700, fontSize:10 }}>
+        <Typography variant="caption" sx={{ color:'var(--rt-neg-fg)', fontWeight:700, fontSize:10 }}>
           ⚠ Data check failed ({worst.pct ?? worst.PCT}%)
         </Typography>
       </Box>
@@ -595,7 +595,7 @@ export default function AppShell() {
                    zIndex:1998, bgcolor:'rgba(245,158,11,0.14)',
                    border:'1px solid rgba(245,158,11,0.45)', borderRadius:99,
                    px:2, py:0.4, pointerEvents:'none' }}>
-          <Typography sx={{ fontSize:12, fontWeight:600, color:'#92400e', whiteSpace:'nowrap' }}>
+          <Typography sx={{ fontSize:12, fontWeight:600, color:'var(--rt-warn-fg)', whiteSpace:'nowrap' }}>
             {whStatus.license_warnings.map((w: string) => tr(w)).join(' · ')}
           </Typography>
         </Box>

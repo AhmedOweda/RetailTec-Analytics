@@ -341,8 +341,8 @@ export default function UsersManagement() {
                   </TableCell>
                   <TableCell>
                     <Chip label={u.is_active ? tr('Active') : tr('Inactive')} size="small"
-                      sx={{ bgcolor: u.is_active ? '#d1fae5' : '#fee2e2',
-                            color: u.is_active ? '#065f46' : '#991b1b', fontWeight: 600, fontSize: 11 }} />
+                      sx={{ bgcolor: u.is_active ? 'var(--rt-pos-bg)' : 'var(--rt-neg-bg)',
+                            color: u.is_active ? 'var(--rt-pos-fg)' : 'var(--rt-neg-fg)', fontWeight: 600, fontSize: 11 }} />
                   </TableCell>
                   <TableCell sx={{ fontSize: 12, color: '#94a3b8' }}>
                     {u.created_at ? u.created_at.slice(0, 10) : '—'}
@@ -644,7 +644,7 @@ export default function UsersManagement() {
                   <Typography fontSize={13} fontWeight={700} color={ROLE_COLORS[role]}>{tr(label)}</Typography>
                   {form.role === role && (
                     <Chip label={tr('Current selection')} size="small"
-                      sx={{ fontSize: 10, bgcolor: '#f0fdf4', color: '#15803d', fontWeight: 600 }} />
+                      sx={{ fontSize: 10, bgcolor: 'var(--rt-pos-bg)', color: 'var(--rt-pos-fg)', fontWeight: 600 }} />
                   )}
                 </Box>
                 {items.map(item => (

@@ -71,9 +71,9 @@ function ChangeBadge({ curr, prev, label }: { curr: number; prev: number; label:
     </Box>
   )
   const up  = p >= 0
-  const clr = up ? '#16a34a' : '#dc2626'
-  const bg  = up ? '#f0fdf4' : '#fef2f2'
-  const brd = up ? '#bbf7d0' : '#fecaca'
+  const clr = up ? '#16a34a' : 'var(--rt-neg-fg)'
+  const bg  = up ? 'var(--rt-pos-bg)' : 'var(--rt-neg-bg)'
+  const brd = up ? '#bbf7d0' : 'var(--rt-neg-bg)'
   return (
     <Box sx={{
       display:'inline-flex', alignItems:'center', gap:0.6,
@@ -223,8 +223,8 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
                   {rr > 0 && (
                     <Box sx={{
                       px:0.7, py:0.1, borderRadius:1,
-                      bgcolor: rr > 5 ? '#fef2f2' : '#f1f5f9',
-                      border:`1px solid ${rr > 5 ? '#fecaca' : '#e2e8f0'}`,
+                      bgcolor: rr > 5 ? 'var(--rt-neg-bg)' : '#f1f5f9',
+                      border:`1px solid ${rr > 5 ? 'var(--rt-neg-bg)' : '#e2e8f0'}`,
                     }}>
                       <Typography sx={{ fontSize:10, fontWeight:800, lineHeight:1.5,
                                         color: rr > 5 ? '#ef4444' : '#64748b' }}>
@@ -251,7 +251,7 @@ function KpiCard({ label, dot, data, prevData, prevLabel, loading }: KpiCardProp
                   {disc > 0 && (
                     <Box sx={{
                       px:0.7, py:0.1, borderRadius:1,
-                      bgcolor:'#fffbeb',
+                      bgcolor:'var(--rt-warn-bg)',
                       border:'1px solid #fde68a',
                     }}>
                       <Typography sx={{ fontSize:10, fontWeight:800, lineHeight:1.5,

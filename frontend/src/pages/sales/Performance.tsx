@@ -54,11 +54,11 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2
 /* â”€â”€ AG Grid shared styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const GRID_SX = {
   '& .ag-root-wrapper':     { borderRadius: 1.5 },
-  '& .ag-header':           { bgcolor: '#f8f7ff !important', borderBottom: '1px solid var(--rt-border)' },
-  '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
+  '& .ag-header':           { bgcolor: 'var(--rt-grid-header-bg) !important', borderBottom: '1px solid var(--rt-border)' },
+  '& .ag-header-cell-text': { fontWeight: 700, color: 'var(--rt-grid-header-fg)', fontSize: 12 },
   '& .ag-row-even':         { bgcolor: 'var(--rt-surface)' },
   '& .ag-row-odd':          { bgcolor: 'var(--rt-surface-2)' },
-  '& .ag-row:hover':        { bgcolor: '#f3f0ff !important' },
+  '& .ag-row:hover':        { bgcolor: 'var(--rt-grid-hover) !important' },
   '& .ag-paging-panel':     { borderTop: '1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
 }
 const DEF_COL: ColDef = { sortable: true, resizable: true, filter: true, wrapHeaderText: true, autoHeaderHeight: true, cellStyle: { display:'flex', alignItems:'center' } }
@@ -469,17 +469,17 @@ export default function Performance() {
       { field:'disc_rate',     headerName:'Disc %',     width:90,  type:'numericColumn',
         valueFormatter:(p:any) => `${p.value ?? 0}%`,
         cellStyle:(p:any) => ({
-          color:           (p.value??0)>10 ? '#92400e'  : 'var(--rt-text)',
+          color:           (p.value??0)>10 ? 'var(--rt-warn-fg)'  : 'var(--rt-text)',
           fontWeight:      (p.value??0)>10 ? 700 : 400,
-          backgroundColor: (p.value??0)>10 ? '#fef3c7' : 'transparent',
+          backgroundColor: (p.value??0)>10 ? 'var(--rt-warn-bg)' : 'transparent',
           display:'flex', alignItems:'center',
         }) },
       { field:'return_rate',   headerName:'Return %',   width:100, type:'numericColumn',
         valueFormatter:(p:any) => `${p.value ?? 0}%`,
         cellStyle:(p:any) => ({
-          color:           (p.value??0)>5 ? '#991b1b'  : 'var(--rt-text)',
+          color:           (p.value??0)>5 ? 'var(--rt-neg-fg)'  : 'var(--rt-text)',
           fontWeight:      (p.value??0)>5 ? 700 : 400,
-          backgroundColor: (p.value??0)>5 ? '#fee2e2' : 'transparent',
+          backgroundColor: (p.value??0)>5 ? 'var(--rt-neg-bg)' : 'transparent',
           display:'flex', alignItems:'center',
         }) },
     ]

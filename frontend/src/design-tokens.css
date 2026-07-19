@@ -21,6 +21,21 @@
   --rt-border:    #e2e8f0;   /* hairlines, dividers, field outlines            */
   --rt-text:      #0f172a;   /* primary text                                   */
   --rt-text-2:    #475569;   /* secondary / muted text                         */
+
+  /* Semantic status pairs — used by AG-Grid conditional cells (GP% traffic
+     lights, margin heat, Sale/Return chips) and status badges. In light mode
+     these are the original dark-text-on-pale-fill values, unchanged. */
+  --rt-pos-fg:  #065f46;  --rt-pos-bg:  #d1fae5;
+  --rt-warn-fg: #78350f;  --rt-warn-bg: #fef3c7;
+  --rt-neg-fg:  #991b1b;  --rt-neg-bg:  #fee2e2;
+
+  /* AG-Grid chrome. Several pages override the grid header/hover/selection with
+     `!important`, which beats the theme in ag-grid-theme.css — so those overrides
+     use these tokens instead. Light values = the original hard-coded ones. */
+  --rt-grid-header-bg: #f8f7ff;
+  --rt-grid-header-fg: #374151;
+  --rt-grid-hover:     #f3f0ff;
+  --rt-grid-selected:  #ede9fe;
 }
 
 html[data-theme="dark"] {
@@ -30,6 +45,18 @@ html[data-theme="dark"] {
   --rt-border:    rgba(155,101,208,0.18);
   --rt-text:      #EDE8F8;
   --rt-text-2:    #B9A7D8;
+
+  /* Dark: the pale fills become low-alpha tints that sit on the dark grid
+     without glaring, and the status text lightens so it stays legible. */
+  --rt-pos-fg:  #6EE7B7;  --rt-pos-bg:  rgba(16,185,129,0.20);
+  --rt-warn-fg: #FCD34D;  --rt-warn-bg: rgba(245,158,11,0.20);
+  --rt-neg-fg:  #FCA5A5;  --rt-neg-bg:  rgba(239,68,68,0.20);
+
+  /* Match the dark AG-Grid palette in ag-grid-theme.css exactly. */
+  --rt-grid-header-bg: #1C0E42;
+  --rt-grid-header-fg: #C8A8E8;
+  --rt-grid-hover:     #241452;
+  --rt-grid-selected:  #2C1760;
 }
 
 /* Dark-mode touch-ups for surfaces MUI's theme doesn't reach */

@@ -147,8 +147,8 @@ function ConfigDialog({ open, onClose }: { open: boolean; onClose: () => void })
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {tr(p.label)}
                 {p.badge && <Chip size="small" label={tr(p.badge)} sx={{ height: 18, fontSize: 10, fontWeight: 700,
-                  bgcolor: p.badge === 'Free' ? '#dcfce7' : '#eef2ff',
-                  color:   p.badge === 'Free' ? '#166534' : '#4338ca' }} />}
+                  bgcolor: p.badge === 'Free' ? 'var(--rt-pos-bg)' : '#eef2ff',
+                  color:   p.badge === 'Free' ? 'var(--rt-pos-fg)' : '#4338ca' }} />}
               </Box>
             </MenuItem>
           ))}

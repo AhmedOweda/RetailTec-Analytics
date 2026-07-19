@@ -237,7 +237,7 @@ export default function InventoryMovement() {
             const r = rows[p.dataIndex] ?? {}
             return `{val|${num(p.value)}}  {gp|GM:${r.gm_pct ?? 0}%}`
           },
-          rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 }, gp: { color: '#065f46', fontSize: 10, fontWeight: 700 } },
+          rich: { val: { color: 'var(--rt-text-2)', fontSize: 10 }, gp: { color: 'var(--rt-pos-fg)', fontSize: 10, fontWeight: 700 } },
         },
       }],
     }

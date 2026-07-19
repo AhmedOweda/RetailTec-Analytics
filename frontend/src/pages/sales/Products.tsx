@@ -64,11 +64,11 @@ const VIEW_LABELS: Record<View, string> = {
 /* â”€â”€ AG Grid shared styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const GRID_SX = {
   '& .ag-root-wrapper':     { borderRadius: 1.5 },
-  '& .ag-header':           { bgcolor: '#f8f7ff !important', borderBottom: '1px solid var(--rt-border)' },
-  '& .ag-header-cell-text': { fontWeight: 700, color: '#374151', fontSize: 12 },
+  '& .ag-header':           { bgcolor: 'var(--rt-grid-header-bg) !important', borderBottom: '1px solid var(--rt-border)' },
+  '& .ag-header-cell-text': { fontWeight: 700, color: 'var(--rt-grid-header-fg)', fontSize: 12 },
   '& .ag-row-even':         { bgcolor: 'var(--rt-surface)' },
   '& .ag-row-odd':          { bgcolor: 'var(--rt-surface-2)' },
-  '& .ag-row:hover':        { bgcolor: '#f3f0ff !important' },
+  '& .ag-row:hover':        { bgcolor: 'var(--rt-grid-hover) !important' },
 }
 const DEF_COL: ColDef = {
   sortable: true, resizable: true, filter: true,
@@ -149,14 +149,14 @@ function ChartCard({
 const gpPctStyle = (p: any) => {
   const v = +(p.value ?? 0)
   return {
-    color:           v >= 30 ? '#065f46' : v >= 10 ? '#78350f' : '#7f1d1d',
+    color:           v >= 30 ? 'var(--rt-pos-fg)' : v >= 10 ? 'var(--rt-warn-fg)' : 'var(--rt-neg-fg)',
     fontWeight:      700,
-    backgroundColor: v >= 30 ? '#d1fae5' : v >= 10 ? '#fef3c7' : '#fee2e2',
+    backgroundColor: v >= 30 ? 'var(--rt-pos-bg)' : v >= 10 ? 'var(--rt-warn-bg)' : 'var(--rt-neg-bg)',
     display: 'flex', alignItems: 'center',
   }
 }
 const gpAbsStyle = (p: any) => ({
-  color:      (+(p.value ?? 0)) >= 0 ? '#065f46' : '#991b1b',
+  color:      (+(p.value ?? 0)) >= 0 ? 'var(--rt-pos-fg)' : 'var(--rt-neg-fg)',
   fontWeight: 500,
   display:    'flex', alignItems: 'center',
 })
@@ -490,12 +490,12 @@ export default function Products() {
             const r  = rows[p.dataIndex] ?? {}
             const v  = +p.value
             const kb = v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : `${(v / 1000).toFixed(0)}K`
-            const gc = +(r.gp_pct ?? 0) >= 30 ? '#065f46' : +(r.gp_pct ?? 0) >= 10 ? '#78350f' : '#7f1d1d'
+            const gc = +(r.gp_pct ?? 0) >= 30 ? 'var(--rt-pos-fg)' : +(r.gp_pct ?? 0) >= 10 ? 'var(--rt-warn-fg)' : 'var(--rt-neg-fg)'
             return `{val|${kb}}  {gp|GP:${r.gp_pct ?? 0}%}`
           },
           rich: {
             val: { color: 'var(--rt-text-2)', fontSize: 10 },
-            gp:  { color: '#065f46', fontSize: 10, fontWeight: 700 },
+            gp:  { color: 'var(--rt-pos-fg)', fontSize: 10, fontWeight: 700 },
           },
         },
         markLine: {
@@ -585,7 +585,7 @@ export default function Products() {
     ]
   }, [tableData, view, productCodeField, itemFields])
 
-  const gpColor = kpi.gpPct >= 30 ? '#065f46' : kpi.gpPct >= 10 ? '#78350f' : '#991b1b'
+  const gpColor = kpi.gpPct >= 30 ? 'var(--rt-pos-fg)' : kpi.gpPct >= 10 ? 'var(--rt-warn-fg)' : 'var(--rt-neg-fg)'
   const gpLabel = kpi.gpPct >= 30 ? 'Excellent margin' : kpi.gpPct >= 10 ? 'Healthy margin' : 'Low margin'
 
   /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -664,7 +664,7 @@ export default function Products() {
       <Box sx={{ display: 'flex', gap: 2, px: 3, flexWrap: 'wrap' }}>
         <KpiCard label="Total Revenue"  value={money(kpi.totalRev)} icon="ti-cash" />
         <KpiCard label="Total GP"       value={money(kpi.totalGP)}
-          color={kpi.totalGP >= 0 ? '#065f46' : '#991b1b'} icon="ti-trending-up" />
+          color={kpi.totalGP >= 0 ? 'var(--rt-pos-fg)' : 'var(--rt-neg-fg)'} icon="ti-trending-up" />
         <KpiCard label="Blended GP %"   value={`${kpi.gpPct.toFixed(1)}%`}
           color={gpColor} sub={gpLabel} icon="ti-chart-pie-2" />
         <KpiCard label="Qty Sold"       value={num(kpi.totalQty, 0)} icon="ti-shopping-cart" />
