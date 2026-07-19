@@ -1,27 +1,20 @@
+/* ============================================================================
+ * ⚠ THIS FILE IS NOT IMPORTED ANYWHERE — it is dead code.
+ *
+ * main.tsx imports ONLY design-tokens.css, ag-grid-theme.css and i18n. Nothing
+ * in this stylesheet reaches the browser. It has caught us twice: once when the
+ * Saudi Riyal @font-face lived here and never loaded (fixed in index.html +
+ * theme.ts), and again when the dark-mode --rt-* design tokens were added here
+ * and every sticky page header turned transparent.
+ *
+ * Put real global CSS in src/design-tokens.css (or another imported file).
+ * Do NOT simply `import './index.css'` to revive this — it pulls in Tailwind
+ * preflight and body styles the app was never built against.
+ * ==========================================================================*/
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* ── Design tokens (light default) ──────────────────────────────────────────
-   Inline page colours were converted to these vars so a single [data-theme]
-   flip repaints every surface/border/text without touching chart canvases or
-   white-on-colour button text. See DirectionProvider + AppSettings.themeMode. */
-:root {
-  --rt-surface:   #ffffff;   /* raised cards / dialogs / menus            */
-  --rt-surface-2: #f8fafc;   /* page background / recessed wells (darkest) */
-  --rt-surface-3: #f1f5f9;   /* hover / active / chip fills (lightest)     */
-  --rt-border:    #e2e8f0;   /* hairlines, dividers, field outlines        */
-  --rt-text:      #0f172a;   /* primary text                               */
-  --rt-text-2:    #475569;   /* secondary / muted text                     */
-}
-html[data-theme="dark"] {
-  --rt-surface:   #160D3A;
-  --rt-surface-2: #0E0824;
-  --rt-surface-3: #241452;
-  --rt-border:    rgba(155,101,208,0.18);
-  --rt-text:      #EDE8F8;
-  --rt-text-2:    #B9A7D8;
-}
 
 /* ── Saudi Riyal symbol (U+20C1) web-font ──────────────────────────────────────
    The new Saudi Riyal sign (Unicode 17, Sept 2025) isn't in older OS fonts

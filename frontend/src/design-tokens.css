@@ -1,0 +1,53 @@
+/*
+ * Design tokens — the single source of truth for surface/border/text colours.
+ *
+ * IMPORTANT: this file MUST stay imported from main.tsx. The tokens below are
+ * referenced by inline `sx` styles across every page (bgcolor/border/color),
+ * so if this stylesheet is not loaded, `var(--rt-*)` resolves to nothing and
+ * those backgrounds silently become TRANSPARENT — which makes sticky page
+ * headers bleed the scrolling content through them on every screen.
+ * (This is exactly what happened when the tokens lived in index.css, which is
+ * orphaned/never imported — same trap that previously broke the Riyal glyph.)
+ *
+ * Light values are byte-identical to the hex codes the pages used before the
+ * dark-mode refactor, so light mode renders exactly as it always did.
+ * `html[data-theme]` is set by AppSettingsProvider from AppSettings.themeMode.
+ */
+
+:root {
+  --rt-surface:   #ffffff;   /* raised cards / dialogs / menus / sticky headers */
+  --rt-surface-2: #f8fafc;   /* page background / recessed wells               */
+  --rt-surface-3: #f1f5f9;   /* hover / active / chip fills                    */
+  --rt-border:    #e2e8f0;   /* hairlines, dividers, field outlines            */
+  --rt-text:      #0f172a;   /* primary text                                   */
+  --rt-text-2:    #475569;   /* secondary / muted text                         */
+}
+
+html[data-theme="dark"] {
+  --rt-surface:   #160D3A;
+  --rt-surface-2: #0E0824;
+  --rt-surface-3: #241452;
+  --rt-border:    rgba(155,101,208,0.18);
+  --rt-text:      #EDE8F8;
+  --rt-text-2:    #B9A7D8;
+}
+
+/* Dark-mode touch-ups for surfaces MUI's theme doesn't reach */
+html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #4E2A99; }
+
+/* react-datepicker ships its own light chrome */
+html[data-theme="dark"] .react-datepicker {
+  background: #160D3A !important;
+  border-color: rgba(155,101,208,0.25) !important;
+  color: #EDE8F8;
+}
+html[data-theme="dark"] .react-datepicker__header {
+  background: #1C0E42 !important;
+  border-bottom-color: rgba(155,101,208,0.22) !important;
+}
+html[data-theme="dark"] .react-datepicker__current-month,
+html[data-theme="dark"] .react-datepicker__day-name,
+html[data-theme="dark"] .react-datepicker__day {
+  color: #EDE8F8;
+}
+html[data-theme="dark"] .react-datepicker__day:hover { background: #241452; }

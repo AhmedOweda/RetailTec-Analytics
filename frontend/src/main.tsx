@@ -3,6 +3,7 @@ import { RouterProvider } from 'react-router-dom'
 import CssBaseline from '@mui/material/CssBaseline'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { router } from './router'
+import './design-tokens.css'     // --rt-* surface/border/text tokens (MUST stay imported)
 import './ag-grid-theme.css'     // global AG Grid polish (loads after the alpine theme)
 import { AppSettingsProvider } from './context/AppSettings'
 import { AuthProvider } from './contexts/AuthContext'
