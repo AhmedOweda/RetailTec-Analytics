@@ -6,12 +6,111 @@ import json
 import logging
 import oracledb
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from db.model import get_db, DB_LOCK, SETTINGS_FILE
+from db.model import (get_db, DB_LOCK, SETTINGS_FILE, ACCOUNTING_SBS_NO,
+                      set_feature_available,
+                      FEATURE_INVENTORY_HISTORY, FEATURE_ACCOUNTING)
 
 log = logging.getLogger(__name__)
+
+
+# ── Optional Retail Pro customisations ────────────────────────────────────────
+# Two things RetailTec reads are NOT part of stock Retail Pro Prism and are
+# absent on some installations:
+#   (a) RPS.INVENTORY_HISTORY — the INVN_BACKUP_TRG qty-change log.
+#   (b) subsidiary 100        — the virtual GL of the accounting customisation.
+# Their absence is a configuration fact, not a failure: skip the load, record it
+# in FEATURE_AVAILABILITY, carry on. Everything else must still fail loudly.
+
+# Oracle codes that mean "that object is not here (for us)". ORA-00942 is the
+# straight missing table/view; ORA-01031 is the same thing seen through a
+# missing GRANT, which is indistinguishable from absence at this layer.
+# Deliberately NOT included: ORA-00904 (invalid identifier) — a wrong column
+# name is our bug and must surface, not be silently swallowed.
+_ORA_MISSING_OBJECT = ("ORA-00942", "ORA-01031")
+
+
+def _is_missing_object(exc: BaseException) -> bool:
+    s = str(exc)
+    return any(code in s for code in _ORA_MISSING_OBJECT)
+
+
+@contextmanager
+def _try_optional(duck, feature: str, label: str):
+    """Run a block that depends on an OPTIONAL customisation.
+
+    Swallows ONLY the missing-object case, logs one warning and records the
+    feature as unavailable. Every other exception propagates untouched — a real
+    error (bad SQL, dropped connection, DuckDB failure) must still fail the sync.
+    Note the caller records SUCCESS itself: "the query ran" is not always the
+    same as "the feature is there" (sbs 100 absent yields zero rows, no error),
+    so each caller decides what available=True means for it."""
+    try:
+        yield
+    except SyncCancelled:
+        raise
+    except Exception as e:
+        if not _is_missing_object(e):
+            raise
+        log.warning(f"{label} not available on this server — skipping")
+        set_feature_available(duck, feature, False, str(e).strip()[:400])
+
+
+def _probe_accounting_subsidiary(ora) -> bool:
+    """True when subsidiary 100 (the virtual GL) exists on this server.
+
+    _sql_gl() and _sql_accounts() do not RAISE without it — sbs 100 simply
+    matches nothing and the nested scalar subqueries in _sql_accounts() return
+    NULL, making `I.SBS_SID = NULL` unknown for every row (zero rows, no error).
+    That silent emptiness is exactly what we must not present as "no data in
+    this period", hence this explicit probe."""
+    cur = ora.cursor()
+    try:
+        cur.execute(
+            f"SELECT COUNT(*) FROM RPS.SUBSIDIARY WHERE SBS_NO = {ACCOUNTING_SBS_NO}")
+        row = cur.fetchone()
+        return bool(row and row[0])
+    finally:
+        cur.close()
+
+
+# ── Excluding the synthetic accounting subsidiary from every normal extract ────
+# ACCOUNTING_SBS_NO (db/model.py) is Retail Pro subsidiary 100, the virtual
+# general ledger. It is not a trading entity, so it must be filtered out of
+# EVERY query below. The two deliberate exceptions are _sql_gl() and
+# _sql_accounts(), which read SBS_NO = 100 because that IS the accounting data.
+#
+# Which predicate to use depends on what the source table actually carries
+# (verified against ALL_TAB_COLUMNS on the RP9 schema):
+#   * SBS_NO   — RPS.DOCUMENT, RPS.DOCUMENT_ITEM            -> _no_acct_sbs_no()
+#   * SBS_SID  — RPS.STORE, DCS, VENDOR, EMPLOYEE, CUSTOMER,
+#                INVN_SBS_ITEM, INVN_SBS_ITEM_QTY, VOUCHER,
+#                ADJUSTMENT, INVENTORY_HISTORY               -> _no_acct_sbs_sid()
+#   * OUT_SBS_SID / IN_SBS_SID — RPS.SLIP (both sides)       -> _no_acct_sbs_sid()
+#   * nothing  — SLIP_ITEM, ADJ_ITEM, VOU_ITEM, TENDER: these are line tables
+#                with no subsidiary column, so they are excluded through their
+#                parent header join instead.
+
+_ACCT_SBS_SID_SQL = f"SELECT SID FROM RPS.SUBSIDIARY WHERE SBS_NO = {ACCOUNTING_SBS_NO}"
+
+
+def _no_acct_sbs_sid(col: str) -> str:
+    """Predicate excluding the accounting subsidiary via an *_SBS_SID column.
+
+    NOT IN over a subquery is deliberate: on an install with no accounting
+    customisation the subquery returns no rows and the predicate is TRUE for
+    everything (a plain `<> (SELECT ...)` would evaluate to NULL and silently
+    drop EVERY row). RPS.SUBSIDIARY.SID is a primary key so the subquery can
+    never contain a NULL; the IS NULL arm covers a null-valued source column."""
+    return f"({col} IS NULL OR {col} NOT IN ({_ACCT_SBS_SID_SQL}))"
+
+
+def _no_acct_sbs_no(col: str) -> str:
+    """Predicate excluding the accounting subsidiary via an SBS_NO column."""
+    return f"NVL({col}, 0) <> {ACCOUNTING_SBS_NO}"
 
 
 # RPS.EMPLOYEE uses FULL_NAME (confirmed via schema inspection)
@@ -101,6 +200,7 @@ def _sql_daily(df, dt):
                 AND H.POST_DATE <  TO_DATE('{dt}','YYYY-MM-DD') + 1
           AND H.STATUS = 4
           AND H.RECEIPT_TYPE IN (0, 1, 2)
+          AND {_no_acct_sbs_no('H.SBS_NO')}
         GROUP BY TRUNC(H.POST_DATE), H.STORE_SID, H.SUBSIDIARY_SID
     """
 
@@ -174,6 +274,7 @@ def _sql_invoices(df, dt):
                    SUM(CASE WHEN ITEM_TYPE = 2 THEN DISC_AMT * -1 ELSE DISC_AMT END) AS DISC_AMT
             FROM RPS.DOCUMENT_ITEM
             WHERE ITEM_TYPE IN (1, 2) AND KIT_FLAG <> 5
+              AND {_no_acct_sbs_no('SBS_NO')}
             GROUP BY DOC_SID
         ) IDISC ON IDISC.DOC_SID = H.SID
         LEFT JOIN (SELECT DOC_SID, SUM(AMOUNT) AS AMT FROM RPS.TENDER
@@ -188,6 +289,7 @@ def _sql_invoices(df, dt):
           AND CAST(H.INVC_POST_DATE AS DATE) <  TO_DATE('{dt}','YYYY-MM-DD') + 1
           AND H.STATUS = 4
           AND H.RECEIPT_TYPE IN (0, 1, 2)
+          AND {_no_acct_sbs_no('H.SBS_NO')}
     """
     # CAST(INVC_POST_DATE AS DATE) matches function-based index IDX_DOCUMENT7 →
     # INDEX RANGE SCAN instead of a 2.4M-row full scan (121s → 0.1s, verified).
@@ -202,6 +304,7 @@ def _sql_items(df, dt):
             DI.SID                                              AS DOC_ITEM_SID,
             DI.DOC_SID,
             H.INVC_POST_DATE                                    AS INVC_POST_DATE,
+            H.SUBSIDIARY_SID                                    AS SUBSIDIARY_SID,
             H.STORE_SID,
             DI.INVN_SBS_ITEM_SID                               AS ITEM_SID,
             CASE DI.ITEM_TYPE WHEN 1 THEN 'Sale' WHEN 2 THEN 'Return'
@@ -228,9 +331,16 @@ def _sql_items(df, dt):
           AND H.STATUS = 4
           AND H.RECEIPT_TYPE IN (0, 1, 2)
           AND DI.ITEM_TYPE IN (1, 2)
+          AND {_no_acct_sbs_no('H.SBS_NO')}
+          AND {_no_acct_sbs_no('DI.SBS_NO')}
     """
     # Index-backed predicate (IDX_DOCUMENT7) + true INVC_POST_DATE stored —
     # keeps items consistent with the invoices table and the coverage view.
+    #
+    # 22 columns, matching FACT_SALES_ITEMS exactly — _stream_insert maps
+    # POSITIONALLY, so the ncols argument at the call site must say 22.
+    # SUBSIDIARY_SID (ordinal 4) comes from the PARENT DOCUMENT: DOCUMENT_ITEM
+    # carries only SBS_NO, never the SID.
 
 
 def _sql_transfers(df, dt):
@@ -262,6 +372,8 @@ def _sql_transfers(df, dt):
           AND SYS_EXTRACT_UTC(S.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
           AND S.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')
           AND S.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+          AND {_no_acct_sbs_sid('S.OUT_SBS_SID')}
+          AND {_no_acct_sbs_sid('S.IN_SBS_SID')}
     """
     # SYS_EXTRACT_UTC(CREATED_DATETIME) matches IDX_CREATEDDATE_SLIP → index range
     # scan (±1 day widened for timezone skew); the plain CREATED_DATETIME predicate
@@ -298,6 +410,7 @@ def _sql_adjustments(df, dt):
           AND SYS_EXTRACT_UTC(A.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
           AND A.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')
           AND A.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+          AND {_no_acct_sbs_sid('A.SBS_SID')}
     """
     # SYS_EXTRACT_UTC(CREATED_DATETIME) matches IDXADJUSTMENT → index range scan.
     # CREATED_DATETIME is the designed adjustments watermark (DB_SYNC_REDESIGN §3).
@@ -312,6 +425,7 @@ def _sql_purchases(df, dt):
             V.VOU_NO,
             CAST(V.CREATED_DATETIME AS DATE)   AS VOU_DATE,
             NVL(V.STATUS, 3)                   AS STATUS,
+            V.SBS_SID                          AS SUBSIDIARY_SID,
             V.STORE_SID,
             V.VEND_SID,
             V.CLERK_SID                        AS EMPLOYEE_SID,
@@ -328,9 +442,14 @@ def _sql_purchases(df, dt):
           AND SYS_EXTRACT_UTC(V.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
           AND V.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')
           AND V.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+          AND {_no_acct_sbs_sid('V.SBS_SID')}
     """
     # Redundant SYS_EXTRACT_UTC predicate matches IDX_CREATEDDATE_VOU → index range
     # scan; the plain predicate keeps the exact same rows (verified 63 == 63).
+    #
+    # 14 columns, matching FACT_PURCHASES exactly (ncols=14 at the call site).
+    # SUBSIDIARY_SID (ordinal 5) is RPS.VOUCHER.SBS_SID — the voucher's own
+    # subsidiary, not a store-derived guess.
 
 
 def _sql_purchase_items(df, dt):
@@ -340,6 +459,7 @@ def _sql_purchase_items(df, dt):
             VI.SID                             AS VOU_ITEM_SID,
             VI.VOU_SID,
             CAST(V.CREATED_DATETIME AS DATE)   AS VOU_DATE,
+            V.SBS_SID                          AS SUBSIDIARY_SID,
             V.STORE_SID,
             V.VEND_SID,
             VI.ITEM_SID,
@@ -358,7 +478,11 @@ def _sql_purchase_items(df, dt):
           AND SYS_EXTRACT_UTC(V.CREATED_DATETIME) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
           AND V.CREATED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD')
           AND V.CREATED_DATETIME <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+          AND {_no_acct_sbs_sid('V.SBS_SID')}
     """
+    # 14 columns, matching FACT_PURCHASE_ITEMS exactly (ncols=14 at the call
+    # site). VOU_ITEM has no subsidiary of its own, so SUBSIDIARY_SID (ordinal 4)
+    # is taken from the parent VOUCHER — the same row the date and store come from.
 
 
 def _sql_inventory_history(df, dt):
@@ -379,6 +503,7 @@ def _sql_inventory_history(df, dt):
           AND SYS_EXTRACT_UTC(H.ACTION_DATE) <  CAST(TO_DATE('{dt}','YYYY-MM-DD') + 2 AS TIMESTAMP)
           AND H.ACTION_DATE >= TO_DATE('{df}','YYYY-MM-DD')
           AND H.ACTION_DATE <  TO_DATE('{dt}','YYYY-MM-DD') + 1
+          AND {_no_acct_sbs_sid('H.SBS_SID')}
     """
     # Redundant SYS_EXTRACT_UTC predicate matches IDX_INV_HIST_DATE → index range
     # scan; plain predicate keeps exact rows (verified 30,901 == 30,901).
@@ -390,6 +515,7 @@ def _sql_inventory_qty_window(df, dt):
         SELECT
             IQ.INVN_SBS_ITEM_SID   AS ITEM_SID,
             IQ.STORE_SID,
+            IQ.SBS_SID            AS SUBSIDIARY_SID,
             NVL(IQ.QTY, 0)        AS ON_HAND_QTY,
             NVL(I.COST, 0)        AS COST,
             NVL(P1.PRICE, 0)      AS PRICE1
@@ -402,8 +528,9 @@ def _sql_inventory_qty_window(df, dt):
             INNER JOIN RPS.PRICE_LEVEL PL ON PL.SID = PR.PRICE_LVL_SID
             WHERE  PL.PRICE_LVL = 1
         ) P1 ON P1.INVN_SBS_ITEM_SID = IQ.INVN_SBS_ITEM_SID
-        WHERE (IQ.CREATED_DATETIME  >= TO_DATE('{df}','YYYY-MM-DD') AND IQ.CREATED_DATETIME  < TO_DATE('{dt}','YYYY-MM-DD') + 1)
-           OR (IQ.MODIFIED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD') AND IQ.MODIFIED_DATETIME < TO_DATE('{dt}','YYYY-MM-DD') + 1)
+        WHERE {_no_acct_sbs_sid('IQ.SBS_SID')}
+          AND ((IQ.CREATED_DATETIME  >= TO_DATE('{df}','YYYY-MM-DD') AND IQ.CREATED_DATETIME  < TO_DATE('{dt}','YYYY-MM-DD') + 1)
+            OR (IQ.MODIFIED_DATETIME >= TO_DATE('{df}','YYYY-MM-DD') AND IQ.MODIFIED_DATETIME < TO_DATE('{dt}','YYYY-MM-DD') + 1))
     """
 
 
@@ -447,7 +574,8 @@ def _load_dimensions(duck, ora, progress_cb=None):
     cur = ora.cursor()
 
     _r("Stores")
-    cur.execute("SELECT SID, STORE_CODE, STORE_NAME FROM RPS.STORE")
+    cur.execute(f"SELECT SID, STORE_CODE, STORE_NAME FROM RPS.STORE "
+                f"WHERE {_no_acct_sbs_sid('SBS_SID')}")
     # Explicit columns: DIM_STORE also has SUBSIDIARY_SID (added for the
     # multi-subsidiary feature and populated by the schema migration from the
     # sales facts), so a positional 3-value insert would fail on the 4-col table.
@@ -456,21 +584,30 @@ def _load_dimensions(duck, ora, progress_cb=None):
         cur.fetchall())
 
     _r("Subsidiaries")
-    cur.execute("SELECT SID, SBS_NO, SBS_NAME FROM RPS.SUBSIDIARY")
+    # sbs 100 is the virtual GL, not a trading entity: keeping it out of
+    # DIM_SUBSIDIARY is what removes "Accounting" from the subsidiary selector
+    # AND stops it consuming a licensed subsidiary slot (the licence check
+    # counts rows in this table).
+    cur.execute(f"SELECT SID, SBS_NO, SBS_NAME FROM RPS.SUBSIDIARY "
+                f"WHERE {_no_acct_sbs_no('SBS_NO')}")
     _replace_small_dim(duck, "DIM_SUBSIDIARY",
         "INSERT OR REPLACE INTO DIM_SUBSIDIARY VALUES (?,?,?)", cur.fetchall())
 
     _r("Employees")
-    cur.execute("SELECT SID, NVL(TRIM(FULL_NAME), TRIM(EMPL_NAME)) FROM RPS.EMPLOYEE")
+    cur.execute(f"SELECT SID, NVL(TRIM(FULL_NAME), TRIM(EMPL_NAME)) FROM RPS.EMPLOYEE "
+                f"WHERE {_no_acct_sbs_sid('SBS_SID')}")
     _replace_small_dim(duck, "DIM_EMPLOYEE",
         "INSERT OR REPLACE INTO DIM_EMPLOYEE VALUES (?,?)", cur.fetchall())
 
     # RPS.DCS columns are D_NAME, C_NAME, S_NAME (confirmed via schema inspection)
     _r("Departments (DCS)")
-    cur.execute("""
+    # Excluding sbs 100 here is what keeps its DCS_CODE='ACCOUNT' department
+    # (the chart-of-accounts container) out of every department/DCS slicer.
+    cur.execute(f"""
         SELECT SID, SBS_SID, DCS_CODE,
                D_NAME, C_NAME, S_NAME
         FROM RPS.DCS
+        WHERE {_no_acct_sbs_sid('SBS_SID')}
     """)
     _replace_small_dim(duck, "DIM_DCS",
         "INSERT OR REPLACE INTO DIM_DCS VALUES (?,?,?,?,?,?)", cur.fetchall())
@@ -478,9 +615,10 @@ def _load_dimensions(duck, ora, progress_cb=None):
     # ALL vendors, including inactive: filtering ACTIVE=1 dropped historical
     # vendors and dumped their sales into '(Unknown)' (Krunch loads all vendors)
     _r("Vendors")
-    cur.execute("""
+    cur.execute(f"""
         SELECT SID, SBS_SID, VEND_CODE, VEND_NAME
         FROM RPS.VENDOR
+        WHERE {_no_acct_sbs_sid('SBS_SID')}
     """)
     _replace_small_dim(duck, "DIM_VENDOR",
         "INSERT OR REPLACE INTO DIM_VENDOR VALUES (?,?,?,?)", cur.fetchall())
@@ -547,12 +685,20 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
 
     _r("Customers")
     # Phone from RPS.CUSTOMER_PHONE: primary number first, else lowest SEQ_NO.
+    # CUST_ID (2026-07-20) is the human-facing customer number the owner knows;
+    # RPS.CUSTOMER.SID is only the internal 18-digit key. CUST_ID is NOT unique
+    # and is NULL on ~60 customers, so it is carried as a plain attribute.
+    # LEFT JOIN (not INNER): the document-derived customer list is authoritative
+    # here — a BT_CUID with no RPS.CUSTOMER row must still survive with NULLs
+    # rather than silently vanish from the dimension.
+    # Column order MUST match DIM_CUSTOMER's DDL — _bulk_upsert_dim is positional.
     cur.execute(f"""
         SELECT DISTINCT {_doc_hint(df, dt)} H.BT_CUID AS SID,
+               C.CUST_ID AS CUST_ID,
                TRIM(NVL(C.FIRST_NAME,'')||' '||NVL(C.LAST_NAME,'')) AS FULL_NAME,
                CP.PHONE_NO AS PHONE
         FROM RPS.DOCUMENT H
-        INNER JOIN RPS.CUSTOMER C ON C.SID = H.BT_CUID
+        LEFT JOIN RPS.CUSTOMER C ON C.SID = H.BT_CUID
         LEFT JOIN (
             SELECT CUST_SID, PHONE_NO,
                    ROW_NUMBER() OVER (
@@ -565,6 +711,7 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
           AND CAST(H.INVC_POST_DATE AS DATE) <  TO_DATE('{dt}','YYYY-MM-DD') + 1
           AND H.BT_CUID IS NOT NULL
           AND H.STATUS = 4
+          AND {_no_acct_sbs_no('H.SBS_NO')}
     """)
     n = _bulk_upsert_dim(duck, "DIM_CUSTOMER", "SID", cur.fetchall())
     log.info(f"DIM_CUSTOMER: {n} rows")
@@ -614,6 +761,7 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
                    FROM RPS.INVN_SBS_PRICE PR
                    INNER JOIN RPS.PRICE_LEVEL PL ON PL.SID = PR.PRICE_LVL_SID
                    WHERE PL.PRICE_LVL = 3) P3 ON P3.INVN_SBS_ITEM_SID = I.SID
+        WHERE {_no_acct_sbs_sid('I.SBS_SID')}
     """)
     n = _bulk_upsert_dim(duck, "DIM_ITEM", "SID", cur.fetchall(), full_refresh=True)
     log.info(f"DIM_ITEM: {n} rows (full refresh, vendor via INVN_SBS_VENDOR)")
@@ -644,10 +792,11 @@ def _load_large_dims(duck, ora, df, dt, progress_cb=None):
 def _sync_inventory_snapshot(duck, ora):
     """Full DELETE+INSERT snapshot of current on-hand quantities from Oracle."""
     cur = ora.cursor()
-    cur.execute("""
+    cur.execute(f"""
         SELECT
             IQ.INVN_SBS_ITEM_SID   AS ITEM_SID,
             IQ.STORE_SID,
+            IQ.SBS_SID            AS SUBSIDIARY_SID,
             NVL(IQ.QTY, 0)        AS ON_HAND_QTY,
             NVL(I.COST, 0)        AS COST,
             NVL(P1.PRICE, 0)      AS PRICE1
@@ -661,6 +810,7 @@ def _sync_inventory_snapshot(duck, ora):
             WHERE PL.PRICE_LVL = 1
         ) P1 ON P1.INVN_SBS_ITEM_SID = IQ.INVN_SBS_ITEM_SID
         WHERE IQ.QTY IS NOT NULL AND IQ.QTY != 0
+          AND {_no_acct_sbs_sid('IQ.SBS_SID')}
     """)
     rows = cur.fetchall()
     cur.close()
@@ -671,9 +821,13 @@ def _sync_inventory_snapshot(duck, ora):
         return
     now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     import pandas as pd
+    # 7 columns, in FACT_INVENTORY's DDL order (SUBSIDIARY_SID at ordinal 3):
+    # the INSERT below is a positional SELECT *, so this list and the CREATE
+    # TABLE must stay in lockstep with db/model.py.
     stage_df = pd.DataFrame(
-        [(r[0], r[1], r[2], r[3], r[4], now_str) for r in rows],
-        columns=["ITEM_SID", "STORE_SID", "ON_HAND_QTY", "COST", "PRICE1", "SYNCED_AT"],
+        [(r[0], r[1], r[2], r[3], r[4], r[5], now_str) for r in rows],
+        columns=["ITEM_SID", "STORE_SID", "SUBSIDIARY_SID", "ON_HAND_QTY",
+                 "COST", "PRICE1", "SYNCED_AT"],
         dtype=object)  # exact BIGINT SIDs — see _stream_insert note
     duck.register("_snap_stage", stage_df)
     # ATOMIC rebuild in ONE transaction: the old code DROPped first (auto-commit),
@@ -684,7 +838,8 @@ def _sync_inventory_snapshot(duck, ora):
     try:
         duck.execute("DROP TABLE IF EXISTS FACT_INVENTORY")
         duck.execute("""CREATE TABLE FACT_INVENTORY (
-            ITEM_SID BIGINT, STORE_SID BIGINT, ON_HAND_QTY DECIMAL(12,3),
+            ITEM_SID BIGINT, STORE_SID BIGINT, SUBSIDIARY_SID BIGINT,
+            ON_HAND_QTY DECIMAL(12,3),
             COST DECIMAL(18,4), PRICE1 DECIMAL(18,4), SYNCED_AT TIMESTAMP)""")
         duck.execute("INSERT INTO FACT_INVENTORY SELECT * FROM _snap_stage")
         duck.execute("COMMIT")
@@ -697,6 +852,179 @@ def _sync_inventory_snapshot(duck, ora):
     finally:
         duck.unregister("_snap_stage")
     log.info(f"FACT_INVENTORY: {len(rows):,} rows loaded")
+
+
+# ── General ledger (subsidiary 100 = the virtual GL) ───────────────────────────
+# The customisation uses Retail Pro subsidiary 100 as a general ledger: the chart
+# of accounts is stored as NON-INVENTORY items and each journal line is a
+# DOCUMENT_ITEM row. Everything we need is on DOCUMENT_ITEM itself — the ALU and
+# the NOTE fields are denormalised onto the line — so this reads only
+# DOCUMENT_ITEM + DOCUMENT at SBS_NO = 100. Verified on production 2026-07-19:
+# 875 lines / 274 GL documents / 147 source documents, no NULLs and no malformed
+# values in NOTE1..NOTE8.
+#
+# Reading rules (do not "simplify" these):
+#   * PRICE is ALWAYS POSITIVE and QTY is always 1 — verified, 0 exceptions.
+#   * The sign lives in ITEM_TYPE: 1 = DEBIT, 2 = CREDIT.
+#
+# NOTE field mapping written by the poster:
+#   NOTE1 = source SBS_NO      NOTE2 = source STORE_CODE   NOTE3 = BP_ID
+#   NOTE4 = source DOC_NO      NOTE5 = journal DOC_TYPE    NOTE7 = source DOC_SID
+#   NOTE8 = source DOC_POST_DATE, as text 'DD-MM-YYYY HH24:MI:SS'
+#
+# ⚠ THE DATE. NOTE8 is the ACCOUNTING date and is the only correct one to
+# report on. The sbs-100 document's own INVC_POST_DATE / CREATED_DATETIME is the
+# date the poster RAN — on this server the Jan-2026 entries all carry 19-07-2026.
+# Filtering or grouping on those would collapse every journal onto the posting
+# run date. NOTE8 is text so there is no index to hint; sbs 100 is small (one row
+# per journal line) and the owner has confirmed read performance here is a
+# non-issue, so a full scan is accepted deliberately.
+def _sql_gl(df, dt):
+    return f"""
+        SELECT
+            DI.SID                                              AS GL_LINE_SID,
+            DI.DOC_SID                                          AS GL_DOC_SID,
+            TO_CHAR(D.DOC_NO)                                   AS GL_DOC_NO,
+            TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY')      AS POST_DATE,
+            TRUNC(NVL(D.INVC_POST_DATE, D.CREATED_DATETIME))    AS GL_POST_DATE,
+            DI.INVN_SBS_ITEM_SID                                AS ACCOUNT_SID,
+            DI.ALU                                              AS ACCOUNT_CODE,
+            ST.SID                                              AS STORE_SID,
+            SB.SID                                              AS SUBSIDIARY_SID,
+            TO_NUMBER(DI.NOTE1)                                 AS SRC_SBS_NO,
+            DI.NOTE2                                            AS SRC_STORE_CODE,
+            TO_NUMBER(DI.NOTE7)                                 AS SRC_DOC_SID,
+            DI.NOTE4                                            AS SRC_DOC_NO,
+            DI.NOTE5                                            AS SRC_DOC_TYPE,
+            DI.NOTE3                                            AS BP_ID,
+            NVL(CASE WHEN DI.ITEM_TYPE = 1 THEN DI.PRICE END, 0)      AS DEBIT,
+            NVL(CASE WHEN DI.ITEM_TYPE = 2 THEN DI.PRICE END, 0)      AS CREDIT,
+            NVL(CASE WHEN DI.ITEM_TYPE = 1 THEN DI.PRICE
+                     ELSE -DI.PRICE END, 0)                           AS AMOUNT
+        FROM RPS.DOCUMENT_ITEM DI
+        JOIN RPS.DOCUMENT D  ON D.SID = DI.DOC_SID
+        LEFT JOIN RPS.SUBSIDIARY SB ON SB.SBS_NO = TO_NUMBER(DI.NOTE1)
+        LEFT JOIN RPS.STORE ST      ON ST.STORE_CODE = DI.NOTE2
+                                   AND ST.SBS_SID    = SB.SID
+        WHERE DI.SBS_NO = 100
+          AND DI.NOTE8 IS NOT NULL
+          AND DI.NOTE7 IS NOT NULL
+          AND TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY')
+                  >= TO_DATE('{df}', 'YYYY-MM-DD')
+          AND TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY')
+                  <  TO_DATE('{dt}', 'YYYY-MM-DD') + 1
+    """
+# Column order matches FACT_GL exactly (18 cols) — _stream_insert maps positionally.
+# The 18th is GL_POST_DATE, in ordinal position 5 (right after POST_DATE), which
+# is where the DDL puts it. If you add a column here you MUST add it in the same
+# position in the FACT_GL DDL and bump the ncols argument at the _stream_insert
+# call site: a positional mismatch corrupts every GL row silently.
+#
+# The date WINDOW deliberately still filters on the TRANSACTION date (NOTE8).
+# GL_POST_DATE is carried for reporting only — filtering the extract on it would
+# change which rows a given sync window loads, and an incremental run anchored to
+# the posting date would silently skip back-dated journals.
+
+
+def _sql_accounts():
+    """Chart of accounts: NON-INVENTORY items under DCS 'ACCOUNT' of sbs 100.
+    ACCOUNT_CLASS is intentionally not selected — it is the accountant's
+    classification and is maintained in DuckDB, not in Retail Pro."""
+    return """
+        SELECT I.SID, I.ALU, I.UDF5_STRING, I.DESCRIPTION1, I.DESCRIPTION2
+        FROM RPS.INVN_SBS_ITEM I
+        WHERE I.SBS_SID = (SELECT SID FROM RPS.SUBSIDIARY WHERE SBS_NO = 100)
+          AND I.DCS_SID = (SELECT SID FROM RPS.DCS
+                           WHERE DCS_CODE = 'ACCOUNT'
+                             AND SBS_SID = (SELECT SID FROM RPS.SUBSIDIARY
+                                            WHERE SBS_NO = 100))
+    """
+
+
+def _load_accounts(duck, ora):
+    """Refresh DIM_ACCOUNT, preserving the accountant's ACCOUNT_CLASS.
+
+    Same zero-row guard as the other small dimensions: if the source returns
+    nothing (wrong subsidiary, DCS renamed, permissions) we keep what we have
+    rather than wiping the chart of accounts."""
+    cur = ora.cursor()
+    cur.execute(_sql_accounts())
+    rows = cur.fetchall()
+    cur.close()
+    if not rows:
+        log.warning("DIM_ACCOUNT: source returned 0 rows — keeping existing data (no wipe)")
+        return
+    duck.execute("BEGIN TRANSACTION")
+    try:
+        # ACCOUNT_CLASS is owned by the accountant, not by Retail Pro, so carry
+        # it across the refresh instead of blanking it on every sync.
+        duck.execute("""
+            CREATE TEMP TABLE IF NOT EXISTS _acct_class AS
+            SELECT SID, ACCOUNT_CLASS FROM DIM_ACCOUNT WHERE ACCOUNT_CLASS IS NOT NULL
+        """)
+        duck.execute("DELETE FROM DIM_ACCOUNT")
+        duck.executemany(
+            "INSERT INTO DIM_ACCOUNT (SID, ACCOUNT_CODE, ACCOUNT_KEY, NAME_EN, NAME_AR) "
+            "VALUES (?, ?, ?, ?, ?)", rows)
+        duck.execute("""
+            UPDATE DIM_ACCOUNT d SET ACCOUNT_CLASS = c.ACCOUNT_CLASS
+            FROM _acct_class c WHERE c.SID = d.SID
+        """)
+        duck.execute("DROP TABLE IF EXISTS _acct_class")
+        duck.execute("COMMIT")
+    except BaseException:
+        try:
+            duck.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    log.info(f"DIM_ACCOUNT: {len(rows):,} accounts loaded")
+
+
+def _derive_gl_docs(duck):
+    """Rebuild FACT_GL_DOC from FACT_GL — no extra Oracle scan.
+
+    One row per SOURCE document. The poster deliberately splits a single source
+    document into several sbs-100 journals by DOC_TYPE (a sale journal, a
+    payment journal per tender, …) which clear against each other through AR, so
+    balance is only meaningful across ALL journals of a source document —
+    i.e. grouped by SRC_DOC_SID ALONE. Do NOT group by SRC_DOC_TYPE, and do NOT
+    split by store: transfer slips are intentionally +X in the receiving store
+    and -X in the sending store.
+
+    The 0.01 tolerance absorbs decimal noise only. The poster already plugs any
+    document out by <= 0.20 into the Tender Rounding account, so anything that
+    reaches here unbalanced is a real defect, not rounding."""
+    duck.execute("""
+        CREATE OR REPLACE TABLE FACT_GL_DOC AS
+        SELECT
+            SRC_DOC_SID,
+            MIN(POST_DATE)                      AS POST_DATE,
+            -- Both bases, so the exceptions report and the balanced gate work
+            -- under either one. MIN(): a source document's journals share a
+            -- posting run, and where they do not, the earliest is the date the
+            -- books first received the document.
+            MIN(GL_POST_DATE)                   AS GL_POST_DATE,
+            MIN(SRC_DOC_NO)                     AS SRC_DOC_NO,
+            MIN(SRC_STORE_CODE)                 AS SRC_STORE_CODE,
+            MIN(STORE_SID)                      AS STORE_SID,
+            COUNT(DISTINCT SRC_DOC_TYPE)        AS JOURNALS,
+            COUNT(*)                            AS LINES,
+            ROUND(SUM(AMOUNT), 2)               AS NET,
+            ABS(ROUND(SUM(AMOUNT), 2)) < 0.01   AS IS_BALANCED
+        FROM FACT_GL
+        GROUP BY SRC_DOC_SID
+    """)
+    bad = duck.execute(
+        "SELECT COUNT(*), ROUND(SUM(NET), 2) FROM FACT_GL_DOC WHERE NOT IS_BALANCED"
+    ).fetchone()
+    if bad and bad[0]:
+        log.warning(
+            f"FACT_GL: {bad[0]} source document(s) do not net to zero "
+            f"(total {bad[1]}) — excluded from the statements, listed by the "
+            f"GL Exceptions report")
+    else:
+        log.info("FACT_GL: all source documents balance")
 
 
 # ── Streaming bulk fact load ────────────────────────────────────────────────────
@@ -719,6 +1047,7 @@ _FACT_PK = {
     "FACT_PURCHASES":         "VOU_SID",
     "FACT_PURCHASE_ITEMS":    "VOU_ITEM_SID",
     "FACT_INVENTORY_HISTORY": "HISTORY_SID",
+    "FACT_GL":                "GL_LINE_SID",
 }
 
 
@@ -852,8 +1181,8 @@ def _stream_inventory_qty(duck, ora, df: str, dt: str):
         if not rows:
             break
         duck.executemany(
-            "INSERT OR REPLACE INTO FACT_INVENTORY VALUES (?,?,?,?,?,?)",
-            [(r[0], r[1], r[2], r[3], r[4], now) for r in rows],
+            "INSERT OR REPLACE INTO FACT_INVENTORY VALUES (?,?,?,?,?,?,?)",
+            [(r[0], r[1], r[2], r[3], r[4], r[5], now) for r in rows],
         )
         duck.commit()
         total += len(rows)
@@ -898,6 +1227,132 @@ def _trim_range(duck, tables, date_from: str, date_to: str):
     duck.commit()
 
 
+# ── Self-healing purge of the accounting subsidiary ────────────────────────────
+# The extracts above stop sbs 100 arriving, but installs that already synced
+# before this fix have it sitting in the warehouse. This runs at the start of
+# every sync so those installs clean themselves without a full reload.
+#
+# It is IDEMPOTENT and CHEAP: each table is COUNTed first and only rewritten
+# when it actually has contaminated rows, so the normal case (already clean) is
+# a handful of counts. Removal uses the clone-keep-swap _trim_table, never a
+# row-DELETE through the ART primary-key index — large ART deletes raise the
+# fatal 'Failed to delete all rows from index' that invalidates the whole DB.
+#
+# FACT_GL, FACT_GL_DOC and DIM_ACCOUNT are NEVER touched: they are the
+# accounting star and sbs 100 is exactly what they are supposed to contain.
+
+def _int_list(sids) -> str:
+    """'(1,2,3)' from ints — type-safe by construction (see routers/common.py).
+    '(NULL)' when empty so the generated IN (...) stays valid SQL and matches
+    nothing."""
+    vals = [str(int(s)) for s in sids if s is not None]
+    return "(" + ",".join(vals) + ")" if vals else "(NULL)"
+
+
+def _acct_scope(duck) -> dict:
+    """Resolve everything in the warehouse that belongs to the accounting
+    subsidiary, BEFORE anything is deleted (the dimensions that identify it are
+    themselves purged, so the ids must be captured up front)."""
+    def sids(sql):
+        try:
+            return [r[0] for r in duck.execute(sql).fetchall() if r[0] is not None]
+        except Exception:
+            return []          # table missing on an older warehouse — ignore
+
+    sbs = sids(f"SELECT SID FROM DIM_SUBSIDIARY WHERE SBS_NO = {ACCOUNTING_SBS_NO}")
+    sbs_in = _int_list(sbs)
+
+    stores = sids(f"SELECT SID FROM DIM_STORE WHERE SUBSIDIARY_SID IN {sbs_in}")
+
+    # The chart-of-accounts department: by subsidiary, plus the DCS the known
+    # account items actually hang off (covers a warehouse whose DIM_SUBSIDIARY
+    # was already cleaned by an earlier partial run).
+    dcs = set(sids(f"SELECT SID FROM DIM_DCS WHERE SBS_SID IN {sbs_in}"))
+    dcs |= set(sids("SELECT DISTINCT DCS_SID FROM DIM_ITEM "
+                    "WHERE SID IN (SELECT SID FROM DIM_ACCOUNT)"))
+    dcs_in = _int_list(dcs)
+
+    # Chart-of-accounts items. DIM_ACCOUNT is authoritative — it is loaded by
+    # the accounting extract and holds precisely the sbs-100 item SIDs — and is
+    # unioned with the subsidiary/department routes so the purge still works on
+    # an install where the accounting sync has never run.
+    items = set(sids("SELECT SID FROM DIM_ACCOUNT"))
+    items |= set(sids(f"SELECT SID FROM DIM_ITEM WHERE SBS_SID IN {sbs_in}"))
+    items |= set(sids(f"SELECT SID FROM DIM_ITEM WHERE DCS_SID IN {dcs_in}"))
+
+    return {"sbs": sbs_in, "stores": _int_list(stores),
+            "dcs": dcs_in, "items": _int_list(items),
+            "any": bool(sbs or stores or dcs or items)}
+
+
+def _acct_purge_plan(s: dict) -> list[tuple[str, str]]:
+    """(table, predicate) for every table that CAN identify sbs-100 rows.
+
+    Deliberately NOT in this list:
+      * FACT_GL / FACT_GL_DOC / DIM_ACCOUNT — the accounting star itself.
+      * DIM_CUSTOMER / DIM_EMPLOYEE — neither carries a subsidiary column in
+        the warehouse, so sbs-100 rows cannot be identified in place. They are
+        harmless once the facts are clean (an unreferenced dimension row shows
+        up in no figure), and the extracts now stop new ones arriving. Say so
+        rather than pretend they are cleaned."""
+    sbs, stores, items, dcs = s["sbs"], s["stores"], s["items"], s["dcs"]
+    return [
+        # Facts — subsidiary carried directly, or resolved via item / store.
+        # FACT_SALES_ITEMS has no subsidiary column of its own, so it is also
+        # matched through its parent document. That MUST run before the invoice
+        # purge below, while the sbs-100 invoice rows are still there to join to.
+        ("FACT_SALES_ITEMS",
+         f"ITEM_SID IN {items} OR DOC_SID IN "
+         f"(SELECT DOC_SID FROM FACT_SALES_INVOICES WHERE SUBSIDIARY_SID IN {sbs})"),
+        ("FACT_SALES_INVOICES",    f"SUBSIDIARY_SID IN {sbs}"),
+        ("FACT_SALES_DAILY",       f"SUBSIDIARY_SID IN {sbs}"),
+        ("FACT_INVENTORY",         f"ITEM_SID IN {items} OR STORE_SID IN {stores}"),
+        ("FACT_INVENTORY_HISTORY",
+         f"SBS_SID IN {sbs} OR ITEM_SID IN {items} OR STORE_SID IN {stores}"),
+        ("FACT_TRANSFERS",
+         f"ITEM_SID IN {items} OR OUT_STORE_SID IN {stores} OR IN_STORE_SID IN {stores}"),
+        ("FACT_ADJUSTMENTS",       f"ITEM_SID IN {items} OR STORE_SID IN {stores}"),
+        ("FACT_PURCHASES",         f"STORE_SID IN {stores}"),
+        ("FACT_PURCHASE_ITEMS",    f"ITEM_SID IN {items} OR STORE_SID IN {stores}"),
+        # Dimensions — these are what the slicers and lists read.
+        ("DIM_ITEM",   f"SID IN {items} OR SBS_SID IN {sbs} OR DCS_SID IN {dcs}"),
+        ("DIM_DCS",    f"SID IN {dcs} OR SBS_SID IN {sbs}"),
+        ("DIM_VENDOR", f"SBS_SID IN {sbs}"),
+        ("DIM_STORE",  f"SUBSIDIARY_SID IN {sbs}"),
+        # LAST: the subsidiary row itself — everything above is identified from
+        # it, so removing it first would strand the rest.
+        ("DIM_SUBSIDIARY", f"SBS_NO = {ACCOUNTING_SBS_NO}"),
+    ]
+
+
+def _purge_accounting_subsidiary(duck) -> dict:
+    """Remove any already-loaded sbs-100 rows. Idempotent; never raises."""
+    removed = {}
+    try:
+        scope = _acct_scope(duck)
+        if not scope["any"]:
+            return removed
+        for table, predicate in _acct_purge_plan(scope):
+            try:
+                n = duck.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE {predicate}").fetchone()[0]
+            except Exception:
+                continue       # table absent on this warehouse
+            if not n:
+                continue       # already clean — do NOT rewrite the table
+            _trim_table(duck, table, predicate, [])
+            duck.commit()
+            removed[table] = int(n)
+            log.info(f"Accounting-subsidiary purge: removed {n:,} rows from {table}")
+        if removed:
+            log.warning(
+                f"Purged subsidiary {ACCOUNTING_SBS_NO} (the virtual GL) from the "
+                f"warehouse: {removed}. FACT_GL / DIM_ACCOUNT were not touched.")
+    except Exception as e:
+        log.warning(f"Accounting-subsidiary purge skipped: {e}")
+    return removed
+
+
 # ── Fact load (one streaming Oracle scan per table over the whole range) ─────────
 
 def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
@@ -916,7 +1371,7 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
             _p("Sales invoices", 0, 6)
             _stream_insert(duck, ora, _sql_invoices(df, dt), "FACT_SALES_INVOICES", 25, force_replace)
             _p("Sales items", 1, 6)
-            _stream_insert(duck, ora, _sql_items(df, dt), "FACT_SALES_ITEMS", 21, force_replace)
+            _stream_insert(duck, ora, _sql_items(df, dt), "FACT_SALES_ITEMS", 22, force_replace)
             _apply_item_returns(duck, df, dt)
             _derive_daily(duck, df, dt)
 
@@ -933,8 +1388,32 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
         # ── Purchases → purchase items ───────────────────────────────────────
         if ALL or "purchases" in tables:
             _p("Purchases", 4, 6)
-            _stream_insert(duck, ora, _sql_purchases(df, dt), "FACT_PURCHASES", 13, force_replace)
-            _stream_insert(duck, ora, _sql_purchase_items(df, dt), "FACT_PURCHASE_ITEMS", 13, force_replace)
+            _stream_insert(duck, ora, _sql_purchases(df, dt), "FACT_PURCHASES", 14, force_replace)
+            _stream_insert(duck, ora, _sql_purchase_items(df, dt), "FACT_PURCHASE_ITEMS", 14, force_replace)
+
+        # ── General ledger (subsidiary 100 = the virtual GL) ─────────────────
+        # OPTIONAL: only installs carrying the accounting customisation have
+        # subsidiary 100. Without it neither _sql_gl() nor _sql_accounts()
+        # errors — they just match nothing — so we PROBE for the subsidiary and
+        # record the answer, rather than letting the accounting screens read as
+        # "no journals in this period". _try_optional additionally covers the
+        # case where the whole RPS schema differs (ORA-00942 / ORA-01031).
+        if ALL or "accounting" in tables:
+            _p("General ledger", 6, 7)
+            with _try_optional(duck, FEATURE_ACCOUNTING,
+                               "Accounting (subsidiary 100)"):
+                if not _probe_accounting_subsidiary(ora):
+                    log.warning("Accounting (subsidiary 100) not available on "
+                                "this server — skipping")
+                    set_feature_available(
+                        duck, FEATURE_ACCOUNTING, False,
+                        "Subsidiary 100 (the virtual general ledger) does not "
+                        "exist on this server.")
+                else:
+                    _load_accounts(duck, ora)
+                    _stream_insert(duck, ora, _sql_gl(df, dt), "FACT_GL", 18, force_replace)
+                    _derive_gl_docs(duck)
+                    set_feature_available(duck, FEATURE_ACCOUNTING, True, "")
 
         # ── Inventory: history (append). The on-hand snapshot is NOT touched here:
         # every load path runs _sync_inventory_snapshot (full refresh) as its final
@@ -945,9 +1424,10 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
             _p("Inventory history", 5, 6)
             # RPS.INVENTORY_HISTORY is not present on every Prism installation
             # (verified missing on the multi-subsidiary test server). Skip with a
-            # warning instead of failing the whole sync; Ledger/History pages
-            # simply stay empty on such servers.
-            try:
+            # warning instead of failing the whole sync; the History / Stock by
+            # Date pages then show an explanatory panel rather than a red error.
+            with _try_optional(duck, FEATURE_INVENTORY_HISTORY,
+                               "Inventory History (RPS.INVENTORY_HISTORY)"):
                 # CARRY-FORWARD SEMANTICS (RetailTec's own INVN_BACKUP_TRG):
                 # each row's QTY is the ABSOLUTE on-hand after a change, and the
                 # trigger-install baseline snapshot rows all share one old
@@ -972,11 +1452,7 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
                     _why = 'empty copy' if _hist_empty else ('rebuild' if rebuild else 'repair')
                     log.info(f"FACT_INVENTORY_HISTORY: pulling FULL history incl. baseline ({_why})")
                 _stream_insert(duck, ora, _sql_inventory_history(_hdf, dt), "FACT_INVENTORY_HISTORY", 8, force_replace)
-            except Exception as e:
-                if "ORA-00942" in str(e):
-                    log.warning("RPS.INVENTORY_HISTORY missing on this server - skipping inventory history")
-                else:
-                    raise
+                set_feature_available(duck, FEATURE_INVENTORY_HISTORY, True, "")
 
         log.info(f"Facts loaded: {df}->{dt}")
 
@@ -1021,7 +1497,8 @@ def _log_finish(duck, run_id: int, status: str, error_msg: str = None):
 
 def _update_watermarks(duck, domains, date_from: str, date_to: str, run_id: int):
     """Upsert SYNC_WATERMARK for each loaded domain."""
-    all_domains = ["sales", "transfers", "adjustments", "purchases", "inventory"]
+    all_domains = ["sales", "transfers", "adjustments", "purchases", "inventory",
+                   "accounting"]
     targets = all_domains if domains is None else list(domains)
     for domain in targets:
         duck.execute("""
@@ -1068,11 +1545,20 @@ def _run_sync(mode: str, date_from: str, date_to: str,
     _run_id = _log_start(duck, mode, triggered_by, _domains_str, date_from, date_to, 100)
 
     try:
+        # Self-heal FIRST: drop anything subsidiary 100 (the virtual GL) left in
+        # the warehouse from before it was excluded. Runs before the licence
+        # check below so the synthetic subsidiary can never consume a licensed
+        # subsidiary slot, and before the loaders so the dims come back clean.
+        _purge_accounting_subsidiary(duck)
+
         # Subsidiary-limit grace period: after GRACE_DAYS over the licensed
         # count, data refresh stops (existing data stays viewable).
         try:
             from services.license import get_license_status, sub_limit_state
-            _n = duck.execute("SELECT COUNT(*) FROM DIM_SUBSIDIARY").fetchone()[0]
+            # sbs 100 (the virtual GL) never consumes a licensed subsidiary slot.
+            _n = duck.execute(
+                "SELECT COUNT(*) FROM DIM_SUBSIDIARY WHERE SBS_NO IS DISTINCT FROM ?",
+                [ACCOUNTING_SBS_NO]).fetchone()[0]
             _g = sub_limit_state(duck, get_license_status(), _n)
         except Exception:
             _g = None
@@ -1151,6 +1637,16 @@ def _run_sync(mode: str, date_from: str, date_to: str,
                     log.warning(f"Inventory snapshot skipped: {e}")
         finally:
             ora.close()
+
+        # Step 5b — re-derive DIM_STORE.SUBSIDIARY_SID. MUST run after the
+        # dimensions reload: _replace_small_dim DELETEs + re-INSERTs DIM_STORE
+        # with only (SID, STORE_CODE, STORE_NAME), which resets this derived
+        # column to NULL. Before 2026-07-20 it was only ever derived at startup,
+        # so it stayed NULL from the first sync until the next restart and every
+        # subsidiary filter routed through DIM_STORE matched nothing.
+        from db.model import derive_store_subsidiaries
+        derive_store_subsidiaries(duck)
+        duck.commit()
 
         # Step 6 — data validation: join coverage. The float64 SID corruption
         # (2026-07) was invisible for weeks; this makes any repeat loud.
@@ -1275,6 +1771,9 @@ def _run_dimensions_load(progress_cb, triggered_by):
     duck.execute("SET pandas_analyze_sample=10000000")
     _run_id = _log_start(duck, "dimensions", triggered_by, "dimensions", None, None, 100)
     try:
+        # Same self-heal as _run_sync — the dimensions-only reload is the other
+        # path that can leave sbs-100 rows behind on an older warehouse.
+        _purge_accounting_subsidiary(duck)
         ora = _get_oracle_conn()
         try:
             if progress_cb:
@@ -1295,6 +1794,11 @@ def _run_dimensions_load(progress_cb, triggered_by):
             duck.commit()
         finally:
             ora.close()
+        # DIM_STORE was just DELETEd + re-INSERTed without its derived
+        # SUBSIDIARY_SID — put it back, or subsidiary scoping goes blank.
+        from db.model import derive_store_subsidiaries
+        derive_store_subsidiaries(duck)
+        duck.commit()
         if progress_cb:
             progress_cb("Done", 100, 100)
         _log_finish(duck, _run_id, "completed")

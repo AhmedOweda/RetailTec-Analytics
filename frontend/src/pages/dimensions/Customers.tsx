@@ -10,6 +10,7 @@ import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { useNavigate } from 'react-router-dom'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import axios from 'axios'
 import { useRef } from 'react'
 import { moneyPrefix, money } from '../../utils/formatters'
@@ -120,11 +121,11 @@ export default function DimCustomers() {
         formatter: (p: any[]) => {
           const d = top.find((x: any) => x.customer_name === p[0].name) ?? {}
           return `<b>${p[0].name}</b><br/>
-            Segment: <b style="color:${SEG_META[d.segment]?.color}">${d.segment}</b><br/>
-            Lifetime Value: <b>${num(d.lifetime_value)}</b><br/>
-            Period Revenue: ${num(d.net_sales)}<br/>
-            Visits: ${fmtN(d.invoice_count)} · Dormant: ${d.days_dormant}d<br/>
-            Home Store: ${d.primary_store ?? '—'}`
+            ${tr('Segment')}: <b style="color:${SEG_META[d.segment]?.color}">${d.segment}</b><br/>
+            ${tr('Lifetime Value')}: <b>${num(d.lifetime_value)}</b><br/>
+            ${tr('Period Revenue')}: ${num(d.net_sales)}<br/>
+            ${tr('Visits')}: ${fmtN(d.invoice_count)} · ${tr('Dormant')}: ${d.days_dormant}d<br/>
+            ${tr('Home Store')}: ${d.primary_store ?? '—'}`
         },
       },
       xAxis: { type: 'value', axisLabel: { formatter: (v: number) => num(v), fontSize: 10 } },
@@ -144,6 +145,11 @@ export default function DimCustomers() {
 
   const colDefs = useMemo<any[]>(() => [
     { field: 'customer_name', headerName: 'Customer',     flex: 2, pinned: 'left' as const, cellStyle: { fontWeight: 600 } },
+    // Human-facing customer number (DIM_CUSTOMER.CUST_ID) — NOT the internal
+    // SID. Falls back to '—' for the customers that have no number at all.
+    { field: 'cust_id',        headerName: 'Customer ID', width: 130,
+      valueFormatter: (p: any) => (p.value ? String(p.value) : '—'),
+      cellStyle: { fontFamily: 'monospace', direction: 'ltr' as const } },
     { field: 'phone',          headerName: 'Phone',       width: 140,
       cellStyle: { fontFamily: 'monospace', direction: 'ltr' as const } },
     { field: 'segment',       headerName: 'CRM Segment',  width: 120,
@@ -221,7 +227,7 @@ export default function DimCustomers() {
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 460 }}>
-          <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
+          <AgGridReact localeText={gridLocaleText()} ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
             overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             pagination paginationPageSize={25}

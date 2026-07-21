@@ -15,6 +15,10 @@ import Inventory2Icon  from '@mui/icons-material/Inventory2'
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward'
 import axios from 'axios'
 import { tr } from '../i18n'
+import { useAppSettings } from '../context/AppSettings'
+import { itemFieldValue } from './DataSlicer'
+import { useLicensedDomains } from '../hooks/useLicense'
+import { pathLicensed } from '../utils/pages'
 
 const ACCENT = '#7c3aed'
 
@@ -48,6 +52,13 @@ type Action = { kind: 'page' | 'customer' | 'item'; label: string; sub: string; 
 
 export default function CommandPalette() {
   const nav = useNavigate()
+  // The configured item identifier (Settings → Product Code Field) — item
+  // results are labelled and drilled with THIS field, not a hardcoded ALU.
+  const { itemId } = useAppSettings()
+  // Licensed domains: unlicensed pages must not exist here either. Entity
+  // results drill into Journals, so they only appear when sales is licensed.
+  const lic = useLicensedDomains()
+  const salesLicensed = pathLicensed(lic, '/sales/journals')
   const [open, setOpen] = useState(false)
   const [q, setQ]       = useState('')
   const [cust, setCust] = useState<any[]>([])
@@ -72,9 +83,11 @@ export default function CommandPalette() {
   useEffect(() => { if (!open) { setQ(''); setCust([]); setItems([]); setActive(0) } }, [open])
 
   // Debounced entity search (customers + items) reusing existing endpoints.
+  // Skipped entirely when sales is unlicensed — the results drill into the
+  // (non-existent) Journals screen.
   useEffect(() => {
     const term = q.trim()
-    if (term.length < 2) { setCust([]); setItems([]); return }
+    if (term.length < 2 || !salesLicensed) { setCust([]); setItems([]); return }
     const t = setTimeout(() => {
       Promise.all([
         axios.get('/api/sales/journal/search/customers', { params: { q: term } }).then(r => r.data).catch(() => []),
@@ -82,18 +95,20 @@ export default function CommandPalette() {
       ]).then(([c, i]) => { setCust((c || []).slice(0, 6)); setItems((i || []).slice(0, 6)); setActive(0) })
     }, 220)
     return () => clearTimeout(t)
-  }, [q])
+  }, [q, salesLicensed])
 
   const go = (to: string) => { setOpen(false); nav(to) }
 
   const pageMatches = useMemo(() => {
     const term = q.trim().toLowerCase()
-    if (!term) return PAGES
-    return PAGES.filter(p =>
+    // Unlicensed domains do not exist — their pages never appear here.
+    const pages = PAGES.filter(p => pathLicensed(lic, p.to))
+    if (!term) return pages
+    return pages.filter(p =>
       tr(p.label).toLowerCase().includes(term) ||
       p.label.toLowerCase().includes(term) ||
       p.group.toLowerCase().includes(term))
-  }, [q])
+  }, [q, lic])
 
   const actions: Action[] = useMemo(() => [
     ...pageMatches.map(p => ({
@@ -101,15 +116,26 @@ export default function CommandPalette() {
       run: () => go(p.to),
     })),
     ...cust.map(c => ({
-      kind: 'customer' as const, label: c.name || `#${c.customer_id}`,
-      sub: `#${c.customer_id}${c.phone ? ` · ${c.phone}` : ''}`,
+      // Show the customer NUMBER (cust_id), not the internal SID; fall back to
+      // the name (or the SID, for customers with neither) so nothing renders blank.
+      kind: 'customer' as const, label: c.name || (c.cust_id ? `#${c.cust_id}` : `#${c.customer_id}`),
+      sub: `${c.cust_id ? `#${c.cust_id}` : ''}${c.phone ? `${c.cust_id ? ' · ' : ''}${c.phone}` : ''}` || tr('Customer'),
       run: () => go(`/sales/journals?customer=${encodeURIComponent(c.name || '')}`),
     })),
-    ...items.map(it => ({
-      kind: 'item' as const, label: `${it.ALU} — ${it.DESCRIPTION1}`, sub: tr('Item'),
-      run: () => go(`/sales/journals?item=${encodeURIComponent(it.ALU)}&item_desc=${encodeURIComponent(it.DESCRIPTION1 || '')}`),
-    })),
-  ], [pageMatches, cust, items])  // eslint-disable-line react-hooks/exhaustive-deps
+    ...items.map(it => {
+      // The configured identifier (ALU fallback when NULL). The Journals
+      // `item` filter matches ALU, UPC and description alike, so the drill
+      // works whichever identifier is configured.
+      const code = itemFieldValue(it, itemId.field)
+      const desc = it.DESCRIPTION1 || ''
+      return {
+        kind: 'item' as const,
+        label: itemId.field === 'description' ? (desc || code) : `${code} — ${desc}`,
+        sub: tr('Item'),
+        run: () => go(`/sales/journals?item=${encodeURIComponent(code)}&item_desc=${encodeURIComponent(desc)}`),
+      }
+    }),
+  ], [pageMatches, cust, items, itemId.field])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const onInputKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, actions.length - 1)) }

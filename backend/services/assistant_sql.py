@@ -37,6 +37,9 @@ _STORE_COL = {
     "FACT_SALES_DAILY": "STORE_SID", "FACT_INVENTORY": "STORE_SID",
     "FACT_INVENTORY_HISTORY": "STORE_SID", "FACT_ADJUSTMENTS": "STORE_SID",
     "FACT_PURCHASES": "STORE_SID", "FACT_PURCHASE_ITEMS": "STORE_SID",
+    # GL facts. MUST be listed: whitelist_tables auto-includes anything named
+    # FACT_*, so a missing entry here leaks unscoped rows to a store-scoped user.
+    "FACT_GL": "STORE_SID", "FACT_GL_DOC": "STORE_SID",
 }
 
 _MAX_ROWS = 1000

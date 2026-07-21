@@ -24,6 +24,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery }       from '@tanstack/react-query'
 import axios              from 'axios'
 import { noRowsOverlay }  from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar      from '../../components/GridExportBar'
 import { format, subDays, startOfMonth, startOfYear, subYears } from 'date-fns'
@@ -219,12 +220,12 @@ export default function Performance() {
           const sign = +pct >= 0 ? '+' : ''
           return `<div style="min-width:190px">
             <b style="color:var(--rt-text)">${p[0].name}</b><br/>
-            <span style="color:#64748b">Net Sales:</span> <b>${v.toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>
-            <span style="color:#64748b">Invoices:</span> ${(+r.invoice_count||0).toLocaleString()}<br/>
-            <span style="color:#64748b">Avg Basket:</span> ${r.invoice_count ? (v/(+r.invoice_count)).toLocaleString('en-US',{maximumFractionDigits:0}) : '—'}<br/>
-            <span style="color:#64748b">Return Rate:</span> <span style="color:${C_ROSE}">${r.return_rate??0}%</span><br/>
-            <span style="color:#64748b">Disc Rate:</span> <span style="color:${C_AMBER}">${r.disc_rate??0}%</span><br/>
-            <span style="color:#64748b">vs Avg:</span> <span style="color:${+pct>=0?C_GREEN:C_ROSE}">${sign}${pct}%</span>
+            <span style="color:#64748b">${tr('Net Sales')}:</span> <b>${v.toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>
+            <span style="color:#64748b">${tr('Invoices')}:</span> ${(+r.invoice_count||0).toLocaleString()}<br/>
+            <span style="color:#64748b">${tr('Avg Basket')}:</span> ${r.invoice_count ? (v/(+r.invoice_count)).toLocaleString('en-US',{maximumFractionDigits:0}) : '—'}<br/>
+            <span style="color:#64748b">${tr('Return Rate')}:</span> <span style="color:${C_ROSE}">${r.return_rate??0}%</span><br/>
+            <span style="color:#64748b">${tr('Disc Rate')}:</span> <span style="color:${C_AMBER}">${r.disc_rate??0}%</span><br/>
+            <span style="color:#64748b">${tr('vs Avg')}:</span> <span style="color:${+pct>=0?C_GREEN:C_ROSE}">${sign}${pct}%</span>
           </div>`
         },
       },
@@ -284,7 +285,7 @@ export default function Performance() {
       tooltip:{ formatter:(p:any) => {
         const [h, d, v] = p.data as [string,string,number]
         const pct = totSales > 0 ? (v/totSales*100).toFixed(1) : '0'
-        return `<b>${d} · ${h}</b><br/>Net Sales: <b>${(+v).toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>Share of period: ${pct}%`
+        return `<b>${d} · ${h}</b><br/>${tr('Net Sales')}: <b>${(+v).toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>${tr('Share of period')}: ${pct}%`
       }},
       xAxis:{ type:'category', data:HOUR_LABELS, splitArea:{ show:true }, axisLabel:{ color:C_SLATE, fontSize:9, interval:1 } },
       yAxis:{ type:'category', data:DOW_LABELS,  splitArea:{ show:true }, axisLabel:{ color:'#64748b', fontSize:11 } },
@@ -307,7 +308,7 @@ export default function Performance() {
         const pct = total > 0 ? (v/total*100).toFixed(1) : '0'
         const sign = v >= avg ? '+' : ''
         const diff = avg > 0 ? ((v-avg)/avg*100).toFixed(1) : '0'
-        return `<b>${p[0].name}</b><br/>Sales: <b>${v.toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>% of week: ${pct}%<br/>vs avg: <span style="color:${v>=avg?C_GREEN:C_ROSE}">${sign}${diff}%</span>`
+        return `<b>${p[0].name}</b><br/>${tr('Sales')}: <b>${v.toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>${tr('% of week')}: ${pct}%<br/>${tr('vs avg')}: <span style="color:${v>=avg?C_GREEN:C_ROSE}">${sign}${diff}%</span>`
       }},
       xAxis:{ type:'category', data:DOW_LABELS, axisLabel:{ color:'#64748b', fontSize:11 } },
       yAxis:{ type:'value', axisLabel:{ color:C_SLATE, fontSize:10, formatter:(v:number) => v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
@@ -333,7 +334,7 @@ export default function Performance() {
       tooltip:{ trigger:'axis', axisPointer:{ type:'shadow' }, formatter:(p:any[]) => {
         const v   = +p[0].value
         const pct = total > 0 ? (v/total*100).toFixed(1) : '0'
-        return `<b>${p[0].name} basket</b><br/>Transactions: <b>${v.toLocaleString()}</b><br/>Share: ${pct}%`
+        return `<b>${p[0].name}</b><br/>${tr('Transactions')}: <b>${v.toLocaleString()}</b><br/>${tr('Share')}: ${pct}%`
       }},
       xAxis:{ type:'category', data:ORDER, axisLabel:{ color:'#64748b', fontSize:11 } },
       yAxis:{ type:'value', axisLabel:{ color:C_SLATE, fontSize:10 }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
@@ -358,7 +359,7 @@ export default function Performance() {
       tooltip:{ trigger:'axis', formatter:(p:any[]) => {
         const diff = (+p[0].value - avg).toFixed(2)
         const sign = +diff >= 0 ? '+' : ''
-        return `<b>${p[0].name}</b><br/>Return Rate: <b style="color:${C_ROSE}">${p[0].value}%</b><br/>vs avg: <span style="color:${+diff>=0?C_ROSE:C_GREEN}">${sign}${diff}pp</span>`
+        return `<b>${p[0].name}</b><br/>${tr('Return Rate')}: <b style="color:${C_ROSE}">${p[0].value}%</b><br/>${tr('vs avg')}: <span style="color:${+diff>=0?C_ROSE:C_GREEN}">${sign}${diff}pp</span>`
       }},
       xAxis:{ type:'value', axisLabel:{ color:C_SLATE, fontSize:10, formatter:(v:number) => `${v}%` }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
       yAxis:{ type:'category', data:names, axisLabel:{ color:'#374151', fontSize:11 } },
@@ -384,7 +385,7 @@ export default function Performance() {
       tooltip:{ trigger:'axis', formatter:(p:any[]) => {
         const diff = (+p[0].value - avg).toFixed(2)
         const sign = +diff >= 0 ? '+' : ''
-        return `<b>${p[0].name}</b><br/>Disc Rate: <b style="color:${C_AMBER}">${p[0].value}%</b><br/>vs avg: <span style="color:${+diff>=0?C_ROSE:C_GREEN}">${sign}${diff}pp</span>`
+        return `<b>${p[0].name}</b><br/>${tr('Disc Rate')}: <b style="color:${C_AMBER}">${p[0].value}%</b><br/>${tr('vs avg')}: <span style="color:${+diff>=0?C_ROSE:C_GREEN}">${sign}${diff}pp</span>`
       }},
       xAxis:{ type:'value', axisLabel:{ color:C_SLATE, fontSize:10, formatter:(v:number) => `${v}%` }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
       yAxis:{ type:'category', data:names, axisLabel:{ color:'#374151', fontSize:11 } },
@@ -421,9 +422,9 @@ export default function Performance() {
           const sign = +chg >= 0 ? '+' : ''
           return `<div style="min-width:210px">
             <b>${p[0]?.axisValue}</b><br/>
-            <span style="color:${ACCENT}">▮</span> Current: <b>${(+cur).toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>
-            <span style="color:${C_SLATE}">▮</span> Last Year: <b>${(+prv).toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>
-            YoY Change: <b style="color:${+chg>=0?C_GREEN:C_ROSE}">${chg==='N/A'?'N/A':`${sign}${chg}%`}</b>
+            <span style="color:${ACCENT}">▮</span> ${tr('Current')}: <b>${(+cur).toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>
+            <span style="color:${C_SLATE}">▮</span> ${tr('Last Year')}: <b>${(+prv).toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>
+            ${tr('YoY Change')}: <b style="color:${+chg>=0?C_GREEN:C_ROSE}">${chg==='N/A'?'N/A':`${sign}${chg}%`}</b>
           </div>`
         },
       },
@@ -606,7 +607,7 @@ export default function Performance() {
               reportParams={{ date_from: from, date_to: to, ...(storesKey ? { stores: storesKey } : {}) }}
               colDefs={assocCols as any} onResetColumns={colsAssoc.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
-              <AgGridReact ref={assocGridRef} rowData={(assocData??[]) as any[]} columnDefs={trCols(assocCols as any[])}
+              <AgGridReact localeText={gridLocaleText()} ref={assocGridRef} rowData={(assocData??[]) as any[]} columnDefs={trCols(assocCols as any[])}
                 overlayNoRowsTemplate={noRowsOverlay()}
                 onGridReady={colsAssoc.onGridReady} onColumnMoved={colsAssoc.onColumnChanged}
                 onColumnResized={colsAssoc.onColumnChanged} onColumnVisible={colsAssoc.onColumnChanged}
@@ -622,7 +623,7 @@ export default function Performance() {
               reportParams={{ date_from: from, date_to: to, ...(storesKey ? { stores: storesKey } : {}) }}
               colDefs={custCols as any} onResetColumns={colsCust.resetColumns} />}>
             <Box className="ag-theme-alpine" sx={{ height:320, ...GRID_SX }}>
-              <AgGridReact ref={custGridRef} rowData={(custData??[]) as any[]} columnDefs={trCols(custCols as any[])}
+              <AgGridReact localeText={gridLocaleText()} ref={custGridRef} rowData={(custData??[]) as any[]} columnDefs={trCols(custCols as any[])}
                 overlayNoRowsTemplate={noRowsOverlay()}
                 onGridReady={colsCust.onGridReady} onColumnMoved={colsCust.onColumnChanged}
                 onColumnResized={colsCust.onColumnChanged} onColumnVisible={colsCust.onColumnChanged}

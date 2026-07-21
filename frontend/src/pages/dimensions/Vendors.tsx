@@ -10,6 +10,7 @@ import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { useNavigate } from 'react-router-dom'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import axios from 'axios'
 import { useRef } from 'react'
 import { moneyPrefix, money } from '../../utils/formatters'
@@ -126,11 +127,11 @@ export default function DimVendors() {
         formatter: (p: any[]) => {
           const d = r.find((x: any) => x.vendor_name === p[0]?.name) ?? {}
           return `<b>${p[0]?.name}</b><br/>
-            Tier: <b style="color:${TIER_META[d.tier]?.color}">${d.tier}</b><br/>
-            Purchased: <b>${num(d.total_cost)}</b><br/>
-            Dependency: ${pct(d.dep_pct)} of chain<br/>
-            Fill Rate: ${pct(d.fill_rate)}<br/>
-            Stock Value: ${num(d.stock_cost)} · SKUs: ${fmtN(d.sku_count)}`
+            ${tr('Tier')}: <b style="color:${TIER_META[d.tier]?.color}">${d.tier}</b><br/>
+            ${tr('Purchased')}: <b>${num(d.total_cost)}</b><br/>
+            ${tr('Dependency')}: ${pct(d.dep_pct)} ${tr('of chain')}<br/>
+            ${tr('Fill Rate')}: ${pct(d.fill_rate)}<br/>
+            ${tr('Stock Value')}: ${num(d.stock_cost)} · ${tr('SKUs')}: ${fmtN(d.sku_count)}`
         },
       },
       xAxis: { type: 'value', axisLabel: { formatter: (v: number) => num(v), fontSize: 10 } },
@@ -227,7 +228,7 @@ export default function DimVendors() {
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 420 }}>
-          <AgGridReact ref={gridRef} overlayNoRowsTemplate={noRowsOverlay()} rowData={merged} columnDefs={trCols(colDefs as any[])}
+          <AgGridReact localeText={gridLocaleText()} ref={gridRef} overlayNoRowsTemplate={noRowsOverlay()} rowData={merged} columnDefs={trCols(colDefs as any[])}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             rowHeight={36} headerHeight={38} suppressCellFocus rowStyle={{ cursor: 'pointer' }}
             onRowClicked={e => { if (e.data?.vendor) navigate(`/sales/journals?vendor=${encodeURIComponent(e.data.vendor)}`) }}

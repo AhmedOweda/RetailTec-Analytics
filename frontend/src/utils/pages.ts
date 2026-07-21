@@ -32,6 +32,15 @@ export const PAGE_DOMAINS: PageDomain[] = [
     ],
   },
   {
+    domain: 'Accounting',
+    pages: [
+      { key: '/accounting/journal',        label: 'Journal' },
+      { key: '/accounting/trial-balance',  label: 'Trial Balance' },
+      { key: '/accounting/general-ledger', label: 'General Ledger' },
+      { key: '/accounting/exceptions',     label: 'GL Exceptions' },
+    ],
+  },
+  {
     domain: 'Purchasing',
     pages: [
       { key: '/purchases/overview',     label: 'Overview' },
@@ -71,4 +80,47 @@ export function firstAllowedPage(allowed: Set<string> | null): string {
   if (!allowed) return '/sales/overview'
   for (const key of ALL_PAGE_KEYS) if (allowed.has(key)) return key
   return '/sales/overview'
+}
+
+// ── Licensed product domains ────────────────────────────────────────────────
+// The license may restrict the install to a subset of domains. The backend is
+// the source of truth (middleware 403s unlicensed endpoints); this layer just
+// removes the corresponding UI. null/undefined = no restriction (legacy
+// license, no license, or /api/settings/status still loading — fail OPEN so
+// the nav never flashes empty).
+export type LicensedDomains = string[] | null | undefined
+
+/** Route-prefix → license domain. Longest/most specific first. */
+const PATH_LICENSE_DOMAIN: [string, string][] = [
+  ['/home',       'home'],
+  ['/assistant',  'ai'],
+  ['/sales',      'sales'],
+  ['/inventory',  'inventory'],
+  ['/purchases',  'purchases'],
+  ['/accounting', 'accounting'],
+  ['/dimensions', 'dimensions'],
+]
+
+/** Is a license domain covered? (no restriction / unknown domain = yes) */
+export function domainLicensed(domains: LicensedDomains, domain: string): boolean {
+  return !domains || domains.includes(domain)
+}
+
+/** Is this route covered by the license? Unmapped routes (settings, login…)
+ *  are always allowed — the license never hides Settings. */
+export function pathLicensed(domains: LicensedDomains, path: string): boolean {
+  if (!domains) return true
+  const hit = PATH_LICENSE_DOMAIN.find(([p]) => path === p || path.startsWith(p + '/'))
+  return hit ? domains.includes(hit[1]) : true
+}
+
+/** Landing page for this user under this license: Home when licensed, else
+ *  the first page that is BOTH user-allowed and license-covered. */
+export function firstLicensedPage(allowed: Set<string> | null,
+                                  domains: LicensedDomains): string {
+  if (domainLicensed(domains, 'home')) return '/home'
+  for (const key of ALL_PAGE_KEYS)
+    if (pathLicensed(domains, key) && pageAllowed(allowed, key)) return key
+  if (domainLicensed(domains, 'ai')) return '/assistant'
+  return '/settings'   // last resort — always exists, admin-gated by its route
 }

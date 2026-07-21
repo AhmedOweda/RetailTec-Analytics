@@ -42,6 +42,10 @@ def main() -> None:
     ap.add_argument("--expiry", required=True, help="ISO date YYYY-MM-DD (inclusive)")
     ap.add_argument("--max-stores", type=int, default=None)
     ap.add_argument("--max-users", type=int, default=None)
+    ap.add_argument("--domains", default=None,
+                    help="Comma-separated licensed domains (home,ai,sales,"
+                         "inventory,purchases,accounting,dimensions,reports). "
+                         "Omit for the full product (backward compatible).")
     ap.add_argument("--out", default="license.json")
     args = ap.parse_args()
 
@@ -59,6 +63,8 @@ def main() -> None:
         payload["max_stores"] = args.max_stores
     if args.max_users is not None:
         payload["max_users"] = args.max_users
+    if args.domains:
+        payload["domains"] = [d.strip() for d in args.domains.split(",") if d.strip()]
 
     signature = priv.sign(_canonical(payload)).hex()
     doc = {"payload": payload, "signature": signature}

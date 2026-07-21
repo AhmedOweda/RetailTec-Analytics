@@ -17,9 +17,16 @@ import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import { moneyPrefix, money, num, moneyExact } from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
+import { useAppSettings } from '../../context/AppSettings'
+import { itemFieldValue } from '../../components/DataSlicer'
+
+// The endpoint aliases the identifier columns in lower case
+// (alu / upc / description1) — the grid field key per configured identifier.
+const ID_FIELD_LC: Record<string, string> = { alu: 'alu', upc: 'upc', description: 'description1' }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -103,6 +110,8 @@ function StatusCell({ value }: { value: string }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function PurchasesTransactions() {
+  // The configured item identifier (Settings → Product Code Field)
+  const { itemId } = useAppSettings()
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('pur-transactions')
 
@@ -148,8 +157,14 @@ export default function PurchasesTransactions() {
     { field: 'vendor_name',  headerName: 'Supplier',    width: 160,
       headerTooltip: 'Supplier on the purchase voucher (who the goods were bought from)' },
     { field: 'department',   headerName: 'Department',  width: 130 },
-    { field: 'alu',          headerName: 'ALU',         width: 110,
-      cellStyle: { fontFamily: 'monospace', color: '#7c3aed', fontWeight: 600 } },
+    // The configured identifier column; when Description is configured the
+    // Description column below IS the identifier (no duplicate). ALU fallback
+    // keeps the cell non-blank when the configured field is NULL (UPC often is).
+    ...(itemId.field !== 'description' ? [{
+      field: ID_FIELD_LC[itemId.field], headerName: itemId.label, width: 110,
+      valueGetter: (p: any) => itemFieldValue(p.data, itemId.field),
+      cellStyle: { fontFamily: 'monospace', color: '#7c3aed', fontWeight: 600 },
+    }] : []),
     { field: 'description1', headerName: 'Description', flex: 1, minWidth: 180,
       cellStyle: { fontWeight: 500 } },
     { field: 'ord_qty',      headerName: 'Ord Qty',     width: 95, type: 'numericColumn',
@@ -174,7 +189,7 @@ export default function PurchasesTransactions() {
     { field: 'total_retail', headerName: 'Total Retail',width: 120, type: 'numericColumn',
       valueFormatter: (p: any) => fmtC(p.value),
       cellStyle: { color: '#7c3aed' } },
-  ], [])
+  ], [itemId.field, itemId.label])
 
   const defaultColDef = useMemo(() => ({
     sortable: true, filter: true, resizable: true,   // filters via header menu (no floating filter row)
@@ -219,10 +234,10 @@ export default function PurchasesTransactions() {
           </Stack>
 
           <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1 }}>
-          <TextField size="small" label="From" type="date" value={dateFrom}
+          <TextField size="small" label={tr('From')} type="date" value={dateFrom}
             onChange={e => { setDateFrom(e.target.value); setPreset('') }}
             InputLabelProps={{ shrink: true }} sx={{ width: 148 }} />
-          <TextField size="small" label="To" type="date" value={dateTo}
+          <TextField size="small" label={tr('To')} type="date" value={dateTo}
             onChange={e => { setDateTo(e.target.value); setPreset('') }}
             InputLabelProps={{ shrink: true }} sx={{ width: 148 }} />
           </Box>
@@ -292,7 +307,7 @@ export default function PurchasesTransactions() {
           '& .ag-row:hover': { bgcolor: 'var(--rt-grid-hover) !important' },
           '& .ag-paging-panel': { borderTop: '1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
         }}>
-          <AgGridReact
+          <AgGridReact localeText={gridLocaleText()}
             ref={gridRef}
             overlayNoRowsTemplate={noRowsOverlay()}
             rowData={rows}

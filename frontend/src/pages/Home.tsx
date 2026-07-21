@@ -25,6 +25,10 @@ import { money, num } from '../utils/formatters'
 import { MoneyText } from '../components/RiyalSign'
 import { tr } from '../i18n'
 import TitleLoader from '../components/TitleLoader'
+import { useAppSettings } from '../context/AppSettings'
+import { itemFieldValue } from '../components/DataSlicer'
+import { useLicensedDomains } from '../hooks/useLicense'
+import { pathLicensed, domainLicensed } from '../utils/pages'
 
 const ACCENT = '#7c3aed'
 
@@ -64,6 +68,15 @@ const QUICK_LINKS = [
 
 export default function Home() {
   const navigate = useNavigate()
+  // The configured item identifier (Settings → Product Code Field) — the
+  // top-items list labels items with THIS field, not always the description.
+  const { itemId } = useAppSettings()
+  // Licensed domains: cards/links into an unlicensed domain must not exist —
+  // not even on the Home dashboard. Loading/legacy => everything shows.
+  const lic = useLicensedDomains()
+  const salesLic = domainLicensed(lic, 'sales')
+  const invLic   = domainLicensed(lic, 'inventory')
+  const purLic   = domainLicensed(lic, 'purchases')
   const { data, isLoading } = useQuery({
     queryKey: ['home-summary'],
     queryFn: () => axios.get('/api/home/summary').then(r => r.data),
@@ -103,7 +116,8 @@ export default function Home() {
         </Typography>
       </Box>
 
-      {/* KPIs */}
+      {/* KPIs — sales domain */}
+      {salesLic && (
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(4,1fr)' }, gap: 2 }}>
         {isLoading || !k ? (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={104} />)
@@ -116,51 +130,61 @@ export default function Home() {
           </>
         )}
       </Box>
+      )}
 
-      {/* Purchasing + Inventory KPIs */}
+      {/* Purchasing + Inventory KPIs — each gated by its own domain */}
+      {(purLic || invLic) && (
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(4,1fr)' }, gap: 2, mt: 2 }}>
         {isLoading || !data ? (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={104} />)
         ) : (
           <>
-            <Kpi label={tr('Purchases (30d)')} value={<MoneyText text={money(data.purchasing?.value_30 ?? 0)} />} delta={data.purchasing?.value_delta} sub={tr('vs prev 30d')} />
-            <Kpi label={tr('Stock Value')}     value={<MoneyText text={money(data.inventory?.stock_cost ?? 0)} />} sub={tr('on-hand × cost')} />
-            <Kpi label={tr('Active SKUs')}     value={num(data.inventory?.sku_count ?? 0, 0)} sub={tr('with stock on hand')} />
-            <Kpi label={tr('Negative Stock')}  value={num(data.inventory?.neg_stock ?? 0, 0)} sub={tr('item × store rows')} invert delta={undefined} />
+            {purLic && <Kpi label={tr('Purchases (30d)')} value={<MoneyText text={money(data.purchasing?.value_30 ?? 0)} />} delta={data.purchasing?.value_delta} sub={tr('vs prev 30d')} />}
+            {invLic && <Kpi label={tr('Stock Value')}     value={<MoneyText text={money(data.inventory?.stock_cost ?? 0)} />} sub={tr('on-hand × cost')} />}
+            {invLic && <Kpi label={tr('Active SKUs')}     value={num(data.inventory?.sku_count ?? 0, 0)} sub={tr('with stock on hand')} />}
+            {invLic && <Kpi label={tr('Negative Stock')}  value={num(data.inventory?.neg_stock ?? 0, 0)} sub={tr('item × store rows')} invert delta={undefined} />}
           </>
         )}
       </Box>
+      )}
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2, mt: 2 }}>
-        {/* Trend */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: salesLic ? '2fr 1fr' : '1fr' }, gap: 2, mt: 2 }}>
+        {/* Trend — sales domain */}
+        {salesLic && (
         <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Sales trend — last 30 days')}</Typography>
           {isLoading ? <Skeleton variant="rounded" height={240} /> : <ReactECharts option={trendOpt} style={{ height: 240 }} />}
         </Paper>
+        )}
 
         {/* Alerts */}
         <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Alerts')}</Typography>
           <Stack spacing={1}>
-            {(data?.alerts ?? []).map((a: any, i: number) => (
-              <Tooltip key={i} title={a.link ? tr('Click to open the related screen') : ''} arrow placement="left">
-              <Box onClick={() => a.link && navigate(a.link)}
+            {(data?.alerts ?? []).map((a: any, i: number) => {
+              // A drill link into an unlicensed domain must not exist.
+              const link = a.link && pathLicensed(lic, a.link) ? a.link : null
+              return (
+              <Tooltip key={i} title={link ? tr('Click to open the related screen') : ''} arrow placement="left">
+              <Box onClick={() => link && navigate(link)}
                 sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', p: 1, borderRadius: 1.5,
-                      cursor: a.link ? 'pointer' : 'default', bgcolor: 'var(--rt-surface-2)',
-                      '&:hover': a.link ? { bgcolor: 'var(--rt-surface-3)' } : {} }}>
+                      cursor: link ? 'pointer' : 'default', bgcolor: 'var(--rt-surface-2)',
+                      '&:hover': link ? { bgcolor: 'var(--rt-surface-3)' } : {} }}>
                 {alertIcon(a.level)}
                 <Box>
                   <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'var(--rt-text)' }}>{tr(a.title)}</Typography>
                   <Typography sx={{ fontSize: 11.5, color: '#64748b' }}>{tr(a.detail)}</Typography>
                 </Box>
               </Box></Tooltip>
-            ))}
+            )})}
           </Stack>
         </Paper>
       </Box>
 
-      {/* Top stores + items + suppliers */}
+      {/* Top stores + items + suppliers — each panel gated by its domain */}
+      {(salesLic || purLic) && (
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3,1fr)' }, gap: 2, mt: 2 }}>
+        {salesLic && (
         <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Top stores (30d)')}</Typography>
           <Stack spacing={0.5}>
@@ -172,20 +196,32 @@ export default function Home() {
             ))}
           </Stack>
         </Paper>
+        )}
+        {salesLic && (
         <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Top items (30d)')}</Typography>
           <Stack spacing={0.5}>
-            {(data?.top_items ?? []).map((it: any, i: number) => (
-              <Tooltip key={i} title={tr('Click to open this item in Journals')} arrow placement="left"><Box onClick={() => navigate(`/sales/journals?item=${encodeURIComponent(it.alu)}&item_desc=${encodeURIComponent(it.name ?? '')}`)}
+            {(data?.top_items ?? []).map((it: any, i: number) => {
+              // Label + drill value = the CONFIGURED identifier (ALU fallback
+              // when NULL). Journals' `item` filter matches all three fields,
+              // so the drill works whichever identifier is configured.
+              const code = itemFieldValue(it, itemId.field) || it.alu || ''
+              const label = itemId.field === 'description'
+                ? (it.name || code)
+                : `${code}${it.name ? ` · ${it.name}` : ''}`
+              return (
+              <Tooltip key={i} title={tr('Click to open this item in Journals')} arrow placement="left"><Box onClick={() => navigate(`/sales/journals?item=${encodeURIComponent(code)}&item_desc=${encodeURIComponent(it.name ?? '')}`)}
                 sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderBottom: '1px solid var(--rt-border)', cursor: 'pointer', '&:hover': { bgcolor: 'var(--rt-surface-2)' } }}>
                 <Typography sx={{ fontSize: 12.5, color: 'var(--rt-text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <OpenInNewIcon sx={{ fontSize: 13, color: '#c4b5fd' }} />{it.name || it.alu}
+                  <OpenInNewIcon sx={{ fontSize: 13, color: '#c4b5fd' }} />{label}
                 </Typography>
                 <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: 'var(--rt-text)' }}><MoneyText text={money(it.net)} /></Typography>
               </Box></Tooltip>
-            ))}
+            )})}
           </Stack>
         </Paper>
+        )}
+        {purLic && (
         <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)' }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1 }}>{tr('Top suppliers (30d)')}</Typography>
           <Stack spacing={0.5}>
@@ -200,12 +236,14 @@ export default function Home() {
             )}
           </Stack>
         </Paper>
+        )}
       </Box>
+      )}
 
-      {/* Quick links */}
+      {/* Quick links — only into licensed domains */}
       <Typography sx={{ fontWeight: 700, fontSize: 13, mt: 3, mb: 1, color: 'var(--rt-text-2)' }}>{tr('Quick links')}</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', sm: 'repeat(3,1fr)', md: 'repeat(6,1fr)' }, gap: 1.5 }}>
-        {QUICK_LINKS.map(q => (
+        {QUICK_LINKS.filter(q => pathLicensed(lic, q.to)).map(q => (
           <Paper key={q.to} elevation={0} onClick={() => navigate(q.to)}
             sx={{ p: 1.75, borderRadius: 2, border: '1px solid var(--rt-border)', bgcolor: 'var(--rt-surface)', cursor: 'pointer',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.75, textAlign: 'center',

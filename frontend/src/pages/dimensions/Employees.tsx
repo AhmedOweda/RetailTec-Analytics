@@ -11,6 +11,7 @@ import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import axios from 'axios'
 import { useRef } from 'react'
 import { moneyPrefix, money } from '../../utils/formatters'
@@ -104,11 +105,11 @@ export default function DimEmployees() {
         formatter: (p: any[]) => {
           const d = r.find((x: any) => x.employee_name === p[0].name) ?? {}
           return `<b>${p[0].name}</b><br/>
-            Tier: <b style="color:${PERF_META[d.perf_tier]?.color}">${d.perf_tier}</b><br/>
-            Revenue: <b>${num(d.net_sales)}</b><br/>
-            Rev/Invoice: ${num(d.rev_per_inv)}<br/>
-            Disc%: ${pct(d.disc_rate)} · Return%: ${pct(d.return_rate)}<br/>
-            Store: ${d.store_name}`
+            ${tr('Tier')}: <b style="color:${PERF_META[d.perf_tier]?.color}">${d.perf_tier}</b><br/>
+            ${tr('Revenue')}: <b>${num(d.net_sales)}</b><br/>
+            ${tr('Rev/Invoice')}: ${num(d.rev_per_inv)}<br/>
+            ${tr('Disc%')}: ${pct(d.disc_rate)} · ${tr('Return%')}: ${pct(d.return_rate)}<br/>
+            ${tr('Store')}: ${d.store_name}`
         },
       },
       xAxis: { type: 'value', axisLabel: { formatter: (v: number) => num(v), fontSize: 10 } },
@@ -205,7 +206,7 @@ export default function DimEmployees() {
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 420 }}>
-          <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
+          <AgGridReact localeText={gridLocaleText()} ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
             overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             rowHeight={36} headerHeight={38} suppressCellFocus

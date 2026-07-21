@@ -17,10 +17,14 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
+import DataSlicer, { itemFieldValue } from '../../components/DataSlicer'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import { moneyPrefix, money, num, moneyExact } from '../../utils/formatters'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
+import FeatureUnavailable from '../../components/FeatureUnavailable'
+import { useFeature, FEATURE_INVENTORY_HISTORY } from '../../hooks/useFeatures'
 
 // ── Colours ─────────────────────────────────────────────────────────────────
 const ACCENT    = '#7c3aed'
@@ -66,8 +70,10 @@ function ColHdr({ label, color }: { label: string; color: string }) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function InventoryLedger() {
-  const { productCodeField } = useAppSettings()
-  const codeField = productCodeField.toUpperCase()
+  // The configured item identifier (Settings → Product Code Field). Ask
+  // `itemId` — never compare productCodeField to 'upc', which silently treats
+  // the 'description' setting as ALU.
+  const { itemId } = useAppSettings()
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('ledger')
 
@@ -76,24 +82,19 @@ export default function InventoryLedger() {
   const [dateTo,   setDateTo  ] = useState(today)
   const [selStores, setSelStores] = useState<string[]>([])
 
-  // Item search
-  type ItemOpt = { item_sid: number; ALU: string; UPC: string; DESCRIPTION1: string }
-  const [selItem, setSelItem] = useState<ItemOpt | null>(null)
-  const [itemQ,   setItemQ  ] = useState('')
+  // ── Item slicer — the shared <DataSlicer>. The ledger endpoint filters on a
+  //    single ITEM_SID (its opening-balance CTE is built around one item), so
+  //    this instance is single-select: same component, same look, same
+  //    debounced type-ahead and in-input busy indicator as Journals.
+  const [itemSel, setItemSel] = useState<any[]>([])
+  const selItem: any = itemSel[0] ?? null
+  const itemToken = (o: any) => (typeof o === 'string' ? o : itemFieldValue(o, itemId.field))
 
   // Store list
   const { data: storeList = [] } = useQuery<{ STORE_NAME: string }[]>({
     queryKey: ['stores'],
     queryFn:  () => axios.get('/api/stores').then(r => r.data),
     staleTime: Infinity,
-  })
-
-  // Item autocomplete options
-  const { data: itemOptions = [] } = useQuery<ItemOpt[]>({
-    queryKey: ['items-search', itemQ],
-    queryFn:  () => axios.get('/api/inventory/items-search', { params: { q: itemQ } }).then(r => r.data),
-    enabled:  itemQ.trim().length >= 2,
-    staleTime: 30_000,
   })
 
   const storeNames  = storeList.map(s => s.STORE_NAME)
@@ -129,7 +130,7 @@ export default function InventoryLedger() {
   // ── AG Grid columns ────────────────────────────────────────────────────────
   const columns = useMemo<ColDef[]>(() => [
     // ── Identity
-    { field: productCodeField, headerName: codeField,   pinned: 'left', width: 100,
+    { field: itemId.field, headerName: itemId.label,   pinned: 'left', width: 100,
       cellStyle: { fontFamily: 'monospace', color: ACCENT, fontWeight: 700, display: 'flex', alignItems: 'center' } },
     { field: 'description', headerName: 'Description', pinned: 'left', flex: 1.5, minWidth: 160,
       cellStyle: { fontWeight: 600, display: 'flex', alignItems: 'center' } },
@@ -208,7 +209,14 @@ export default function InventoryLedger() {
       headerComponent: () => <ColHdr label={tr('End Cost')}   color={C_END} />,
       valueFormatter: p => fmtC(p.value),
       cellStyle: { color: C_END, fontWeight: 800, display: 'flex', alignItems: 'center' } },
-  ], [codeField])
+  ], [itemId.field, itemId.label])
+
+  // Opening balance and the historical ending balance are the ONLY parts of
+  // this page that come from the optional Inventory History customisation.
+  // Where it is absent the sales / transfer / adjustment columns are still
+  // fully correct, so the grid stays and we explain the gap in a banner rather
+  // than blanking a page that is 80% usable.
+  const [histOff, histReason] = useFeature(FEATURE_INVENTORY_HISTORY)
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -243,30 +251,15 @@ export default function InventoryLedger() {
             sx={{ minWidth: 200 }}
           />
 
-          {/* ── Item search ── */}
-          <Autocomplete
-            size="small"
-            options={itemOptions}
-            getOptionLabel={opt =>
-              `${productCodeField === 'upc' ? opt.UPC : opt.ALU} | ${opt.DESCRIPTION1}`
-            }
-            isOptionEqualToValue={(a, b) => a.item_sid === b.item_sid}
-            value={selItem}
-            inputValue={itemQ}
-            onInputChange={(_, v) => setItemQ(v)}
-            onChange={(_, v) => setSelItem(v)}
-            filterOptions={x => x}
-            noOptionsText={itemQ.length < 2 ? tr('Type 2+ chars…') : tr('No match')}
-            renderInput={p => (
-              <TextField {...p} placeholder={trf('Search {{code}} / Desc', { code: codeField })}
-                sx={{ minWidth: 280 }} size="small" />
-            )}
-            sx={{ minWidth: 280 }}
-          />
-
-          {isFetching && (
-            <Typography sx={{ fontSize: 11, color: C_SLATE, ml: 1 }}>{tr('Loading…')}</Typography>
-          )}
+          {/* ── Item — the shared slicer. Its busy indicator lives inside the
+                 input, so there is no separate "Loading…" label beside it. ── */}
+          <DataSlicer sx={{ minWidth: 280, maxWidth: 380 }} value={itemSel} onChange={setItemSel}
+            searchEndpoint="/api/inventory/items-search"
+            multiple={false} freeSolo={false}
+            getToken={itemToken} itemField={itemId.field} searchByItemField
+            placeholder="Item (code / description)"
+            renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
+              : { code: itemFieldValue(o, itemId.field), rest: o.DESCRIPTION1 })} />
         </Box>
       </Box>
 
@@ -283,6 +276,16 @@ export default function InventoryLedger() {
         <KpiCard label={tr('Rows in View')}   value={num(rows.length, 0)}
           sub={tr('Item × Store combinations')}                 color={C_SLATE} icon="ti-list" />
       </Box>
+
+      {/* ── Opening / ending balances need the optional history customisation ──
+             Banner, not panel: the sales / transfer / adjustment columns below
+             are fully correct without it, so the grid stays usable. ── */}
+      {histOff && (
+        <FeatureUnavailable
+          variant="banner"
+          title="Opening and ending balances are not available on this server"
+          reason={histReason || 'Inventory History is a Retail Pro customisation that is not installed on this server. Movement columns (sales, transfers, adjustments) are unaffected.'} />
+      )}
 
       {/* ── Colour legend ── */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -308,14 +311,14 @@ export default function InventoryLedger() {
       }}>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 1.5, pt: 1.5, pb: 1.5 }}>
           <GridExportBar gridRef={gridRef} filename="inventory_ledger" title="Inventory Ledger"
-            filters={`${dateFrom} → ${dateTo} · ${storesParam ? tr('Selected stores') : tr('All stores')}${selItem?.item_sid ? ` · ${selItem.alu ?? selItem.item_sid}` : ''}`}
+            filters={`${dateFrom} → ${dateTo} · ${storesParam ? tr('Selected stores') : tr('All stores')}${selItem?.item_sid ? ` · ${itemToken(selItem) || selItem.item_sid}` : ''}`}
             reportEndpoint="/api/inventory/ledger"
             reportPeriod={PERIODS[period]?.label ?? 'custom'}
             reportParams={qParams}
             colDefs={columns as any} onResetColumns={resetColumns} />
         </Box>
         <Box className="ag-theme-alpine" sx={{ height: 560, mt: 0.5 }}>
-          <AgGridReact
+          <AgGridReact localeText={gridLocaleText()}
             ref={gridRef}
             overlayNoRowsTemplate={noRowsOverlay()}
             rowData={rows}

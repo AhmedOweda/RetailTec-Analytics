@@ -30,8 +30,10 @@ import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldsQS, itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
+import { itemFieldValue } from '../../components/DataSlicer'
 import { CHART_CATEGORICAL } from '../../theme/chartPalette'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 
 /* ── Theme ─────────────────────────────────────────────────────────── */
 const ACCENT  = '#7c3aed'
@@ -104,12 +106,12 @@ function ChartCard({
             )}
           </Box>
           <Box sx={{ display: 'flex', gap: 0.25, opacity: 0.45, transition: 'opacity .15s', '&:hover': { opacity: 1 } }}>
-            <Tooltip title="Export PNG" placement="top">
+            <Tooltip title={tr('Export PNG')} placement="top">
               <IconButton size="small" onClick={exportPng} sx={{ p: 0.5 }}>
                 <FileDownloadIcon sx={{ fontSize: 15, color: '#64748b' }} />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Fullscreen" placement="top">
+            <Tooltip title={tr('Fullscreen')} placement="top">
               <IconButton size="small" onClick={() => setOpen(true)} sx={{ p: 0.5 }}>
                 <FullscreenIcon sx={{ fontSize: 15, color: '#64748b' }} />
               </IconButton>
@@ -163,7 +165,11 @@ const gpAbsStyle = (p: any) => ({
 
 /* ── Main component ─────────────────────────────────────────────────── */
 export default function Products() {
-  const { productCodeField, itemFields } = useAppSettings()
+  // The configured item identifier (Settings → Product Code Field). Ask
+  // `itemId` (field/column/label) — never `.toUpperCase()` of the raw setting,
+  // which rendered a bogus "DESCRIPTION" header and an empty column under the
+  // third setting.
+  const { itemId, itemFields } = useAppSettings()
   const todayStr = format(new Date(), 'yyyy-MM-dd')
 
   /* Date range state */
@@ -289,21 +295,21 @@ export default function Products() {
           const gc = gmColorOf(+(d._gpPct ?? 0))
           return `<div style="min-width:170px">
             <b>${d.name}</b><br/>
-            Revenue: <b>${(+(d._rev ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
-            GP%: <b style="color:${gc}">${(+(d._gpPct ?? 0)).toFixed(1)}%</b><br/>
-            GP: ${(+(d._gp ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}<br/>
-            Qty: ${(+(d._qty ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            ${tr('Revenue')}: <b>${(+(d._rev ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
+            ${tr('GP%')}: <b style="color:${gc}">${(+(d._gpPct ?? 0)).toFixed(1)}%</b><br/>
+            ${tr('GP')}: ${(+(d._gp ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}<br/>
+            ${tr('Qty')}: ${(+(d._qty ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </div>`
         },
       },
       xAxis: {
-        type: 'value', name: 'Revenue', nameLocation: 'middle', nameGap: 28,
+        type: 'value', name: tr('Revenue'), nameLocation: 'middle', nameGap: 28,
         nameTextStyle: { color: C_SLATE, fontSize: 11 },
         axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => fmtK(v) },
         splitLine: { lineStyle: { color: '#f1f5f9' } },
       },
       yAxis: {
-        type: 'value', name: 'GP %', nameLocation: 'middle', nameGap: 36,
+        type: 'value', name: tr('GP %'), nameLocation: 'middle', nameGap: 36,
         nameTextStyle: { color: C_SLATE, fontSize: 11 },
         axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => `${v}%` },
         splitLine: { lineStyle: { color: '#f1f5f9' } },
@@ -395,14 +401,14 @@ export default function Products() {
           const trail = (p.treePathInfo as any[] ?? []).slice(1)
           const path  = trail.map((n: any) => n.name).join(' › ')
           // Depth-aware label: Dept / Class / Subclass
-          const level = ['Department', 'Class', 'Subclass'][trail.length - 1] ?? ''
+          const level = [tr('Department'), tr('Class'), tr('Subclass')][trail.length - 1] ?? ''
           const shr   = grandTotal > 0 ? (+p.value / grandTotal * 100).toFixed(1) : '0'
           return `<div style="min-width:200px">
             ${level ? `<div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px">${level}</div>` : ''}
             <b>${path || p.name}</b><br/>
-            Revenue: <b>${(+p.value).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
-            Share of total: ${shr}%<br/>
-            <span style="font-size:10px;color:#94a3b8">Click a box to drill down · breadcrumb to go back</span>
+            ${tr('Revenue')}: <b>${(+p.value).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>
+            ${tr('Share of total')}: ${shr}%<br/>
+            <span style="font-size:10px;color:#94a3b8">${tr('Click a box to drill down · breadcrumb to go back')}</span>
           </div>`
         },
       },
@@ -466,7 +472,7 @@ export default function Products() {
         formatter: (p: any[]) => {
           const r  = rows[p[0]?.dataIndex] ?? {}
           const gc = gmColorOf(+(r.gp_pct ?? 0))
-          return `<b>${p[0].name}</b><br/>Revenue: <b>${(+(r.revenue ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>GP: ${(+(r.gp ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}<br/>GP%: <b style="color:${gc}">${r.gp_pct ?? 0}%</b>`
+          return `<b>${p[0].name}</b><br/>${tr('Revenue')}: <b>${(+(r.revenue ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</b><br/>${tr('GP')}: ${(+(r.gp ?? 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}<br/>${tr('GP%')}: <b style="color:${gc}">${r.gp_pct ?? 0}%</b>`
         },
       },
       xAxis: {
@@ -535,10 +541,16 @@ export default function Products() {
 
     if (view === 'item') return [
       rankCol,
-      {
-        field: productCodeField.toUpperCase(), headerName: productCodeField.toUpperCase(), width: 110, pinned: 'left',
+      // The configured identifier column. When Description is the identifier
+      // the Description column below already IS the identifier, so no separate
+      // code column is added (avoids the same field appearing twice).
+      ...(itemId.field !== 'description' ? [{
+        field: itemId.column, headerName: itemId.label, width: 110, pinned: 'left',
+        // Falls back to ALU when the configured field is NULL for an item
+        // (UPC often is), so the cell never renders blank.
+        valueGetter: (p: any) => itemFieldValue(p.data, itemId.field),
         cellStyle: { fontFamily: 'monospace', fontSize: 12, color: '#6d28d9', display: 'flex', alignItems: 'center' },
-      },
+      } as ColDef] : []),
       {
         field: 'DESCRIPTION1', headerName: 'Description', width: 240, pinned: 'left',
         cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' },
@@ -583,7 +595,7 @@ export default function Products() {
       },
       qtyCol, revCol, gpCol, gpPctCol,
     ]
-  }, [tableData, view, productCodeField, itemFields])
+  }, [tableData, view, itemId.field, itemId.column, itemId.label, itemFields])
 
   const gpColor = kpi.gpPct >= 30 ? 'var(--rt-pos-fg)' : kpi.gpPct >= 10 ? 'var(--rt-warn-fg)' : 'var(--rt-neg-fg)'
   const gpLabel = kpi.gpPct >= 30 ? 'Excellent margin' : kpi.gpPct >= 10 ? 'Healthy margin' : 'Low margin'
@@ -624,12 +636,12 @@ export default function Products() {
           {/* Custom date range — hidden on mobile (keep period chips) */}
           <Box className="rt-mobile-hide" sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', rowGap: 1 }}>
             <CalendarMonthIcon sx={{ fontSize: 16, color: C_SLATE }} />
-            <TextField type="date" size="small" label="From" value={customFrom}
+            <TextField type="date" size="small" label={tr('From')} value={customFrom}
               onChange={e => { setCustomFrom(e.target.value); setPeriod(null) }}
               InputLabelProps={{ shrink: true }}
               sx={{ width: 148, '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }} />
             <Typography sx={{ color: C_SLATE, fontSize: 13, px: 0.25 }}>â†’</Typography>
-            <TextField type="date" size="small" label="To" value={customTo}
+            <TextField type="date" size="small" label={tr('To')} value={customTo}
               onChange={e => { setCustomTo(e.target.value); setPeriod(null) }}
               InputLabelProps={{ shrink: true }}
               sx={{ width: 148, '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }} />
@@ -639,7 +651,7 @@ export default function Products() {
                 textTransform: 'none', fontWeight: 700, borderRadius: 2, px: 2.5, height: 36,
                 bgcolor: ACCENT, boxShadow: '0 2px 8px rgba(124,58,237,.35)', '&:hover': { bgcolor: ACCENT2 },
               }}>
-              Apply
+              {tr('Apply')}
             </Button>
           </Box>
 
@@ -729,7 +741,7 @@ export default function Products() {
               )}
               {view === 'item' && (
                 <Typography sx={{ fontSize: 11, color: C_SLATE }}>
-                  {tr('Showing')} <b style={{ color: ACCENT }}>{productCodeField.toUpperCase()}</b> {tr('code · change in Settings')}
+                  {tr('Showing')} <b style={{ color: ACCENT }}>{tr(itemId.label)}</b> {tr('code · change in Settings')}
                 </Typography>
               )}
               </Box>
@@ -750,7 +762,7 @@ export default function Products() {
               ? <Skeleton variant="rectangular" height={440} sx={{ borderRadius: 1.5 }} />
               : (
                 <Box className="ag-theme-alpine" sx={{ height: 460, ...GRID_SX }}>
-                  <AgGridReact
+                  <AgGridReact localeText={gridLocaleText()}
                     ref={gridRef}
                     key={`view-${view}`}
                     overlayNoRowsTemplate={noRowsOverlay()}

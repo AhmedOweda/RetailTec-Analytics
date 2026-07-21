@@ -1,228 +1,124 @@
-# RetailTec Analytics Dashboard
+# RetailTec Analytics
 
-A self-contained, offline-capable analytics dashboard for **Retail Pro Prism (RPS)** retail management systems.  
-Built on React + TypeScript (frontend) and FastAPI + DuckDB (backend). Syncs data from Oracle once, then answers every query locally — no live Oracle connection needed at runtime.
+A self-contained, offline-capable business-intelligence suite for **Retail Pro Prism (RPS)**.
+Syncs from Oracle into a local **DuckDB star schema**, then answers every query locally — no live
+Oracle connection at runtime. Ships as a single Windows installer (PyInstaller + Inno Setup) that
+runs in the system tray and serves the app on `http://127.0.0.1:7382`.
 
----
-
-## What's New in v2.0
-
-v2.0 is a complete architectural rebuild over v1.0:
-
-| Area | v1.0 | v2.0 |
-|---|---|---|
-| Data source at runtime | Live Oracle queries | Local DuckDB (star schema) |
-| Query latency | 2–8 s per request | < 100 ms |
-| Multi-page routing | ❌ Single page | ✅ Overview / Performance / Products / Transactions |
-| Sync engine | None | Oracle → DuckDB incremental + full load |
-| Transaction table | 200-row list | AG Grid — unlimited rows, sortable, resizable, paginated |
-| Export | ❌ | ✅ Excel + PDF (filtered rows only) |
-| KPI comparisons | ❌ | ✅ Period-over-period arrows (Today vs Yesterday, MTD vs LMTD, YTD vs LYTD) |
-| Return Rate | Count-based | Value-based (return amount ÷ gross sales) |
-| Discount tracking | Header discount only (often 0) | Item + header + loyalty discounts combined |
+**Stack:** FastAPI + DuckDB + python-oracledb (backend) · React 18 + TypeScript + MUI + ECharts + AG Grid (frontend) · fully bilingual **English / Arabic (RTL)** · light + dark mode.
 
 ---
 
-## Tech Stack
+## Modules
 
-| Layer | Technology |
+| Domain | What it does |
 |---|---|
-| Frontend | React 18, TypeScript, Vite, MUI v5, ECharts, AG Grid Community |
-| Backend | Python 3.11, FastAPI, uvicorn |
-| Local DB | DuckDB (star schema — synced from Oracle) |
-| Oracle driver | python-oracledb (thick mode, Instant Client) |
-| Export | SheetJS (xlsx), jsPDF + jspdf-autotable |
-| Desktop wrapper | Electron (optional) |
+| **Home** | KPI dashboard, sales trend, top stores/items/suppliers, governance **alerts** that drill through to the exact filtered rows they counted |
+| **Sales** | Overview, Performance (stores/associates/customers), Products, Invoices, **Journals** (master–detail invoice → lines) |
+| **Inventory** | Stock Levels, **Stock by Date** (as-of carry-forward), Movement, Transfers, Adjustments, Ledger, History, Coverage |
+| **Purchasing** | Overview, Vouchers (master–detail) |
+| **Dimensions** | Stores, Customers, Employees, Items, Suppliers |
+| **Accounting** | Financial reports over a **virtual general ledger** (Retail Pro subsidiary 100): Journal, Trial Balance, General Ledger, GL Exceptions — see below |
+| **Data Analyst (AI)** | Ask-AI text-to-SQL assistant with a strict SQL safety guard; provider-agnostic (Ollama / OpenAI-compatible / Groq) |
+| **Reports & Email** | Any grid is schedulable: server-side engine renders CSV / Excel / PDF attachments and emails them on cron-like schedules |
+
+### Accounting (virtual GL)
+
+The customization posts double-entry journals into Retail Pro **subsidiary 100**: the chart of
+accounts is stored as non-inventory items, and each journal line is a `DOCUMENT_ITEM` row
+(amount in `PRICE`, sign via `ITEM_TYPE` 1 = debit / 2 = credit; source document metadata in the
+NOTE fields). The warehouse extracts this into `FACT_GL` / `FACT_GL_DOC` / `DIM_ACCOUNT` and the
+reports enforce a **balanced-document gate**: statements include only source documents that net to
+zero, and the **GL Exceptions** page lists every excluded document with its imbalance so nothing is
+ever hidden. Features: transaction-date vs posting-date basis, Payment/Entry journal categories
+(`P_*` prefix), business-partner resolution (customer vs supplier), and drill-through from Trial
+Balance into the ledger. The Trial Balance is verified to tie to Oracle to the cent.
 
 ---
 
-## Features
+## Key capabilities
 
-### Overview Page
-- **4 KPI cards** — Today / Yesterday / Month-to-Date / Year-to-Date
-- **Period-over-period comparison badges** — green ↑ / red ↓ arrows with % change vs prior period
-- **Per-card stats**: Net Sales, Incl. Tax, Tax Amount, Invoices (with thousands separator), Returns + Rate % badge, Avg Ticket, Discount + Ratio % badge
-- **Return Rate** computed as `return amount ÷ gross sales × 100` (value-based, not count-based)
-- **Discount Ratio** computed from real totals: `item disc + invoice disc + loyalty disc`
-- **Sales Trend chart** — net sales (area) + invoices (bars) + return rate % (dashed line), with **7D / 30D / MTD / YTD** period selector
-
-### Transactions Page
-- **AG Grid** — resizable and sortable columns, drag to reorder
-- **# index column** — live row number that reorders on every sort/filter change
-- **Unlimited rows** — no cap; DuckDB returns full result set
-- **Server-side search** — ILIKE across doc_no, store, associate, customer (searches full dataset, not just current page)
-- **Advanced filters popup** — field-level filters for Doc No, Store, Associate, Customer, Type (Sale/Return/Order toggles), Net Sales range; active filters shown as chips with individual ✕ remove
-- **Export** — Excel (.xlsx) and PDF (A3 landscape) of currently visible (filtered) rows only
-
-### Performance Page
-- Per-store breakdown — net sales, invoices, returns, discount
-- Top associates — net sales, invoice count, avg basket
-- Daily trend chart by period
-
-### Products Page
-- Top items by revenue, GP, GP%
-- Group by: Item / DCS / Vendor / Department
-
-### Sync Engine
-- **Incremental sync** — last 7 days, DELETE + re-insert
-- **Full load** — configurable date range, INSERT OR IGNORE (resumable)
-- **Smart dimension loading** — DIM_CUSTOMER and DIM_ITEM loaded with Oracle-side date subquery filter (only records referenced in the sync window), avoiding loading millions of unused rows
-- **Progress streaming** — SSE stream shows live chunk progress during sync
-- Fact data in weekly chunks for memory efficiency and cancellability
+- **Offline star schema** — one Oracle scan per sync, streamed inserts, incremental watermarks,
+  mutability-aware load model, never-empty guards, self-healing validation. Optional source
+  customizations (inventory history, the accounting subsidiary) are **capability-detected**:
+  servers without them degrade gracefully instead of erroring.
+- **Licensing** — Ed25519-signed license files with subsidiary limits, device/host binding, grace
+  period, and **per-domain licensing**: a license enumerates the modules bought (sales, inventory,
+  accounting, ai, …) and everything else disappears — nav, routes, API (403), settings — even for
+  admins. Licenses are generated with the bundled License Studio GUI.
+- **Configurable item identifier** — ALU, UPC or Description; honoured by every grid, chart,
+  search and emailed report (server-side, with ALU fallback).
+- **One shared slicer** (`DataSlicer`) used by every page — identical shape, data and behaviour,
+  with exact-id vs fuzzy-text filtering.
+- **Saved views, drill-through, command palette (Ctrl-K), per-user page permissions, audit log,
+  responsive mobile layout.**
 
 ---
 
-## Architecture
+## Repository layout
 
 ```
-Browser (React + Vite)
-    │
-    │  REST + SSE
-    ▼
-FastAPI Backend
-    │
-    ├─ DuckDB  (local star schema)
-    │     ├─ FACT_SALES_DAILY      — daily aggregates by store
-    │     ├─ FACT_SALES_INVOICES   — one row per transaction
-    │     ├─ FACT_SALES_ITEMS      — one row per line item
-    │     ├─ DIM_STORE / DIM_EMPLOYEE / DIM_CUSTOMER
-    │     ├─ DIM_ITEM / DIM_DCS / DIM_VENDOR / DIM_SUBSIDIARY
-    │     └─ All queries JOIN at query time (true star schema)
-    │
-    └─ Oracle DB (Retail Pro Prism RPS)
-          Connected only during sync — not at query time
-          Tables: DOCUMENT, DOCUMENT_ITEM, EMPLOYEE, STORE,
-                  SUBSIDIARY, INVN_SBS_ITEM, DCS, VENDOR, CUSTOMER
+backend/
+  main.py                 # FastAPI app, static SPA serving, license middleware
+  db/model.py             # DuckDB DDL (_ensure_schema), SCHEMA_VERSION, migrations
+  db/sync.py              # Oracle → DuckDB sync engine (extracts, guards, watermarks)
+  routers/                # sales, inventory, purchases, accounting, settings, admin, …
+  services/               # report engine, email, scheduler, license, AI assistant, settings
+  tools/                  # License Studio (GUI) + make_license CLI
+frontend/
+  src/pages/              # one folder per domain (sales, inventory, accounting, …)
+  src/components/         # DataSlicer, GridExportBar, KpiCard, EChart, …
+  src/design-tokens.css   # all colours as --rt-* tokens (light + dark)
+  src/i18n.ts             # EN→AR dictionary (tr()/trf())
+packaging/
+  _exeonly.ps1            # PyInstaller onedir build (use THIS one)
+  installer.iss           # Inno Setup script → versioned installer
 ```
 
----
-
-## Project Structure
-
-```
-react-dashboard/
-├── backend/
-│   ├── main.py                   # FastAPI app + startup sync trigger
-│   ├── launcher.py               # PyInstaller entry point (Electron build)
-│   ├── settings.json             # Oracle connection + sync config
-│   ├── requirements.txt
-│   ├── db/
-│   │   ├── model.py              # DuckDB schema + _ensure_schema()
-│   │   └── sync.py               # Oracle → DuckDB sync engine
-│   ├── routers/
-│   │   ├── sales.py              # All sales API endpoints
-│   │   └── settings.py           # Connection settings API
-│   └── services/
-│       └── scheduler.py          # Incremental sync scheduler
-├── frontend/
-│   ├── src/
-│   │   ├── layout/               # AppShell, Sidebar, Header
-│   │   ├── pages/
-│   │   │   └── sales/
-│   │   │       ├── Overview.tsx       # KPI cards + trend chart
-│   │   │       ├── Performance.tsx    # Store + employee breakdowns
-│   │   │       ├── Products.tsx       # Item / DCS / vendor / dept
-│   │   │       └── Transactions.tsx   # AG Grid table + export
-│   │   ├── router.tsx
-│   │   └── utils/formatters.ts
-│   ├── package.json
-│   └── index.html
-├── electron/
-│   ├── main.js                   # Electron window + backend spawn
-│   └── preload.js
-├── build/
-│   ├── build-backend.bat         # PyInstaller build
-│   └── build-app.bat             # Electron packaging
-└── package.json                  # Root Electron builder config
-```
-
----
-
-## Setup
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 18+
-- Oracle Instant Client 23.x in `C:\db_mcp\instantclient_23_0`
-
-### Backend
+## Development
 
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+# backend
+cd backend && pip install -r requirements.txt
+uvicorn main:app --reload --port 7382
+
+# frontend
+cd frontend && npm install && npm run dev
 ```
 
-### Frontend
+Oracle Instant Client (thick mode) must be available; the packaged app bundles it.
 
-```bash
-cd frontend
-npm install
-npm run dev
+## Building a release
+
+```powershell
+cd packaging
+powershell -ExecutionPolicy Bypass -File _exeonly.ps1      # → packaging\out\RetailTecAnalytics\
+# test the exe, then:
+powershell -ExecutionPolicy Bypass -File ..\..\_makeinstaller.ps1   # → packaging\Output\*-Setup-*.exe
 ```
 
-App runs at `http://localhost:7383`.  
-Backend runs at `http://localhost:8000`.
+The scheduler runs in-process, so the tray app must stay running for scheduled emails to fire.
+
+## First-time data load
+
+1. Settings → connection → save
+2. Settings → **Your data** → *Load All Data now* (per-domain schedules and windows are configurable;
+   the Accounting domain appears only when the server carries the customization)
+3. Dark mode, language (EN/AR), item identifier and email preferences live in Settings → Display / Reports & Email
 
 ---
 
-## First-Time Data Load
+## Warehouse
 
-1. Open **Settings** in the sidebar
-2. Enter your Oracle connection details and save
-3. Click **Load All Data** to run the initial full sync (progress shown live)
-4. Navigate to **Overview** — data is ready
+29 tables: 9 dimensions, 11 fact tables (sales, inventory, purchases, GL), 9 ETL/control tables.
+Facts carry their own `SUBSIDIARY_SID`; relationships are implicit (documented in the ERD:
+`RetailTec-Warehouse-ERD.html`). Subsidiary 100 (the virtual GL) is quarantined from every
+non-accounting extract and screen.
 
-After the initial load, the backend triggers a 7-day incremental sync automatically on each startup.
+## Version history
 
----
-
-## API Endpoints
-
-### Sales
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/sales/overview` | Today / Yesterday / MTD / YTD KPIs + comparisons |
-| GET | `/api/sales/trend` | Daily trend series (net sales, invoices, returns) |
-| GET | `/api/sales/stores` | Per-store breakdown |
-| GET | `/api/sales/employees` | Top employees by net sales |
-| GET | `/api/sales/products` | Top items / DCS / vendor / department |
-| GET | `/api/sales/transactions` | Invoice list — paginated, server-side search |
-| GET | `/api/sales/stores-list` | Distinct store names for filter UI |
-
-### Sync
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/sync/trigger` | Trigger incremental sync (last 7 days) |
-| GET | `/api/sync/status` | Current sync state + progress |
-| POST | `/api/sync/full-load` | Trigger full reload (all data) |
-
----
-
-## Star Schema
-
-```
-                    DIM_STORE
-                    DIM_EMPLOYEE
-                    DIM_CUSTOMER
-FACT_SALES_DAILY ──────────────── DIM_SUBSIDIARY
-FACT_SALES_INVOICES
-FACT_SALES_ITEMS ───────────────── DIM_ITEM
-                                       │
-                                   DIM_DCS
-                                   DIM_VENDOR
-```
-
-All dimensions are joined at query time in DuckDB — no pre-joined denormalized tables.
-
----
-
-## Version History
-
-| Version | Description |
+| Version | Highlights |
 |---|---|
-| v2.0 | Complete rebuild — DuckDB star schema, multi-page SPA, AG Grid transactions, advanced search, Excel/PDF export, KPI comparisons, value-based return rate, real discount tracking, Electron wrapper |
-| v1.0 | Initial release — live Oracle queries, single-page dashboard, cache warmer, dark mode, SSE streaming |
+| v3.x backend / v2.0 app | Accounting virtual GL + 4 reports, domain licensing, DataSlicer unification, item-identifier setting end-to-end, complete Arabic coverage, report engine (schedules + CSV/Excel/PDF email), AI assistant, dark mode, mobile layout, saved views, alerts with exact drill-through |
+| v2.0 | DuckDB star schema rebuild, multi-page SPA, AG Grid, exports, KPI comparisons |
+| v1.0 | Initial release — live Oracle queries, single-page dashboard |

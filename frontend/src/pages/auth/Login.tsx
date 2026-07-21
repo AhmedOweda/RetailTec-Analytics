@@ -326,7 +326,7 @@ export default function Login() {
                 onChange={e => setUsername(e.target.value)}
                 onFocus={() => setFocused('username')}
                 onBlur={() => setFocused(null)}
-                placeholder="Enter your username"
+                placeholder={tr('Enter your username')}
                 required
               />
             </div>

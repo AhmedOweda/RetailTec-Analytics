@@ -61,7 +61,7 @@ def max_report_rows() -> int:
 
 def _registry() -> dict:
     """Lazy import to avoid circular imports at module load."""
-    from routers import purchases, sales, inventory
+    from routers import purchases, sales, inventory, accounting
     reg = {
         # Sales / purchasing
         "/api/purchases/details":       purchases.purchases_details,
@@ -81,6 +81,13 @@ def _registry() -> dict:
         "/api/inventory/coverage":      getattr(inventory, "inv_coverage", None),
         "/api/inventory/history/details": getattr(inventory, "invh_details", None),
         "/api/inventory/stock-asof":    getattr(inventory, "stock_asof", None),
+        # Accounting (virtual GL). /api/accounting/journal is not listed: it
+        # returns {total, rows}, not a bare list, so it is not a grid the report
+        # engine can render — the lines grid covers the same data as rows.
+        "/api/accounting/journal/lines": getattr(accounting, "gl_journal_lines", None),
+        "/api/accounting/trial-balance": getattr(accounting, "gl_trial_balance", None),
+        "/api/accounting/general-ledger": getattr(accounting, "gl_general_ledger", None),
+        "/api/accounting/exceptions":   getattr(accounting, "gl_exceptions", None),
     }
     return {k: v for k, v in reg.items() if v is not None}
 
@@ -182,6 +189,87 @@ def run_grid(endpoint: str, params: dict) -> list[dict]:
     return rows
 
 
+# ── Item identifier (server-side mirror of Settings → Display) ───────────────
+# The frontend stores which DIM_ITEM field identifies an item (ALU / UPC /
+# Description) and resolves blanks to ALU with a grid valueGetter. Attachments
+# are built server-side, so the same rules live here, driven by
+# settings.json → display.item_identifier (synced by the frontend).
+
+_IDENT_FID = "__item_id"        # synthetic field for the resolved identifier
+_IDENT_FAMILY = {"alu", "upc", "description", "description1"}
+_IDENT_LABELS = {"alu": "ALU", "upc": "UPC", "description": "Description"}
+
+
+def item_identifier_cfg() -> tuple[str, str]:
+    """Configured identifier → (field, label). Whitelisted; default ALU."""
+    try:
+        from services.config import load_settings
+        v = str(((load_settings().get("display") or {}).get("item_identifier"))
+                or "alu").lower()
+    except Exception:
+        v = "alu"
+    if v not in _IDENT_LABELS:
+        v = "alu"
+    return v, _IDENT_LABELS[v]
+
+
+def item_identifier_sql(alias: str = "I") -> tuple[str, str]:
+    """(SQL expression, label) for the configured identifier on a DIM_ITEM
+    alias, falling back to ALU when the field is blank. Column names come from
+    a fixed internal whitelist, never from user input."""
+    field, label = item_identifier_cfg()
+    col = {"alu": "ALU", "upc": "UPC", "description": "DESCRIPTION1"}[field]
+    if col == "ALU":
+        return f"{alias}.ALU", label
+    return f"COALESCE(NULLIF({alias}.{col}, ''), {alias}.ALU)", label
+
+
+def _row_key(rows: list[dict], name: str):
+    """Actual row key for a logical field name — both casings exist across
+    endpoints, and 'description' is aliased 'description1' on some grids."""
+    if not rows:
+        return None
+    keys = rows[0].keys()
+    cands = [name, name.upper()]
+    if name == "description":
+        cands += ["description1", "DESCRIPTION1"]
+    for c in cands:
+        if c in keys:
+            return c
+    return None
+
+
+def _apply_item_identifier(cols: list[tuple[str, str]],
+                           rows: list[dict]) -> list[tuple[str, str]]:
+    """Collapse the alu/upc/description column family into ONE identifier
+    column: the configured field with fallback to ALU when blank (same as the
+    frontend valueGetter), headed with the configured label. A Description
+    column that is NOT the identifier stays — it is distinct data the report
+    showed; the identifier itself never appears twice."""
+    if not any(fid.lower() in _IDENT_FAMILY for fid, _ in cols):
+        return cols
+    field, label = item_identifier_cfg()
+    id_key = _row_key(rows, field)
+    alu_key = _row_key(rows, "alu")
+    out, inserted = [], False
+    for fid, lbl in cols:
+        low = fid.lower()
+        if low not in _IDENT_FAMILY:
+            out.append((fid, lbl))
+            continue
+        if not inserted:
+            out.append((_IDENT_FID, label))
+            inserted = True
+        if low in ("description", "description1") and field != "description":
+            out.append((fid, lbl))       # keep Description as its own data
+    for r in rows:
+        v = r.get(id_key) if id_key else None
+        if v is None or str(v).strip() == "":
+            v = r.get(alu_key) if alu_key else v
+        r[_IDENT_FID] = "" if v is None else v
+    return out
+
+
 # ── Output builders ───────────────────────────────────────────────────────────
 
 def _columns(report: dict, rows: list[dict]) -> list[tuple[str, str]]:
@@ -193,7 +281,15 @@ def _columns(report: dict, rows: list[dict]) -> list[tuple[str, str]]:
         if fid:
             out.append((fid, c.get("label") or fid))
     if not out and rows:
-        out = [(k, k) for k in rows[0].keys()]
+        out = [(k, k) for k in rows[0].keys() if k != _IDENT_FID]
+    # Drop presentation-only columns with no backing data — e.g. the pinned '#'
+    # row-number column some grids show (its colId matches no row key), which
+    # rendered as an empty leading column in every attachment format.
+    if rows:
+        keys = set(rows[0].keys())
+        out = [(fid, lbl) for fid, lbl in out if fid in keys or fid == _IDENT_FID]
+    # ONE item identifier column per Settings → Display, with ALU fallback.
+    out = _apply_item_identifier(out, rows)
     return out
 
 

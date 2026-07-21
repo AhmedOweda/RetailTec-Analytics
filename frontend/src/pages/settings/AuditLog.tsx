@@ -16,6 +16,7 @@ import api from '../../api/client'
 import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import { tr, trf, trCols } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
 
@@ -158,7 +159,7 @@ export default function AuditLog() {
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 560 }}>
-          <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
+          <AgGridReact localeText={gridLocaleText()} ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
             loading={isLoading}
             overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}

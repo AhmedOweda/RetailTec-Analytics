@@ -19,8 +19,9 @@ store access is scoped to the JWT `stores` claim via `scoped_stores` (C1).
 """
 from datetime import date, timedelta, datetime
 from typing import Optional
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query
-from db.model import get_db
+from db.model import get_db, ACCOUNTING_SBS_NO
 from routers.auth import get_current_user, require_admin
 from routers.common import (DB_LOCK, allowed_store_set, allowed_subsidiary_set,
                             q as _q, qdf as _qdf,
@@ -42,7 +43,13 @@ def _load_dims() -> None:
         "stores":       _qdf("SELECT SID, STORE_NAME FROM DIM_STORE ORDER BY STORE_NAME"),
         "employees":    _qdf("SELECT SID, FULL_NAME   FROM DIM_EMPLOYEE ORDER BY FULL_NAME"),
         "customers":    _qdf("SELECT SID, FULL_NAME   FROM DIM_CUSTOMER ORDER BY FULL_NAME"),
-        "subsidiaries": _qdf("SELECT SID, SBS_NO, SBS_NAME FROM DIM_SUBSIDIARY ORDER BY SBS_NAME"),
+        # sbs 100 is the synthetic accounting subsidiary (the virtual GL) and is
+        # never selectable. The sync already keeps it out of DIM_SUBSIDIARY;
+        # this repeats the exclusion so a warehouse that has not been re-synced
+        # yet still never offers "Accounting" in the subsidiary selector.
+        "subsidiaries": _qdf(f"SELECT SID, SBS_NO, SBS_NAME FROM DIM_SUBSIDIARY "
+                             f"WHERE SBS_NO IS DISTINCT FROM {ACCOUNTING_SBS_NO} "
+                             f"ORDER BY SBS_NAME"),
     }
     _dim_loaded_at = datetime.utcnow()
 
@@ -345,8 +352,9 @@ def products(
     lim = f"LIMIT {int(limit)}" if limit else ""
     xf  = item_fields_sql(item_fields, agg=True)
     sf, sp  = store_filter(stores)
-    # FACT_SALES_ITEMS has no SUBSIDIARY_SID → filter via the store's subsidiary (alias S)
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    # FACT_SALES_ITEMS carries SUBSIDIARY_SID (from its parent DOCUMENT) → filter
+    # on the fact alias F, not the derived DIM_STORE.SUBSIDIARY_SID.
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     base    = f"""
         FROM FACT_SALES_ITEMS F
         LEFT JOIN DIM_STORE  S ON S.SID = F.STORE_SID
@@ -437,9 +445,10 @@ def transactions(
             " AND (F.DOC_NO::VARCHAR ILIKE ?"
             " OR COALESCE(S.STORE_NAME,'') ILIKE ?"
             " OR COALESCE(E.FULL_NAME,'')  ILIKE ?"
-            " OR COALESCE(C.FULL_NAME,'')  ILIKE ?)"
+            " OR COALESCE(C.FULL_NAME,'')  ILIKE ?"
+            " OR COALESCE(C.CUST_ID::VARCHAR,'') ILIKE ?)"
         )
-        search_params = [pat, pat, pat, pat]
+        search_params = [pat, pat, pat, pat, pat]
     # subsidiary params go with {subf} (placed before {sf2}) to keep ? order correct
     params = [date_from, date_to] + sp + subp + search_params
     total = _q(f"""
@@ -455,6 +464,7 @@ def transactions(
                F.INVC_POST_DATE::VARCHAR      AS post_date,
                S.STORE_NAME                   AS store_name,
                E.FULL_NAME                    AS employee_name,
+               C.CUST_ID::VARCHAR             AS cust_id,
                C.FULL_NAME                    AS customer_name,
                CASE WHEN F.RECEIPT_TYPE=0 THEN 'Sale'
                     WHEN F.RECEIPT_TYPE=1 THEN 'Return'
@@ -497,23 +507,38 @@ def _multi_ilike(cols, raw, sep="|"):
     return " AND (" + " OR ".join(groups) + ")", params
 
 
-def _journal_item_exists(vendor, dcs, item):
+def _line_criteria(below_cost, min_discount_pct, a="FI"):
+    """Governance line-level criteria (what the Home alerts drill through on).
+    `a` is the FACT_SALES_ITEMS alias. Returns (' AND ...', params) or ('', [])."""
+    frag, params = "", []
+    if below_cost:
+        frag += (f" AND {a}.ITEM_TYPE = 'Sale' AND {a}.TOTAL_COST > 0"
+                 f" AND {a}.TOTAL_PRICE_WOTAX < {a}.TOTAL_COST")
+    if min_discount_pct is not None:
+        frag += (f" AND {a}.ITEM_TYPE = 'Sale' AND {a}.TOTAL_ORIG_PRICE_WOTAX > 0"
+                 f" AND ({a}.TOTAL_ORIG_PRICE_WOTAX - {a}.TOTAL_PRICE_WOTAX)"
+                 f" / {a}.TOTAL_ORIG_PRICE_WOTAX >= ?")
+        params.append(float(min_discount_pct) / 100.0)
+    return frag, params
+
+
+def _journal_item_exists(dcs, item, below_cost=False, min_discount_pct=None):
     """EXISTS fragment: keep only invoices that contain ≥1 matching line.
-    vendor/dcs/item are each a '|'-joined multi-value token list."""
-    vf, vp = _multi_ilike(["V2.VEND_NAME"], vendor)
+    dcs/item are each a '|'-joined multi-value token list; below_cost /
+    min_discount_pct are the governance criteria carried by an alert link."""
     df, dp = _multi_ilike(["D2.D_NAME", "D2.C_NAME", "D2.S_NAME"], dcs)
     itf, itp = _multi_ilike(["I2.ALU", "I2.UPC", "I2.DESCRIPTION1"], item)
-    inner = f"{vf}{df}{itf}"
+    gf, gp = _line_criteria(below_cost, min_discount_pct, a="FI2")
+    inner = f"{df}{itf}{gf}"
     if not inner:
         return "", []
     frag = f"""
         AND EXISTS (SELECT 1 FROM FACT_SALES_ITEMS FI2
             LEFT JOIN DIM_ITEM   I2 ON I2.SID = FI2.ITEM_SID
             LEFT JOIN DIM_DCS    D2 ON D2.SID = I2.DCS_SID AND D2.SBS_SID = I2.SBS_SID
-            LEFT JOIN DIM_VENDOR V2 ON V2.SID = I2.VEND_SID
             WHERE FI2.DOC_SID = INV.DOC_SID{inner})
     """
-    return frag, vp + dp + itp
+    return frag, dp + itp + gp
 
 
 @router.get("/api/sales/journal/invoices")
@@ -524,11 +549,13 @@ def journal_invoices(
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     type:     Optional[str] = Query(None),   # 'sale' | 'return' | None
     doc_no:   Optional[str] = Query(None),
-    customer: Optional[str] = Query(None),
-    customer_id: Optional[str] = Query(None),   # exact customer (from the slicer)
-    vendor:   Optional[str] = Query(None),
+    customer: Optional[str] = Query(None),      # free text (name / id / phone)
+    customer_id: Optional[str] = Query(None),   # exact customer(s), '|'-joined
     dcs:      Optional[str] = Query(None),
     item:     Optional[str] = Query(None),
+    # Governance criteria — carried by the Home alert drill-through links.
+    below_cost: bool = Query(False),
+    min_discount_pct: Optional[float] = Query(None, ge=0, le=100),
     search:   str = Query(""),
     limit:    Optional[int] = Query(None, ge=0),
     offset:   int = Query(0, ge=0),
@@ -541,16 +568,25 @@ def journal_invoices(
         where += " AND INV.RECEIPT_TYPE = ?"; params.append(0 if type == "sale" else 1)
     if doc_no:
         where += " AND INV.DOC_NO::VARCHAR ILIKE ?"; params.append(f"%{doc_no}%")
-    if customer_id:
-        where += " AND INV.BT_CUID::VARCHAR = ?"; params.append(str(customer_id))
-    cf, cp = _multi_ilike(["C.FULL_NAME", "INV.BT_CUID::VARCHAR", "C.PHONE"], customer)
+    # Exact customer match rides on the SID (DOCUMENT.BT_CUID = DIM_CUSTOMER.SID),
+    # which is the only UNIQUE customer key. The human-facing CUST_ID is NOT
+    # unique (duplicates exist) so it must never key the exact-match path — it is
+    # matched only by the fuzzy `customer` text below, where matching several
+    # customers is legitimate. Multi-value so the slicer can pick several at once.
+    cust_ids = [t.strip() for t in (customer_id or "").split("|") if t.strip()]
+    if cust_ids:
+        where += " AND INV.BT_CUID::VARCHAR IN (" + ",".join(["?"] * len(cust_ids)) + ")"
+        params += cust_ids
+    cf, cp = _multi_ilike(
+        ["C.FULL_NAME", "C.CUST_ID::VARCHAR", "INV.BT_CUID::VARCHAR", "C.PHONE"], customer)
     where += cf; params += cp
     if search.strip():
         pat = f"%{search.strip()}%"
         where += (" AND (INV.DOC_NO::VARCHAR ILIKE ? OR COALESCE(S.STORE_NAME,'') ILIKE ?"
-                  " OR COALESCE(C.FULL_NAME,'') ILIKE ? OR COALESCE(E.FULL_NAME,'') ILIKE ?)")
-        params += [pat, pat, pat, pat]
-    exf, exp = _journal_item_exists(vendor, dcs, item)
+                  " OR COALESCE(C.FULL_NAME,'') ILIKE ? OR COALESCE(C.CUST_ID::VARCHAR,'') ILIKE ?"
+                  " OR COALESCE(E.FULL_NAME,'') ILIKE ?)")
+        params += [pat, pat, pat, pat, pat]
+    exf, exp = _journal_item_exists(dcs, item, below_cost, min_discount_pct)
     where += exf; params += exp
 
     base_from = """
@@ -564,7 +600,7 @@ def journal_invoices(
     rows = _qdf(f"""
         SELECT INV.INVC_POST_DATE::VARCHAR   AS created_datetime,
                INV.INVC_POST_DATE::VARCHAR   AS invc_post_date,
-               INV.DOC_SID                   AS doc_sid,
+               INV.DOC_SID::VARCHAR          AS doc_sid,
                INV.DOC_NO                    AS doc_no,
                CASE INV.RECEIPT_TYPE WHEN 0 THEN 'Sales' WHEN 1 THEN 'Return' ELSE 'Order' END AS invoice_type,
                S.STORE_CODE                  AS store_code,
@@ -573,6 +609,7 @@ def journal_invoices(
                ROUND(INV.NET_SALES_WOTAX, 2) AS net_sales,
                COALESCE(IC.n, 0)             AS product_count,
                INV.BT_CUID                   AS customer_id,
+               C.CUST_ID::VARCHAR            AS cust_id,
                C.FULL_NAME                   AS customer_name,
                E.FULL_NAME                   AS associate_name
         {base_from}
@@ -593,36 +630,52 @@ def journal_items(
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     type:     Optional[str] = Query(None),
     doc_no:   Optional[str] = Query(None),   # drill to one invoice (by document no.)
-    doc_sid:  Optional[int] = Query(None),   # legacy drill by internal id
-    vendor:   Optional[str] = Query(None),
+    # Exact-invoice tiebreak. DOC_NO alone is NOT unique — 1,624 document
+    # numbers are shared by two or more invoices — so a doc_no-only drill can
+    # show a second invoice's lines. Typed as str (never int) because an 18-19
+    # digit SID must stay a string the whole way; a JSON/JS number rounds it.
+    doc_sid:  Optional[str] = Query(None),
     dcs:      Optional[str] = Query(None),
     item:     Optional[str] = Query(None),
-    limit:    Optional[int] = Query(None, ge=0),
+    # Governance criteria — carried by the Home alert drill-through links.
+    below_cost: bool = Query(False),
+    min_discount_pct: Optional[float] = Query(None, ge=0, le=100),
+    # No cap unless the caller asks — matches the other *_details grids. The old
+    # default of 50,000 silently truncated a big export.
+    limit:    Optional[int] = Query(None, ge=1, le=1000000),
 ):
     sf, sp = store_filter(stores, alias="S")
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    # Subsidiary scope MUST use the invoice fact's own SUBSIDIARY_SID (alias INV),
+    # exactly as journal_invoices does — never DIM_STORE.SUBSIDIARY_SID. That
+    # column is *derived* (back-filled from the facts) and is NULL on any
+    # warehouse whose dimensions were reloaded since the last derivation, which
+    # made this detail query return zero rows while the master grid — scoped on
+    # INV.SUBSIDIARY_SID — still listed the invoice. That mismatch is what broke
+    # click-an-invoice → load its lines. Keying both on the same authoritative
+    # column keeps master and detail in agreement by construction.
+    subf, subp = subsidiary_filter(subsidiaries, alias="INV")
     where = f"FI.INVC_POST_DATE BETWEEN ? AND ? {sf} {subf}"
     params = [date_from, date_to] + sp + subp
-    # Drill preferentially by DOC_NO (a stable string — the invoice SID can lose
-    # precision as a JSON number, which broke click-to-drill).
+    # Drill by DOC_NO (a stable string — the invoice SID can lose precision as a
+    # JSON number, which broke click-to-drill), AND, when the caller carries it,
+    # by DOC_SID as the exact tiebreak. DOC_NO is not unique: where two invoices
+    # share a number inside the window, doc_no alone returns both invoices'
+    # lines. Both are compared as VARCHAR so the SID never becomes a number.
     if doc_no:
         where += " AND INV.DOC_NO::VARCHAR = ?"; params.append(str(doc_no))
-    elif doc_sid is not None:
-        where += " AND FI.DOC_SID = ?"; params.append(doc_sid)
+    if doc_sid is not None and str(doc_sid).strip():
+        where += " AND FI.DOC_SID::VARCHAR = ?"; params.append(str(doc_sid).strip())
     if type in ("sale", "return"):
         where += " AND FI.ITEM_TYPE = ?"; params.append("Sale" if type == "sale" else "Return")
-    vf, vp = _multi_ilike(["V.VEND_NAME"], vendor);            where += vf; params += vp
     df2, dp2 = _multi_ilike(["D.D_NAME", "D.C_NAME", "D.S_NAME"], dcs); where += df2; params += dp2
     itf, itp = _multi_ilike(["I.ALU", "I.UPC", "I.DESCRIPTION1"], item); where += itf; params += itp
-    # No cap when drilling a single invoice; a generous safety cap otherwise.
-    if doc_no or doc_sid is not None:
-        lim = ""
-    else:
-        lim = f"LIMIT {int(limit)}" if limit else "LIMIT 50000"
+    gf, gp = _line_criteria(below_cost, min_discount_pct, a="FI"); where += gf; params += gp
+    lim = f"LIMIT {int(limit)}" if limit else ""
     return _qdf(f"""
         SELECT INV.DOC_NO                     AS doc_no,
                FI.ITEM_TYPE                   AS item_type,
                I.ALU                          AS alu,
+               I.UPC                          AS upc,
                I.DESCRIPTION1                 AS description1,
                D.D_NAME                       AS department,
                D.C_NAME                       AS class,
@@ -651,28 +704,26 @@ def journal_items(
 
 @router.get("/api/sales/journal/search/customers")
 def journal_search_customers(q: str = Query(..., min_length=1, max_length=100)):
-    """Search customers by name, id (SID) or phone for the Journals slicer."""
+    """Search customers by name, customer number (CUST_ID), internal SID or phone.
+
+    `customer_id` stays the SID — it is the UNIQUE key the exact-match filter and
+    every drill-through link ride on. `cust_id` is the human-facing customer
+    number the UI displays; it is NOT unique and may be NULL, so it is search +
+    display only and never a key."""
     pat = f"%{q.strip()}%"
     return _qdf("""
-        SELECT C.SID::VARCHAR AS customer_id, C.FULL_NAME AS name, C.PHONE AS phone
+        SELECT C.SID::VARCHAR     AS customer_id,
+               C.CUST_ID::VARCHAR AS cust_id,
+               C.FULL_NAME        AS name,
+               C.PHONE            AS phone
         FROM DIM_CUSTOMER C
-        WHERE C.FULL_NAME ILIKE ? OR C.SID::VARCHAR ILIKE ? OR C.PHONE ILIKE ?
+        WHERE C.FULL_NAME ILIKE ?
+           OR COALESCE(C.CUST_ID::VARCHAR,'') ILIKE ?
+           OR C.SID::VARCHAR ILIKE ?
+           OR C.PHONE ILIKE ?
         ORDER BY C.FULL_NAME
         LIMIT 40
-    """, [pat, pat, pat])
-
-
-@router.get("/api/sales/journal/search/vendors")
-def journal_search_vendors(q: str = Query(..., min_length=1, max_length=100)):
-    """Distinct item-master vendor names matching the query."""
-    pat = f"%{q.strip()}%"
-    return _qdf("""
-        SELECT DISTINCT VEND_NAME AS vendor
-        FROM DIM_VENDOR
-        WHERE VEND_NAME ILIKE ? AND VEND_NAME IS NOT NULL AND TRIM(VEND_NAME) <> ''
-        ORDER BY VEND_NAME
-        LIMIT 40
-    """, [pat])
+    """, [pat, pat, pat, pat])
 
 
 @router.get("/api/sales/journal/search/dcs")
@@ -691,36 +742,90 @@ def journal_search_dcs(q: str = Query(..., min_length=1, max_length=100)):
 # ── Home dashboard summary (KPIs + comparison + trend + alerts) ───────────────
 
 @router.get("/api/home/summary")
-def home_summary(stores: Optional[str] = Depends(scoped_stores)):
+def home_summary(
+    stores:       Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
+):
     """One-shot dashboard payload: 30d-vs-prior-30d KPIs, a 30-day trend, top
     stores/items, and computed alerts. Windows anchor to the warehouse's latest
-    invoice date (an offline warehouse may lag today)."""
+    invoice date (an offline warehouse may lag today).
+
+    SCOPE (2026-07): EVERY section is store- AND subsidiary-scoped. This is not
+    only a correctness issue (the dashboard used to contradict the header
+    slicer) — it is a security one: a store-scoped user landed on figures drawn
+    from the whole company. The rules used below are:
+
+      * store_filter      → always the DIM_STORE alias S (it matches S.STORE_NAME),
+                            so every query here joins DIM_STORE.
+      * subsidiary_filter → ALWAYS the FACT's own SUBSIDIARY_SID (schema v6):
+                            FACT_SALES_INVOICES (alias INV), FACT_SALES_ITEMS
+                            and FACT_INVENTORY (both aliased FI here), and
+                            FACT_PURCHASES (alias FP). Nothing on this dashboard
+                            resolves the subsidiary through DIM_STORE any more —
+                            that column is DERIVED and the store loader resets it
+                            to NULL on every sync, which silently emptied every
+                            section that relied on it.
+
+    The window anchors (`as_of`) are ALSO scoped and then bound as ? parameters.
+    The old inline `(SELECT MAX(...) FROM FACT_SALES_INVOICES)` sub-selects were
+    unfiltered, so a scoped user's window was set by another subsidiary's data.
+    """
     # store_filter matches <alias>.STORE_NAME, so any query that filters by store
     # must join DIM_STORE (alias S). Without a store scope sf is empty (admins).
-    sf, sp = store_filter(stores, alias="S")
+    sf,  sp  = store_filter(stores, alias="S")
+    # Sales invoices carry SUBSIDIARY_SID themselves (cheaper, no dim lookup).
+    isubf, isubp = subsidiary_filter(subsidiaries, alias="INV")
+    # FACT_SALES_ITEMS and FACT_INVENTORY are both aliased FI below, and both
+    # now carry their own SUBSIDIARY_SID — one fragment covers them.
+    fisubf, fisubp = subsidiary_filter(subsidiaries, alias="FI")
+    # FACT_PURCHASES (alias FP) carries its own too.
+    fpsubf, fpsubp = subsidiary_filter(subsidiaries, alias="FP")
+
+    # ── Anchor: the latest invoice date WITHIN scope ──────────────────────────
+    as_of = _q(f"""
+        SELECT MAX(INV.INVC_POST_DATE::DATE)
+        FROM FACT_SALES_INVOICES INV
+        LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
+        WHERE 1=1 {sf} {isubf}
+    """, sp + isubp)[0][0]
+
+    if as_of is None:
+        # Nothing readable in scope — an honest empty dashboard beats a 500 or
+        # a page silently showing another subsidiary's numbers.
+        return {
+            "as_of": None,
+            "kpis": {"net_30": 0, "net_prev": 0, "net_delta": None, "net_today": 0,
+                     "inv_30": 0, "inv_prev": 0, "inv_delta": None,
+                     "avg_30": 0, "avg_prev": 0, "avg_delta": None},
+            "purchasing": {"value_30": 0, "value_prev": 0, "value_delta": None,
+                           "vou_count": 0, "top_vendors": []},
+            "inventory": {"stock_cost": 0.0, "sku_count": 0, "neg_stock": 0},
+            "trend": [], "top_stores": [], "top_items": [],
+            "stagnant_skus": 0,
+            "alerts": [{"level": "info", "title": "No data in the current selection",
+                        "detail": "Nothing has been loaded for the selected scope yet.",
+                        "link": ""}],
+        }
 
     kpi = _q(f"""
-        WITH b AS (SELECT MAX(INVC_POST_DATE::DATE) AS as_of FROM FACT_SALES_INVOICES),
-        inv AS (
+        WITH inv AS (
             SELECT INV.INVC_POST_DATE::DATE AS d, INV.NET_SALES_WOTAX AS net,
                    INV.RECEIPT_TYPE AS rt, INV.DOC_SID AS doc
             FROM FACT_SALES_INVOICES INV
             LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
-            CROSS JOIN b
-            WHERE INV.INVC_POST_DATE::DATE >= b.as_of - 59 {sf}
+            WHERE INV.INVC_POST_DATE::DATE >= ?::DATE - 59 {sf} {isubf}
         )
         SELECT
-          (SELECT as_of FROM b)                                                          AS as_of,
-          COALESCE(SUM(CASE WHEN d >= (SELECT as_of FROM b)-29 AND rt=0 THEN net END),0)  AS net_30,
-          COALESCE(SUM(CASE WHEN d BETWEEN (SELECT as_of FROM b)-59 AND (SELECT as_of FROM b)-30 AND rt=0 THEN net END),0) AS net_prev,
-          COALESCE(SUM(CASE WHEN d = (SELECT as_of FROM b) AND rt=0 THEN net END),0)       AS net_today,
-          COUNT(DISTINCT CASE WHEN d >= (SELECT as_of FROM b)-29 AND rt=0 THEN doc END)    AS inv_30,
-          COUNT(DISTINCT CASE WHEN d BETWEEN (SELECT as_of FROM b)-59 AND (SELECT as_of FROM b)-30 AND rt=0 THEN doc END) AS inv_prev,
-          COALESCE(SUM(CASE WHEN d >= (SELECT as_of FROM b)-29 AND rt=1 THEN net END),0)   AS ret_30
+          COALESCE(SUM(CASE WHEN d >= ?::DATE-29 AND rt=0 THEN net END),0)                    AS net_30,
+          COALESCE(SUM(CASE WHEN d BETWEEN ?::DATE-59 AND ?::DATE-30 AND rt=0 THEN net END),0) AS net_prev,
+          COALESCE(SUM(CASE WHEN d = ?::DATE AND rt=0 THEN net END),0)                         AS net_today,
+          COUNT(DISTINCT CASE WHEN d >= ?::DATE-29 AND rt=0 THEN doc END)                      AS inv_30,
+          COUNT(DISTINCT CASE WHEN d BETWEEN ?::DATE-59 AND ?::DATE-30 AND rt=0 THEN doc END)  AS inv_prev,
+          COALESCE(SUM(CASE WHEN d >= ?::DATE-29 AND rt=1 THEN net END),0)                     AS ret_30
         FROM inv
-    """, sp)[0]
+    """, [as_of] + sp + isubp + [as_of] * 8)[0]
 
-    as_of, net_30, net_prev, net_today, inv_30, inv_prev, ret_30 = kpi
+    net_30, net_prev, net_today, inv_30, inv_prev, ret_30 = kpi
     avg_30   = (net_30 / inv_30) if inv_30 else 0
     avg_prev = (net_prev / inv_prev) if inv_prev else 0
 
@@ -729,89 +834,128 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
                ROUND(SUM(CASE WHEN INV.RECEIPT_TYPE=0 THEN INV.NET_SALES_WOTAX ELSE 0 END),2) AS net
         FROM FACT_SALES_INVOICES INV
         LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
-        WHERE INV.INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29 {sf}
+        WHERE INV.INVC_POST_DATE::DATE >= ?::DATE - 29 {sf} {isubf}
         GROUP BY 1 ORDER BY 1
-    """, sp)
+    """, [as_of] + sp + isubp)
 
     top_stores = _qdf(f"""
         SELECT COALESCE(S.STORE_NAME,'(Unknown)') AS name,
                ROUND(SUM(CASE WHEN INV.RECEIPT_TYPE=0 THEN INV.NET_SALES_WOTAX ELSE 0 END),2) AS net
         FROM FACT_SALES_INVOICES INV LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
-        WHERE INV.INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29 {sf}
+        WHERE INV.INVC_POST_DATE::DATE >= ?::DATE - 29 {sf} {isubf}
         GROUP BY 1 ORDER BY net DESC LIMIT 5
-    """, sp)
+    """, [as_of] + sp + isubp)
 
-    top_items = _qdf("""
-        SELECT I.ALU AS alu, I.DESCRIPTION1 AS name,
+    # DIM_STORE is joined for the STORE-NAME filter only; the subsidiary comes
+    # from FACT_SALES_ITEMS' own SUBSIDIARY_SID (alias FI).
+    # All three identifier columns ride along so the Home card can label the
+    # item with whichever field the user configured (Settings → Product Code
+    # Field); `name` stays for backwards compatibility.
+    top_items = _qdf(f"""
+        SELECT I.ALU AS alu, I.UPC AS upc, I.DESCRIPTION1 AS description1,
+               I.DESCRIPTION1 AS name,
                ROUND(SUM(FI.TOTAL_PRICE_WOTAX),2) AS net
-        FROM FACT_SALES_ITEMS FI LEFT JOIN DIM_ITEM I ON I.SID = FI.ITEM_SID
-        WHERE FI.INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29
-          AND FI.ITEM_TYPE = 'Sale'
-        GROUP BY 1,2 ORDER BY net DESC LIMIT 5
-    """)
+        FROM FACT_SALES_ITEMS FI
+        LEFT JOIN DIM_ITEM  I ON I.SID = FI.ITEM_SID
+        LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
+        WHERE FI.INVC_POST_DATE::DATE >= ?::DATE - 29
+          AND FI.ITEM_TYPE = 'Sale' {sf} {fisubf}
+        GROUP BY I.ALU, I.UPC, I.DESCRIPTION1 ORDER BY net DESC LIMIT 5
+    """, [as_of] + sp + fisubp)
 
-    stagnant = _q("""
-        SELECT COUNT(*) FROM (
-          SELECT ITEM_SID,
-            SUM(CASE WHEN INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES)-29 THEN QTY ELSE 0 END) AS q30,
-            SUM(CASE WHEN INVC_POST_DATE::DATE BETWEEN (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES)-89
-                     AND (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES)-30 THEN QTY ELSE 0 END) AS qprev
-          FROM FACT_SALES_ITEMS
-          WHERE INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES)-89
-          GROUP BY ITEM_SID
-        ) t WHERE q30 = 0 AND qprev > 0
-    """)[0][0]
+    # "Stagnant stock lines": item × store combinations we STILL HOLD STOCK of
+    # (FACT_INVENTORY.ON_HAND_QTY > 0) that sold in the prior 60-day window
+    # (as_of−89 … as_of−30) but nothing in the last 30 days (as_of−29 … as_of).
+    # The grain and predicate are IDENTICAL to the /api/inventory/coverage
+    # ?stagnant=true filter this card drills into, so the number here equals the
+    # number of rows that page shows. (The previous count grouped by ITEM_SID
+    # chain-wide with NO on-hand test, so it counted discontinued SKUs with zero
+    # or negative on hand that the on-hand-only Coverage page can never display —
+    # the card claimed one number, the page showed another.) The sales windows
+    # are unscoped in the CTE, but the JOIN to the store/subsidiary-scoped
+    # FACT_INVENTORY restricts them to the active scope.
+    stagnant = _q(f"""
+        WITH sold AS (
+          SELECT F.ITEM_SID, F.STORE_SID,
+            SUM(CASE WHEN F.INVC_POST_DATE::DATE >= ?::DATE-29 THEN F.QTY ELSE 0 END)          AS q30,
+            SUM(CASE WHEN F.INVC_POST_DATE::DATE BETWEEN ?::DATE-89 AND ?::DATE-30
+                     THEN F.QTY ELSE 0 END)                                                    AS qprev
+          FROM FACT_SALES_ITEMS F
+          WHERE F.INVC_POST_DATE::DATE >= ?::DATE-89
+          GROUP BY F.ITEM_SID, F.STORE_SID
+        )
+        SELECT COUNT(*)
+        FROM FACT_INVENTORY FI
+        LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
+        JOIN sold ON sold.ITEM_SID = FI.ITEM_SID AND sold.STORE_SID = FI.STORE_SID
+        WHERE FI.ON_HAND_QTY > 0 {sf} {fisubf} AND sold.q30 = 0 AND sold.qprev > 0
+    """, [as_of, as_of, as_of, as_of] + sp + fisubp)[0][0]
 
     # Purchasing (last 30d vs prior 30d, by voucher date) + top suppliers.
-    psf, psp = store_filter(stores, alias="S")
-    pur = _q(f"""
-        WITH b AS (SELECT MAX(VOU_DATE::DATE) AS as_of FROM FACT_PURCHASES)
-        SELECT
-          COALESCE(SUM(CASE WHEN FP.VOU_DATE::DATE >= (SELECT as_of FROM b)-29 THEN FP.VOU_TOTAL END),0),
-          COALESCE(SUM(CASE WHEN FP.VOU_DATE::DATE BETWEEN (SELECT as_of FROM b)-59 AND (SELECT as_of FROM b)-30 THEN FP.VOU_TOTAL END),0),
-          COUNT(DISTINCT CASE WHEN FP.VOU_DATE::DATE >= (SELECT as_of FROM b)-29 THEN FP.VOU_SID END)
+    # The store filter rides on DIM_STORE (S); the subsidiary is FACT_PURCHASES'
+    # own SUBSIDIARY_SID (alias FP). The purchase anchor is scoped the same way
+    # as the sales one.
+    pur_as_of = _q(f"""
+        SELECT MAX(FP.VOU_DATE::DATE)
         FROM FACT_PURCHASES FP LEFT JOIN DIM_STORE S ON S.SID = FP.STORE_SID
-        WHERE FP.VOU_DATE::DATE >= (SELECT as_of FROM b) - 59 {psf}
-    """, psp)[0]
-    pur_30, pur_prev, vou_cnt = float(pur[0] or 0), float(pur[1] or 0), int(pur[2] or 0)
-    top_vendors = _qdf(f"""
-        SELECT COALESCE(V.VEND_NAME,'(Unknown)') AS name, ROUND(SUM(FP.VOU_TOTAL),2) AS net
-        FROM FACT_PURCHASES FP LEFT JOIN DIM_VENDOR V ON V.SID = FP.VEND_SID
-             LEFT JOIN DIM_STORE S ON S.SID = FP.STORE_SID
-        WHERE FP.VOU_DATE::DATE >= (SELECT MAX(VOU_DATE::DATE) FROM FACT_PURCHASES) - 29 {psf}
-        GROUP BY 1 ORDER BY net DESC LIMIT 5
-    """, psp)
+        WHERE 1=1 {sf} {fpsubf}
+    """, sp + fpsubp)[0][0]
+    if pur_as_of is None:
+        pur_30, pur_prev, vou_cnt, top_vendors = 0.0, 0.0, 0, []
+    else:
+        pur = _q(f"""
+            SELECT
+              COALESCE(SUM(CASE WHEN FP.VOU_DATE::DATE >= ?::DATE-29 THEN FP.VOU_TOTAL END),0),
+              COALESCE(SUM(CASE WHEN FP.VOU_DATE::DATE BETWEEN ?::DATE-59 AND ?::DATE-30 THEN FP.VOU_TOTAL END),0),
+              COUNT(DISTINCT CASE WHEN FP.VOU_DATE::DATE >= ?::DATE-29 THEN FP.VOU_SID END)
+            FROM FACT_PURCHASES FP LEFT JOIN DIM_STORE S ON S.SID = FP.STORE_SID
+            WHERE FP.VOU_DATE::DATE >= ?::DATE - 59 {sf} {fpsubf}
+        """, [pur_as_of] * 5 + sp + fpsubp)[0]
+        pur_30, pur_prev, vou_cnt = float(pur[0] or 0), float(pur[1] or 0), int(pur[2] or 0)
+        top_vendors = _qdf(f"""
+            SELECT COALESCE(V.VEND_NAME,'(Unknown)') AS name, ROUND(SUM(FP.VOU_TOTAL),2) AS net
+            FROM FACT_PURCHASES FP LEFT JOIN DIM_VENDOR V ON V.SID = FP.VEND_SID
+                 LEFT JOIN DIM_STORE S ON S.SID = FP.STORE_SID
+            WHERE FP.VOU_DATE::DATE >= ?::DATE - 29 {sf} {fpsubf}
+            GROUP BY 1 ORDER BY net DESC LIMIT 5
+        """, [pur_as_of] + sp + fpsubp)
 
     # Inventory snapshot value + health (on-hand × cost; negative-stock rows).
-    isf, isp = store_filter(stores, alias="S")
+    # DIM_STORE (S) carries the store filter; the subsidiary is FACT_INVENTORY's
+    # own SUBSIDIARY_SID (alias FI).
     stock = _q(f"""
         SELECT ROUND(COALESCE(SUM(FI.ON_HAND_QTY * FI.COST), 0), 2), COUNT(DISTINCT FI.ITEM_SID)
         FROM FACT_INVENTORY FI LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
-        WHERE FI.ON_HAND_QTY > 0 {isf}
-    """, isp)[0]
+        WHERE FI.ON_HAND_QTY > 0 {sf} {fisubf}
+    """, sp + fisubp)[0]
     stock_cost, sku_cnt = float(stock[0] or 0), int(stock[1] or 0)
     neg_stock = int(_q(f"""
         SELECT COUNT(*) FROM FACT_INVENTORY FI LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
-        WHERE FI.ON_HAND_QTY < 0 {isf}
-    """, isp)[0][0] or 0)
+        WHERE FI.ON_HAND_QTY < 0 {sf} {fisubf}
+    """, sp + fisubp)[0][0] or 0)
 
     # Governance conditions (last 30 days): extra discount, below-cost / negative
     # margin, and large returns. Anchored to the warehouse's latest date.
-    gov = _q("""
+    # These drive alerts that link straight into Journals, so an unscoped count
+    # here would send the user to a filtered grid showing a different number.
+    gov = _q(f"""
         SELECT
-          COUNT(*) FILTER (WHERE ITEM_TYPE='Sale' AND TOTAL_ORIG_PRICE_WOTAX > 0
-                           AND (TOTAL_ORIG_PRICE_WOTAX - TOTAL_PRICE_WOTAX) / TOTAL_ORIG_PRICE_WOTAX >= 0.30) AS disc_lines,
-          COUNT(*) FILTER (WHERE ITEM_TYPE='Sale' AND TOTAL_COST > 0
-                           AND TOTAL_PRICE_WOTAX < TOTAL_COST)                                             AS below_cost
-        FROM FACT_SALES_ITEMS
-        WHERE INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29
-    """)[0]
+          COUNT(*) FILTER (WHERE FI.ITEM_TYPE='Sale' AND FI.TOTAL_ORIG_PRICE_WOTAX > 0
+                           AND (FI.TOTAL_ORIG_PRICE_WOTAX - FI.TOTAL_PRICE_WOTAX) / FI.TOTAL_ORIG_PRICE_WOTAX >= 0.30) AS disc_lines,
+          COUNT(*) FILTER (WHERE FI.ITEM_TYPE='Sale' AND FI.TOTAL_COST > 0
+                           AND FI.TOTAL_PRICE_WOTAX < FI.TOTAL_COST)                                                   AS below_cost
+        FROM FACT_SALES_ITEMS FI
+        LEFT JOIN DIM_STORE S ON S.SID = FI.STORE_SID
+        WHERE FI.INVC_POST_DATE::DATE >= ?::DATE - 29 {sf} {fisubf}
+    """, [as_of] + sp + fisubp)[0]
     disc_lines, below_cost = int(gov[0] or 0), int(gov[1] or 0)
-    ret_cnt = int(_q("""
-        SELECT COUNT(*) FROM FACT_SALES_INVOICES
-        WHERE RECEIPT_TYPE = 1
-          AND INVC_POST_DATE::DATE >= (SELECT MAX(INVC_POST_DATE::DATE) FROM FACT_SALES_INVOICES) - 29
-    """)[0][0] or 0)
+    ret_cnt = int(_q(f"""
+        SELECT COUNT(*)
+        FROM FACT_SALES_INVOICES INV
+        LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
+        WHERE INV.RECEIPT_TYPE = 1
+          AND INV.INVC_POST_DATE::DATE >= ?::DATE - 29 {sf} {isubf}
+    """, [as_of] + sp + isubp)[0][0] or 0)
 
     def pct(cur, prev):
         return round((cur - prev) / prev * 100, 1) if prev else None
@@ -832,44 +976,75 @@ def home_summary(stores: Optional[str] = Depends(scoped_stores)):
     except Exception:
         stale_days = None
 
+    # Drill-through links. Every alert below is a statement about a specific
+    # criterion over the warehouse's last 30 days FOR THE ACTIVE SCOPE, so its
+    # link must carry the window, the criterion AND that scope — otherwise the
+    # target page opens on its own defaults (last 30 days from *today*, no
+    # criterion, all stores) and shows a different number than the card claimed.
+    #
+    # `stores` is the effective (already scope-intersected) list, which Journals
+    # reads from the URL. `subsidiaries` is carried too so the URL is
+    # self-describing and shareable; in-app it is additionally enforced by the
+    # header selector's axios interceptor and by scoped_subsidiaries server-side.
+    scope_qs = ""
+    if stores:
+        scope_qs += f"stores={quote(stores, safe=',')}&"
+    if subsidiaries:
+        scope_qs += f"subsidiaries={quote(subsidiaries, safe=',')}&"
+
+    def link(path: str, extra: str = "") -> str:
+        """A scoped in-app link: <path>?<scope>&<extra>."""
+        qs = f"{scope_qs}{extra}".rstrip("&")
+        return f"{path}?{qs}" if qs else path
+
+    jr_win = f"date_from={as_of - timedelta(days=29)}&date_to={as_of}&" if as_of else ""
+    def jr(extra: str = "") -> str:
+        """A Journals link: scope + the alert's 30-day window + the criterion."""
+        return link("/sales/journals", f"{jr_win}{extra}")
+
     alerts = []
     if stale_days is not None and stale_days >= 2:
         alerts.append({"level": "warning", "title": "Warehouse data is behind",
                        "detail": f"Latest data is {stale_days} days old (as of {as_of}). Run a sync.", "link": "/settings"})
     if dnet is not None and dnet <= -10:
         alerts.append({"level": "warning", "title": "Sales down vs prior 30 days",
-                       "detail": f"{dnet:.1f}% vs the previous 30-day period", "link": "/sales/overview"})
+                       "detail": f"{dnet:.1f}% vs the previous 30-day period", "link": link("/sales/overview")})
     if dnet is not None and dnet >= 10:
         alerts.append({"level": "ok", "title": "Sales growing",
-                       "detail": f"Up {dnet:.1f}% vs the previous 30-day period", "link": "/sales/overview"})
+                       "detail": f"Up {dnet:.1f}% vs the previous 30-day period", "link": link("/sales/overview")})
     if dinv is not None and dinv <= -10:
         alerts.append({"level": "warning", "title": "Fewer invoices",
-                       "detail": f"Invoice count down {abs(dinv):.1f}% vs prior 30 days", "link": "/sales/journals"})
+                       "detail": f"Invoice count down {abs(dinv):.1f}% vs prior 30 days", "link": jr()})
     if davg is not None and davg <= -10:
         alerts.append({"level": "info", "title": "Average basket shrinking",
-                       "detail": f"Avg basket down {abs(davg):.1f}% vs prior 30 days", "link": "/sales/performance"})
+                       "detail": f"Avg basket down {abs(davg):.1f}% vs prior 30 days", "link": link("/sales/performance")})
     if ret_rate >= 5:
         alerts.append({"level": "warning", "title": "Returns elevated",
-                       "detail": f"Returns are {ret_rate:.1f}% of net sales (last 30 days)", "link": "/sales/journals?type=return"})
+                       "detail": f"Returns are {ret_rate:.1f}% of net sales (last 30 days)", "link": jr("type=return")})
     if stagnant > 0:
-        alerts.append({"level": "info", "title": f"{int(stagnant):,} stagnant SKUs",
-                       "detail": "Sold in the prior 60 days but nothing in the last 30", "link": "/inventory/coverage"})
+        alerts.append({"level": "info", "title": f"{int(stagnant):,} stagnant stock lines",
+                       "detail": "Still in stock, sold in the prior 60 days but nothing in the last 30",
+                       "link": link("/inventory/coverage", "stagnant=true")})
     if top_share >= 45:
         alerts.append({"level": "info", "title": "Sales concentrated in one store",
-                       "detail": f"Top store is {top_share:.0f}% of the last-30-day sales", "link": "/dimensions/stores"})
+                       "detail": f"Top store is {top_share:.0f}% of the last-30-day sales", "link": link("/dimensions/stores")})
     # Governance / oversight
     if below_cost > 0:
         alerts.append({"level": "warning", "title": f"{below_cost:,} lines sold below cost",
-                       "detail": "Selling price under item cost (negative/zero margin) in the last 30 days", "link": "/sales/journals"})
+                       "detail": "Selling price under item cost (negative/zero margin) in the last 30 days",
+                       "link": jr("type=sale&below_cost=true")})
     if disc_lines > 0:
         alerts.append({"level": "warning", "title": f"{disc_lines:,} lines with a big discount",
-                       "detail": "Discount ≥ 30% of original price in the last 30 days", "link": "/sales/journals"})
+                       "detail": "Discount ≥ 30% of original price in the last 30 days",
+                       "link": jr("type=sale&min_discount_pct=30")})
     if ret_cnt > 0:
         alerts.append({"level": "info", "title": f"{ret_cnt:,} return invoices (30d)",
-                       "detail": "Returns logged in the last 30 days — review for large or unusual returns", "link": "/sales/journals?type=return"})
+                       "detail": "Returns logged in the last 30 days — review for large or unusual returns",
+                       "link": jr("type=return")})
     if neg_stock > 0:
         alerts.append({"level": "warning", "title": f"{neg_stock:,} negative-stock rows",
-                       "detail": "Item × store rows with on-hand below zero — investigate", "link": "/inventory/overview"})
+                       "detail": "Item × store rows with on-hand below zero — investigate",
+                       "link": link("/inventory/overview", "onhand=neg")})
     if not alerts:
         alerts.append({"level": "ok", "title": "All clear", "detail": "No threshold alerts for the last 30 days.", "link": ""})
 
@@ -1190,6 +1365,10 @@ def perf_customers(
         SELECT
             C.FULL_NAME                                                            AS customer_name,
             MAX(F.BT_CUID)::VARCHAR                                                AS customer_id,
+            -- Human-facing customer number. Rows are grouped by name, and
+            -- CUST_ID is not unique, so MAX() picks one representative — same
+            -- convention already used for customer_id/phone above.
+            MAX(C.CUST_ID)::VARCHAR                                                AS cust_id,
             MAX(C.PHONE)                                                           AS phone,
             COUNT(*)                                                               AS invoice_count,
             ROUND(SUM(F.NET_SALES_WOTAX),2)                                       AS net_sales,

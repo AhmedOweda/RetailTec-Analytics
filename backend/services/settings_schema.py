@@ -11,7 +11,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-DOMAINS = ["sales", "inventory", "purchases", "transfers", "adjustments"]
+DOMAINS = ["sales", "inventory", "purchases", "transfers", "adjustments",
+           "accounting"]
 
 # Per-domain defaults used only when a field is absent.
 _DOMAIN_DEFAULTS = {
@@ -20,6 +21,10 @@ _DOMAIN_DEFAULTS = {
     "purchases":   {"load_days": 365, "detail": True,  "retain_detail_months": None},
     "transfers":   {"load_days": 365, "detail": True,  "retain_detail_months": None},
     "adjustments": {"load_days": 365, "detail": True,  "retain_detail_months": None},
+    # Virtual GL (Retail Pro subsidiary 100). Never pruned: an accounting
+    # period must stay queryable for as long as the books are open, so
+    # retain_detail_months is None by design, not by omission.
+    "accounting":  {"load_days": 365, "detail": True,  "retain_detail_months": None},
 }
 
 SCHEMA_VERSION = 2
@@ -30,6 +35,14 @@ def _is_migrated(dm: dict) -> bool:
     return (
         dm.get("schema_version") == SCHEMA_VERSION
         and isinstance(doms, dict)
+        # Every KNOWN domain must be present, not just the ones this file was
+        # written with. Without this a settings.json saved before a new domain
+        # existed looks "already migrated", is returned untouched, and the new
+        # domain never appears in Settings - so it can never be loaded.
+        # This is exactly how `accounting` went missing (2026-07-20).
+        # The migration below preserves prior per-domain values, so re-running
+        # it to backfill one new domain is safe and non-destructive.
+        and all(name in doms for name in DOMAINS)
         and all(isinstance(d, dict) and "schedule" in d for d in doms.values())
     )
 

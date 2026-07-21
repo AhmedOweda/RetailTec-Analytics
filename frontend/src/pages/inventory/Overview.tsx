@@ -3,7 +3,8 @@
  * Current on-hand snapshot from FACT_INVENTORY
  * KPIs · Dept Treemap · DCS Sunburst · Vendor Bar · Store Bar · AG Grid
  */
-import { useMemo, useRef, useState, useCallback } from 'react'
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Box, Typography, Chip, Dialog, DialogTitle, DialogContent,
   IconButton, Tooltip, Autocomplete, TextField,
@@ -20,7 +21,9 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { type EChartHandle } from '../../components/EChart'
 import KpiCard                        from '../../components/KpiCard'
+import { itemFieldValue }             from '../../components/DataSlicer'
 import { noRowsOverlay }               from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
 import { useRetryIfEmpty }            from '../../hooks/useRetryIfEmpty'
@@ -77,10 +80,10 @@ function ChartCard({ title, subtitle, option, height = 340, children }: {
             {subtitle && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{tr(subtitle)}</Typography>}
           </Box>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title="Download PNG">
+            <Tooltip title={tr('Download PNG')}>
               <IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize: 16 }} /></IconButton>
             </Tooltip>
-            <Tooltip title="Fullscreen">
+            <Tooltip title={tr('Fullscreen')}>
               <IconButton size="small" onClick={() => setFs(true)}><FullscreenIcon sx={{ fontSize: 16 }} /></IconButton>
             </Tooltip>
           </Box>
@@ -93,10 +96,10 @@ function ChartCard({ title, subtitle, option, height = 340, children }: {
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
           <Typography sx={{ fontWeight: 700 }}>{title}</Typography>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title="Download PNG">
+            <Tooltip title={tr('Download PNG')}>
               <IconButton size="small" onClick={download}><DownloadIcon /></IconButton>
             </Tooltip>
-            <Tooltip title="Close">
+            <Tooltip title={tr('Close')}>
               <IconButton size="small" onClick={() => setFs(false)}><FullscreenExitIcon /></IconButton>
             </Tooltip>
           </Box>
@@ -122,9 +125,24 @@ function gmStyle(p: any) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function InventoryOverview() {
-  const { itemFields } = useAppSettings()
+  // itemId = the configured item identifier (Settings → Product Code Field)
+  const { itemId, itemFields } = useAppSettings()
   const [stores, setStores] = useState<string[]>([])
   const [view,   setView  ] = useState<'dept'|'dcs'|'vendor'|'store'|'item'|'item_store'>('dept')
+
+  // ── Drill-through from the Home "negative-stock rows" alert ─────────────────
+  // The alert links here with ?onhand=neg (plus the store/subsidiary scope).
+  // Negative-stock rows were UNREACHABLE before: the inventory base join
+  // hard-filtered ON_HAND_QTY > 0, so the Item × Store grid could never show
+  // them. We now pass onhand=neg to the endpoint (item_store view only) so the
+  // grid shows exactly the rows the alert card counted. A removable chip makes
+  // the applied filter visible.
+  const [sp] = useSearchParams()
+  const [negOnly, setNegOnly] = useState(false)
+  useEffect(() => {
+    const st = sp.get('stores'); if (st) setStores(st.split(',').filter(Boolean))
+    if (sp.get('onhand') === 'neg') { setNegOnly(true); setView('item_store') }
+  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('inv-overview')
@@ -181,9 +199,12 @@ export default function InventoryOverview() {
     gcTime: 1_800_000,
   })
   const xfQS = view.startsWith('item') ? itemFieldsQS(itemFields) : ''
+  // Negative-stock drill applies to the Item × Store grid only (the grain the
+  // alert counts). Whitelisted server-side against ^(pos|neg|all)$.
+  const negQS = (negOnly && view === 'item_store') ? '&onhand=neg' : ''
   const { data: tableData = [], isFetching: itemsFetching, refetch: refetchItems } = useQuery({
-    queryKey: ['inv-items', view, storeQS, xfQS],
-    queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}${storeQS}${xfQS}`).then(r => r.data),  // no limit — full dataset, grid paginates
+    queryKey: ['inv-items', view, storeQS, xfQS, negQS],
+    queryFn:  () => axios.get(`/api/inventory/items?group_by=${view}${storeQS}${xfQS}${negQS}`).then(r => r.data),  // no limit — full dataset, grid paginates
     gcTime: 1_800_000, refetchOnMount: 'always',
   })
 
@@ -246,22 +267,22 @@ export default function InventoryOverview() {
           const gc = gmColorOf(+(d._gm ?? 0))
           return `<div style="min-width:180px">
             <b>${d.name}</b><br/>
-            Cost Value: <b>${num(+(d._cost ?? 0))}</b><br/>
-            Retail Value: ${num(+(d._retail ?? 0))}<br/>
-            GM%: <b style="color:${gc}">${(+(d._gm ?? 0)).toFixed(1)}%</b><br/>
-            Units: ${num(+(d._qty ?? 0))}<br/>
-            SKUs: ${(+(d._skus ?? 0)).toLocaleString('en-US')}
+            ${tr('Cost Value')}: <b>${num(+(d._cost ?? 0))}</b><br/>
+            ${tr('Retail Value')}: ${num(+(d._retail ?? 0))}<br/>
+            ${tr('GM%')}: <b style="color:${gc}">${(+(d._gm ?? 0)).toFixed(1)}%</b><br/>
+            ${tr('Units')}: ${num(+(d._qty ?? 0))}<br/>
+            ${tr('SKUs')}: ${(+(d._skus ?? 0)).toLocaleString('en-US')}
           </div>`
         },
       },
       xAxis: {
-        type: 'value', name: 'Cost Value', nameLocation: 'middle', nameGap: 28,
+        type: 'value', name: tr('Cost Value'), nameLocation: 'middle', nameGap: 28,
         nameTextStyle: { color: C_SLATE, fontSize: 11 },
         axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => num(v) },
         splitLine: { lineStyle: { color: '#f1f5f9' } },
       },
       yAxis: {
-        type: 'value', name: 'GM %', nameLocation: 'middle', nameGap: 36,
+        type: 'value', name: tr('GM %'), nameLocation: 'middle', nameGap: 36,
         nameTextStyle: { color: C_SLATE, fontSize: 11 },
         axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => `${v}%` },
         splitLine: { lineStyle: { color: '#f1f5f9' } },
@@ -317,14 +338,14 @@ export default function InventoryOverview() {
         formatter: (p: any) => {
           const trail = (p.treePathInfo as any[] ?? []).slice(1)
           const path  = trail.map((n: any) => n.name).join(' › ')
-          const level = ['Department', 'Class', 'Subclass'][trail.length - 1] ?? ''
+          const level = [tr('Department'), tr('Class'), tr('Subclass')][trail.length - 1] ?? ''
           const shr   = grandTotal > 0 ? (+p.value / grandTotal * 100).toFixed(1) : '0'
           return `<div style="min-width:200px">
             ${level ? `<div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px">${level}</div>` : ''}
             <b>${path || p.name}</b><br/>
-            Cost Value: <b>${num(+p.value)}</b><br/>
-            Share of total: ${shr}%<br/>
-            <span style="font-size:10px;color:#94a3b8">Click a box to drill down · breadcrumb to go back</span>
+            ${tr('Cost Value')}: <b>${num(+p.value)}</b><br/>
+            ${tr('Share of total')}: ${shr}%<br/>
+            <span style="font-size:10px;color:#94a3b8">${tr('Click a box to drill down · breadcrumb to go back')}</span>
           </div>`
         },
       },
@@ -387,7 +408,7 @@ export default function InventoryOverview() {
         trigger: 'axis', axisPointer: { type: 'shadow' },
         formatter: (p: any[]) => {
           const r = rows[p[0]?.dataIndex] ?? {}
-          return `<b>${p[0].name}</b><br/>Cost Value: <b>${num(r.cost_value)}</b><br/>SKUs: ${r.sku_count}<br/>GM%: <b>${r.gm_pct ?? 0}%</b>`
+          return `<b>${p[0].name}</b><br/>${tr('Cost Value')}: <b>${num(r.cost_value)}</b><br/>${tr('SKUs')}: ${r.sku_count}<br/>${tr('GM%')}: <b>${r.gm_pct ?? 0}%</b>`
         },
       },
       xAxis: { type: 'value', axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => num(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
@@ -418,7 +439,7 @@ export default function InventoryOverview() {
         trigger: 'axis', axisPointer: { type: 'shadow' },
         formatter: (p: any[]) => {
           const r = rows[p[0]?.dataIndex] ?? {}
-          return `<b>${p[0].name}</b><br/>Cost Value: <b>${num(r.cost_value)}</b><br/>SKUs: ${r.sku_count}<br/>Units: ${num(r.total_qty)}`
+          return `<b>${p[0].name}</b><br/>${tr('Cost Value')}: <b>${num(r.cost_value)}</b><br/>${tr('SKUs')}: ${r.sku_count}<br/>${tr('Units')}: ${num(r.total_qty)}`
         },
       },
       xAxis: { type: 'value', axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => num(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
@@ -478,7 +499,15 @@ export default function InventoryOverview() {
 
     if (view === 'item') return [
       rankCol,
-      { field: 'ALU',          headerName: 'ALU',         width: 110, pinned: 'left', cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
+      // The configured identifier column (endpoint returns ALU/UPC/DESCRIPTION1).
+      // When Description is configured the Description column below IS the
+      // identifier, so no duplicate code column is added. ALU fallback keeps
+      // the cell non-blank when the configured field is NULL (UPC often is).
+      ...(itemId.field !== 'description' ? [{
+        field: itemId.column, headerName: itemId.label, width: 110, pinned: 'left',
+        valueGetter: (p: any) => itemFieldValue(p.data, itemId.field),
+        cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' },
+      } as ColDef] : []),
       { field: 'DESCRIPTION1', headerName: 'Description', flex: 1, minWidth: 200 },
       { field: 'department',   headerName: 'Dept',        width: 140 },
       { field: 'vendor',       headerName: 'Item Vendor', width: 180,
@@ -493,7 +522,11 @@ export default function InventoryOverview() {
     if (view === 'item_store') return [
       rankCol,
       { field: 'store_name',   headerName: 'Store',       width: 180, pinned: 'left', cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' } },
-      { field: 'ALU',          headerName: 'ALU',         width: 110, cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
+      ...(itemId.field !== 'description' ? [{
+        field: itemId.column, headerName: itemId.label, width: 110,
+        valueGetter: (p: any) => itemFieldValue(p.data, itemId.field),
+        cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' },
+      } as ColDef] : []),
       { field: 'DESCRIPTION1', headerName: 'Description', flex: 1, minWidth: 180 },
       { field: 'department',   headerName: 'Dept',        width: 130 },
       { field: 'qty',          headerName: 'Units',  width: 90,  type: 'numericColumn' as const, valueFormatter: (p: any) => num(p.value) },
@@ -508,7 +541,7 @@ export default function InventoryOverview() {
       { field: 'store_name', headerName: 'Store', width: 240, pinned: 'left', cellStyle: { fontWeight: 600, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' } },
       skuCol, qtyCol, costCol, retailCol,
     ]
-  }, [tableData, view, itemFields])
+  }, [tableData, view, itemFields, itemId.field, itemId.column, itemId.label])
 
   const gmColor = gmColorOf(kpi.gmPct)
 
@@ -537,6 +570,13 @@ export default function InventoryOverview() {
             value.map((opt, i) => <Chip label={opt} size="small" {...getTagProps({ index: i })} key={opt} />)
           }
         />
+
+        {/* Criterion arriving from the Home "negative-stock rows" alert */}
+        {negOnly && (
+          <Chip size="small" label={tr('Negative on-hand only')}
+            onDelete={() => setNegOnly(false)}
+            sx={{ mt: 1, fontWeight: 600, fontSize: 11, bgcolor: 'rgba(225,29,72,0.10)', color: C_ROSE }} />
+        )}
       </Box>
 
       {/* ── No data banner ── */}
@@ -545,9 +585,9 @@ export default function InventoryOverview() {
                    borderRadius: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <WarningAmberIcon sx={{ color: C_AMBER }} />
           <Box>
-            <Typography sx={{ fontWeight: 700, color: 'var(--rt-warn-fg)' }}>Inventory snapshot not yet available</Typography>
+            <Typography sx={{ fontWeight: 700, color: 'var(--rt-warn-fg)' }}>{tr('Inventory snapshot not yet available')}</Typography>
             <Typography sx={{ fontSize: 12, color: 'var(--rt-warn-fg)' }}>
-              Trigger a data sync to populate stock levels. The Movement page uses sales history and is available now.
+              {tr('Trigger a data sync to populate stock levels. The Movement page uses sales history and is available now.')}
             </Typography>
           </Box>
         </Box>
@@ -623,7 +663,7 @@ export default function InventoryOverview() {
           </Box>
 
           <div className="ag-theme-alpine" style={{ height: 440 }}>
-            <AgGridReact
+            <AgGridReact localeText={gridLocaleText()}
               ref={gridRef}
               overlayNoRowsTemplate={noRowsOverlay()}
               rowData={tableData as any[]}

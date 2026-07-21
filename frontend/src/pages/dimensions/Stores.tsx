@@ -12,6 +12,7 @@ import GridExportBar from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { useNavigate } from 'react-router-dom'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import axios from 'axios'
 import { useRef } from 'react'
 import { moneyPrefix, money } from '../../utils/formatters'
@@ -102,10 +103,10 @@ export default function DimStores() {
         formatter: (p: any[]) => {
           const d = rows.find((x: any) => x.store_name === p[0].name) ?? {}
           return `<b>${p[0].name}</b><br/>
-            Stage: <b style="color:${LIFECYCLE_META[d.lifecycle]?.color}">${d.lifecycle}</b> · Active Since: ${d.first_sale_date ?? '—'}<br/>
-            Period Revenue: <b>${num(d.net_sales)}</b> (${pct(d.contribution_pct)} of chain)<br/>
-            Lifetime Revenue: ${num(d.lifetime_revenue)}<br/>
-            Return%: ${pct(d.return_rate)} · Disc%: ${pct(d.disc_rate)}`
+            ${tr('Stage')}: <b style="color:${LIFECYCLE_META[d.lifecycle]?.color}">${d.lifecycle}</b> · ${tr('Active Since')}: ${d.first_sale_date ?? '—'}<br/>
+            ${tr('Period Revenue')}: <b>${num(d.net_sales)}</b> (${pct(d.contribution_pct)} ${tr('of chain')})<br/>
+            ${tr('Lifetime Revenue')}: ${num(d.lifetime_revenue)}<br/>
+            ${tr('Return%')}: ${pct(d.return_rate)} · ${tr('Disc%')}: ${pct(d.disc_rate)}`
         },
       },
       xAxis: { type: 'value', axisLabel: { formatter: (v: number) => num(v), fontSize: 10, color: C_SLATE } },
@@ -196,7 +197,7 @@ export default function DimStores() {
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 380 }}>
-          <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
+          <AgGridReact localeText={gridLocaleText()} ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
             overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             rowHeight={36} headerHeight={38} suppressCellFocus rowStyle={{ cursor: 'pointer' }}
