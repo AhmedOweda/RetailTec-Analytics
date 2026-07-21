@@ -23,7 +23,9 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { EChartHandle } from '../../components/EChart'
 import KpiCard                  from '../../components/KpiCard'
+import { itemFieldValue }       from '../../components/DataSlicer'
 import { noRowsOverlay }         from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import GridExportBar            from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix, money, num, moneyExact } from '../../utils/formatters'
@@ -102,8 +104,10 @@ const costStyle = (p: any) => ({
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Adjustments() {
-  const { productCodeField } = useAppSettings()
-  const codeField  = productCodeField.toUpperCase()   // 'ALU' or 'UPC'
+  // The configured item identifier (Settings → Product Code Field). Ask
+  // `itemId` (field/column/label) — never `.toUpperCase()` of the raw setting,
+  // which produced a bogus "DESCRIPTION" column under the third setting.
+  const { itemId } = useAppSettings()
   const [period,   setPeriod  ] = useState(1)  // default 30D
   const [dateFrom, setDateFrom] = useState(() => daysAgo(30))
   const [dateTo,   setDateTo  ] = useState(today)
@@ -171,9 +175,9 @@ export default function Adjustments() {
       formatter:(p:any[]) => {
         const r = trend[p[0]?.dataIndex] ?? {}
         return `<b>${p[0]?.axisValue}</b><br/>
-          + Cost: <b style="color:${POS_C}">${fmtC(r.pos_cost || 0)}</b><br/>
-          − Cost: <b style="color:${NEG_C}">${fmtC(r.neg_cost || 0)}</b><br/>
-          Net: <b>${fmtC(r.net_cost || 0)}</b>`
+          ${tr('+ Cost')}: <b style="color:${POS_C}">${fmtC(r.pos_cost || 0)}</b><br/>
+          ${tr('− Cost')}: <b style="color:${NEG_C}">${fmtC(r.neg_cost || 0)}</b><br/>
+          ${tr('Net')}: <b>${fmtC(r.net_cost || 0)}</b>`
       },
     },
     legend:  { bottom:0, textStyle:{ fontSize:11 } },
@@ -265,7 +269,14 @@ export default function Adjustments() {
     { field:'store_name',  headerName:'Store',       flex:1,   minWidth:120 },
     { field:'employee',    headerName:'Employee',    flex:1,   minWidth:110 },
     { field:'doc_type',    headerName:'Type',        flex:1,   minWidth:110 },
-    { field:codeField,     headerName:codeField,     width:100 },
+    // The configured identifier column (endpoint returns ALU/UPC/DESCRIPTION1).
+    // When Description is configured the Description column below IS the
+    // identifier, so no duplicate code column is added. ALU fallback keeps the
+    // cell non-blank when the configured field is NULL (UPC often is).
+    ...(itemId.field !== 'description' ? [{
+      field: itemId.column, headerName: itemId.label, width: 100,
+      valueGetter: (p: any) => itemFieldValue(p.data, itemId.field),
+    } as ColDef] : []),
     { field:'DESCRIPTION1',headerName:'Description', flex:1.5, minWidth:140 },
     { field:'department',  headerName:'Dept',        width:100 },
     { field:'vendor',      headerName:'Item Vendor', flex:1,   minWidth:110,
@@ -278,7 +289,7 @@ export default function Adjustments() {
     { field:'unit_cost',   headerName:'Unit Cost',   width:90,  type:'numericColumn', valueFormatter:p => fmtN(p.value,2) },
     { field:'cost_diff',   headerName:'Cost Δ',      width:100, type:'numericColumn',
       valueFormatter:p => fmtC(p.value), cellStyle:costStyle },
-  ], [codeField])
+  ], [itemId.field, itemId.column, itemId.label])
 
   const tabData = [byType, byStore, details]
   const tabCols = [typeCols, storeCols, detailCols]
@@ -373,7 +384,7 @@ export default function Adjustments() {
             colDefs={tabCols[tab]} />
         </Box>
         <Box className="ag-theme-alpine" sx={{ height:360 }}>
-          <AgGridReact
+          <AgGridReact localeText={gridLocaleText()}
             key={`tab-${tab}`}
             ref={gridRef}
             overlayNoRowsTemplate={noRowsOverlay()}

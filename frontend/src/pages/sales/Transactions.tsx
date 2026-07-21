@@ -22,6 +22,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { useQuery }      from '@tanstack/react-query'
 import axios             from 'axios'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import GridExportBar from '../../components/GridExportBar'
 import TitleLoader from '../../components/TitleLoader'
@@ -69,6 +70,10 @@ const COL_DEFS: ColDef[] = [
   { field:'post_date',     headerName:'Date',         width:170 },
   { field:'store_name',    headerName:'Store',        width:170 },
   { field:'employee_name', headerName:'Associate',    width:155 },
+  // Customer NUMBER (DIM_CUSTOMER.CUST_ID), never the internal SID; '—' when
+  // the customer has no number.
+  { field:'cust_id',       headerName:'Customer ID',  width:120,
+    valueFormatter:(p:any) => (p.node?.rowPinned ? '' : (p.value ? String(p.value) : '—')) },
   { field:'customer_name', headerName:'Customer',     width:155 },
   {
     field:'type', headerName:'Type', width:95,
@@ -411,7 +416,7 @@ export default function Transactions() {
         '& .ag-row:hover':{ bgcolor:'var(--rt-grid-hover) !important' },
         '& .ag-paging-panel':{ borderTop:'1px solid var(--rt-border)', color: 'var(--rt-text-2)' },
       }}>
-        <AgGridReact
+        <AgGridReact localeText={gridLocaleText()}
           ref={gridRef}
           overlayNoRowsTemplate={noRowsOverlay()}
           onColumnMoved={colState.onColumnChanged}

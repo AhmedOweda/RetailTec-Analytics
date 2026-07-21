@@ -15,7 +15,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends
 
 from db.model import (DB_LOCK, get_db, APP_VERSION, SCHEMA_VERSION,
-                      _db_path, _current_settings_host)
+                      _db_path, _current_settings_host, feature_map)
 from routers.auth import require_admin
 from services.config import load_settings
 from services.license import get_license_status, license_file_path
@@ -102,7 +102,20 @@ def diagnostics(_admin: dict = Depends(require_admin)):
         "fact_row_counts":      counts,
         "license":              license_status,
         "device_code":          _device_code(),
+        # Optional Retail Pro customisations detected on the connected server.
+        # This is where an admin finds out WHY a feature reads as unavailable.
+        "features":             feature_map(),
     }
+
+
+@router.get("/api/features")
+def features():
+    """Which optional Retail Pro customisations this server has.
+
+    Deliberately NOT admin-only: every signed-in user's pages need it to choose
+    between "no data in this period" and "this customisation is not installed".
+    It exposes nothing sensitive — two booleans and their reasons."""
+    return feature_map()
 
 
 def _device_code() -> str:

@@ -23,7 +23,9 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { EChartHandle } from '../../components/EChart'
 import KpiCard                  from '../../components/KpiCard'
+import { itemFieldValue }       from '../../components/DataSlicer'
 import { noRowsOverlay }         from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import GridExportBar            from '../../components/GridExportBar'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
 import { moneyPrefix, money, num, moneyExact } from '../../utils/formatters'
@@ -69,8 +71,8 @@ function ChartCard({ title, children, chartRef, height = 260 }: {
         <Box sx={{ display:'flex', justifyContent:'space-between', alignItems:'center', mb:1 }}>
           <Typography sx={{ fontWeight:700, fontSize:13, color: 'var(--rt-text-2)' }}>{tr(title)}</Typography>
           <Box>
-            <Tooltip title="Download PNG"><IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
-            <Tooltip title="Fullscreen"><IconButton size="small" onClick={() => setFs(true)}><FullscreenIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
+            <Tooltip title={tr('Download PNG')}><IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
+            <Tooltip title={tr('Fullscreen')}><IconButton size="small" onClick={() => setFs(true)}><FullscreenIcon sx={{ fontSize:16 }} /></IconButton></Tooltip>
           </Box>
         </Box>
         <Box sx={{ height }}>{children}</Box>
@@ -95,8 +97,10 @@ const fmtC = (v: number) => v == null ? '—' : moneyExact(v)
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function Transfers() {
-  const { productCodeField } = useAppSettings()
-  const codeField  = productCodeField.toUpperCase()   // 'ALU' or 'UPC'
+  // The configured item identifier (Settings → Product Code Field). Ask
+  // `itemId` (field/column/label) — never `.toUpperCase()` of the raw setting,
+  // which produced a bogus "DESCRIPTION" column under the third setting.
+  const { itemId } = useAppSettings()
   const [period,   setPeriod  ] = useState(1)  // default 30D
   const [dateFrom, setDateFrom] = useState(() => daysAgo(30))
   const [dateTo,   setDateTo  ] = useState(today)
@@ -237,7 +241,14 @@ export default function Transfers() {
         fontWeight:600,
       })
     },
-    { field:codeField,     headerName:codeField,     width:100 },
+    // The configured identifier column (endpoint returns ALU/UPC/DESCRIPTION1).
+    // When Description is configured the Description column below IS the
+    // identifier, so no duplicate code column is added. ALU fallback keeps the
+    // cell non-blank when the configured field is NULL (UPC often is).
+    ...(itemId.field !== 'description' ? [{
+      field: itemId.column, headerName: itemId.label, width: 100,
+      valueGetter: (p: any) => itemFieldValue(p.data, itemId.field),
+    } as ColDef] : []),
     { field:'DESCRIPTION1',headerName:'Description', flex:1.5, minWidth:140 },
     { field:'department',  headerName:'Dept',        width:100 },
     { field:'vendor',      headerName:'Item Vendor', flex:1, minWidth:110,
@@ -246,7 +257,7 @@ export default function Transfers() {
     { field:'recv_qty',    headerName:'Recv',        width:80,  type:'numericColumn', valueFormatter:p => fmtN(p.value) },
     { field:'unit_cost',   headerName:'Unit Cost',   width:95,  type:'numericColumn', valueFormatter:(p:any) => fmtN(p.value, 2) },
     { field:'total_cost',  headerName:'Total Cost',  width:110, type:'numericColumn', valueFormatter:(p:any) => fmtC(p.value) },
-  ], [codeField])
+  ], [itemId.field, itemId.column, itemId.label])
 
   // ── Tab grid data ─────────────────────────────────────────────────────────
   const tabData   = [byStoreOut, byStoreIn, byDept, details]
@@ -351,7 +362,7 @@ export default function Transfers() {
             colDefs={tabCols[tab]} />
         </Box>
         <Box className="ag-theme-alpine" sx={{ height:360 }}>
-          <AgGridReact
+          <AgGridReact localeText={gridLocaleText()}
             key={`tab-${tab}`}
             ref={gridRef}
             overlayNoRowsTemplate={noRowsOverlay()}

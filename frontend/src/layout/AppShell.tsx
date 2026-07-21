@@ -39,6 +39,10 @@ import HistoryIcon        from '@mui/icons-material/History'
 import EventAvailableIcon from '@mui/icons-material/EventAvailable'
 import InsightsIcon       from '@mui/icons-material/Insights'
 import MenuIcon           from '@mui/icons-material/Menu'
+import AutoStoriesIcon    from '@mui/icons-material/AutoStories'
+import BalanceIcon        from '@mui/icons-material/Balance'
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
+import ReportProblemIcon  from '@mui/icons-material/ReportProblem'
 import DarkModeIcon       from '@mui/icons-material/DarkModeOutlined'
 import LightModeIcon      from '@mui/icons-material/LightModeOutlined'
 import { useAppSettings } from '../context/AppSettings'
@@ -49,7 +53,8 @@ import { getSubsidiary, setSubsidiary } from '../state/subsidiary'
 import { useAuth }       from '../contexts/AuthContext'
 import { useTranslation } from 'react-i18next'
 import { tr } from '../i18n'
-import { parsePages, pageAllowed, firstAllowedPage } from '../utils/pages'
+import { parsePages, pageAllowed, pathLicensed, domainLicensed,
+         firstLicensedPage, LicensedDomains } from '../utils/pages'
 import FirstRunWizard from '../components/FirstRunWizard'
 
 // ── Brand colours ──────────────────────────────────────────────────────────
@@ -76,6 +81,16 @@ const SALES_NAV = [
   { to: '/sales/products',      icon: <InventoryIcon  />, label: 'Products'     },
   { to: '/sales/transactions',  icon: <ReceiptLongIcon/>, label: 'Invoices' },
   { to: '/sales/journals',      icon: <MenuBookIcon    />, label: 'Journals' },
+]
+
+// Accounting — the virtual General Ledger (subsidiary 100). GL Exceptions is
+// listed last on purpose: it is the safety net that shows exactly what the
+// balanced-document gate keeps out of the statements above it.
+const ACCOUNTING_NAV = [
+  { to: '/accounting/journal',        icon: <AutoStoriesIcon    />, label: 'Journal'        },
+  { to: '/accounting/trial-balance',  icon: <BalanceIcon        />, label: 'Trial Balance'  },
+  { to: '/accounting/general-ledger', icon: <AccountBalanceIcon />, label: 'General Ledger' },
+  { to: '/accounting/exceptions',     icon: <ReportProblemIcon  />, label: 'GL Exceptions'  },
 ]
 
 const PURCHASES_NAV = [
@@ -316,38 +331,64 @@ export default function AppShell() {
   const allowed = useMemo(
     () => (isAdmin ? null : parsePages(user?.pages)),
     [isAdmin, user?.pages])
+
+  // Warehouse status: alias + license-binding watermark flag + licensed
+  // domains. Declared early — the nav filters and route guard below need it.
+  const { data: whStatus } = useQuery<any>({
+    queryKey: ['settings-status'],
+    queryFn:  () => api.get('/api/settings/status').then(r => r.data),
+    staleTime: 60_000,
+    retry: false,
+  })
+  // Licensed product domains: null/undefined = no restriction (legacy license
+  // or still loading — fail OPEN, matching every capability check here).
+  // Unlike per-user pages this applies to ADMINS too: an unlicensed domain
+  // does not exist for this install.
+  const lic: LicensedDomains = whStatus?.licensed_domains ?? null
   // ── Responsive (declared early so it can gate the nav below) ──
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const dark = theme.palette.mode === 'dark'
   const { themeMode, setThemeMode } = useAppSettings()
   // On mobile, hide pure-table pages (their grids are hidden on phones): Sales/
-  // Purchases Transactions + every Dimensions page. Settings/Users/Audit are
-  // hidden separately in the footer block below.
+  // Purchases Transactions, every Dimensions page, and every Accounting page
+  // (all four are grid-only statements). Settings/Users/Audit are hidden
+  // separately in the footer block below.
   const MOBILE_HIDE = new Set<string>([
     '/sales/transactions', '/sales/journals', '/purchases/transactions',
     '/dimensions/stores', '/dimensions/customers', '/dimensions/employees',
     '/dimensions/items', '/dimensions/vendors',
+    '/accounting/journal', '/accounting/trial-balance',
+    '/accounting/general-ledger', '/accounting/exceptions',
   ])
-  const _navOk = (to: string) => pageAllowed(allowed, to) && !(isMobile && MOBILE_HIDE.has(to))
+  // A nav entry exists only when the LICENSE covers its domain AND the user
+  // may open it AND it isn't mobile-hidden. License first: it decides what
+  // exists; user permissions subset within it.
+  const _navOk = (to: string) => pathLicensed(lic, to)
+    && pageAllowed(allowed, to) && !(isMobile && MOBILE_HIDE.has(to))
   const salesNav      = SALES_NAV.filter(n => _navOk(n.to))
+  const accountingNav = ACCOUNTING_NAV.filter(n => _navOk(n.to))
   const inventoryNav  = INVENTORY_NAV.filter(n => _navOk(n.to))
   const purchasesNav  = PURCHASES_NAV.filter(n => _navOk(n.to))
   const dimensionsNav = DIMENSIONS_NAV.filter(n => _navOk(n.to))
 
-  // Route guard: opening a disallowed page redirects to the first allowed one
+  // Route guard: opening a disallowed OR unlicensed page redirects to the
+  // first page that is both licensed and allowed (Home when licensed).
   useEffect(() => {
     const p = location.pathname
     const guarded = p.startsWith('/sales/') || p.startsWith('/inventory/')
                  || p.startsWith('/purchases/') || p.startsWith('/dimensions/')
-    if (guarded && !pageAllowed(allowed, p)) {
-      navigate(firstAllowedPage(allowed), { replace: true })
+                 || p.startsWith('/accounting/')
+                 || p === '/home' || p === '/assistant'
+    if (guarded && !(pageAllowed(allowed, p) && pathLicensed(lic, p))) {
+      navigate(firstLicensedPage(allowed, lic), { replace: true })
     }
-  }, [location.pathname, allowed, navigate])
+  }, [location.pathname, allowed, lic, navigate])
 
   // ── Sidebar section collapse state (all expanded by default) ─────
   const [salesOpen,      setSalesOpen     ] = useState(true)
   const [inventoryOpen,  setInventoryOpen ] = useState(true)
+  const [accountingOpen, setAccountingOpen] = useState(true)
   const [purchasesOpen,  setPurchasesOpen ] = useState(true)
   const [dimensionsOpen, setDimensionsOpen] = useState(true)
 
@@ -361,22 +402,16 @@ export default function AppShell() {
   const brandName: string = brandSettings?.brand_name || 'RetailTec Analytics'
   const brandLogo: string = brandSettings?.brand_logo || ''
 
-  // AI assistant enabled? (gates the sidebar link)
+  // AI assistant enabled? (gates the sidebar link). Not even queried when the
+  // 'ai' domain is unlicensed — the endpoint would 403 anyway.
   const { data: asstStatus } = useQuery<any>({
     queryKey: ['assistant-status'],
     queryFn:  () => axios.get('/api/assistant/status').then(r => r.data),
     staleTime: 60_000,
     retry: false,
+    enabled: domainLicensed(lic, 'ai'),
   })
   const asstEnabled = !!asstStatus?.enabled
-
-  // Warehouse status: alias + license-binding watermark flag
-  const { data: whStatus } = useQuery<any>({
-    queryKey: ['settings-status'],
-    queryFn:  () => api.get('/api/settings/status').then(r => r.data),
-    staleTime: 60_000,
-    retry: false,
-  })
 
   // First-run wizard: admins only, when the install has never completed setup.
   // Gated on an explicit `false` so a still-loading query never flashes it.
@@ -407,15 +442,17 @@ export default function AppShell() {
                    '&::-webkit-scrollbar':{ width:4 },
                    '&::-webkit-scrollbar-thumb':{ bgcolor:'rgba(255,255,255,0.12)', borderRadius:2 } }}>
 
-          {/* Home dashboard — top link */}
-          <Box sx={{ px:1.5, pt:1.5 }}>
-            <NavItem to="/home" icon={<HomeIcon />} label="Home" />
-          </Box>
+          {/* Home dashboard — top link (only when the 'home' domain is licensed) */}
+          {domainLicensed(lic, 'home') && (
+            <Box sx={{ px:1.5, pt:1.5 }}>
+              <NavItem to="/home" icon={<HomeIcon />} label="Home" />
+            </Box>
+          )}
 
-          {/* AI Assistant — prominent top link. Admins ALWAYS see it (so they
-              can reach the setup even while it's off); other users only once
-              it's enabled. */}
-          {(asstEnabled || isAdmin) && (
+          {/* AI Assistant — prominent top link. Requires the 'ai' domain to be
+              licensed; within that, admins ALWAYS see it (so they can reach
+              the setup even while it's off); other users only once enabled. */}
+          {domainLicensed(lic, 'ai') && (asstEnabled || isAdmin) && (
             <Box sx={{ px:1.5, pt:1.5 }}>
               <NavItem to="/assistant" icon={<InsightsIcon />} label="Data Analyst" />
               <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:0.5, mt:1 }} />
@@ -460,6 +497,28 @@ export default function AppShell() {
           <Collapse in={inventoryOpen}>
             <Box sx={{ px:1.5, pt:0.5 }}>
               {inventoryNav.map(n => <NavItem key={n.to} {...n} />)}
+            </Box>
+          </Collapse>
+
+          <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
+
+          </>)}
+          {/* Accounting section */}
+          {accountingNav.length > 0 && (<>
+          <Box onClick={() => setAccountingOpen(o => !o)} sx={{
+            px:2.5, pb:0.5, display:'flex', alignItems:'center',
+            justifyContent:'space-between', cursor:'pointer',
+            '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
+          }}>
+            <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
+                              letterSpacing:1.2, textTransform:'uppercase' }}>{t('nav.accounting')}</Typography>
+            <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
+              transform: accountingOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+              transition:'transform 0.2s' }} />
+          </Box>
+          <Collapse in={accountingOpen}>
+            <Box sx={{ px:1.5, pt:0.5 }}>
+              {accountingNav.map(n => <NavItem key={n.to} {...n} />)}
             </Box>
           </Collapse>
 
@@ -550,7 +609,7 @@ export default function AppShell() {
                 {user?.role}
               </Typography>
             </Box>
-            <Tooltip title="Sign out">
+            <Tooltip title={tr('Sign out')}>
               <IconButton size="small" onClick={logout}
                 sx={{ color:'rgba(255,255,255,0.35)', '&:hover':{ color:'#fff' } }}>
                 <LogoutIcon sx={{ fontSize:16 }} />

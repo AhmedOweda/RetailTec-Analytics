@@ -28,9 +28,18 @@ function attachSubsidiary(cfg: any) {
   const scoped =
     url.startsWith('/api/sales') ||
     url.startsWith('/api/inventory') ||
-    url.startsWith('/api/purchases')
+    url.startsWith('/api/purchases') ||
+    url.startsWith('/api/accounting') ||
+    // /api/home/summary is the landing dashboard. It was missing here, so the
+    // Home page ignored the header subsidiary entirely while every other screen
+    // honoured it — the dashboard visibly contradicted the slicer.
+    url.startsWith('/api/home')
   if (!scoped) return cfg
   if (url.includes('/subsidiaries-list')) return cfg
+  // A page that carries its OWN subsidiary slicer wins over the header pick —
+  // otherwise the interceptor would silently overwrite it and the page would
+  // look unfiltered (the Accounting pages have a per-page subsidiary slicer).
+  if (cfg.params?.subsidiaries) return cfg
   cfg.params = { ...(cfg.params || {}), subsidiaries: sid }
   return cfg
 }

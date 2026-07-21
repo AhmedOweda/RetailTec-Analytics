@@ -1,7 +1,7 @@
 /**
  * Data Model Settings — admin panel
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { CurrencyMark } from '../../components/RiyalSign'
 import SendHistoryDialog from '../../components/SendHistoryDialog'
 import HistoryIcon2 from '@mui/icons-material/History'
@@ -37,6 +37,9 @@ import { ITEM_FIELDS, itemFieldLabel } from '../../utils/itemFields'
 import { setSubsidiary } from '../../state/subsidiary'
 import { tr, trf } from '../../i18n'
 import TitleLoader from '../../components/TitleLoader'
+import { useFeatures, FEATURE_ACCOUNTING } from '../../hooks/useFeatures'
+import { useLicensedDomains } from '../../hooks/useLicense'
+import { domainLicensed } from '../../utils/pages'
 
 const ACCENT = '#7c3aed'
 
@@ -53,13 +56,53 @@ function etaText(s: any): string {
   return m > 0 ? `~${m}m ${sec}s left` : `~${sec}s left`
 }
 
-const DOMAINS = [
-  { key: 'sales',       label: 'Sales',       desc: 'Daily totals, invoices & line items' },
-  { key: 'transfers',   label: 'Transfers',   desc: 'Store-to-store transfer slips' },
-  { key: 'adjustments', label: 'Adjustments', desc: 'Inventory adjustment documents' },
-  { key: 'inventory',   label: 'Inventory',   desc: 'On-hand quantity snapshot' },
-  { key: 'purchases',   label: 'Purchases',   desc: 'Purchase orders & received lines' },
-] as const
+// ── Domain presentation metadata ─────────────────────────────────────────────
+// COUPLING: this screen used to carry its own hardcoded list of domains, so a
+// domain added to the backend (services/settings_schema.py DOMAINS) had no UI
+// and could never be loaded — exactly how `accounting` shipped invisible. The
+// LIST is now derived from what GET /api/settings actually returns
+// (data_model.domains, which the server builds from that same DOMAINS), so the
+// next domain appears here on its own. Only LABELS live below, and an unknown
+// key still renders with a title-cased fallback rather than disappearing.
+interface DomainMeta {
+  label:   string
+  desc:    string
+  /** Optional Retail Pro customisation this domain needs. Absent on the server
+   *  → the row is shown as unavailable instead of offering an empty load. */
+  feature?: string
+  /** A RetailTec customisation, not a standard Prism feature. */
+  custom?:  boolean
+}
+
+const DOMAIN_META: Record<string, DomainMeta> = {
+  sales:       { label: 'Sales',       desc: 'Daily totals, invoices & line items' },
+  transfers:   { label: 'Transfers',   desc: 'Store-to-store transfer slips' },
+  adjustments: { label: 'Adjustments', desc: 'Inventory adjustment documents' },
+  inventory:   { label: 'Inventory',   desc: 'On-hand quantity snapshot' },
+  purchases:   { label: 'Purchases',   desc: 'Purchase orders & received lines' },
+  accounting:  { label: 'Accounting',
+                 desc: 'General ledger from subsidiary 100. A RetailTec customization — only servers carrying the accounting customization have it.',
+                 feature: FEATURE_ACCOUNTING, custom: true },
+}
+
+// Display order only. Keys missing from here sort to the end, so an unknown
+// (newer) backend domain is still listed.
+const DOMAIN_ORDER = ['sales', 'transfers', 'adjustments', 'inventory',
+                      'purchases', 'accounting']
+
+// Sync domain → LICENSE domain that owns it. An unlicensed license-domain's
+// sync rows disappear (no point syncing data that can't be viewed). Transfers
+// and adjustments live on Inventory pages, so they follow the inventory
+// license. Dimensions always sync — every licensed domain depends on them —
+// and there is no dimensions row here anyway. Unknown keys stay visible.
+const DOMAIN_LICENSE: Record<string, string> = {
+  sales: 'sales', transfers: 'inventory', adjustments: 'inventory',
+  inventory: 'inventory', purchases: 'purchases', accounting: 'accounting',
+}
+
+/** Title-case a bare domain key for a domain this build has no metadata for. */
+const domainFallbackLabel = (k: string) =>
+  k.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
 const LOAD_OPTIONS = [30, 90, 180, 365, 730, 1095]
 const DAYS_LABEL: Record<number, string> = {
@@ -114,7 +157,9 @@ const DEFAULT_DM: DataModelV2 = {
   timezone: 'UTC',
   quiet_hours: null,
   default_incremental_days: 7,
-  domains: Object.fromEntries(DOMAINS.map(d => [d.key, {
+  // Placeholder only — replaced by the server's own domain set as soon as
+  // GET /api/settings resolves.
+  domains: Object.fromEntries(DOMAIN_ORDER.map(k => [k, {
     enabled: true, load_days: 365, detail: true, retain_detail_months: null,
     schedule: { ...DEFAULT_SCHEDULE },
   }])) as Record<string, DomainCfg>,
@@ -325,6 +370,52 @@ export default function DataModelSettings() {
     onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
   })
 
+  // ── The domain list, derived from the SERVER ─────────────────────────────
+  // Not a local constant: whatever domains the backend defines are the domains
+  // this screen offers. Labels come from DOMAIN_META, presence does not.
+  const { data: features } = useFeatures()
+  // Licensed product domains — an unlicensed domain's sync row disappears
+  // (dimensions have no row and always sync; other domains depend on them).
+  const licDomains = useLicensedDomains()
+  const domainList = useMemo(() => {
+    const rank = (k: string) => {
+      const i = DOMAIN_ORDER.indexOf(k)
+      return i < 0 ? DOMAIN_ORDER.length : i
+    }
+    return Object.keys(dm.domains ?? {})
+      .filter(k => {
+        const owner = DOMAIN_LICENSE[k]
+        return !owner || domainLicensed(licDomains, owner)
+      })
+      .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
+      .map(key => {
+        const meta = DOMAIN_META[key]
+        const info = meta?.feature ? features?.[meta.feature] : undefined
+        // Fails OPEN, like every other capability check: unknown or still
+        // loading reads as AVAILABLE so a flaky /api/features never hides a
+        // domain that actually works.
+        const unavailable = !!meta?.feature && info?.available === false
+        return {
+          key,
+          label: meta?.label ?? domainFallbackLabel(key),
+          desc:  meta?.desc  ?? '',
+          custom: !!meta?.custom,
+          unavailable,
+          reason: unavailable ? (info?.reason || info?.note || '') : '',
+        }
+      })
+  }, [dm.domains, features, licDomains])
+
+  // Settings categories under this license: the AI Assistant and Reports &
+  // Email sections do not exist when their domains are unlicensed.
+  const visibleCats = SETTINGS_CATS.filter(c =>
+    (c.i !== 2 || domainLicensed(licDomains, 'ai')) &&
+    (c.i !== 3 || domainLicensed(licDomains, 'reports')))
+  // If the license narrows while a hidden tab is open, fall back to tab 0.
+  useEffect(() => {
+    if (!visibleCats.some(c => c.i === tab)) setTab(0)
+  }, [licDomains])   // eslint-disable-line react-hooks/exhaustive-deps
+
   const isRunning = !!syncState?.running
 
   if (loadingSettings) return <Box sx={{ p:3 }}><LinearProgress /></Box>
@@ -345,7 +436,7 @@ export default function DataModelSettings() {
         {/* ── Left category rail (desktop) ── */}
         <Box sx={{ width:236, flexShrink:0, position:'sticky', top:12, alignSelf:'flex-start',
                    display:{ xs:'none', md:'block' } }}>
-          {SETTINGS_CATS.map(c => (
+          {visibleCats.map(c => (
             <Box key={c.i} onClick={() => setTab(c.i)} sx={{
               display:'flex', flexDirection:'column', gap:0.1, px:1.5, py:1, mb:0.5, borderRadius:2,
               cursor:'pointer', borderLeft:'3px solid', transition:'all .12s',
@@ -364,7 +455,7 @@ export default function DataModelSettings() {
         {/* Mobile category selector */}
         <Box sx={{ display:{ xs:'block', md:'none' }, mb:2 }}>
           <Select fullWidth size="small" value={tab} onChange={e => setTab(Number(e.target.value))}>
-            {SETTINGS_CATS.map(c => <MenuItem key={c.i} value={c.i}>{tr(c.label)}</MenuItem>)}
+            {visibleCats.map(c => <MenuItem key={c.i} value={c.i}>{tr(c.label)}</MenuItem>)}
           </Select>
         </Box>
 
@@ -442,11 +533,15 @@ export default function DataModelSettings() {
           >
             <ToggleButton value="alu">ALU</ToggleButton>
             <ToggleButton value="upc">UPC</ToggleButton>
+            <ToggleButton value="description">{tr('Description')}</ToggleButton>
           </ToggleButtonGroup>
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
             {productCodeField === 'alu'
               ? tr('Showing ALU (internal item code) · e.g. ALU001 | Blue Shirt')
-              : tr('Showing UPC (barcode) · e.g. 123456789 | Blue Shirt')}
+              : productCodeField === 'upc'
+                ? tr('Showing UPC (barcode) · e.g. 123456789 | Blue Shirt')
+                : tr('Showing the item description · e.g. Blue Shirt')}
+            {' · '}{tr('Also used for scheduled and emailed report attachments.')}
           </Typography>
         </Box>
 
@@ -737,26 +832,37 @@ export default function DataModelSettings() {
           <span />
         </Box>
 
-        {DOMAINS.map(d => {
+        {domainList.map(d => {
           const cfg = dm.domains[d.key]
           if (!cfg) return null
           const sch = cfg.schedule ?? { mode: 'manual' as const }
           return (
             <Box key={d.key}
               sx={{ border:'1px solid var(--rt-border)', borderRadius:1.5, px:1.5, py:1, mb:1,
-                    opacity: cfg.enabled ? 1 : 0.55 }}>
+                    opacity: (cfg.enabled && !d.unavailable) ? 1 : 0.55 }}>
               <Box sx={{ display:'grid', alignItems:'center', gap:1,
                          gridTemplateColumns: DATA_GRID_COLS }}>
                 <FormControlLabel sx={{ mr:0 }}
                   control={
-                    <Switch size="small" checked={cfg.enabled}
+                    <Switch size="small" checked={cfg.enabled} disabled={d.unavailable}
                       onChange={e => setDomain(d.key, { enabled: e.target.checked })} />
                   }
                   label={
                     <Tooltip title={tr(d.desc)} placement="top" arrow>
-                      <Typography sx={{ fontSize:13.5, fontWeight:700, color: 'var(--rt-text)' }}>
-                        {tr(d.label)}
-                      </Typography>
+                      <Box sx={{ display:'flex', alignItems:'center', gap:0.6, flexWrap:'wrap' }}>
+                        <Typography sx={{ fontSize:13.5, fontWeight:700, color: 'var(--rt-text)' }}>
+                          {tr(d.label)}
+                        </Typography>
+                        {/* A customization is labelled as one — the owner must
+                            never read it as a stock Prism capability. */}
+                        {d.custom && (
+                          <Chip label={tr('Customization')} size="small"
+                            sx={{ height:16, fontSize:9, fontWeight:700, letterSpacing:0.3,
+                                  bgcolor:'var(--rt-surface-2)', color:'var(--rt-text-2)',
+                                  border:'1px solid var(--rt-border)',
+                                  '& .MuiChip-label':{ px:0.6 } }} />
+                        )}
+                      </Box>
                     </Tooltip>
                   }
                 />
@@ -796,15 +902,29 @@ export default function DataModelSettings() {
                       <MenuItem key={String(o.v)} value={o.v === null ? 'null' : o.v}>{tr(o.l)}</MenuItem>)}
                   </Select>
                 </FormControl>
-                <Button variant="outlined" size="small"
-                  onClick={() => loadOne.mutate(d.key)}
-                  disabled={isRunning || !cfg.enabled || loadOne.isPending}
-                  sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
-                        whiteSpace:'nowrap', minWidth:0, px:1.2,
-                        '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
-                  {tr('Load now')}
-                </Button>
+                {/* Offering a load that can only return nothing is worse than
+                    offering none: it reads as a broken sync. */}
+                <Tooltip title={d.unavailable ? (d.reason || tr('Not available on this server')) : ''}
+                         placement="top" arrow>
+                  <span>
+                    <Button variant="outlined" size="small"
+                      onClick={() => loadOne.mutate(d.key)}
+                      disabled={isRunning || !cfg.enabled || d.unavailable || loadOne.isPending}
+                      sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
+                            whiteSpace:'nowrap', minWidth:0, px:1.2,
+                            '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
+                      {tr('Load now')}
+                    </Button>
+                  </span>
+                </Tooltip>
               </Box>
+
+              {d.unavailable && (
+                <Typography sx={{ fontSize:11.5, color:'var(--rt-text-2)', mt:0.8 }}>
+                  {tr('Not available on this server')}
+                  {d.reason ? ` — ${d.reason}` : ''}
+                </Typography>
+              )}
 
               {sch.mode === 'times' && (
                 <Box sx={{ display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap', mt:1.5 }}>
@@ -1067,6 +1187,13 @@ export default function DataModelSettings() {
 }
 
 /* ── About / Diagnostics card (read-only) ───────────────────────────────────── */
+// Optional Retail Pro customisations, in the order they are shown. The keys
+// match FEATURE_* in backend/db/model.py (and hooks/useFeatures.ts).
+const FEATURE_ROWS = [
+  { key: 'inventory_history', label: 'Inventory History (customisation)' },
+  { key: 'accounting',        label: 'Accounting / subsidiary 100 (customisation)' },
+]
+
 function AboutCard() {
   const [copied, setCopied] = useState(false)
   const { data, isLoading } = useQuery({
@@ -1138,6 +1265,32 @@ function AboutCard() {
                                                fontFamily:'monospace', color:ACCENT }}>
               {data?.device_code ?? '—'}
             </Typography>} />
+
+          {/* ── Optional Retail Pro customisations detected on this server ──
+                 This is the one place an admin can see, at a glance, WHY a
+                 page such as Inventory History or Trial Balance reports the
+                 feature as unavailable. Absence is a configuration fact, so it
+                 is shown in the neutral warning token, never the error one. ── */}
+          {FEATURE_ROWS.map(f => {
+            const info = data?.features?.[f.key]
+            const ok   = info?.available !== false
+            return (
+              <Row key={f.key} label={f.label} value={
+                <Box component="span" sx={{ display:'inline-flex', alignItems:'center', gap:0.8 }}>
+                  <Box sx={{ width:7, height:7, borderRadius:'50%',
+                             bgcolor: ok ? 'var(--rt-pos-fg)' : 'var(--rt-warn-fg)' }} />
+                  <Typography component="span" sx={{ fontSize:12, fontWeight:700,
+                                                     color: ok ? 'var(--rt-pos-fg)' : 'var(--rt-warn-fg)' }}>
+                    {ok ? tr('Available') : tr('Not available')}
+                  </Typography>
+                  {!ok && info?.reason && (
+                    <Typography component="span" sx={{ fontSize:11.5, color:'var(--rt-text-2)' }}>
+                      — {tr(info.reason)}
+                    </Typography>
+                  )}
+                </Box>} />
+            )
+          })}
         </Box>
       )}
       <Box sx={{ mt:2, display:'flex', alignItems:'center', gap:1.5 }}>

@@ -131,6 +131,132 @@ def get_device_code() -> str:
 
 GRACE_DAYS = 30   # days a customer may exceed max_subsidiaries before sync stops
 
+# ── Licensed product domains ────────────────────────────────────────────────
+# A license payload may carry an optional "domains" list restricting which
+# product areas exist for that install. A payload WITHOUT the field (every
+# license issued before 2026-07) means ALL domains — backward compatible.
+ALL_DOMAINS = ["home", "ai", "sales", "inventory", "purchases",
+               "accounting", "dimensions", "reports"]
+
+# Small TTL cache so licensed_domains() (called per request by the gating
+# middleware) does not re-read/re-verify license.json on every request.
+_dom_cache: dict = {"at": -1e18, "value": None}   # 'at' sentinel = never cached
+_DOM_CACHE_TTL = 30.0   # seconds
+
+
+def licensed_domains() -> list | None:
+    """The product domains this install is licensed for.
+
+    None  → ALL domains (no license, invalid license, or a legacy license
+            without a "domains" field). The license module never blocks an
+            unlicensed install beyond the existing watermark policy.
+    list  → only these domains exist; everything else is gated off.
+    Never raises."""
+    import time
+    now = time.monotonic()
+    if now - _dom_cache["at"] < _DOM_CACHE_TTL:
+        return _dom_cache["value"]
+    value = None
+    try:
+        st = get_license_status()
+        if st.get("valid"):
+            doms = st.get("domains")
+            if isinstance(doms, list) and doms:
+                value = [d for d in doms if d in ALL_DOMAINS]
+                if not value:          # nothing recognisable → treat as all
+                    value = None
+    except Exception as e:  # pragma: no cover — defensive
+        log.warning(f"licensed_domains failed (ignored): {e}")
+        value = None
+    _dom_cache.update(at=now, value=value)
+    return value
+
+
+def domain_allowed(domain: str) -> bool:
+    """True when `domain` is covered by the license (or the license has no
+    domain restriction). Unknown domain names are allowed (fail open)."""
+    doms = licensed_domains()
+    return doms is None or domain in doms
+
+
+# Endpoint → domain map for the HTTP gate. Order matters: exact/shared paths
+# are checked first, then the any-of specials, then plain prefixes.
+#
+# Shared lookup endpoints (slicers, global header, command palette) serve
+# dimension NAMES to every page, so they are deliberately UNGATED:
+#   /api/stores, /api/sales/stores-list, /api/sales/subsidiaries-list,
+#   /api/sales/employees-list, /api/sales/customers-list,
+#   /api/sales/journal/search/*, /api/inventory/stores-list,
+#   /api/inventory/vendors-list, /api/inventory/dcs-list,
+#   /api/inventory/items-search, /api/inventory/search/*,
+#   /api/purchases/vendors-list
+_SHARED_PATHS = frozenset({
+    "/api/stores",
+    "/api/sales/stores-list", "/api/sales/subsidiaries-list",
+    "/api/sales/employees-list", "/api/sales/customers-list",
+    "/api/inventory/stores-list", "/api/inventory/vendors-list",
+    "/api/inventory/dcs-list", "/api/inventory/items-search",
+    "/api/purchases/vendors-list",
+})
+_SHARED_PREFIXES = ("/api/sales/journal/search/", "/api/inventory/search/")
+
+# Endpoints served to MORE than one product domain: allowed when ANY of the
+# listed domains is licensed (dimension pages reuse sales/inventory/purchases
+# analytics endpoints).
+_ANY_OF = {
+    "/api/sales/perf/stores":     ("sales", "dimensions"),   # Performance + Dim Stores
+    "/api/sales/perf/associates": ("sales", "dimensions"),   # Performance + Dim Employees
+    "/api/sales/perf/customers":  ("sales", "dimensions"),   # Performance + Dim Customers
+    "/api/sales/products":        ("sales", "dimensions"),   # Sales Products + Dim Items
+    "/api/inventory/by-vendor":   ("inventory", "dimensions"),  # Inv Overview + Dim Vendors
+    "/api/purchases/by-vendor":   ("purchases", "dimensions"),  # Purch Overview + Dim Vendors
+}
+
+# Prefix → single owning domain. /api/admin/reports*, /api/admin/alerts and
+# /api/admin/email* belong to the report/email engine ("reports"); the rest of
+# /api/admin (backup, restore, diagnostics, audit, license) stays ungated so
+# Settings always loads and shows the license state.
+_PREFIX_DOMAIN = (
+    ("/api/home/",          "home"),
+    ("/api/assistant/",     "ai"),
+    ("/api/accounting/",    "accounting"),
+    ("/api/sales/",         "sales"),
+    ("/api/inventory/",     "inventory"),
+    ("/api/purchases/",     "purchases"),
+    ("/api/reports/",       "reports"),
+    ("/api/admin/reports",  "reports"),
+    ("/api/admin/alerts",   "reports"),
+    ("/api/admin/email",    "reports"),
+)
+
+
+def domains_for_path(path: str) -> tuple | None:
+    """Which licensed domain(s) cover an API path — the request is allowed when
+    ANY of the returned domains is licensed. None → ungated (auth, settings,
+    sync, admin maintenance, shared lookups). Never raises."""
+    try:
+        p = path.split("?", 1)[0].rstrip("/") or "/"
+        if p in _SHARED_PATHS or any(p.startswith(s) for s in _SHARED_PREFIXES):
+            return None
+        if p in _ANY_OF:
+            return _ANY_OF[p]
+        probe = p + "/"
+        for prefix, dom in _PREFIX_DOMAIN:
+            if probe.startswith(prefix) or p.startswith(prefix):
+                return (dom,)
+    except Exception:  # pragma: no cover — defensive
+        pass
+    return None
+
+
+def path_allowed(path: str) -> bool:
+    """True when the license covers this API path (or the path is ungated)."""
+    doms = licensed_domains()
+    if doms is None:
+        return True
+    need = domains_for_path(path)
+    return need is None or any(d in doms for d in need)
+
 
 def sub_limit_state(duck, status: dict, subsidiary_count: int | None):
     """Subsidiary-limit state with a persisted grace period. Returns None when
@@ -255,6 +381,10 @@ def get_license_status() -> dict:
             "max_subsidiaries":  payload.get("max_subsidiaries"),
             "bound_device":      payload.get("device_code"),
             "bound_oracle_host": payload.get("oracle_host"),
+            # Optional licensed product domains. Absent/None = ALL domains
+            # (legacy licenses keep the full product). The field sits inside
+            # the signed payload, so it is covered by the signature above.
+            "domains":           payload.get("domains"),
         }
     except Exception as e:  # pragma: no cover — never let license break anything
         log.warning(f"License read failed (ignored): {e}")

@@ -168,6 +168,12 @@ export default function GridExportBar({
     const out: { id: string; label: string; type: string }[] = []
     api.getAllDisplayedColumns().forEach(col => {
       const def = col.getColDef()
+      // Skip presentation-only columns with no backing data field — e.g. the
+      // pinned '#' row-number column (a rowIndex valueGetter, no field). Its
+      // colId matches no row key, so it exported as an EMPTY leading column in
+      // every format: Excel/PDF here and, because these ids are stored on the
+      // schedule, CSV/XLSX/PDF built by the server report engine too.
+      if (!def.field) return
       out.push({
         id:    col.getColId(),
         label: (typeof def.headerName === 'string' ? def.headerName : null) ?? col.getColId(),
@@ -366,7 +372,7 @@ export default function GridExportBar({
             anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
             <Box sx={{ p: 1.5, minWidth: 210 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'var(--rt-text-2)', letterSpacing: 0.5 }}>COLUMNS</Typography>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'var(--rt-text-2)', letterSpacing: 0.5 }}>{tr('COLUMNS')}</Typography>
                 <Stack direction="row" spacing={0.5}>
                   <Button size="small" onClick={showAll} sx={{ fontSize: 10, py: 0, minWidth: 0, textTransform: 'none', color: ACCENT }}>{tr('Show All')}</Button>
                   {onResetColumns && <Button size="small" onClick={handleReset} sx={{ fontSize: 10, py: 0, minWidth: 0, textTransform: 'none', color: '#64748b' }}>{tr('Reset')}</Button>}

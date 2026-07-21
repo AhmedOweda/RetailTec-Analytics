@@ -50,7 +50,37 @@ DB_LOCK = threading.RLock()
 # APP_VERSION mirrors the FastAPI app version in main.py; SCHEMA_VERSION is the
 # DuckDB star-schema revision (bump when _ensure_schema changes shape).
 APP_VERSION = "3.0.0"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 6   # v6 (2026-07-20): SUBSIDIARY_SID carried on FACT_SALES_ITEMS,
+                     #     FACT_PURCHASES, FACT_PURCHASE_ITEMS and FACT_INVENTORY.
+                     #     These four facts previously had NO subsidiary column and
+                     #     were scoped through the DERIVED DIM_STORE.SUBSIDIARY_SID,
+                     #     which the store loader silently reset to NULL on every
+                     #     sync (same root cause as the blank Accounting screens).
+                     #     Each fact now owns its subsidiary, straight from Oracle.
+                     # v5 (2026-07-20): FACT_GL.GL_POST_DATE + FACT_GL_DOC.GL_POST_DATE
+                     #     (the migration/posting date, distinct from the
+                     #      transaction date already held in POST_DATE)
+                     # v4 (2026-07-20): DIM_CUSTOMER.CUST_ID (human customer no.)
+
+# ── The synthetic accounting subsidiary ───────────────────────────────────────
+# Retail Pro subsidiary 100 ("Accounting") is NOT a trading entity. This
+# customisation uses it as a VIRTUAL GENERAL LEDGER: its "documents" are journal
+# entries and its "items" are the chart of accounts (non-inventory items under a
+# DCS coded 'ACCOUNT'). Its DOCUMENT rows carry PRICE amounts, so if they are
+# loaded as sales they inflate every revenue figure (measured on production:
+# 274 of 9,298 closed documents, plus 147 of 3,173 items polluting item lists).
+#
+# RULE: every Oracle extract and every dimension loader MUST exclude this
+# subsidiary. The ONLY exceptions are the two accounting extracts in
+# db/sync.py — _sql_gl() and _sql_accounts() — which read SBS_NO = 100 on
+# purpose, feeding FACT_GL / FACT_GL_DOC / DIM_ACCOUNT. Those three tables are
+# separate from the star schema, so the Accounting pages are unaffected by the
+# exclusion. Everything else (slicers, dimensions, KPIs, the subsidiary
+# selector, the licensed-subsidiary count) must never see it.
+#
+# Defined here, in the lowest-level module, so sync.py, the routers and the
+# licensing code all reference ONE constant instead of a repeated literal.
+ACCOUNTING_SBS_NO = 100
 
 
 def record_audit(username: str, action: str, detail: str = "") -> None:
@@ -219,6 +249,87 @@ def _drop_if_wrong_type(con, table: str, col: str, expected_type: str):
             con.execute(f"DROP TABLE IF EXISTS {table}")
 
 
+def derive_store_subsidiaries(con: duckdb.DuckDBPyConnection) -> int:
+    """Back-fill DIM_STORE.SUBSIDIARY_SID from the facts. Returns rows populated.
+
+    NO LONGER LOAD-BEARING (schema v6, 2026-07-20). Every fact that queries scope
+    by subsidiary now owns a SUBSIDIARY_SID column of its own, straight from
+    Oracle: FACT_SALES_DAILY, FACT_SALES_INVOICES, FACT_SALES_ITEMS,
+    FACT_PURCHASES, FACT_PURCHASE_ITEMS, FACT_INVENTORY and FACT_GL. This
+    derivation is kept as a FALLBACK — it still populates the DIM_STORE column
+    for anything that reads it directly (ad-hoc queries, the AI assistant, future
+    dimension-side joins) and it costs nothing when already populated. Do NOT
+    reintroduce a router predicate that depends on it: the column is reset to
+    NULL by every DIM_STORE reload, which is what blanked the Accounting screens
+    and the Journals detail grid.
+
+    WHY THIS EXISTS: RPS.STORE carries no subsidiary column, so _load_dimensions
+    inserts only (SID, STORE_CODE, STORE_NAME). A store belongs to exactly one
+    subsidiary in practice, and the facts DO carry SUBSIDIARY_SID, so we derive
+    it — the modal value per store, ignoring the 0/NULL placeholders.
+
+    WHY IT WAS ALWAYS NULL (fixed 2026-07-20): the derivation only ever ran
+    inside _ensure_schema, i.e. once at startup, but _replace_small_dim does
+    DELETE + re-INSERT of DIM_STORE on EVERY dimensions load — which resets the
+    derived column to NULL. So from the first sync until the next process
+    restart the column was empty, and any query scoping through
+    DIM_STORE.SUBSIDIARY_SID silently matched zero rows (all four Accounting
+    screens went blank). The old bare `except: pass` made that invisible. Fix:
+    a named function, called from _ensure_schema AND from sync after the
+    dimensions are reloaded, that LOGS on failure.
+
+    Sources are unioned so a warehouse that has GL but not sales still resolves:
+      FACT_SALES_DAILY     — the normal trading path
+      FACT_SALES_INVOICES  — fallback if the daily aggregate has not been rebuilt
+      FACT_GL              — the accounting subsidiary's own stores
+
+    IDEMPOTENT: re-running is a no-op once populated (the guard only touches
+    rows that are still NULL/0). NEVER FATAL: any failure is logged and
+    swallowed so a half-loaded warehouse cannot stop the app from starting.
+    Stores with no facts at all legitimately stay NULL."""
+    log = logging.getLogger(__name__)
+    try:
+        con.execute("""
+            UPDATE DIM_STORE SET SUBSIDIARY_SID = m.sbs
+            FROM (
+                SELECT STORE_SID, mode(SUBSIDIARY_SID) AS sbs
+                FROM (
+                    SELECT STORE_SID, SUBSIDIARY_SID FROM FACT_SALES_DAILY
+                    UNION ALL
+                    SELECT STORE_SID, SUBSIDIARY_SID FROM FACT_SALES_INVOICES
+                    UNION ALL
+                    SELECT STORE_SID, SUBSIDIARY_SID FROM FACT_GL
+                )
+                WHERE STORE_SID IS NOT NULL
+                  AND SUBSIDIARY_SID IS NOT NULL AND SUBSIDIARY_SID <> 0
+                GROUP BY STORE_SID
+            ) m
+            WHERE DIM_STORE.SID = m.STORE_SID
+              AND (DIM_STORE.SUBSIDIARY_SID IS NULL OR DIM_STORE.SUBSIDIARY_SID = 0)
+        """)
+        row = con.execute(
+            "SELECT COUNT(*) FILTER (WHERE SUBSIDIARY_SID IS NOT NULL"
+            "                          AND SUBSIDIARY_SID <> 0), COUNT(*) "
+            "FROM DIM_STORE").fetchone()
+        done, total = (int(row[0]), int(row[1])) if row else (0, 0)
+        if total and done < total:
+            # Not an error: a store with no sales and no GL activity has nothing
+            # to derive from. Logged at info so the count is always visible.
+            log.info("DIM_STORE.SUBSIDIARY_SID: %d/%d stores resolved "
+                     "(%d have no facts to derive from)", done, total, total - done)
+        else:
+            log.info("DIM_STORE.SUBSIDIARY_SID: %d/%d stores resolved", done, total)
+        return done
+    except Exception as e:
+        # LOUD, but never fatal. Before the 2026-07-20 fix this was `pass`, which
+        # is why an all-NULL column produced blank Accounting screens with not a
+        # single line anywhere in the log.
+        log.warning("DIM_STORE.SUBSIDIARY_SID derivation FAILED (%s: %s) — "
+                    "subsidiary scoping that routes through DIM_STORE will match "
+                    "nothing until this succeeds", type(e).__name__, e)
+        return 0
+
+
 def _ensure_schema(con: duckdb.DuckDBPyConnection):
 
     # ── v1 → v2 migrations ───────────────────────────────────────────────────
@@ -237,6 +348,42 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
 
     # FACT_ADJUSTMENTS: add ADJ_ITEM_SID primary key
     _drop_if_missing_col(con, "FACT_ADJUSTMENTS", "ADJ_ITEM_SID")
+
+    # DIM_CUSTOMER: add CUST_ID (2026-07-20). SID is the internal 18-digit key;
+    # CUST_ID is the human-facing customer number the owner actually knows.
+    # It is NOT unique (11,155 non-null / 10,910 distinct) and is NULL on ~60
+    # customers, so it stays a plain nullable attribute — never a key.
+    _drop_if_missing_col(con, "DIM_CUSTOMER", "CUST_ID")
+
+    # FACT_GL / FACT_GL_DOC: add GL_POST_DATE (2026-07-20). POST_DATE is the
+    # TRANSACTION date (the source document's own accounting date, from NOTE8);
+    # GL_POST_DATE is when the entry was actually migrated into the GL (the
+    # sbs-100 document's INVC_POST_DATE). On production they differ by months
+    # — January activity posted in July — so accountants need BOTH bases, and
+    # neither may be repurposed into the other. Dropped rather than ALTERed:
+    # the Oracle extract maps positionally, so the column must sit in the right
+    # ordinal position, which ADD COLUMN cannot guarantee. The next sync
+    # reloads the table.
+    _drop_if_missing_col(con, "FACT_GL",     "GL_POST_DATE")
+    _drop_if_missing_col(con, "FACT_GL_DOC", "GL_POST_DATE")
+
+    # SUBSIDIARY_SID on the four facts that never had one (2026-07-20, v6).
+    # They were scoped through DIM_STORE.SUBSIDIARY_SID — a column DERIVED from
+    # the facts and wiped to NULL by every DIM_STORE reload, which is exactly
+    # what blanked the Accounting screens and the Journals detail grid. The
+    # subsidiary now comes straight from Oracle onto each fact:
+    #   FACT_SALES_ITEMS    <- RPS.DOCUMENT.SUBSIDIARY_SID (via the parent doc;
+    #                          DOCUMENT_ITEM carries only SBS_NO, no SID)
+    #   FACT_PURCHASES      <- RPS.VOUCHER.SBS_SID
+    #   FACT_PURCHASE_ITEMS <- RPS.VOUCHER.SBS_SID (via the parent voucher)
+    #   FACT_INVENTORY      <- RPS.INVN_SBS_ITEM_QTY.SBS_SID
+    # DROPped rather than ALTERed: the Oracle extracts map POSITIONALLY, so the
+    # column must sit at a fixed ordinal that ADD COLUMN cannot guarantee. The
+    # next FULL sync reloads these tables — until then they are empty.
+    _drop_if_missing_col(con, "FACT_SALES_ITEMS",    "SUBSIDIARY_SID")
+    _drop_if_missing_col(con, "FACT_PURCHASES",      "SUBSIDIARY_SID")
+    _drop_if_missing_col(con, "FACT_PURCHASE_ITEMS", "SUBSIDIARY_SID")
+    _drop_if_missing_col(con, "FACT_INVENTORY",      "SUBSIDIARY_SID")
 
     # FACT_SALES_DAILY: DOUBLE → DECIMAL + PK fix
     _drop_if_wrong_type(con, "FACT_SALES_DAILY", "NET_SALES_WOTAX", "DECIMAL")
@@ -304,12 +451,16 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     con.execute("""
         CREATE TABLE IF NOT EXISTS DIM_CUSTOMER (
             SID       BIGINT  PRIMARY KEY,
+            CUST_ID   BIGINT,
             FULL_NAME VARCHAR,
             PHONE     VARCHAR
         )
     """)
     # Migration: PHONE added 2026-07 (customer phone in CRM grid)
     con.execute("ALTER TABLE DIM_CUSTOMER ADD COLUMN IF NOT EXISTS PHONE VARCHAR")
+    # Migration: CUST_ID added 2026-07-20 (human-facing customer number).
+    # Nullable, non-unique — display/search only. SID stays the key.
+    con.execute("ALTER TABLE DIM_CUSTOMER ADD COLUMN IF NOT EXISTS CUST_ID BIGINT")
     con.execute("""
         CREATE TABLE IF NOT EXISTS DIM_ITEM (
             SID          BIGINT  PRIMARY KEY,
@@ -351,6 +502,23 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             SBS_SID   BIGINT,
             VEND_CODE VARCHAR,
             VEND_NAME VARCHAR
+        )
+    """)
+    # Chart of accounts. Lives in Retail Pro as NON-INVENTORY items under the
+    # DCS 'ACCOUNT' of subsidiary 100 (the virtual GL). ALU is the account code.
+    # ACCOUNT_CLASS is deliberately nullable: the COA mixes two numbering
+    # schemes (the accountant's 1xx/2xx/3xx and the Retail Pro integration
+    # accounts 1010.xx/1220.01/3250.01), so class CANNOT be inferred from the
+    # code range - e.g. 3250.01 is a liability while 3xxx is equity elsewhere.
+    # It is populated from the accountant's classification, not derived.
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS DIM_ACCOUNT (
+            SID           BIGINT  PRIMARY KEY,
+            ACCOUNT_CODE  VARCHAR,
+            ACCOUNT_KEY   VARCHAR,
+            NAME_EN       VARCHAR,
+            NAME_AR       VARCHAR,
+            ACCOUNT_CLASS VARCHAR
         )
     """)
 
@@ -462,6 +630,7 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             DOC_ITEM_SID            BIGINT          PRIMARY KEY,
             DOC_SID                 BIGINT,
             INVC_POST_DATE          DATE,
+            SUBSIDIARY_SID          BIGINT,
             STORE_SID               BIGINT,
             ITEM_SID                BIGINT,
             ITEM_TYPE               VARCHAR,
@@ -488,6 +657,7 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
         CREATE TABLE IF NOT EXISTS FACT_INVENTORY (
             ITEM_SID    BIGINT          NOT NULL,
             STORE_SID   BIGINT          NOT NULL,
+            SUBSIDIARY_SID BIGINT,
             ON_HAND_QTY DECIMAL(12,3)   DEFAULT 0,
             COST        DECIMAL(18,4)   DEFAULT 0,
             PRICE1      DECIMAL(18,4)   DEFAULT 0,
@@ -553,6 +723,7 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             VOU_NO       INTEGER,
             VOU_DATE     DATE            NOT NULL,
             STATUS       INTEGER         DEFAULT 3,
+            SUBSIDIARY_SID BIGINT,
             STORE_SID    BIGINT,
             VEND_SID     BIGINT,
             EMPLOYEE_SID BIGINT,
@@ -569,6 +740,7 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             VOU_ITEM_SID BIGINT          PRIMARY KEY,
             VOU_SID      BIGINT,
             VOU_DATE     DATE            NOT NULL,
+            SUBSIDIARY_SID BIGINT,
             STORE_SID    BIGINT,
             VEND_SID     BIGINT,
             ITEM_SID     BIGINT,
@@ -579,6 +751,67 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             DISC_AMT     DECIMAL(18,4)   DEFAULT 0,
             TOTAL_COST   DECIMAL(18,4)   DEFAULT 0,
             TOTAL_RETAIL DECIMAL(18,4)   DEFAULT 0
+        )
+    """)
+
+    # ── General ledger fact tables (subsidiary 100 = the virtual GL) ──────────
+    # One row per GL line. Reading rules, verified against production:
+    #   * the amount is DOCUMENT_ITEM.PRICE and is ALWAYS POSITIVE (QTY is 1);
+    #   * the sign is carried by ITEM_TYPE: 1 = DEBIT, 2 = CREDIT.
+    # AMOUNT below is the signed form (debit positive) so measures just SUM it.
+    #
+    # POST_DATE is the ACCOUNTING date, taken from the source document via
+    # NOTE8 - NOT the sbs-100 document's own INVC_POST_DATE, which is the date
+    # the poster ran. Those differ by months (Jan-2026 entries posted 19-Jul);
+    # using the wrong one collapses every journal onto the posting-run date.
+    #
+    # GL_POST_DATE is that other date, kept DELIBERATELY alongside it: the
+    # sbs-100 document's own INVC_POST_DATE = when the entry was migrated into
+    # the books. Accountants need both — POST_DATE for the period the business
+    # activity belongs to, GL_POST_DATE for when the books actually received it
+    # — so the reports offer a date basis and neither column substitutes for
+    # the other. Nullable: rows loaded before v5 have no posting date until the
+    # next sync repopulates them.
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS FACT_GL (
+            GL_LINE_SID    BIGINT          PRIMARY KEY,
+            GL_DOC_SID     BIGINT          NOT NULL,
+            GL_DOC_NO      VARCHAR,
+            POST_DATE      DATE            NOT NULL,
+            GL_POST_DATE   DATE,
+            ACCOUNT_SID    BIGINT,
+            ACCOUNT_CODE   VARCHAR,
+            STORE_SID      BIGINT,
+            SUBSIDIARY_SID BIGINT,
+            SRC_SBS_NO     INTEGER,
+            SRC_STORE_CODE VARCHAR,
+            SRC_DOC_SID    BIGINT,
+            SRC_DOC_NO     VARCHAR,
+            SRC_DOC_TYPE   VARCHAR,
+            BP_ID          VARCHAR,
+            DEBIT          DECIMAL(18,4)   DEFAULT 0,
+            CREDIT         DECIMAL(18,4)   DEFAULT 0,
+            AMOUNT         DECIMAL(18,4)   DEFAULT 0
+        )
+    """)
+    # One row per SOURCE document (SRC_DOC_SID), derived locally after each GL
+    # load. IS_BALANCED drives the reporting gate: a source document must net to
+    # zero across ALL of its journals, because the poster deliberately splits
+    # one source document into several by DOC_TYPE and they clear through AR.
+    # Unbalanced documents are excluded from the statements but surfaced by the
+    # GL Exceptions report, so money is never silently dropped.
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS FACT_GL_DOC (
+            SRC_DOC_SID    BIGINT          PRIMARY KEY,
+            POST_DATE      DATE,
+            GL_POST_DATE   DATE,
+            SRC_DOC_NO     VARCHAR,
+            SRC_STORE_CODE VARCHAR,
+            STORE_SID      BIGINT,
+            JOURNALS       INTEGER         DEFAULT 0,
+            LINES          INTEGER         DEFAULT 0,
+            NET            DECIMAL(18,4)   DEFAULT 0,
+            IS_BALANCED    BOOLEAN         DEFAULT TRUE
         )
     """)
 
@@ -620,6 +853,23 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
         )
     """)
 
+    # ── Optional Retail Pro customisations present on THIS server ────────────
+    # Not every Prism installation carries every customisation RetailTec builds
+    # on. The sync probes each one and records the answer here so the API and
+    # the UI can degrade calmly (informative empty state) instead of erroring.
+    # A MISSING ROW means "not checked yet" and is read as AVAILABLE, so an old
+    # warehouse that has never synced under this code behaves exactly as before.
+    #   'inventory_history' — RPS.INVENTORY_HISTORY (the INVN_BACKUP_TRG log)
+    #   'accounting'        — subsidiary 100, the virtual general ledger
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS FEATURE_AVAILABILITY (
+            feature    VARCHAR         PRIMARY KEY,
+            available  BOOLEAN,
+            checked_at TIMESTAMP,
+            note       VARCHAR
+        )
+    """)
+
     # ── Indexes ───────────────────────────────────────────────────────────────
     con.execute("CREATE INDEX IF NOT EXISTS idx_daily_date    ON FACT_SALES_DAILY(POST_DATE)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_daily_store   ON FACT_SALES_DAILY(STORE_SID)")
@@ -630,10 +880,12 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     con.execute("CREATE INDEX IF NOT EXISTS idx_items_date    ON FACT_SALES_ITEMS(INVC_POST_DATE)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_items_store   ON FACT_SALES_ITEMS(STORE_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_items_item    ON FACT_SALES_ITEMS(ITEM_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_items_sbs     ON FACT_SALES_ITEMS(SUBSIDIARY_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_item_dcs      ON DIM_ITEM(DCS_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_item_vend     ON DIM_ITEM(VEND_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_finv_item     ON FACT_INVENTORY(ITEM_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_finv_store    ON FACT_INVENTORY(STORE_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_finv_sbs      ON FACT_INVENTORY(SUBSIDIARY_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_ftrans_date   ON FACT_TRANSFERS(SLIP_DATE)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_ftrans_out    ON FACT_TRANSFERS(OUT_STORE_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_ftrans_in     ON FACT_TRANSFERS(IN_STORE_SID)")
@@ -647,33 +899,30 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     con.execute("CREATE INDEX IF NOT EXISTS idx_fpurch_date   ON FACT_PURCHASES(VOU_DATE)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_fpurch_store  ON FACT_PURCHASES(STORE_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_fpurch_vend   ON FACT_PURCHASES(VEND_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fpurch_sbs    ON FACT_PURCHASES(SUBSIDIARY_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_fpurchi_date  ON FACT_PURCHASE_ITEMS(VOU_DATE)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_fpurchi_item  ON FACT_PURCHASE_ITEMS(ITEM_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_fpurchi_store ON FACT_PURCHASE_ITEMS(STORE_SID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_fpurchi_vend  ON FACT_PURCHASE_ITEMS(VEND_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fpurchi_sbs   ON FACT_PURCHASE_ITEMS(SUBSIDIARY_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fgl_date      ON FACT_GL(POST_DATE)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fgl_gldate    ON FACT_GL(GL_POST_DATE)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fgl_acct      ON FACT_GL(ACCOUNT_CODE)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fgl_store     ON FACT_GL(STORE_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fgl_srcdoc    ON FACT_GL(SRC_DOC_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fgl_gldoc     ON FACT_GL(GL_DOC_SID)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fgld_date     ON FACT_GL_DOC(POST_DATE)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fgld_gldate   ON FACT_GL_DOC(GL_POST_DATE)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_fgld_bal      ON FACT_GL_DOC(IS_BALANCED)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_cust_custid   ON DIM_CUSTOMER(CUST_ID)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_date_year     ON DIM_DATE(YEAR)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_date_month    ON DIM_DATE(YEAR, MONTH_NUM)")
 
     # ── Multi-subsidiary: give DIM_STORE a subsidiary link ────────────────────
-    # The source store load carries no subsidiary column, so derive each store's
-    # subsidiary from the sales facts (a store belongs to one subsidiary). This
-    # lets the subsidiary filter/scope compose with the existing DIM_STORE joins
-    # on every fact. Best-effort + idempotent; never breaks startup.
+    # The source store load carries no subsidiary column, so the link is DERIVED
+    # from the facts. The column itself must exist before anything reads it.
     con.execute("ALTER TABLE DIM_STORE ADD COLUMN IF NOT EXISTS SUBSIDIARY_SID BIGINT")
-    try:
-        con.execute("""
-            UPDATE DIM_STORE SET SUBSIDIARY_SID = m.sbs
-            FROM (
-                SELECT STORE_SID, mode(SUBSIDIARY_SID) AS sbs
-                FROM FACT_SALES_DAILY
-                WHERE SUBSIDIARY_SID IS NOT NULL AND SUBSIDIARY_SID <> 0
-                GROUP BY STORE_SID
-            ) m
-            WHERE DIM_STORE.SID = m.STORE_SID
-              AND (DIM_STORE.SUBSIDIARY_SID IS NULL OR DIM_STORE.SUBSIDIARY_SID = 0)
-        """)
-    except Exception:
-        pass   # facts not loaded yet — populated on a later startup/sync
+    derive_store_subsidiaries(con)
 
     # ── Users table (application auth — kept in same DB for now) ──────────────
     con.execute("""
@@ -756,6 +1005,125 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             )
 
     con.commit()
+
+
+# ── Optional-customisation availability ──────────────────────────────────────
+# Some Retail Pro Prism installations do not have the customisations RetailTec
+# reads from. That is NOT a fault — the affected features are simply absent, and
+# the app must skip them quietly. The sync probes each one and writes the answer
+# to FEATURE_AVAILABILITY; readers ask through feature_available() below.
+
+FEATURE_INVENTORY_HISTORY = "inventory_history"
+FEATURE_ACCOUNTING        = "accounting"
+
+# Human-readable reason strings, shared by every endpoint that degrades so the
+# UI shows ONE wording per feature (also the i18n keys on the frontend).
+FEATURE_REASON = {
+    FEATURE_INVENTORY_HISTORY:
+        "Inventory History is a Retail Pro customisation that is not installed "
+        "on this server.",
+    FEATURE_ACCOUNTING:
+        "The accounting subsidiary (100) is not present on this server.",
+}
+
+# Tiny TTL memo: these flags change only on a sync, but they are read on every
+# request of the affected endpoints. 15s keeps the DuckDB hit off the hot path
+# while still picking a fresh sync result up almost immediately.
+_FEATURE_CACHE: dict[str, tuple[float, bool]] = {}
+_FEATURE_TTL = 15.0
+
+_flog = logging.getLogger(__name__)
+
+
+def set_feature_available(con, feature: str, available: bool, note: str = "") -> None:
+    """Record a probe result. Best-effort: never raises into the sync."""
+    try:
+        con.execute("""
+            INSERT INTO FEATURE_AVAILABILITY (feature, available, checked_at, note)
+            VALUES (?, ?, NOW(), ?)
+            ON CONFLICT (feature) DO UPDATE SET
+                available  = excluded.available,
+                checked_at = excluded.checked_at,
+                note       = excluded.note
+        """, [feature, bool(available), (note or "")[:400]])
+        con.commit()
+    except Exception as e:                                   # pragma: no cover
+        _flog.warning(f"FEATURE_AVAILABILITY[{feature}] write failed: {e}")
+    _FEATURE_CACHE.pop(feature, None)
+
+
+def feature_available(feature: str) -> bool:
+    """Is this optional customisation present on the connected server?
+
+    NO ROW = not probed yet = AVAILABLE. A warehouse that has never synced
+    under this code therefore behaves exactly as it did before, and a probe
+    failure can never make a working feature disappear."""
+    import time
+    hit = _FEATURE_CACHE.get(feature)
+    now = time.monotonic()
+    if hit and now - hit[0] < _FEATURE_TTL:
+        return hit[1]
+    ok = True
+    try:
+        with DB_LOCK:
+            cur = get_db().cursor()
+        try:
+            row = cur.execute(
+                "SELECT available FROM FEATURE_AVAILABILITY WHERE feature = ?",
+                [feature]).fetchone()
+        finally:
+            cur.close()
+        if row is not None and row[0] is not None:
+            ok = bool(row[0])
+    except Exception as e:
+        _flog.warning(f"FEATURE_AVAILABILITY[{feature}] read failed: {e}")
+    _FEATURE_CACHE[feature] = (now, ok)
+    return ok
+
+
+def feature_reason(feature: str) -> str:
+    """The note recorded by the sync, falling back to the canonical wording."""
+    try:
+        with DB_LOCK:
+            cur = get_db().cursor()
+        try:
+            row = cur.execute(
+                "SELECT note FROM FEATURE_AVAILABILITY WHERE feature = ?",
+                [feature]).fetchone()
+        finally:
+            cur.close()
+        if row and row[0]:
+            return str(row[0])
+    except Exception:
+        pass
+    return FEATURE_REASON.get(feature, "")
+
+
+def feature_map() -> dict:
+    """Every probed feature as {name: {available, checked_at, note, reason}}.
+    Unprobed features are reported available with a null checked_at."""
+    out = {f: {"available": True, "checked_at": None, "note": "",
+               "reason": FEATURE_REASON.get(f, "")}
+           for f in (FEATURE_INVENTORY_HISTORY, FEATURE_ACCOUNTING)}
+    try:
+        with DB_LOCK:
+            cur = get_db().cursor()
+        try:
+            rows = cur.execute(
+                "SELECT feature, available, checked_at, note "
+                "FROM FEATURE_AVAILABILITY").fetchall()
+        finally:
+            cur.close()
+        for feature, available, checked_at, note in rows:
+            out[feature] = {
+                "available":  True if available is None else bool(available),
+                "checked_at": str(checked_at) if checked_at else None,
+                "note":       note or "",
+                "reason":     FEATURE_REASON.get(feature, note or ""),
+            }
+    except Exception as e:
+        _flog.warning(f"FEATURE_AVAILABILITY read failed: {e}")
+    return out
 
 
 # ── Calendar dimension population ────────────────────────────────────────────

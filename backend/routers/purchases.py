@@ -37,9 +37,12 @@ def _status_filter(status: Optional[str]) -> str:
 def _pur_base(df: date, dt: date, stores: Optional[str],
               vendors: Optional[str] = None, status: Optional[str] = None,
               subsidiaries: Optional[str] = None) -> tuple[str, list]:
-    # FACT_PURCHASES has no SUBSIDIARY_SID → filter via the DIM_STORE alias S.
+    # FACT_PURCHASES carries its own SUBSIDIARY_SID (RPS.VOUCHER.SBS_SID) → the
+    # subsidiary predicate goes on the fact alias FP. It used to route through
+    # DIM_STORE.SUBSIDIARY_SID, a derived column the store loader wiped to NULL
+    # on every sync, so a subsidiary-scoped user saw an empty page.
     sf, sp   = store_filter(stores, alias="S")
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FP")
     vf, vp   = csv_in("V.VEND_NAME", vendors)
     stf      = _status_filter(status)
     frag = f"""
@@ -54,8 +57,9 @@ def _pur_base(df: date, dt: date, stores: Optional[str],
 def _pur_items_base(df: date, dt: date, stores: Optional[str],
                     vendors: Optional[str] = None,
                     subsidiaries: Optional[str] = None) -> tuple[str, list]:
+    # FACT_PURCHASE_ITEMS carries SUBSIDIARY_SID from its parent VOUCHER.
     sf, sp = store_filter(stores, alias="S")
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FPI")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     frag = f"""
         FROM FACT_PURCHASE_ITEMS FPI
@@ -110,7 +114,7 @@ def purchases_kpi(
     # Line-item metrics come from FACT_PURCHASE_ITEMS: RP9's VOUCHER header has
     # no LINE_COUNT/ORD_QTY/RECV_QTY, so the header fact stores 0 for them.
     sf, sp = store_filter(stores, alias="S")
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FPI")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     stf = _status_filter(status).replace("FP.STATUS", "FPH.STATUS")
     li = _q(f"""
@@ -265,7 +269,7 @@ def purchases_by_status(
     vendors:   Optional[str] = Query(None),
 ):
     sf, sp = store_filter(stores, alias="S")
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FP")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     status_lbl = _status_label()
     return _qdf(f"""
@@ -298,7 +302,7 @@ def purchases_details(
 ):
     lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores, alias="S")
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FPI")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     stf    = _status_filter(status)
 
@@ -312,6 +316,7 @@ def purchases_details(
             COALESCE(V.VEND_NAME,   '(Unknown)')        AS vendor_name,
             COALESCE(DC.D_NAME,     '(Unknown)')        AS department,
             I.ALU                                       AS alu,
+            I.UPC                                       AS upc,
             I.DESCRIPTION1                              AS description1,
             ROUND(FPI.ORD_QTY,   0)                    AS ord_qty,
             ROUND(FPI.RECV_QTY,  0)                    AS recv_qty,

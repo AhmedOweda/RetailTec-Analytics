@@ -23,6 +23,7 @@ import axios            from 'axios'
 import { format, subDays, startOfMonth, startOfYear, subMonths } from 'date-fns'
 import { num }          from '../../utils/formatters'
 import { useAppSettings } from '../../context/AppSettings'
+import { itemFieldValue } from '../../components/DataSlicer'
 
 /* ── Theme ──────────────────────────────────────────────────────── */
 const ACCENT  = '#7c3aed'
@@ -288,12 +289,12 @@ function MiniChart({ title, subtitle, option, loading }: {
 
   const toolbar = (
     <Box sx={{ display:'flex', gap:0.25, opacity:0.45, transition:'opacity .15s', '&:hover':{ opacity:1 } }}>
-      <Tooltip title="Export PNG" placement="top">
+      <Tooltip title={tr('Export PNG')} placement="top">
         <IconButton size="small" onClick={exportPng} sx={{ p:0.5 }}>
           <FileDownloadIcon sx={{ fontSize:15, color:'#64748b' }} />
         </IconButton>
       </Tooltip>
-      <Tooltip title="Fullscreen" placement="top">
+      <Tooltip title={tr('Fullscreen')} placement="top">
         <IconButton size="small" onClick={() => setOpen(true)} sx={{ p:0.5 }}>
           <FullscreenIcon sx={{ fontSize:15, color:'#64748b' }} />
         </IconButton>
@@ -352,7 +353,9 @@ export default function Overview() {
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('30D')
   const [trendOpen,   setTrendOpen  ] = useState(false)
   const trendChartRef = useRef<EChartHandle>(null)
-  const { productCodeField } = useAppSettings()
+  // The configured item identifier (Settings → Product Code Field) — resolved
+  // form: never compare / uppercase the raw setting.
+  const { itemId } = useAppSettings()
 
   const exportTrendPng = () => {
     const inst = trendChartRef.current?.getEchartsInstance()
@@ -585,12 +588,13 @@ export default function Overview() {
   const productsOpt = useMemo(() => {
     const rows = ((productsData ?? []) as any[]).slice(0, 10).reverse()
     const names  = rows.map(r => {
-      // DuckDB returns lowercase column names; check both cases for safety
-      const code = r[productCodeField]
-                ?? r[productCodeField.toUpperCase()]
-                ?? r['alu'] ?? r['ALU'] ?? ''
-      const desc = (r.description1 ?? r.DESCRIPTION1 ?? '').slice(0, 22)
-      return code ? `${String(code)} | ${desc}` : (desc || '(no name)')
+      // The configured identifier (both column-name casings handled by the
+      // shared helper, ALU fallback when the field is NULL for an item).
+      const code = itemFieldValue(r, itemId.field)
+      const desc = String(r.description1 ?? r.DESCRIPTION1 ?? '').slice(0, 22)
+      // Description-as-identifier: don't print "desc | desc"
+      if (itemId.field === 'description') return desc || code || '(no name)'
+      return code ? `${code} | ${desc}` : (desc || '(no name)')
     })
     const revenues = rows.map(r => +(r.revenue ?? 0))
     return {
@@ -600,7 +604,7 @@ export default function Overview() {
         formatter:(p:any[]) => {
           const row = rows[p[0].dataIndex] ?? {}
           const rev = (+p[0].value).toLocaleString('en-US', { maximumFractionDigits:0 })
-          return `<b>${p[0].name}</b><br/>Revenue: <b>${rev}</b><br/>GP: ${row.gp_pct ?? 0}%&nbsp;&nbsp;Qty: ${(+(row.qty ?? 0)).toLocaleString()}`
+          return `<b>${p[0].name}</b><br/>${tr('Revenue')}: <b>${rev}</b><br/>${tr('GP')}: ${row.gp_pct ?? 0}%&nbsp;&nbsp;${tr('Qty')}: ${(+(row.qty ?? 0)).toLocaleString()}`
         },
       },
       xAxis:{ type:'value', axisLabel:{ color:'#94a3b8', fontSize:10, formatter:(v:number)=>v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
@@ -611,7 +615,7 @@ export default function Overview() {
         label:{ show:true, position:'right', color:'#64748b', fontSize:9, formatter:(p:any)=>`${(+p.value).toLocaleString('en-US',{maximumFractionDigits:0})}` },
       }],
     }
-  }, [productsData, productCodeField])
+  }, [productsData, itemId.field])
 
   /* ── Chart: MTD Cumulative vs Last Month ───────────────────── */
   const cumOpt = useMemo(() => {
@@ -628,7 +632,7 @@ export default function Overview() {
       tooltip:{
         trigger:'axis',
         formatter:(p:any[]) =>
-          `<b>Day ${p[0]?.axisValue}</b><br/>` +
+          `<b>${tr('Day')} ${p[0]?.axisValue}</b><br/>` +
           p.map((s:any) => `${s.marker}${s.seriesName}: <b>${(+s.value).toLocaleString('en-US',{maximumFractionDigits:0})}</b>`).join('<br/>'),
       },
       xAxis:{ type:'category', data:days, axisLabel:{ color:'#94a3b8', fontSize:10 } },
@@ -660,7 +664,7 @@ export default function Overview() {
         trigger:'axis',
         formatter:(p:any[]) => {
           const row = rows[p[0].dataIndex] ?? {}
-          return `<b>${p[0].name}</b><br/>Net Sales: <b>${(+p[0].value).toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>Invoices: ${row.invoice_count ?? 0}`
+          return `<b>${p[0].name}</b><br/>${tr('Net Sales')}: <b>${(+p[0].value).toLocaleString('en-US',{maximumFractionDigits:0})}</b><br/>${tr('Invoices')}: ${row.invoice_count ?? 0}`
         },
       },
       xAxis:{ type:'value', axisLabel:{ color:'#94a3b8', fontSize:10, formatter:(v:number)=>v>=1000?`${(v/1000).toFixed(0)}K`:`${v}` }, splitLine:{ lineStyle:{ color:'#f1f5f9' } } },
@@ -696,7 +700,7 @@ export default function Overview() {
 
       {error && (
         <Alert severity="warning" sx={{ borderRadius:2 }}>
-          No data in local model yet. Go to Settings and run an initial load first.
+          {tr('No data in local model yet. Go to Settings and run an initial load first.')}
         </Alert>
       )}
 
@@ -712,7 +716,9 @@ export default function Overview() {
       <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr', md:'repeat(3,1fr)' }, gap:2 }}>
         <MiniChart
           title="Top Products (7D)"
-          subtitle={`${tr('Revenue by item')} · ${productCodeField.toUpperCase()} | ${tr('Description')}`}
+          subtitle={itemId.field === 'description'
+            ? `${tr('Revenue by item')} · ${tr('Description')}`
+            : `${tr('Revenue by item')} · ${tr(itemId.label)} | ${tr('Description')}`}
           option={productsOpt}
           loading={productsLoading}
         />
@@ -763,12 +769,12 @@ export default function Overview() {
               </Box>
               {/* Fullscreen / Export toolbar */}
               <Box sx={{ display:'flex', gap:0.25, opacity:0.45, transition:'opacity .15s', '&:hover':{ opacity:1 } }}>
-                <Tooltip title="Export PNG" placement="top">
+                <Tooltip title={tr('Export PNG')} placement="top">
                   <IconButton size="small" onClick={exportTrendPng} sx={{ p:0.5 }}>
                     <FileDownloadIcon sx={{ fontSize:15, color:'#64748b' }} />
                   </IconButton>
                 </Tooltip>
-                <Tooltip title="Fullscreen" placement="top">
+                <Tooltip title={tr('Fullscreen')} placement="top">
                   <IconButton size="small" onClick={() => setTrendOpen(true)} sx={{ p:0.5 }}>
                     <FullscreenIcon sx={{ fontSize:15, color:'#64748b' }} />
                   </IconButton>

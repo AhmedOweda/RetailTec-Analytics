@@ -33,12 +33,32 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
+from db.model import (feature_available, feature_reason,
+                      FEATURE_INVENTORY_HISTORY)
 from routers.common import (csv_in, q as _q, qdf as _qdf, scoped_stores,
                             store_filter, trans_store_filter, item_fields_sql,
                             scoped_subsidiaries, subsidiary_filter,
                             trans_subsidiary_filter)
 
 router = APIRouter(tags=["inventory"])
+
+
+# ── Optional customisation: RPS.INVENTORY_HISTORY ─────────────────────────────
+# Some Prism installations do not have the qty-change trigger log, so
+# FACT_INVENTORY_HISTORY is permanently empty there. Every endpoint reading it
+# checks _invh_off() first and degrades: the answer is a 200 with an EMPTY
+# result, never a 500 — and never a bare empty result that reads like "no
+# movement in this period". Object-shaped responses carry `unavailable: true`
+# plus a reason; row-list responses (which must stay plain arrays — the grids
+# and report_grid.run_grid consume them positionally) return []. GET
+# /api/features is the authoritative signal the UI uses to show the panel.
+
+def _invh_off() -> bool:
+    return not feature_available(FEATURE_INVENTORY_HISTORY)
+
+
+def _invh_reason() -> str:
+    return feature_reason(FEATURE_INVENTORY_HISTORY)
 
 
 # ── Stores list ────────────────────────────────────────────────────────────────
@@ -52,19 +72,33 @@ def list_stores(stores: Optional[str] = Depends(scoped_stores)):
 
 # ── Stock snapshot base (FACT_INVENTORY) ──────────────────────────────────────
 
-def _inv_base_join(sf: str, subf: str = "") -> str:
+def _inv_base_join(sf: str, subf: str = "", onhand: str = "pos") -> str:
     """FROM + JOINs for inventory snapshot queries, with optional store filter.
     DIM_STORE is ALWAYS joined: group_by=store/item_store SELECT S.STORE_NAME
     regardless of filter (conditional join caused 500s without ?stores=).
-    Subsidiary filter (subf) is applied via the DIM_STORE alias S — FACT_INVENTORY
-    has no SUBSIDIARY_SID of its own."""
+    Subsidiary filter (subf) is applied on FACT_INVENTORY's OWN SUBSIDIARY_SID
+    (alias FI, loaded from RPS.INVN_SBS_ITEM_QTY.SBS_SID). It used to route
+    through DIM_STORE.SUBSIDIARY_SID, a derived column the store loader reset to
+    NULL on every sync — which matched zero rows and blanked the page.
+
+    `onhand` selects the on-hand predicate (whitelisted by the caller):
+      * 'pos' (default) → ON_HAND_QTY > 0  (normal stock view / replenishment)
+      * 'neg'           → ON_HAND_QTY < 0  (the Home "negative-stock rows" drill —
+                          these rows were previously UNREACHABLE because this base
+                          hard-filtered > 0, so no page could show them)
+      * 'all'           → no on-hand filter."""
+    onhand_pred = {
+        "pos": "FI.ON_HAND_QTY > 0",
+        "neg": "FI.ON_HAND_QTY < 0",
+        "all": "1=1",
+    }.get(onhand, "FI.ON_HAND_QTY > 0")
     return f"""
         FROM FACT_INVENTORY FI
         LEFT JOIN DIM_ITEM    I  ON I.SID   = FI.ITEM_SID
         LEFT JOIN DIM_DCS     D  ON D.SID   = I.DCS_SID
         LEFT JOIN DIM_VENDOR  V  ON V.SID   = I.VEND_SID
         LEFT JOIN DIM_STORE   S  ON S.SID   = FI.STORE_SID
-        WHERE FI.ON_HAND_QTY > 0 {sf} {subf}
+        WHERE {onhand_pred} {sf} {subf}
     """
 
 
@@ -74,7 +108,7 @@ def _inv_base_join(sf: str, subf: str = "") -> str:
 def inventory_overview(stores: Optional[str] = Depends(scoped_stores),
                        subsidiaries: Optional[str] = Depends(scoped_subsidiaries)):
     sf, sp = store_filter(stores)
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FI")
     base = _inv_base_join(sf, subf)
     rows = _q(f"""
         SELECT
@@ -119,7 +153,7 @@ def inventory_turnover_kpi(stores: Optional[str] = Depends(scoped_stores),
     Stock-to-Sales     = Stock Cost / (COGS / 12)  (months of supply)
     """
     sf, sp   = store_filter(stores)
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FI")
     inv_base = _inv_base_join(sf, subf)
 
     # Current stock cost
@@ -134,7 +168,7 @@ def inventory_turnover_kpi(stores: Optional[str] = Depends(scoped_stores),
     yr_ago = today - timedelta(days=365)
 
     sf_sales, sp_sales = csv_in("SS.STORE_NAME", stores)
-    subf_sales, subp_sales = subsidiary_filter(subsidiaries, alias="SS")
+    subf_sales, subp_sales = subsidiary_filter(subsidiaries, alias="FSI")
 
     cogs_rows = _q(f"""
         SELECT ROUND(COALESCE(SUM(FSI.TOTAL_COST), 0), 2) AS cogs_12m
@@ -165,7 +199,7 @@ def inventory_turnover_kpi(stores: Optional[str] = Depends(scoped_stores),
 def inv_by_dept(stores: Optional[str] = Depends(scoped_stores),
                 subsidiaries: Optional[str] = Depends(scoped_subsidiaries)):
     sf, sp = store_filter(stores)
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FI")
     base = _inv_base_join(sf, subf)
     return _qdf(f"""
         SELECT
@@ -192,7 +226,7 @@ def inv_by_dcs(stores: Optional[str] = Depends(scoped_stores),
                limit: Optional[int] = Query(None, ge=1)):   # no cap unless the caller asks
     lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores)
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FI")
     base = _inv_base_join(sf, subf)
     return _qdf(f"""
         SELECT
@@ -218,7 +252,7 @@ def inv_by_vendor(stores: Optional[str] = Depends(scoped_stores),
                   subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
                   limit: int = Query(15, ge=1, le=1000)):
     sf, sp = store_filter(stores)
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FI")
     base = _inv_base_join(sf, subf)
     return _qdf(f"""
         SELECT
@@ -244,7 +278,7 @@ def inv_by_vendor(stores: Optional[str] = Depends(scoped_stores),
 def inv_by_store(stores: Optional[str] = Depends(scoped_stores),
                  subsidiaries: Optional[str] = Depends(scoped_subsidiaries)):
     sf, sp = store_filter(stores)
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="FI")
     return _qdf(f"""
         SELECT
             COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
@@ -270,10 +304,11 @@ def inv_items(
     group_by: str = Query("dept", pattern="^(dept|dcs|vendor|store|item|item_store)$"),
     limit: Optional[int] = Query(None, ge=1),
     item_fields: Optional[str] = Query(None),   # csv of whitelisted DIM_ITEM cols
+    onhand: str = Query("pos", pattern="^(pos|neg|all)$"),   # 'neg' → the Home negative-stock drill
 ):
     sf, sp = store_filter(stores)
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
-    base = _inv_base_join(sf, subf)
+    subf, subp = subsidiary_filter(subsidiaries, alias="FI")
+    base = _inv_base_join(sf, subf, onhand)
     # No hardcoded cap: LIMIT applies only when the caller asks for one.
     # `limit` is validated as int by FastAPI, safe to interpolate.
     lim = f"LIMIT {int(limit)}" if limit else ""
@@ -405,13 +440,13 @@ def inv_items(
 def _mv_base(stores: Optional[str],
              subsidiaries: Optional[str] = None) -> tuple[str, list]:
     """FROM/JOIN/WHERE fragment with date placeholders; caller prepends dates.
-    FACT_SALES_ITEMS has no SUBSIDIARY_SID, so subsidiary filtering goes through
-    the DIM_STORE alias S — the store join is forced on whenever a store OR a
-    subsidiary filter is present."""
+    FACT_SALES_ITEMS now carries its OWN SUBSIDIARY_SID (from the parent
+    DOCUMENT), so the subsidiary predicate rides on the fact alias F and needs
+    no dimension lookup. DIM_STORE is joined ONLY for the store-name filter."""
     sf, sp = store_filter(stores, alias="S")
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
     store_join = ("LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID"
-                  if (sf or subf) else "")
+                  if sf else "")
     frag = f"""
         FROM FACT_SALES_ITEMS F
         LEFT JOIN DIM_ITEM   I ON I.SID  = F.ITEM_SID
@@ -469,9 +504,11 @@ def inv_trend(
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
 ):
     sf, sp = store_filter(stores, alias="S")
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    subf, subp = subsidiary_filter(subsidiaries, alias="F")
+    # Subsidiary is the fact's own column now; DIM_STORE is joined only when a
+    # store-name filter needs it.
     store_join = ("LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID"
-                  if (sf or subf) else "")
+                  if sf else "")
     return _qdf(f"""
         SELECT
             F.INVC_POST_DATE::DATE                                               AS post_date,
@@ -567,7 +604,7 @@ def inv_movement_by(
 
     if group_by == "store":
         sf2, sp2 = store_filter(stores, alias="S")
-        subf2, subp2 = subsidiary_filter(subsidiaries, alias="S")
+        subf2, subp2 = subsidiary_filter(subsidiaries, alias="F")
         return _qdf(f"""
             SELECT
                 COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
@@ -758,6 +795,7 @@ def transfers_details(
             FT.VOU_NO                                AS vou_no,
             {status_label}                            AS status,
             I.ALU,
+            I.UPC,
             I.DESCRIPTION1,
             COALESCE(DC.D_NAME, '')                  AS department,
             COALESCE(V.VEND_NAME, '')                AS vendor,
@@ -940,6 +978,7 @@ def adjustments_details(
             COALESCE(E.FULL_NAME, '(Unknown)')   AS employee,
             {doc_lbl}                             AS doc_type,
             I.ALU,
+            I.UPC,
             I.DESCRIPTION1,
             COALESCE(DC.D_NAME, '')              AS department,
             COALESCE(V.VEND_NAME, '')            AS vendor,
@@ -987,6 +1026,13 @@ def invh_kpi(
 ):
     # HONEST metrics: history QTY is an ABSOLUTE snapshot per event, so summing
     # QTY (or QTY*COST) across events is meaningless — those fields were removed.
+    if _invh_off():
+        return {
+            "total_events": 0, "sku_count": 0, "store_count": 0,
+            "insert_count": 0, "update_count": 0, "pairs_touched": 0,
+            "events_per_day": 0.0,
+            "unavailable": True, "reason": _invh_reason(),
+        }
     base, sp = _invh_base(stores, subsidiaries)
     rows = _q(f"""
         SELECT
@@ -1021,6 +1067,8 @@ def invh_trend(
 ):
     """Daily inventory change trend — HONEST counts only (event/insert/update
     counts and SKUs touched); absolute snapshot QTYs are never summed."""
+    if _invh_off():
+        return []
     base, sp = _invh_base(stores, subsidiaries)
     return _qdf(f"""
         SELECT
@@ -1051,6 +1099,8 @@ def invh_by_item(
     first/last event dates, and the item's true stock at the END of the
     period (carry-forward: last row per item×store on or before date_to,
     summed over stores)."""
+    if _invh_off():
+        return []
     base, sp = _invh_base(stores, subsidiaries)
 
     # End-of-period stock CTE gets its own filter fragments (own aliases)
@@ -1120,6 +1170,8 @@ def invh_details(
     limit:     Optional[int] = Query(None, ge=1, le=1000000),
 ):
     """Raw inventory history rows for AG Grid."""
+    if _invh_off():
+        return []
     sf, sp = store_filter(stores, alias="S")
     subf, subp = subsidiary_filter(subsidiaries, alias="S")
     return _qdf(f"""
@@ -1151,13 +1203,34 @@ def invh_details(
 # INVENTORY MOVEMENT LEDGER  (Opening → Sales → Recv → Sent → Adj → Ending)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Whitelist mapping the frontend's configured item identifier
+# (AppSettings.itemId.field) onto a DIM_ITEM column. Only these three literals
+# are ever interpolated; the search text itself is always bound (?).
+_ITEM_ID_COLUMN = {"alu": "ALU", "upc": "UPC", "description": "DESCRIPTION1"}
+
+
 @router.get("/api/inventory/items-search")
-def inventory_items_search(q: str = Query(..., min_length=1, max_length=100)):
+def inventory_items_search(q: str = Query(..., min_length=1, max_length=100),
+                           field: Optional[str] = Query(None)):
     """
-    Search DIM_ITEM by ALU, UPC, or Description for the ledger item selector.
-    Returns up to 40 matches: item_sid, alu, upc, description1.
+    Search DIM_ITEM for the item slicers (DataSlicer `searchEndpoint`).
+    Returns up to 40 matches: item_sid, ALU, UPC, DESCRIPTION1.
+
+    `field` = the user's CONFIGURED item identifier ('alu' | 'upc' |
+    'description'). When given, only that column is matched — so the slicer
+    finds items by exactly the identifier the user chose in Settings. When
+    omitted (the Journals default) all three columns are matched, unchanged.
     """
     pat = f"%{q.strip()}%"
+    col = _ITEM_ID_COLUMN.get((field or "").strip().lower())
+    if col:
+        return _qdf(f"""
+            SELECT SID AS item_sid, ALU, UPC, DESCRIPTION1
+            FROM DIM_ITEM
+            WHERE {col} ILIKE ?
+            ORDER BY {col}
+            LIMIT 40
+        """, [pat])
     return _qdf("""
         SELECT SID AS item_sid, ALU, UPC, DESCRIPTION1
         FROM DIM_ITEM
@@ -1166,6 +1239,21 @@ def inventory_items_search(q: str = Query(..., min_length=1, max_length=100)):
            OR DESCRIPTION1 ILIKE ?
         ORDER BY ALU
         LIMIT 40
+    """, [pat, pat, pat])
+
+
+@router.get("/api/inventory/search/dcs")
+def inventory_search_dcs(q: str = Query(..., min_length=1, max_length=100)):
+    """Distinct department / class / subclass rows matching the query (any
+    level) — the inventory-side twin of /api/sales/journal/search/dcs, so the
+    Coverage / Ledger / Stock-as-of DCS slicers are real type-aheads."""
+    pat = f"%{q.strip()}%"
+    return _qdf("""
+        SELECT DISTINCT D_NAME AS department, C_NAME AS class, S_NAME AS subclass
+        FROM DIM_DCS
+        WHERE D_NAME ILIKE ? OR C_NAME ILIKE ? OR S_NAME ILIKE ?
+        ORDER BY department, class, subclass
+        LIMIT 60
     """, [pat, pat, pat])
 
 
@@ -1217,7 +1305,14 @@ def inventory_ledger(
     # Ending balance: for a period ending today the live snapshot is the truth;
     # for a HISTORICAL period, stock-as-of-date_to = last history row per
     # item×store on or before date_to (carry-forward semantics).
-    use_asof_end = date_to < date.today()
+    #
+    # Without the Inventory History customisation the as-of path has nothing to
+    # read, so a back-dated period would silently report ending = 0. Fall back
+    # to the live snapshot instead: it is the only truth available, the
+    # movement columns (sales / transfers / adjustments) stay fully correct,
+    # and the page shows a banner saying opening balances are unavailable here.
+    _invh = not _invh_off()
+    use_asof_end = _invh and date_to < date.today()
     if use_asof_end:
         ending_cte = f"""
         ENDING AS (
@@ -1314,7 +1409,11 @@ def inventory_ledger(
             {active_cte}
         )
         SELECT
+            -- All three identifier columns: the grid renders whichever one the
+            -- user configured (Settings → Product Code Field), so UPC must be
+            -- present too — it used to be missing and that column came up blank.
             COALESCE(I.ALU,          '')  AS alu,
+            COALESCE(I.UPC,          '')  AS upc,
             COALESCE(I.DESCRIPTION1, '')  AS description,
             COALESCE(DC.D_NAME,      '')  AS department,
             COALESCE(DS.STORE_NAME,  '')  AS store_name,
@@ -1429,6 +1528,7 @@ def inv_coverage(
     vendors: Optional[str] = Query(None),
     dcs:     Optional[str] = Query(None),
     limit:   int = Query(100000, ge=1, le=1000000),
+    stagnant: bool = Query(False),   # Home "stagnant stock lines" drill
 ):
     """
     Returns per-item × per-store inventory coverage for replenishment planning.
@@ -1442,14 +1542,49 @@ def inv_coverage(
     d90 = today - timedelta(days=90)
 
     sf, sp = store_filter(stores)
-    # FACT_INVENTORY has no SUBSIDIARY_SID → filter the snapshot via DIM_STORE (S)
-    subf, subp = subsidiary_filter(subsidiaries, alias="S")
+    # FACT_INVENTORY carries its own SUBSIDIARY_SID → filter the snapshot on the
+    # fact itself (alias FI), not on the derived DIM_STORE.SUBSIDIARY_SID.
+    subf, subp = subsidiary_filter(subsidiaries, alias="FI")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     df, dp = csv_in("DC.D_NAME", dcs)
 
-    # Params follow placeholder order: s30, s60, s90 CTEs, then WHERE filters
-    # (store, subsidiary, vendor, dcs — matching the ? order in the WHERE clause)
-    params = [d30, today, d60, today, d90, today] + sp + subp + vp + dp
+    # ── Stagnant drill (Home "stagnant stock lines" alert) ────────────────────
+    # Keep only item × store rows we still hold stock of (ON_HAND_QTY > 0 — the
+    # main WHERE below already enforces this) that sold in the prior 60-day
+    # window (as_of−89 … as_of−30) but nothing in the last 30 days
+    # (as_of−29 … as_of). The window is anchored to the warehouse's latest
+    # IN-SCOPE invoice date — IDENTICAL to home_summary's `stagnant` count — so
+    # this grid's row count equals the number on the alert card, even when an
+    # offline warehouse lags today (the 30/60/90 columns still read from today).
+    stag_cte = stag_join = stag_pred = ""
+    stag_params: list = []
+    if stagnant:
+        isubf, isubp = subsidiary_filter(subsidiaries, alias="INV")
+        as_of = _q(f"""
+            SELECT MAX(INV.INVC_POST_DATE::DATE)
+            FROM FACT_SALES_INVOICES INV
+            LEFT JOIN DIM_STORE S ON S.SID = INV.STORE_SID
+            WHERE 1=1 {sf} {isubf}
+        """, sp + isubp)[0][0]
+        if as_of is not None:
+            stag_cte = """,
+        stag AS (
+            SELECT F.ITEM_SID, F.STORE_SID,
+                   SUM(CASE WHEN F.INVC_POST_DATE::DATE >= ?::DATE-29 THEN F.QTY ELSE 0 END)   AS q30,
+                   SUM(CASE WHEN F.INVC_POST_DATE::DATE BETWEEN ?::DATE-89 AND ?::DATE-30
+                            THEN F.QTY ELSE 0 END)                                             AS qprev
+            FROM FACT_SALES_ITEMS F
+            WHERE F.INVC_POST_DATE::DATE >= ?::DATE-89
+            GROUP BY F.ITEM_SID, F.STORE_SID
+        )"""
+            stag_join = "JOIN stag ON stag.ITEM_SID = FI.ITEM_SID AND stag.STORE_SID = FI.STORE_SID"
+            stag_pred = "AND stag.q30 = 0 AND stag.qprev > 0"
+            stag_params = [as_of, as_of, as_of]
+
+    # Params follow placeholder order: s30, s60, s90 CTEs, the optional stag CTE,
+    # then the WHERE filters (store, subsidiary, vendor, dcs — matching the ?
+    # order in the WHERE clause).
+    params = [d30, today, d60, today, d90, today] + stag_params + sp + subp + vp + dp
 
     return _qdf(f"""
         WITH
@@ -1474,7 +1609,7 @@ def inv_coverage(
             FROM FACT_SALES_ITEMS F
             WHERE F.INVC_POST_DATE::DATE BETWEEN ? AND ?
             GROUP BY F.ITEM_SID, F.STORE_SID
-        )
+        ){stag_cte}
         SELECT
             COALESCE(S.STORE_NAME,  '(Unknown)') AS store_name,
             COALESCE(I.UPC,         '')           AS upc,
@@ -1495,7 +1630,8 @@ def inv_coverage(
         LEFT JOIN s30 ON s30.ITEM_SID = FI.ITEM_SID AND s30.STORE_SID = FI.STORE_SID
         LEFT JOIN s60 ON s60.ITEM_SID = FI.ITEM_SID AND s60.STORE_SID = FI.STORE_SID
         LEFT JOIN s90 ON s90.ITEM_SID = FI.ITEM_SID AND s90.STORE_SID = FI.STORE_SID
-        WHERE FI.ON_HAND_QTY > 0 {sf} {subf} {vf} {df}
+        {stag_join}
+        WHERE FI.ON_HAND_QTY > 0 {sf} {subf} {vf} {df} {stag_pred}
         ORDER BY S.STORE_NAME, sales_90 DESC, FI.ON_HAND_QTY DESC
         LIMIT {limit}
     """, params)
@@ -1553,6 +1689,13 @@ def stock_asof_kpi(
 ):
     """Headline stock figures on the chosen date + the history coverage window
     (so the UI can warn when `asof` predates the baseline snapshot)."""
+    if _invh_off():
+        return {
+            "sku_count": 0, "total_qty": 0.0, "stock_cost": 0.0,
+            "store_count": 0, "neg_stock": 0,
+            "history_start": None, "history_end": None,
+            "unavailable": True, "reason": _invh_reason(),
+        }
     sf, sp = store_filter(stores)
     subf, subp = subsidiary_filter(subsidiaries, alias="S")
     asof_cte = _ASOF_CTE.format(item_f="")
@@ -1590,24 +1733,34 @@ def stock_asof(
     stores: Optional[str] = Depends(scoped_stores),
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     group_by: str = Query("item_store", pattern="^(item_store|item|store|dept|vendor)$"),
-    search: Optional[str] = Query(None, max_length=100),
+    search: Optional[str] = Query(None, max_length=400),
+    field: Optional[str] = Query(None),   # configured item identifier
     vendors: Optional[str] = Query(None),
     dcs: Optional[str] = Query(None),
     limit: Optional[int] = Query(None, ge=1),   # no cap unless the caller asks
 ):
     """Per-item × per-store stock on the chosen date (carry-forward), grouped
     on demand. Zero-qty positions are hidden; negative ones are shown."""
+    if _invh_off():
+        return []
     lim = f"LIMIT {int(limit)}" if limit else ""
     sf, sp = store_filter(stores)
     subf, subp = subsidiary_filter(subsidiaries, alias="S")
     vf, vp = csv_in("V.VEND_NAME", vendors)
     df, dp = csv_in("DC.D_NAME", dcs)
 
-    # Optional item search (ALU / UPC / Description) — bound params
-    if search and search.strip():
-        pat = f"%{search.strip()}%"
-        srch = " AND (I.ALU ILIKE ? OR I.UPC ILIKE ? OR I.DESCRIPTION1 ILIKE ?)"
-        srch_p = [pat, pat, pat]
+    # The item identifier the UI is configured to use (Settings → Product Code
+    # Field). Only the three whitelisted literals are ever interpolated; the
+    # search text itself is always bound (?).
+    id_col = _ITEM_ID_COLUMN.get((field or "").strip().lower(), "ALU")
+
+    # Item search — the DataSlicer sends one '|'-joined token per chip, and each
+    # token matches ONLY the configured identifier column (never the old
+    # ALU/UPC/description blob, which made the filter unpredictable).
+    toks = [t.strip() for t in (search or "").split("|") if t.strip()][:20]
+    if toks:
+        srch = " AND (" + " OR ".join([f"I.{id_col} ILIKE ?"] * len(toks)) + ")"
+        srch_p = [f"%{t}%" for t in toks]
     else:
         srch, srch_p = "", []
 
@@ -1627,8 +1780,7 @@ def stock_asof(
             WITH {asof_cte}
             SELECT
                 COALESCE(S.STORE_NAME, '(Unknown)') AS store_name,
-                COALESCE(I.ALU, '')                  AS alu,
-                COALESCE(I.UPC, '')                  AS upc,
+                COALESCE(I.{id_col}, '')             AS item_code,
                 COALESCE(I.DESCRIPTION1, '')         AS description,
                 COALESCE(DC.D_NAME, '(Unknown)')     AS department,
                 COALESCE(V.VEND_NAME, '(Unknown)')   AS vendor,
@@ -1644,8 +1796,7 @@ def stock_asof(
         return _qdf(f"""
             WITH {asof_cte}
             SELECT
-                COALESCE(I.ALU, '')                  AS alu,
-                COALESCE(I.UPC, '')                  AS upc,
+                COALESCE(I.{id_col}, '')             AS item_code,
                 COALESCE(I.DESCRIPTION1, '')         AS description,
                 COALESCE(DC.D_NAME, '(Unknown)')     AS department,
                 COALESCE(V.VEND_NAME, '(Unknown)')   AS vendor,
@@ -1653,7 +1804,7 @@ def stock_asof(
                 ROUND(SUM(A.QTY), 0)                 AS qty,
                 ROUND(SUM(A.QTY * A.COST), 2)        AS cost_value
             {base}
-            GROUP BY I.ALU, I.UPC, I.DESCRIPTION1, DC.D_NAME, V.VEND_NAME
+            GROUP BY I.{id_col}, I.DESCRIPTION1, DC.D_NAME, V.VEND_NAME
             ORDER BY cost_value DESC
             {lim}
         """, params)

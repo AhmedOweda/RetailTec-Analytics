@@ -1,7 +1,8 @@
 /**
  * Sales → Journals — Power BI-style master/detail invoice explorer.
  * Click an invoice (master) → its line items load below (detail, drilled by
- * document no.). "Show all lines" switches the detail to every line for the
+ * document no. PLUS the invoice's DOC_SID as the exact tiebreak, because
+ * DOC_NO is not unique). "Show all lines" switches the detail to every line for the
  * current filters. Full slicer set; both grids exportable/schedulable.
  */
 import { useMemo, useRef, useState, useEffect } from 'react'
@@ -12,7 +13,7 @@ import {
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import SavedViewsBar from '../../components/SavedViewsBar'
-import MultiSlicer from '../../components/MultiSlicer'
+import DataSlicer, { splitSlicer, itemFieldValue } from '../../components/DataSlicer'
 import { useAppSettings } from '../../context/AppSettings'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef } from 'ag-grid-community'
@@ -27,6 +28,7 @@ import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import TitleLoader from '../../components/TitleLoader'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import { moneyExact, money, num } from '../../utils/formatters'
 import { tr, trCols } from '../../i18n'
 
@@ -69,56 +71,74 @@ export default function Journals() {
   const [docNo,    setDocNo]    = useState('')
   const [search,   setSearch]   = useState('')
 
-  // ── Multi-value slicers: rich dropdown (code | description), multi-select,
-  //    and free text. State holds a mix of option objects and typed strings.
-  const { productCodeField } = useAppSettings()   // 'alu' | 'upc'
-  const [custSel, setCustSel] = useState<any[]>([]); const [custQ, setCustQ] = useState('')
-  const [vendSel, setVendSel] = useState<any[]>([]); const [vendQ, setVendQ] = useState('')
-  const [dcsSel,  setDcsSel ] = useState<any[]>([]); const [dcsQ,  setDcsQ ] = useState('')
-  const [itemSel, setItemSel] = useState<any[]>([]); const [itemQ, setItemQ] = useState('')
+  // ── Multi-value slicers: all three are the shared <DataSlicer>, which owns
+  //    the debounced type-ahead against its searchEndpoint, the chips, the
+  //    in-input busy indicator and the free-text (freeSolo) behaviour.
+  //    State still holds a mix of option objects and typed strings.
+  const { productCodeField, itemId } = useAppSettings()   // 'alu' | 'upc' | 'description'
+  const [custSel, setCustSel] = useState<any[]>([])
+  const [dcsSel,  setDcsSel ] = useState<any[]>([])
+  const [itemSel, setItemSel] = useState<any[]>([])
 
-  const custOpts = (useQuery({
-    queryKey: ['jr-cust', custQ],
-    queryFn: () => axios.get('/api/sales/journal/search/customers', { params: { q: custQ } }).then(r => r.data as any[]),
-    enabled: custQ.trim().length >= 2, staleTime: 30_000,
-  }).data ?? []) as any[]
-  const vendOpts = (useQuery({
-    queryKey: ['jr-vend', vendQ],
-    queryFn: () => axios.get('/api/sales/journal/search/vendors', { params: { q: vendQ } }).then(r => r.data as any[]),
-    enabled: vendQ.trim().length >= 2, staleTime: 30_000,
-  }).data ?? []) as any[]
-  const dcsOpts = (useQuery({
-    queryKey: ['jr-dcs', dcsQ],
-    queryFn: () => axios.get('/api/sales/journal/search/dcs', { params: { q: dcsQ } }).then(r => r.data as any[]),
-    enabled: dcsQ.trim().length >= 2, staleTime: 30_000,
-  }).data ?? []) as any[]
-  const itemOpts = (useQuery({
-    queryKey: ['jr-item', itemQ],
-    queryFn: () => axios.get('/api/inventory/items-search', { params: { q: itemQ } }).then(r => r.data as any[]),
-    enabled: itemQ.trim().length >= 2, staleTime: 30_000,
-  }).data ?? []) as any[]
-
-  // token extractors (what the backend filters on for each chosen/typed value)
-  const custToken = (o: any) => typeof o === 'string' ? o : (o.name ?? String(o.customer_id ?? ''))
-  const vendToken = (o: any) => typeof o === 'string' ? o : (o.vendor ?? '')
+  // token extractors (what the backend filters on for each chosen/typed value).
+  // Customer chips stay human-readable: name, else the CUSTOMER NUMBER (cust_id),
+  // else the internal SID as a last resort (drill-through stubs carry only the
+  // SID; ~60 customers have no cust_id at all). The *filter* value for a picked
+  // customer is still its SID — that is the only unique key — sent separately as
+  // customer_id for the exact match. cust_id is display + typed search only.
+  const custLabel = (o: any) =>
+    String(o?.name || '').trim() || String(o?.cust_id ?? '').trim() || String(o?.customer_id ?? '')
+  const custToken = (o: any) => typeof o === 'string' ? o : custLabel(o)
+  const custId    = (o: any) => typeof o === 'string' ? '' : String(o.customer_id ?? '')
   const dcsToken  = (o: any) => typeof o === 'string' ? o : (o.subclass || o.class || o.department || '')
-  const itemToken = (o: any) => typeof o === 'string' ? o : ((productCodeField === 'upc' ? o.UPC : o.ALU) || o.ALU || '')
+  // Item token = the identifier configured in Settings (ALU / UPC / description),
+  // resolved by the shared helper instead of a hardcoded field.
+  const itemToken = (o: any) => typeof o === 'string' ? o : itemFieldValue(o, productCodeField)
 
-  // Drill-through: preset slicers from URL params (command palette / dimension pages).
+  // ── Governance criteria carried by a Home-alert drill-through ──────────────
+  const [belowCost, setBelowCost] = useState(false)
+  const [minDiscPct, setMinDiscPct] = useState<number | null>(null)
+
+  // Drill-through: preset slicers from URL params (alerts / command palette /
+  // dimension pages). EVERY criterion the link carries must be applied here —
+  // anything read-but-not-stored (or stored under a name filterParams doesn't
+  // send) silently drops the filter and the page looks unfiltered.
   const [sp] = useSearchParams()
   useEffect(() => {
     const cust = sp.get('customer') || sp.get('customer_name')
     if (cust) setCustSel([cust])
+    const cid = sp.get('customer_id')
+    if (cid) setCustSel(cid.split('|').filter(Boolean).map(id => ({ customer_id: id, name: '' })))
     const it = sp.get('item') || sp.get('item_desc')
     if (it) setItemSel([it])
-    const vd = sp.get('vendor'); if (vd) setVendSel([vd])
     const dc = sp.get('dcs');    if (dc) setDcsSel([dc])
     const st = sp.get('stores'); if (st) setStores(st.split(',').filter(Boolean))
     if (sp.get('type') === 'return') setType('return')
     else if (sp.get('type') === 'sale') setType('sale')
+    // The alert's window (anchored to the warehouse's latest date, which may
+    // lag today) — without it the page falls back to its own 30D preset.
+    const df = sp.get('date_from'), dt = sp.get('date_to')
+    if (df && dt) { setPreset(''); setDateFrom(df); setDateTo(dt) }
+    if (sp.get('below_cost') === 'true' || sp.get('below_cost') === '1') setBelowCost(true)
+    const mdp = sp.get('min_discount_pct')
+    if (mdp && !Number.isNaN(+mdp)) setMinDiscPct(+mdp)
   }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  // Selected invoice: the document no. (what the user sees / what the detail
+  // header shows) PLUS its DOC_SID as the exact tiebreak. DOC_NO is not unique
+  // — 1,624 numbers are shared by more than one invoice — so drilling on doc_no
+  // alone can pull a second invoice's lines into the detail grid.
+  // The SID is an 18-19 digit BIGINT: keep it a STRING, never Number(sid).
   const [selDoc,   setSelDoc]   = useState<string | null>(null)   // selected document no.
+  const [selSid,   setSelSid]   = useState<string | null>(null)   // its DOC_SID (string!)
   const [showAll,  setShowAll]  = useState(false)
+
+  // Master row click → carry BOTH keys. doc_sid is an 18-19 digit BIGINT the
+  // backend already returns as text; keep it text — Number() would round it.
+  const onInvoiceRowClicked = (e: any) => {
+    setShowAll(false)
+    setSelDoc(String(e.data?.doc_no ?? ''))
+    setSelSid(String(e.data?.doc_sid ?? ''))
+  }
 
   const invGridRef  = useRef<AgGridReact>(null)
   const itemGridRef = useRef<AgGridReact>(null)
@@ -133,17 +153,24 @@ export default function Journals() {
 
   const applyPreset = (p: string) => { setPreset(p); setDateFrom(PRESETS[p][0]); setDateTo(PRESETS[p][1]) }
 
+  // A customer PICKED from the type-ahead filters exactly on its id; anything
+  // typed as free text still goes through the fuzzy name/id/phone match.
+  // splitSlicer() is the shared helper — no page re-derives this.
+  const { ids: custIds, typed: custText } = splitSlicer(custSel, custId, custToken)
+
   const filterParams = useMemo(() => ({
     date_from: dateFrom, date_to: dateTo,
     ...(stores.length ? { stores: stores.join(',') } : {}),
     ...(type !== 'all' ? { type } : {}),
     ...(docNo.trim()    ? { doc_no: docNo.trim() } : {}),
-    ...(custSel.length ? { customer: custSel.map(custToken).filter(Boolean).join('|') } : {}),
-    ...(vendSel.length ? { vendor: vendSel.map(vendToken).filter(Boolean).join('|') } : {}),
+    ...(custIds.length  ? { customer_id: custIds.join('|') } : {}),
+    ...(custText.length ? { customer: custText.join('|') } : {}),
     ...(dcsSel.length  ? { dcs: dcsSel.map(dcsToken).filter(Boolean).join('|') } : {}),
     ...(itemSel.length ? { item: itemSel.map(itemToken).filter(Boolean).join('|') } : {}),
+    ...(belowCost ? { below_cost: true } : {}),
+    ...(minDiscPct != null ? { min_discount_pct: minDiscPct } : {}),
     ...(search.trim()   ? { search: search.trim() } : {}),
-  }), [dateFrom, dateTo, stores, type, docNo, custSel, vendSel, dcsSel, itemSel, search])   // eslint-disable-line react-hooks/exhaustive-deps
+  }), [dateFrom, dateTo, stores, type, docNo, custSel, dcsSel, itemSel, belowCost, minDiscPct, search])   // eslint-disable-line react-hooks/exhaustive-deps
 
   // Master: invoice headers (no hardcoded cap — bounded by the date/filters)
   const { data: invData, isFetching: invFetching, refetch: refetchInv } = useQuery({
@@ -155,14 +182,18 @@ export default function Journals() {
   const invTotal: number = invData?.total ?? invoices.length
   useRetryIfEmpty(invoices.length === 0, invFetching, refetchInv)
 
-  // Detail: item lines — the selected invoice (drill by doc_no) OR all filtered lines
+  // Detail: item lines — the selected invoice (drill by doc_no + doc_sid, which
+  // together identify exactly one invoice) OR all filtered lines.
   const itemParams = useMemo(() => ({
     ...filterParams,
-    ...(showAll ? {} : (selDoc ? { doc_no: selDoc } : {})),
-  }), [filterParams, showAll, selDoc])
-  const itemsEnabled = showAll || !!selDoc
+    ...(showAll ? {} : {
+      ...(selDoc ? { doc_no: selDoc } : {}),
+      ...(selSid ? { doc_sid: selSid } : {}),   // string — never Number()
+    }),
+  }), [filterParams, showAll, selDoc, selSid])
+  const itemsEnabled = showAll || !!selDoc || !!selSid
   const { data: itemRows = [] } = useQuery<any[]>({
-    queryKey: ['journal-items', itemParams, showAll, selDoc],
+    queryKey: ['journal-items', itemParams, showAll, selDoc, selSid],
     queryFn: () => axios.get('/api/sales/journal/items', { params: itemParams }).then(r => r.data),
     enabled: itemsEnabled,
     placeholderData: p => p,
@@ -194,7 +225,10 @@ export default function Journals() {
       valueFormatter: p => fmtMoney(p.value), cellStyle: { fontWeight: 700 } },
     { field: 'product_count', headerName: '#Products', width: 100, type: 'numericColumn',
       valueFormatter: p => num(p.value, 0) },
-    { field: 'customer_id', headerName: 'CustomerID', width: 110 },
+    // The customer NUMBER, not the internal 18-digit SID. Blank when the source
+    // customer has no CUST_ID (~60 of them) — the name column carries those.
+    { field: 'cust_id', headerName: 'Customer ID', width: 120,
+      valueFormatter: p => (p.value ? String(p.value) : '—') },
     { field: 'customer_name', headerName: 'Customer Name', flex: 1, minWidth: 150 },
     { field: 'associate_name', headerName: 'Associate', width: 150 },
   ], [])
@@ -203,7 +237,16 @@ export default function Journals() {
     { field: 'doc_no', headerName: 'Document No.', width: 120, pinned: 'left',
       cellStyle: { fontFamily: 'monospace', fontWeight: 600 } },
     { field: 'item_type', headerName: 'Item Type', width: 95, cellRenderer: TypeBadge },
-    { field: 'alu', headerName: 'ALU', width: 130, cellStyle: { fontFamily: 'monospace', color: ACCENT } },
+    // The configured identifier column (endpoint returns alu/upc/description1).
+    // When Description is configured the Item Desc column below IS the
+    // identifier, so no duplicate code column is added. ALU fallback keeps the
+    // cell non-blank when the configured field is NULL (UPC often is).
+    ...(itemId.field !== 'description' ? [{
+      field: ({ alu: 'alu', upc: 'upc', description: 'description1' } as Record<string, string>)[itemId.field],
+      headerName: itemId.label, width: 130,
+      valueGetter: (p: any) => itemFieldValue(p.data, itemId.field),
+      cellStyle: { fontFamily: 'monospace', color: ACCENT },
+    } as ColDef] : []),
     { field: 'description1', headerName: 'Item Desc', flex: 1, minWidth: 200 },
     { field: 'department', headerName: 'Department', width: 130 },
     { field: 'class', headerName: 'Class', width: 130 },
@@ -219,7 +262,7 @@ export default function Journals() {
       cellStyle: p => (+(p.value ?? 0) > 0 ? { backgroundColor: 'var(--rt-neg-bg)', color: 'var(--rt-neg-fg)', fontWeight: 600 } : undefined) },
     { field: 'associate_name', headerName: 'Associate', width: 150 },
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [maxPrice])
+  ], [maxPrice, itemId.field, itemId.label])
 
   const defaultColDef = useMemo(() => ({ sortable: true, filter: true, resizable: true,
     wrapHeaderText: true, autoHeaderHeight: true }), [])
@@ -227,13 +270,15 @@ export default function Journals() {
   const journalFilters = `${dateFrom} → ${dateTo} · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}${type !== 'all' ? ` · ${type}` : ''}`
 
   // Saved views: serialise/restore the whole slicer set.
-  const currentView = { preset, dateFrom, dateTo, stores, type, docNo, custSel, vendSel, dcsSel, itemSel, search }
+  const currentView = { preset, dateFrom, dateTo, stores, type, docNo, custSel, dcsSel, itemSel,
+                        belowCost, minDiscPct, search }
   const applyView = (s: any) => {
     if (!s) return
     setPreset(s.preset ?? ''); setDateFrom(s.dateFrom ?? dateFrom); setDateTo(s.dateTo ?? dateTo)
     setStores(s.stores ?? []); setType(s.type ?? 'all'); setDocNo(s.docNo ?? '')
-    setCustSel(s.custSel ?? []); setVendSel(s.vendSel ?? [])
+    setCustSel(s.custSel ?? [])
     setDcsSel(s.dcsSel ?? []); setItemSel(s.itemSel ?? []); setSearch(s.search ?? '')
+    setBelowCost(!!s.belowCost); setMinDiscPct(s.minDiscPct ?? null)
   }
 
   return (
@@ -277,27 +322,35 @@ export default function Journals() {
           <TextField size="small" placeholder={tr('Document No.')} value={docNo} onChange={e => setDocNo(e.target.value)} sx={{ width: 130 }} />
 
           {/* Customer — name | phone | id */}
-          <MultiSlicer sx={{ minWidth: 220, maxWidth: 340 }} value={custSel} onChange={setCustSel}
-            options={custOpts} getToken={custToken} onInput={setCustQ} placeholder={tr('Customer (name / phone / id)')}
-            renderLabel={(o: any) => ({ code: o.name || String(o.customer_id || ''), rest: [o.phone, o.customer_id].filter(Boolean).join(' | ') })} />
-
-          {/* Vendor */}
-          <MultiSlicer sx={{ minWidth: 180, maxWidth: 300 }} value={vendSel} onChange={setVendSel}
-            options={vendOpts} getToken={vendToken} onInput={setVendQ} placeholder={tr('Vendor')}
-            renderLabel={(o: any) => ({ code: o.vendor })} />
+          <DataSlicer sx={{ minWidth: 220, maxWidth: 340 }} value={custSel} onChange={setCustSel}
+            searchEndpoint="/api/sales/journal/search/customers"
+            getToken={custToken} getId={custId} placeholder="Customer (name / phone / customer no.)"
+            renderLabel={(o: any) => (typeof o === 'string' ? { code: o } : { code: custLabel(o), rest: [o.phone, o.cust_id].filter(Boolean).join(' | ') })} />
 
           {/* Dept | Class | Subclass */}
-          <MultiSlicer sx={{ minWidth: 220, maxWidth: 360 }} value={dcsSel} onChange={setDcsSel}
-            options={dcsOpts} getToken={dcsToken} onInput={setDcsQ} placeholder={tr('Dept / Class / Subclass')}
-            renderLabel={(o: any) => ({ code: o.department || '—', rest: [o.class, o.subclass].filter(Boolean).join(' | ') })} />
+          <DataSlicer sx={{ minWidth: 220, maxWidth: 360 }} value={dcsSel} onChange={setDcsSel}
+            searchEndpoint="/api/sales/journal/search/dcs"
+            getToken={dcsToken} placeholder="Dept / Class / Subclass"
+            renderLabel={(o: any) => (typeof o === 'string' ? { code: o } : { code: o.department || '—', rest: [o.class, o.subclass].filter(Boolean).join(' | ') })} />
 
-          {/* Item — code | description */}
-          <MultiSlicer sx={{ minWidth: 240, maxWidth: 380 }} value={itemSel} onChange={setItemSel}
-            options={itemOpts} getToken={itemToken} onInput={setItemQ} placeholder={tr('Item (code / description)')}
-            renderLabel={(o: any) => ({ code: (productCodeField === 'upc' ? o.UPC : o.ALU) || o.ALU, rest: o.DESCRIPTION1 })} />
+          {/* Item — configured identifier | description */}
+          <DataSlicer sx={{ minWidth: 240, maxWidth: 380 }} value={itemSel} onChange={setItemSel}
+            searchEndpoint="/api/inventory/items-search"
+            getToken={itemToken} itemField={productCodeField} placeholder="Item (code / description)"
+            renderLabel={(o: any) => (typeof o === 'string' ? { code: o } : { code: itemFieldValue(o, productCodeField), rest: o.DESCRIPTION1 })} />
 
           <TextField size="small" placeholder={tr('Quick search...')} value={search} onChange={e => setSearch(e.target.value)}
             sx={{ width: 200 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: '#94a3b8' }} /></InputAdornment> }} />
+
+          {/* Criteria arriving from a Home alert — visible so they can be cleared */}
+          {belowCost && (
+            <Chip size="small" label={tr('Sold below cost')} onDelete={() => setBelowCost(false)}
+              sx={{ fontWeight: 600, fontSize: 11, bgcolor: `${ACCENT}18`, color: ACCENT }} />
+          )}
+          {minDiscPct != null && (
+            <Chip size="small" label={`${tr('Discount')} ≥ ${minDiscPct}%`} onDelete={() => setMinDiscPct(null)}
+              sx={{ fontWeight: 600, fontSize: 11, bgcolor: `${ACCENT}18`, color: ACCENT }} />
+          )}
         </Box>
       </Box>
 
@@ -320,10 +373,10 @@ export default function Journals() {
             reportParams={filterParams} colDefs={invColDefs} onResetColumns={invCols.resetColumns} />
         </Stack>
         <Box className="ag-theme-alpine" sx={{ height: 300, ...GRID_SX }}>
-          <AgGridReact ref={invGridRef} rowData={invoices} columnDefs={trCols(invColDefs as any[])}
+          <AgGridReact localeText={gridLocaleText()} ref={invGridRef} rowData={invoices} columnDefs={trCols(invColDefs as any[])}
             defaultColDef={defaultColDef} overlayNoRowsTemplate={noRowsOverlay()}
             rowSelection="single"
-            onRowClicked={e => { setShowAll(false); setSelDoc(String(e.data?.doc_no ?? '')) }}
+            onRowClicked={onInvoiceRowClicked}
             onGridReady={invCols.onGridReady} onColumnMoved={invCols.onColumnChanged}
             onColumnResized={invCols.onColumnChanged} onColumnVisible={invCols.onColumnChanged}
             rowHeight={34} headerHeight={38} suppressCellFocus animateRows
@@ -349,7 +402,7 @@ export default function Journals() {
           </Stack>
         </Stack>
         <Box className="ag-theme-alpine" sx={{ height: 360, ...GRID_SX }}>
-          <AgGridReact ref={itemGridRef} rowData={itemRows} columnDefs={trCols(itemColDefs as any[])}
+          <AgGridReact localeText={gridLocaleText()} ref={itemGridRef} rowData={itemRows} columnDefs={trCols(itemColDefs as any[])}
             defaultColDef={defaultColDef}
             overlayNoRowsTemplate={itemsEnabled ? noRowsOverlay() : `<span style="color:#94a3b8;font-size:13px">${tr('Select an invoice above, or turn on “Show all lines”.')}</span>`}
             onGridReady={itemColsState.onGridReady} onColumnMoved={itemColsState.onColumnChanged}

@@ -112,7 +112,11 @@ def _build_daily_sales(stores: list[str]) -> tuple[str, str]:
                         {base} WHERE F.POST_DATE = ? {sf}
                         GROUP BY 1 ORDER BY 2 DESC LIMIT 5""", [d] + sp)
     sfi, spi = _store_pred(stores, "S.STORE_NAME")
-    top_items = _q(f"""SELECT COALESCE(I.DESCRIPTION1,'(Unknown)'), ROUND(SUM(F.TOTAL_PRICE_WOTAX),0)
+    # Item label = the configured identifier (Settings → Display), ALU fallback —
+    # same helper the grid report engine uses for attachments.
+    from services.report_grid import item_identifier_sql
+    ident_sql, _ident_lbl = item_identifier_sql("I")
+    top_items = _q(f"""SELECT COALESCE({ident_sql},'(Unknown)'), ROUND(SUM(F.TOTAL_PRICE_WOTAX),0)
                        FROM FACT_SALES_ITEMS F
                        LEFT JOIN DIM_ITEM I ON I.SID = F.ITEM_SID
                        LEFT JOIN DIM_STORE S ON S.SID = F.STORE_SID
@@ -387,6 +391,16 @@ def maybe_send_alerts() -> None:
     """Called every minute; each enabled rule sends a once-daily digest of the
     PRIOR day's offending rows at/after its configured time. last_sent guards one
     send per day (set even when 0 matches, so it doesn't re-scan all day)."""
+    # Licensed-domain gate: alert digests are part of the report/email engine
+    # AND read sales facts — both domains must be licensed. Skip with a log
+    # line, never an error.
+    from services.license import domain_allowed
+    if not domain_allowed("reports"):
+        log.info("Alert digests skipped — 'reports' domain is not licensed")
+        return
+    if not domain_allowed("sales"):
+        log.info("Alert digests skipped — 'sales' domain is not licensed")
+        return
     rules = get_alert_rules()
     now, today = datetime.now(), str(date.today())
     yday = str(date.today() - timedelta(days=1))
@@ -433,6 +447,15 @@ def _send_grid_report(report: dict) -> str:
     endpoint = report.get("endpoint")
     if not endpoint:
         raise RuntimeError("Grid report has no endpoint")
+    # Licensed-domain guard: never regenerate a grid from an unlicensed
+    # domain, whichever path led here (scheduler or on-demand send).
+    from services.license import domains_for_path, licensed_domains
+    _need = domains_for_path(endpoint)
+    _doms = licensed_domains()
+    if _need is not None and _doms is not None \
+            and not any(d in _doms for d in _need):
+        raise RuntimeError(f"This report's data (domain '{_need[0]}') is not "
+                           f"included in your license")
 
     params = dict(report.get("params") or {})
     df, dt = report_grid.resolve_window(report)
@@ -511,6 +534,12 @@ def maybe_send_scheduled() -> None:
       monthly — only on day-of-month r['day'] (1..31)
       once    — only on the exact date r['date'] (YYYY-MM-DD), then auto-disables
     last_sent guards one send per day. Server local time throughout."""
+    # Licensed-domain gate: the whole report/email engine belongs to the
+    # "reports" domain — skip quietly (log, never error) when it's unlicensed.
+    from services.license import domain_allowed, domains_for_path, licensed_domains
+    if not domain_allowed("reports"):
+        log.info("Scheduled reports skipped — 'reports' domain is not licensed")
+        return
     reports = get_reports()
     if not reports:
         return
@@ -518,6 +547,25 @@ def maybe_send_scheduled() -> None:
     changed = False
     for r in reports:
         if not r.get("enabled") or r.get("last_sent") == today:
+            continue
+        # Skip any stored grid report whose source endpoint belongs to an
+        # unlicensed domain (e.g. a sales grid scheduled before the license
+        # was narrowed). Logged, never raised — other reports still send.
+        need = domains_for_path(r.get("endpoint") or "")
+        doms = licensed_domains()
+        if need is not None and doms is not None \
+                and not any(d in doms for d in need):
+            log.info(f"Report '{r.get('name')}' skipped — domain "
+                     f"'{need[0]}' is not licensed")
+            continue
+        # Same skip for the built-in summaries (they have no endpoint, but
+        # each one reads a specific domain's facts).
+        tdom = {"daily_sales": "sales", "inventory_summary": "inventory",
+                "purchases_summary": "purchases"}.get(r.get("type") or "")
+        if (r.get("kind") or "").lower() != "grid" and tdom \
+                and not domain_allowed(tdom):
+            log.info(f"Report '{r.get('name')}' skipped — domain "
+                     f"'{tdom}' is not licensed")
             continue
         # ── time-of-day gate ──
         try:

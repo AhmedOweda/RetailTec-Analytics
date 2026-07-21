@@ -25,7 +25,9 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import EChart, { type EChartHandle } from '../../components/EChart'
 import KpiCard                        from '../../components/KpiCard'
+import { itemFieldValue }             from '../../components/DataSlicer'
 import { noRowsOverlay }               from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import GridExportBar                  from '../../components/GridExportBar'
 import { useGridColumnState }         from '../../hooks/useGridColumnState'
 
@@ -83,8 +85,8 @@ function ChartCard({ title, subtitle, option, height = 300 }: {
             {subtitle && <Typography sx={{ fontSize: 11, color: C_SLATE }}>{tr(subtitle)}</Typography>}
           </Box>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title="Download PNG"><IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
-            <Tooltip title="Fullscreen"><IconButton size="small" onClick={() => setFs(true)}><FullscreenIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
+            <Tooltip title={tr('Download PNG')}><IconButton size="small" onClick={download}><DownloadIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
+            <Tooltip title={tr('Fullscreen')}><IconButton size="small" onClick={() => setFs(true)}><FullscreenIcon sx={{ fontSize: 16 }} /></IconButton></Tooltip>
           </Box>
         </Box>
         {option && <EChart ref={ref} option={option} style={{ height }} />}
@@ -95,8 +97,8 @@ function ChartCard({ title, subtitle, option, height = 300 }: {
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
           <Typography sx={{ fontWeight: 700 }}>{title}</Typography>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title="Download PNG"><IconButton size="small" onClick={download}><DownloadIcon /></IconButton></Tooltip>
-            <Tooltip title="Close"><IconButton size="small" onClick={() => setFs(false)}><FullscreenExitIcon /></IconButton></Tooltip>
+            <Tooltip title={tr('Download PNG')}><IconButton size="small" onClick={download}><DownloadIcon /></IconButton></Tooltip>
+            <Tooltip title={tr('Close')}><IconButton size="small" onClick={() => setFs(false)}><FullscreenExitIcon /></IconButton></Tooltip>
           </Box>
         </DialogTitle>
         <DialogContent sx={{ p: 2 }}>
@@ -120,8 +122,10 @@ function gpStyle(p: any) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function InventoryMovement() {
-  const { productCodeField } = useAppSettings()
-  const codeField  = productCodeField.toUpperCase()   // 'ALU' or 'UPC'
+  // The configured item identifier (Settings → Product Code Field). Ask
+  // `itemId` (field/column/label) — never `.toUpperCase()` of the raw setting,
+  // which produced a bogus "DESCRIPTION" column under the third setting.
+  const { itemId } = useAppSettings()
   const today    = new Date()
   const [period, setPeriod] = useState(30)
   const [from,   setFrom  ] = useState(format(subDays(today, 29), 'yyyy-MM-dd'))
@@ -220,7 +224,7 @@ export default function InventoryMovement() {
         trigger: 'axis', axisPointer: { type: 'shadow' },
         formatter: (p: any[]) => {
           const r = rows[p[0]?.dataIndex] ?? {}
-          return `<b>${p[0].name}</b><br/>Revenue: <b>${num(r.revenue)}</b><br/>Units Sold: ${num(r.sold_qty)}<br/>GM%: <b>${r.gm_pct ?? 0}%</b>`
+          return `<b>${p[0].name}</b><br/>${tr('Revenue')}: <b>${num(r.revenue)}</b><br/>${tr('Units Sold')}: ${num(r.sold_qty)}<br/>${tr('GM%')}: <b>${r.gm_pct ?? 0}%</b>`
         },
       },
       xAxis: { type: 'value', axisLabel: { color: C_SLATE, fontSize: 10, formatter: (v: number) => num(v) }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
@@ -300,7 +304,15 @@ export default function InventoryMovement() {
 
     if (view === 'item') return [
       rankCol,
-      { field: codeField,      headerName: codeField,     width: 110, pinned: 'left', cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' } },
+      // The configured identifier column (endpoint returns ALU/UPC/DESCRIPTION1).
+      // When Description is configured the Description column below IS the
+      // identifier, so no duplicate code column is added. ALU fallback keeps
+      // the cell non-blank when the configured field is NULL (UPC often is).
+      ...(itemId.field !== 'description' ? [{
+        field: itemId.column, headerName: itemId.label, width: 110, pinned: 'left',
+        valueGetter: (p: any) => itemFieldValue(p.data, itemId.field),
+        cellStyle: { fontFamily: 'monospace', color: C_PURPLE, display: 'flex', alignItems: 'center' },
+      } as ColDef] : []),
       { field: 'DESCRIPTION1', headerName: 'Description', width: 240, pinned: 'left', cellStyle: { fontWeight: 600, display: 'flex', alignItems: 'center' } },
       { field: 'VEND_NAME',    headerName: 'Item Vendor', width: 150,
         headerTooltip: 'Vendor from the item master (catalog) — not necessarily the supplier purchased from' },
@@ -337,7 +349,7 @@ export default function InventoryMovement() {
       { field: 'department', headerName: 'Department', width: 220, pinned: 'left', cellStyle: { fontWeight: 700, color: 'var(--rt-text)', display: 'flex', alignItems: 'center' } },
       skuCol, soldCol, retCol, revCol, gpCol,
     ]
-  }, [tableData, view, codeField])
+  }, [tableData, view, itemId.field, itemId.column, itemId.label])
 
   const gmColor = gmColorOf(kpi.gmPct)
 
@@ -432,7 +444,7 @@ export default function InventoryMovement() {
           </Box>
 
           <div className="ag-theme-alpine" style={{ height: 460 }}>
-            <AgGridReact
+            <AgGridReact localeText={gridLocaleText()}
               ref={gridRef}
               overlayNoRowsTemplate={noRowsOverlay()}
               rowData={tableData as any[]}

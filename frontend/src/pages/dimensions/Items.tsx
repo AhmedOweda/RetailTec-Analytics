@@ -8,6 +8,7 @@ import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import axios from 'axios'
 import { useRef } from 'react'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
@@ -18,6 +19,7 @@ import TitleLoader from '../../components/TitleLoader'
 import { gmColor as gmColorOf, dohColor } from '../../utils/thresholds'
 import { itemFieldCols } from '../../utils/itemFields'
 import { useAppSettings } from '../../context/AppSettings'
+import { itemFieldValue } from '../../components/DataSlicer'
 
 const today = new Date().toISOString().slice(0, 10)
 const prior = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
@@ -61,7 +63,8 @@ const GP_META: Record<string, { color: string; desc: string }> = {
 }
 
 export default function DimItems() {
-  const { itemFields } = useAppSettings()
+  // itemId = the configured item identifier (Settings → Product Code Field)
+  const { itemId, itemFields } = useAppSettings()
   const navigate = useNavigate()
   const gridRef = useRef<AgGridReact>(null)
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('dim-items')
@@ -116,6 +119,13 @@ export default function DimItems() {
     return m
   }, [rows])
 
+  // Chart/category label built from the CONFIGURED identifier (Settings →
+  // Product Code Field), with ALU fallback when that field is NULL.
+  const itemCode   = (x: any) => itemFieldValue(x, itemId.field)
+  const chartLabel = (x: any) => itemId.field === 'description'
+    ? String(x.DESCRIPTION1 ?? x.ALU ?? '').slice(0, 26)
+    : `${itemCode(x)} ${(x.DESCRIPTION1 ?? '').slice(0, 20)}`
+
   const chartOpt = useMemo(() => {
     const top = rows.slice(0, 15).reverse()
     return {
@@ -124,7 +134,7 @@ export default function DimItems() {
         trigger: 'axis', axisPointer: { type: 'shadow' },
         formatter: (p: any[]) => {
           const label = p[0]?.name ?? ''
-          const d = rows.find((x: any) => `${x.ALU} ${(x.DESCRIPTION1 ?? '').slice(0,20)}` === label) ?? {}
+          const d = rows.find((x: any) => chartLabel(x) === label) ?? {}
           return `<b>${label}</b><br/>
             ${tr('ABC')}: <b>${d.abc}</b> · ${tr('GP Tier')}: <b style="color:${GP_META[d.gp_tier]?.color}">${d.gp_tier ? tr(d.gp_tier) : ''}</b><br/>
             ${tr('Revenue')}: <b>${num(d.revenue)}</b> (${pct(d.rev_share)} ${tr('of total')})<br/>
@@ -134,7 +144,7 @@ export default function DimItems() {
       },
       xAxis: { type: 'value', axisLabel: { formatter: (v: number) => num(v), fontSize: 10 } },
       yAxis: { type: 'category',
-               data: top.map((x: any) => `${x.ALU} ${(x.DESCRIPTION1 ?? '').slice(0, 20)}`),
+               data: top.map((x: any) => chartLabel(x)),
                axisLabel: { fontSize: 9, width: 190, overflow: 'truncate' } },
       series: [{
         type: 'bar', barMaxWidth: 20,
@@ -146,11 +156,18 @@ export default function DimItems() {
         label: { show: true, position: 'right', formatter: (p: any) => num(p.value), fontSize: 10, color: C_SLATE },
       }],
     }
-  }, [rows])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, itemId.field])
 
   const colDefs = useMemo<any[]>(() => [
-    { field: 'ALU',          headerName: 'ALU',         width: 105, pinned: 'left' as const,
-      cellStyle: { fontFamily: 'monospace', color: C_PURPLE } },
+    // The configured identifier column; when Description is configured the
+    // Description column below IS the identifier (no duplicate). ALU fallback
+    // keeps the cell non-blank when the configured field is NULL (UPC often is).
+    ...(itemId.field !== 'description' ? [{
+      field: itemId.column, headerName: itemId.label, width: 105, pinned: 'left' as const,
+      valueGetter: (p: any) => itemFieldValue(p.data, itemId.field),
+      cellStyle: { fontFamily: 'monospace', color: C_PURPLE },
+    }] : []),
     { field: 'abc',          headerName: 'ABC',         width: 65,
       cellStyle: (p: any) => ({
         fontWeight: 800, fontSize: 13, textAlign: 'center',
@@ -172,7 +189,7 @@ export default function DimItems() {
     { field: 'gp',           headerName: 'GP $',        width: 110, type: 'numericColumn', valueFormatter: (p: any) => num(p.value) },
     { field: 'qty',          headerName: 'Qty Sold',    width: 90,  type: 'numericColumn', valueFormatter: (p: any) => fmtN(p.value) },
     ...itemFieldCols(itemFields),
-  ], [itemFields])
+  ], [itemFields, itemId.field, itemId.column, itemId.label])
 
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
@@ -241,12 +258,17 @@ export default function DimItems() {
             colDefs={colDefs} onResetColumns={resetColumns} />
         </Stack>
         <div className="ag-theme-alpine" style={{ height: 460 }}>
-          <AgGridReact ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
+          <AgGridReact localeText={gridLocaleText()} ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
             overlayNoRowsTemplate={noRowsOverlay()}
             defaultColDef={{ sortable:true, resizable:true, filter:true, wrapHeaderText:true, autoHeaderHeight:true }}
             pagination paginationPageSize={25}
             rowHeight={36} headerHeight={38} suppressCellFocus rowStyle={{ cursor: 'pointer' }}
-            onRowClicked={e => { if (e.data?.ALU) navigate(`/sales/journals?item=${encodeURIComponent(e.data.ALU)}&item_desc=${encodeURIComponent(e.data.DESCRIPTION1 ?? '')}`) }}
+            onRowClicked={e => {
+              // Drill with the CONFIGURED identifier — Journals' `item` filter
+              // matches ALU, UPC and description alike, so any field works.
+              const code = itemFieldValue(e.data, itemId.field)
+              if (code) navigate(`/sales/journals?item=${encodeURIComponent(code)}&item_desc=${encodeURIComponent(e.data?.DESCRIPTION1 ?? '')}`)
+            }}
             onGridReady={onColGridReady} onColumnMoved={onColumnChanged}
             onColumnResized={onColumnChanged} onColumnVisible={onColumnChanged} />
         </div>

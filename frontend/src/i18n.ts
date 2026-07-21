@@ -14,8 +14,14 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 const nav_en = {
+  'nav./home': 'Home', 'nav./assistant': 'Data Analyst',
   'nav.sales': 'Sales', 'nav.inventory': 'Inventory',
   'nav.purchasing': 'Purchasing', 'nav.dimensions': 'Dimensions',
+  'nav.accounting': 'Accounting',
+  'nav./accounting/journal': 'Journal',
+  'nav./accounting/trial-balance': 'Trial Balance',
+  'nav./accounting/general-ledger': 'General Ledger',
+  'nav./accounting/exceptions': 'GL Exceptions',
   'nav./sales/overview': 'Overview', 'nav./sales/performance': 'Performance',
   'nav./sales/products': 'Products', 'nav./sales/transactions': 'Invoices',
   'nav./sales/journals': 'Journals',
@@ -31,8 +37,14 @@ const nav_en = {
 }
 
 const nav_ar = {
+  'nav./home': 'الرئيسية', 'nav./assistant': 'محلّل البيانات',
   'nav.sales': 'المبيعات', 'nav.inventory': 'المخزون',
   'nav.purchasing': 'المشتريات', 'nav.dimensions': 'البيانات الأساسية',
+  'nav.accounting': 'المحاسبة',
+  'nav./accounting/journal': 'قيود اليومية',
+  'nav./accounting/trial-balance': 'ميزان المراجعة',
+  'nav./accounting/general-ledger': 'دفتر الأستاذ العام',
+  'nav./accounting/exceptions': 'استثناءات دفتر الأستاذ',
   'nav./sales/overview': 'نظرة عامة', 'nav./sales/performance': 'الأداء',
   'nav./sales/products': 'المنتجات', 'nav./sales/transactions': 'الفواتير',
   'nav./sales/journals': 'اليومية',
@@ -253,13 +265,15 @@ const ar_strings: Record<string, string> = {
   'Class': 'الفئة', 'Subclass': 'الفئة الفرعية', 'DCS Code': 'رمز القسم',
   'Lines': 'البنود', 'Net Qty': 'صافي الكمية',
   'CRM Segment': 'شريحة العميل', 'Home Store': 'الفرع الرئيسي',
+  'Customer ID': 'رقم العميل',
+  'Customer (name / phone / customer no.)': 'العميل (الاسم / الهاتف / رقم العميل)',
   'Active From': 'نشط منذ', 'Days Dormant': 'أيام الخمول',
   'Lifetime Value': 'القيمة الدائمة', 'Avg Basket': 'متوسط السلة',
   'Visits': 'الزيارات', 'Tenure (d)': 'مدة التعامل (يوم)',
   'SRM Tier': 'تصنيف المورد', 'Dependency %': '% الاعتماد', 'Fill Rate %': '% التلبية',
   'Purchased': 'المشتريات', 'Vouchers': 'أذونات الاستلام', 'Stock Value': 'قيمة المخزون',
   'Voucher': 'أذن استلام', 'Slip': 'أذن صرف',
-  'SKUs in Stock': 'أصناف بالمخزون', 'Ord Qty': 'كمية مطلوبة', 'Recv Qty': 'كمية مستلمة',
+  'Ord Qty': 'كمية مطلوبة', 'Recv Qty': 'كمية مستلمة',
   'Events': 'الأحداث', 'Last Qty': 'آخر كمية', 'Min Qty': 'أدنى كمية', 'Range': 'المدى',
   'Adj #': 'رقم التسوية', 'Net Cost Δ': 'صافي التكلفة',
   'Open Qty': 'كمية افتتاحية', 'Open Cost': 'تكلفة افتتاحية',
@@ -476,12 +490,10 @@ const ar_strings: Record<string, string> = {
   'Database Alias': 'الاسم المستعار لقاعدة البيانات',
   'e.g. Main Branch DB': 'مثال: قاعدة الفرع الرئيسي',
   // ── Unified Your Data settings (2026-07-08) ──
-  'Sync': 'المزامنة',
   'Your Data': 'بياناتك',
   'Each data type in one row: switch it on or off, choose how much history to keep, how it refreshes automatically, and how long line-level detail is kept (daily summaries are kept forever). Load now pulls just that data type. Times use the timezone above. Remember to Save Settings.':
     'كل نوع بيانات في صف واحد: فعّله أو أوقفه، واختر مقدار التاريخ المحتفظ به، وطريقة التحديث التلقائي، ومدة الاحتفاظ بتفاصيل الأسطر (الملخصات اليومية تبقى دائمًا). زر التحميل الآن يجلب هذا النوع فقط. الأوقات حسب المنطقة الزمنية أعلاه. لا تنسَ حفظ الإعدادات.',
   'Data type': 'نوع البيانات',
-  'Domain': 'النطاق',
   'Your data': 'بياناتك',
   'Everything about each data type in one row — how much history to keep, how it refreshes, and when old line-detail is cleaned up. Daily summaries are kept forever. Remember to Save Settings.':
     'كل ما يخص كل نوع بيانات في صف واحد — مقدار التاريخ المحتفظ به، وطريقة التحديث، ومتى تُنظّف تفاصيل الأسطر القديمة. الملخصات اليومية تبقى دائمًا. لا تنسَ حفظ الإعدادات.',
@@ -535,10 +547,17 @@ const ar_strings: Record<string, string> = {
   'Manual load — one-time pull from Oracle': 'تحميل يدوي — سحب لمرة واحدة من أوراكل',
   'Applies connection, data model and schedule changes': 'يطبّق تغييرات الاتصال ونموذج البيانات والجداول',
   'Refresh window': 'نافذة التحديث', 'Timezone': 'المنطقة الزمنية',
-  'Last 7 days': 'آخر 7 أيام', 'Last 30 days': 'آخر 30 يومًا', 'Last 90 days': 'آخر 90 يومًا',
+  'Last 7 days': 'آخر 7 أيام', 'Last 90 days': 'آخر 90 يومًا',
   'Purchases': 'المشتريات', 'Inventory': 'المخزون', 'Sales': 'المبيعات',
   'Sun': 'الأحد', 'Mon': 'الاثنين', 'Tue': 'الثلاثاء', 'Wed': 'الأربعاء',
   'Thu': 'الخميس', 'Fri': 'الجمعة', 'Sat': 'السبت',
+
+  // ── Data Model: the accounting domain (a RetailTec customization) ──
+  'Accounting': 'المحاسبة',
+  'Customization': 'تخصيص',
+  'Not available on this server': 'غير متوفر على هذا الخادم',
+  'General ledger from subsidiary 100. A RetailTec customization — only servers carrying the accounting customization have it.':
+    'دفتر الأستاذ العام من الشركة الفرعية 100. تخصيص من ريتيل‑تك — متوفر فقط على الخوادم التي تحتوي على تخصيص المحاسبة.',
 
   // ── Performance page ──
   'Store Rankings': 'ترتيب الفروع', 'Payment Mix': 'مزيج طرق الدفع',
@@ -645,6 +664,8 @@ const ar_strings: Record<string, string> = {
   'reorder immediately': 'أعد الطلب فورًا',
   'Stagnant SKUs': 'أصناف راكدة',
   'no sales in {{n}}d window': 'لا مبيعات خلال {{n}} يوم',
+  'Stagnant: sold before, idle 30d': 'راكد: بيع سابقًا وتوقف 30 يوم',
+  'Negative on-hand only': 'الرصيد السالب فقط',
   '{{label}} — {{n}} SKU×Store': '{{label}} — {{n}} صنف×فرع',
   'Daily AVG calculated from last {{n}} days · Days Coverage = Onhand ÷ Daily AVG':
     'المتوسط اليومي محسوب من آخر {{n}} يوم · أيام التغطية = المتوفر ÷ المتوسط اليومي',
@@ -767,6 +788,8 @@ const ar_strings: Record<string, string> = {
     'يعرض ALU (رمز الصنف الداخلي) · مثال ALU001 | قميص أزرق',
   'Showing UPC (barcode) · e.g. 123456789 | Blue Shirt':
     'يعرض UPC (الباركود) · مثال 123456789 | قميص أزرق',
+  'Also used for scheduled and emailed report attachments.':
+    'يُستخدم أيضاً في مرفقات التقارير المجدولة والمرسلة بالبريد.',
   'e.g. 17.2M (no sign)': 'مثال 17.2M (بدون رمز)',
   'Extra item-master fields shown as columns in every table that lists items (descriptions, texts, UDFs, price levels). Applied instantly — data appears after the next sync refreshes the item master.':
     'حقول إضافية من ملف الأصناف تُعرض كأعمدة في كل جدول يسرد الأصناف (الأوصاف، النصوص، الحقول المخصصة، مستويات الأسعار). تُطبّق فورًا — تظهر البيانات بعد أن تحدّث المزامنة التالية ملف الأصناف.',
@@ -799,7 +822,7 @@ const ar_strings: Record<string, string> = {
     'حمّل فترة محددة (مثل استكمال سجل أقدم). يُضاف هذا إلى البيانات الموجودة — لا يُحذف شيء. يراعي اختيار النطاقات أعلاه.',
   'Load Range': 'تحميل النطاق',
   'The date span actually present in the warehouse, per domain.': 'المدى الزمني الموجود فعليًا في المستودع لكل نطاق.',
-  'Domain': 'النطاق', 'Rows': 'الصفوف', 'snapshot': 'لقطة',
+  'Domain': 'النطاق', 'snapshot': 'لقطة',
   'Last run: {{type}} · {{status}}': 'آخر تشغيل: {{type}} · {{status}}',
   'No sync runs yet.': 'لا عمليات مزامنة بعد.',
   'Saving…': 'جارٍ الحفظ…',
@@ -856,7 +879,364 @@ const ar_strings: Record<string, string> = {
   'Change password': 'تغيير كلمة المرور',
   'User created': 'إنشاء مستخدم', 'User updated': 'تعديل مستخدم', 'User deleted': 'حذف مستخدم',
   'Backup': 'نسخ احتياطي', 'Compact database': 'ضغط قاعدة البيانات',
-  'Email settings saved': 'حفظ إعدادات البريد', 'Range load': 'تحميل فترة',
+  'Range load': 'تحميل فترة',
+
+  // ── Accounting (virtual GL) ──
+  'Trial Balance': 'ميزان المراجعة',
+  'General Ledger': 'دفتر الأستاذ العام',
+  'GL Exceptions': 'استثناءات دفتر الأستاذ',
+  'Journal': 'قيود اليومية',
+  'Journals': 'قيود اليومية',
+  'Account Code': 'رمز الحساب', 'Account Name': 'اسم الحساب',
+  'Opening': 'الرصيد الافتتاحي', 'Closing': 'الرصيد الختامي',
+  'Debit': 'مدين', 'Credit': 'دائن',
+  'Total Debit': 'إجمالي المدين', 'Total Credit': 'إجمالي الدائن',
+  'Difference': 'الفرق',
+  'must be zero': 'يجب أن يكون صفرًا', 'books balance': 'الدفاتر متوازنة',
+  'Documents': 'المستندات', 'source documents': 'المستندات المصدرية',
+  'document × type': 'مستند × نوع',
+  'GL Lines': 'سطور القيود', 'posted lines': 'السطور المرحّلة',
+  'Accounts Used': 'الحسابات المستخدمة', 'distinct accounts': 'حسابات مختلفة',
+  'Unbalanced Documents': 'مستندات غير متوازنة',
+  'excluded by the balanced gate': 'مستبعدة بواسطة فلتر التوازن',
+  'Unbalanced Net': 'صافي غير المتوازن',
+  'money not on the statements': 'مبالغ خارج القوائم',
+  'in current filter': 'ضمن التصفية الحالية',
+  'Hide zero accounts': 'إخفاء الحسابات الصفرية',
+  'Include unbalanced documents': 'تضمين المستندات غير المتوازنة',
+
+  // ── Accounting: date basis (transaction vs posting) ──
+  'Date basis': 'أساس التاريخ',
+  'Transaction': 'تاريخ العملية',
+  'Posting': 'تاريخ الترحيل',
+  'Transaction date': 'تاريخ العملية',
+  'Posting date': 'تاريخ الترحيل',
+  'Transaction Date': 'تاريخ العملية',
+  'Posting Date': 'تاريخ الترحيل',
+  'Filter by the date the activity happened': 'التصفية حسب تاريخ حدوث النشاط',
+  'Filter by the date the entry reached the books': 'التصفية حسب تاريخ وصول القيد إلى الدفاتر',
+
+  // ── Accounting: journal category (payment vs entry) ──
+  'Journal Category': 'نوع القيد',
+  'All': 'الكل',
+  'Payment': 'قيد سداد',
+  'Entry': 'قيد عملية',
+  'Payment journals only': 'قيود السداد فقط',
+  'Transaction entries only': 'قيود العمليات فقط',
+  'All journals': 'جميع القيود',
+
+  // ── Accounting: resolved business partner ──
+  'Partner Code': 'رمز الطرف',
+  'Business Partner ID': 'معرّف الطرف',
+  'Click an account to open its general ledger': 'اضغط على حساب لفتح دفتر الأستاذ الخاص به',
+  'Trial balance does not net to zero — difference {{v}}':
+    'ميزان المراجعة لا يساوي صفرًا — الفرق {{v}}',
+  'Review GL Exceptions: some source documents do not balance across their journals.':
+    'راجع استثناءات دفتر الأستاذ: بعض المستندات المصدرية غير متوازنة عبر قيودها.',
+  'Source documents that do not balance across their journals':
+    'المستندات المصدرية غير المتوازنة عبر قيودها',
+  'Post Date': 'تاريخ الترحيل', 'Source Document No.': 'رقم المستند المصدري',
+  'Store Name': 'اسم الفرع', 'Net (out of balance)': 'الصافي (فرق التوازن)',
+  '{{n}} documents do not balance — total {{v}}': '{{n}} مستندًا غير متوازن — الإجمالي {{v}}',
+  'These documents are excluded from the Trial Balance and the General Ledger by default. Nothing is hidden — every one of them is listed below.':
+    'تُستبعد هذه المستندات من ميزان المراجعة ودفتر الأستاذ افتراضيًا. لا شيء مخفي — جميعها مدرجة أدناه.',
+  'All documents balance': 'جميع المستندات متوازنة',
+  'No source document is out of balance in this window — nothing is being kept off the statements.':
+    'لا يوجد مستند مصدري غير متوازن في هذه الفترة — لا شيء مستبعد من القوائم.',
+  'Checking…': 'جارٍ الفحص…',
+  'store(s)': 'فرع',
+
+  // ── Shared DataSlicer placeholders ──
+  // One phrasing per filter, used identically on every page that filters on
+  // that entity — the slicers are one component, so they read the same too.
+  'Customer (name / phone / id)': 'العميل (الاسم / الهاتف / الرقم)',
+  'Dept / Class / Subclass': 'القسم / الفئة / الفئة الفرعية',
+  'Item (code / description)': 'الصنف (الكود / الوصف)',
+  'Account (code / name)': 'الحساب (الكود / الاسم)',
+  'Document type': 'نوع المستند',
+  // The Accounting business-partner dropdown. Its option rows show the kind as
+  // 'Customer' / 'Supplier' — both already translated under Grid headers above
+  // ('العميل' / 'المورد'), the same wording the Dimensions nav uses.
+  'Business Partner (name / id)': 'الطرف التجاري (الاسم / المعرّف)',
+
+  // ── Optional Retail Pro customisations that this server may not have ──
+  // Shown by <FeatureUnavailable/>. These are CONFIGURATION facts, not errors,
+  // so the Arabic is worded as an explanation, never as a failure message.
+  // The `reason` strings must match FEATURE_REASON in backend/db/model.py
+  // verbatim — the backend sends that English text and tr() looks it up here.
+  'Inventory History is not available on this server':
+    'سجل حركة المخزون غير متوفر على هذا الخادم',
+  'Stock by Date is not available on this server':
+    'المخزون حتى تاريخ غير متوفر على هذا الخادم',
+  'Opening and ending balances are not available on this server':
+    'الأرصدة الافتتاحية والختامية غير متوفرة على هذا الخادم',
+  'Accounting is not available on this server':
+    'المحاسبة غير متوفرة على هذا الخادم',
+  'Inventory History is a Retail Pro customisation that is not installed on this server.':
+    'سجل حركة المخزون هو تخصيص في ريتيل برو غير مُثبّت على هذا الخادم.',
+  'Inventory History is a Retail Pro customisation that is not installed on this server. Movement columns (sales, transfers, adjustments) are unaffected.':
+    'سجل حركة المخزون هو تخصيص في ريتيل برو غير مُثبّت على هذا الخادم. أعمدة الحركة (المبيعات والتحويلات والتسويات) غير متأثرة.',
+  'The accounting subsidiary (100) is not present on this server.':
+    'الشركة المحاسبية (100) غير موجودة على هذا الخادم.',
+  'Ask your administrator — Settings → Diagnostics lists which optional Retail Pro customisations were detected on this server.':
+    'راجع مسؤول النظام — الإعدادات ← التشخيص يعرض تخصيصات ريتيل برو الاختيارية المكتشفة على هذا الخادم.',
+  'Optional customisations': 'التخصيصات الاختيارية',
+  'Inventory History (customisation)': 'سجل حركة المخزون (تخصيص)',
+  'Accounting / subsidiary 100 (customisation)': 'المحاسبة / الشركة 100 (تخصيص)',
+  'Available': 'متوفر',
+  'Not available': 'غير متوفر',
+
+  // ── Home dashboard: nothing readable in the selected scope ──
+  'No data in the current selection': 'لا توجد بيانات ضمن التحديد الحالي',
+  'Nothing has been loaded for the selected scope yet.':
+    'لم يتم تحميل أي بيانات لهذا النطاق بعد.',
+
+  // ── Coverage sweep 2026-07-21: header / command palette ──
+  'Home': 'الرئيسية',
+  'Users': 'المستخدمون',
+  'Search': 'بحث',
+  'Sign out': 'تسجيل الخروج',
+  'Switch to light mode': 'التبديل إلى الوضع الفاتح',
+  'Switch to dark mode': 'التبديل إلى الوضع الداكن',
+  'Search pages, customers, items…': 'ابحث في الصفحات والعملاء والأصناف…',
+  'No matches': 'لا توجد نتائج',
+  'Open in Journals': 'فتح في اليومية',
+  'to navigate': 'للتنقل',
+  'to open': 'للفتح',
+  'to toggle': 'للتبديل',
+
+  // ── Login ──
+  'Incorrect username or password': 'اسم المستخدم أو كلمة المرور غير صحيحة',
+  'Enter your username': 'أدخل اسم المستخدم',
+
+  // ── Home dashboard ──
+  'Last 30 days vs the previous 30 days': 'آخر 30 يومًا مقارنة بالثلاثين يومًا السابقة',
+  'as of': 'حتى',
+  'Net Sales (30d)': 'صافي المبيعات (30 يومًا)',
+  'vs prev 30d': 'مقابل الـ30 يومًا السابقة',
+  'Invoices (30d)': 'الفواتير (30 يومًا)',
+  'Avg Basket (30d)': 'متوسط السلة (30 يومًا)',
+  "Today's Sales": 'مبيعات اليوم',
+  'latest warehouse day': 'آخر يوم في المستودع',
+  'Purchases (30d)': 'المشتريات (30 يومًا)',
+  'on-hand × cost': 'الكمية المتوفرة × التكلفة',
+  'with stock on hand': 'بمخزون متوفر',
+  'Negative Stock': 'مخزون سالب',
+  'item × store rows': 'صفوف صنف × فرع',
+  'Sales trend — last 30 days': 'اتجاه المبيعات — آخر 30 يومًا',
+  'Alerts': 'التنبيهات',
+  'Click to open the related screen': 'انقر لفتح الشاشة المرتبطة',
+  'Top stores (30d)': 'أفضل الفروع (30 يومًا)',
+  'Top items (30d)': 'أفضل الأصناف (30 يومًا)',
+  'Click to open this item in Journals': 'انقر لفتح هذا الصنف في اليومية',
+  'Top suppliers (30d)': 'أفضل الموردين (30 يومًا)',
+  'No purchases in the last 30 days': 'لا مشتريات في آخر 30 يومًا',
+  'Quick links': 'روابط سريعة',
+
+  // ── Saved views bar ──
+  'Views': 'العروض',
+  'No saved views yet': 'لا توجد عروض محفوظة بعد',
+  'View name': 'اسم العرض',
+  'Save': 'حفظ',
+  'Save current filters': 'حفظ عوامل التصفية الحالية',
+
+  // ── Grid export / email / schedule dialog ──
+  'Add at least one recipient': 'أضف مستلمًا واحدًا على الأقل',
+  'Schedule created — manage it in Settings → Reports': 'تم إنشاء الجدولة — يمكن إدارتها من الإعدادات ← التقارير',
+  'Could not create schedule (admin only)': 'تعذّر إنشاء الجدولة (للمسؤول فقط)',
+  'Report': 'التقرير',
+  'View': 'العرض',
+  'Filters': 'عوامل التصفية',
+  'Period': 'الفترة',
+  'Report emailed successfully': 'تم إرسال التقرير بالبريد بنجاح',
+  'Failed to send report': 'تعذّر إرسال التقرير',
+  'Name this recipient list': 'اسم قائمة المستلمين',
+  'Recipient list saved': 'تم حفظ قائمة المستلمين',
+  'Could not save list': 'تعذّر حفظ القائمة',
+  'Email': 'البريد',
+  'Schedule': 'جدولة',
+  'Email this report': 'إرسال هذا التقرير بالبريد',
+  'Send now': 'إرسال الآن',
+  'Schedule recurring': 'جدولة متكررة',
+  'Format': 'الصيغة',
+  'This grid is regenerated with its current filters and emailed on the schedule below.':
+    'يُعاد إنشاء هذا الجدول بعوامل التصفية الحالية ويُرسل بالبريد وفق الجدولة أدناه.',
+  'Frequency': 'التكرار',
+  'Daily': 'يومي',
+  'Weekly': 'أسبوعي',
+  'Monthly': 'شهري',
+  'One time (on a date)': 'مرة واحدة (بتاريخ محدد)',
+  'One time': 'مرة واحدة',
+  'Day of month': 'يوم من الشهر',
+  'At': 'عند',
+  'Attachment format': 'صيغة المرفق',
+  'The report is emailed automatically on this schedule. Manage or remove it any time in Settings → Reports.':
+    'يُرسل التقرير تلقائيًا بالبريد وفق هذه الجدولة. يمكن إدارتها أو حذفها في أي وقت من الإعدادات ← التقارير.',
+  'Subject / title': 'الموضوع / العنوان',
+  'Recipients': 'المستلمون',
+  'Insert saved list…': 'إدراج قائمة محفوظة…',
+  'Save these as a list': 'حفظها كقائمة',
+  'Message (optional)': 'رسالة (اختياري)',
+  'Uses the SMTP settings in Settings → Reports.': 'يستخدم إعدادات SMTP في الإعدادات ← التقارير.',
+  'Uses the SMTP settings in Settings → Reports. The current filtered/visible columns are sent.':
+    'يستخدم إعدادات SMTP في الإعدادات ← التقارير. تُرسل الأعمدة الظاهرة بعوامل التصفية الحالية.',
+  'Creating…': 'جارٍ الإنشاء…',
+  'Create schedule': 'إنشاء جدولة',
+  'COLUMNS': 'الأعمدة',
+
+  // ── Send history dialog ──
+  'Report send history': 'سجل إرسال التقارير',
+  'Failed': 'فشل',
+  'Search subject / recipient / page': 'بحث بالموضوع / المستلم / الصفحة',
+  'No reports have been emailed yet.': 'لم تُرسل أي تقارير بالبريد بعد.',
+  'No entries match the filters.': 'لا توجد سجلات تطابق عوامل التصفية.',
+  'Showing the most recent sends (newest first).': 'تُعرض أحدث عمليات الإرسال (الأحدث أولًا).',
+  'Send history': 'سجل الإرسال',
+
+  // ── Accounting pages ──
+  '{{n}} store(s)': '{{n}} فرع',
+  '{{n}} subsidiary(ies)': '{{n}} شركة تابعة',
+  'Account': 'الحساب',
+  'Including unbalanced documents': 'شاملًا المستندات غير المتوازنة',
+  'Balanced documents only': 'المستندات المتوازنة فقط',
+  '{{n}} synthetic opening row(s)': '{{n}} صف رصيد افتتاحي محسوب',
+  'Ledger Entries': 'قيود دفتر الأستاذ',
+  'Balanced': 'متوازن',
+  'Unbalanced': 'غير متوازن',
+  'Source Doc No.': 'رقم المستند المصدر',
+  'debit − credit': 'مدين − دائن',
+  'doc × doc type': 'مستند × نوع مستند',
+  'GL lines': 'سطور القيود',
+  'Unbalanced Docs': 'مستندات غير متوازنة',
+  'net': 'الصافي',
+  '{{a}}–{{b}} of {{n}}': '{{a}}–{{b}} من {{n}}',
+  'Previous': 'السابق',
+  'Select a journal above to see its GL lines.': 'اختر قيدًا من الأعلى لعرض سطوره.',
+  'Doc Type': 'نوع المستند',
+  'GL Doc No.': 'رقم مستند دفتر الأستاذ',
+  'Business Partner': 'الطرف التجاري',
+  'Net': 'الصافي',
+  'Amount': 'المبلغ',
+  'Running Balance': 'الرصيد الجاري',
+
+  // ── Sales journals / invoice grids ──
+  'Document No.': 'رقم المستند',
+  'Invoice Post Date': 'تاريخ ترحيل الفاتورة',
+  'Store Code': 'رمز الفرع',
+  'Net Sales WTax': 'صافي المبيعات شامل الضريبة',
+  '#Products': 'عدد المنتجات',
+  'Customer Name': 'اسم العميل',
+  'Item Type': 'نوع الصنف',
+  'Item Desc': 'وصف الصنف',
+  'SubClass': 'الفئة الفرعية',
+  'Vendor Name': 'اسم المورد',
+  'Extended Cost': 'إجمالي التكلفة',
+  'Extended Price After Disc': 'إجمالي السعر بعد الخصم',
+  'Extended Discount': 'إجمالي الخصم',
+  'Sold below cost': 'بيع بأقل من التكلفة',
+  'with tax': 'شامل الضريبة',
+  'line items': 'بنود',
+  'Avg basket': 'متوسط السلة',
+  'per invoice': 'لكل فاتورة',
+  'Invoice Details': 'تفاصيل الفاتورة',
+  'Item Details': 'تفاصيل الأصناف',
+  'all filtered lines': 'كل البنود بعد التصفية',
+  'Show all lines': 'عرض كل البنود',
+  'Item lines': 'بنود الأصناف',
+  'Select an invoice above, or turn on “Show all lines”.': 'اختر فاتورة من الأعلى، أو فعّل «عرض كل البنود».',
+
+  // ── Chart tooltips / axis names ──
+  'GP%': '% الربح',
+  'GM%': '% الهامش',
+  'Day': 'اليوم',
+  'Share of period': 'الحصة من الفترة',
+  '% of week': 'النسبة من الأسبوع',
+  'vs avg': 'مقابل المتوسط',
+  'vs Avg': 'مقابل المتوسط',
+  'YoY Change': 'التغير السنوي',
+  'Current': 'الحالي',
+  'Share': 'الحصة',
+  'Share of total': 'الحصة من الإجمالي',
+  'Click a box to drill down · breadcrumb to go back': 'انقر على مربع للتعمق · استخدم شريط المسار للرجوع',
+  'Department › Class › Subclass · click a box to drill down · breadcrumb to go back':
+    'القسم › الفئة › الفئة الفرعية · انقر على مربع للتعمق · استخدم شريط المسار للرجوع',
+  'Return Rate': 'نسبة المرتجعات',
+  'Disc Rate': 'نسبة الخصم',
+  'Segment': 'الشريحة',
+  'Tier': 'الفئة',
+  'Rev/Invoice': 'الإيراد لكل فاتورة',
+  'Disc%': 'خصم %',
+  'Return%': 'مرتجعات %',
+  'Active Since': 'نشط منذ',
+  'of chain': 'من السلسلة',
+  'Dependency': 'الاعتماد',
+  'Fill Rate': 'نسبة التلبية',
+
+  // ── Inventory pages ──
+  'Change Log': 'سجل التغييرات',
+  'Selected stores': 'الفروع المحددة',
+  'Current stock': 'المخزون الحالي',
+  'Total Qty': 'إجمالي الكمية',
+  'Cost Val': 'قيمة التكلفة',
+  'Orig Qty': 'الكمية الأصلية',
+  'Qty Δ': 'فرق الكمية',
+  'Cost Δ': 'فرق التكلفة',
+  '+ Qty': '+ كمية',
+  '− Qty': '− كمية',
+  '# Slips': 'عدد أذونات الصرف',
+  'Inventory snapshot not yet available': 'لقطة المخزون غير متوفرة بعد',
+  'Trigger a data sync to populate stock levels. The Movement page uses sales history and is available now.':
+    'شغّل مزامنة البيانات لتعبئة مستويات المخزون. صفحة الحركة تعتمد على سجل المبيعات وهي متاحة الآن.',
+  'Vendor from the item master (catalog) — not necessarily the supplier purchased from':
+    'المورد من بطاقة الصنف (الكتالوج) — وليس بالضرورة المورد الذي تم الشراء منه',
+  'True stock at the end of the period — last history row per store on or before the To date, summed over stores':
+    'المخزون الفعلي في نهاية الفترة — آخر سجل لكل فرع في تاريخ النهاية أو قبله، مجموعًا على الفروع',
+
+  // ── Purchases / dimensions ──
+  'vendor(s)': 'مورد',
+  '↗ click a row to view invoices': '↗ انقر على صف لعرض الفواتير',
+
+  // ── Sales overview ──
+  'No data in local model yet. Go to Settings and run an initial load first.':
+    'لا توجد بيانات في النموذج المحلي بعد. انتقل إلى الإعدادات وشغّل تحميلًا أوليًا أولًا.',
+
+  // ── AI assistant ──
+  'Open Settings': 'فتح الإعدادات',
+  'The AI assistant is off. Enable it in Settings → Maintenance → AI Assistant.':
+    'المساعد الذكي متوقف. فعّله من الإعدادات ← الصيانة ← المساعد الذكي.',
+
+  // ── Settings screens ──
+  'Manage your database connection, data refresh, display, AI assistant, reports and maintenance.':
+    'إدارة اتصال قاعدة البيانات وتحديث البيانات والعرض والمساعد الذكي والتقارير والصيانة.',
+  'Showing the item description · e.g. Blue Shirt': 'يُعرض وصف الصنف · مثال: قميص أزرق',
+  'Mixed / custom': 'مختلط / مخصص',
+  'Every {{n}}': 'كل {{n}}',
+  'Set frequency for all…': 'ضبط التكرار للجميع…',
+  'Automatic sync': 'المزامنة التلقائية',
+  'Incremental refresh (all data)': 'تحديث تزايدي (كل البيانات)',
+  'Product name': 'اسم المنتج',
+  'AI Assistant (Data Analyst)': 'المساعد الذكي (محلّل البيانات)',
+  'AI Assistant settings saved': 'تم حفظ إعدادات المساعد الذكي',
+  'Lets users ask questions about the data in plain language. Choose where the AI runs and connect it.':
+    'يتيح للمستخدمين طرح أسئلة عن البيانات بلغة عادية. اختر مكان تشغيل الذكاء الاصطناعي واربطه.',
+  'A key is stored (shown masked). Clear it and type to replace.':
+    'يوجد مفتاح محفوظ (يظهر مقنّعًا). امسحه واكتب مفتاحًا جديدًا للاستبدال.',
+  'Stored encrypted on this machine.': 'يُحفظ مشفّرًا على هذا الجهاز.',
+  'Email content': 'محتوى البريد',
+  'Include a data sample in the email body': 'تضمين عيّنة من البيانات في نص الرسالة',
+  'Off (recommended): the email carries only a summary of what was sent — the rows travel in the attachment. Applies to scheduled reports and alert digests.':
+    'إيقاف (موصى به): تحمل الرسالة ملخصًا لما أُرسل فقط — وتُرسل الصفوف في المرفق. ينطبق على التقارير المجدولة وملخصات التنبيهات.',
+  'Max rows per emailed report': 'الحد الأقصى لصفوف التقرير المرسل بالبريد',
+  'Rows beyond this are cut from the file.': 'تُحذف الصفوف الزائدة عن هذا الحد من الملف.',
+  'Using the default': 'يُستخدم الافتراضي',
+  'Custom grid': 'جدول مخصص',
+  'Governance Alert Emails': 'رسائل تنبيهات الحوكمة',
+  'Alert rules saved': 'تم حفظ قواعد التنبيهات',
+  "Each enabled rule emails a daily digest — a CSV of the prior day's offending invoices — at its chosen time. Uses the SMTP settings above.":
+    'كل قاعدة مفعّلة ترسل ملخصًا يوميًا بالبريد — ملف CSV بفواتير اليوم السابق المخالفة — في وقتها المحدد. يستخدم إعدادات SMTP أعلاه.',
+  'Discount %': 'نسبة الخصم %',
+  'Amount ≥': 'المبلغ ≥',
+  'Save Alert Rules': 'حفظ قواعد التنبيهات',
 }
 
 i18n.use(initReactI18next).init({
@@ -890,10 +1270,14 @@ export function trf(s: string, params: Record<string, string | number>): string 
     (acc, [k, v]) => acc.replace(`{{${k}}}`, String(v)), s)
 }
 
-/** Translate AG Grid column headers (headerName) in a colDefs array. */
-export function trCols<T extends { headerName?: string }>(cols: T[]): T[] {
+/** Translate AG Grid column headers (headerName + headerTooltip) in a colDefs array. */
+export function trCols<T extends { headerName?: string; headerTooltip?: string }>(cols: T[]): T[] {
   if (i18n.language !== 'ar') return cols
-  return cols.map(c => c.headerName ? { ...c, headerName: tr(c.headerName) } : c)
+  return cols.map(c => (c.headerName || c.headerTooltip) ? {
+    ...c,
+    ...(c.headerName    ? { headerName: tr(c.headerName) }       : {}),
+    ...(c.headerTooltip ? { headerTooltip: tr(c.headerTooltip) } : {}),
+  } : c)
 }
 
 export default i18n

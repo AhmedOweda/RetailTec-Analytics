@@ -7,10 +7,32 @@
  * - analytics thresholds (days-on-hand, dormant customers, GM% traffic lights)
  */
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import axios from 'axios'
 import { setMoneyPrefixGlobal, setNumberFormatGlobal } from '../utils/formatters'
 import { Thresholds, DEFAULT_THRESHOLDS, setThresholdsGlobal } from '../utils/thresholds'
+import { useAuth } from '../contexts/AuthContext'
 
-export type ProductCodeField = 'alu' | 'upc'
+/** Which DIM_ITEM field identifies an item throughout the UI (charts, grids
+ *  and — via DataSlicer — every item slicer). Configured in
+ *  Settings → Data Model → Display Settings → Product Code Field. */
+export type ProductCodeField = 'alu' | 'upc' | 'description'
+
+/** The resolved identifier: the setting key, the DIM_ITEM column behind it and
+ *  a display label. Pages/slicers ask THIS instead of hardcoding ALU. */
+export interface ItemIdentifier {
+  field:  ProductCodeField
+  column: string   // 'ALU' | 'UPC' | 'DESCRIPTION1' — the DIM_ITEM column
+  label:  string   // 'ALU' | 'UPC' | 'Description'  — a grid header / chip label
+}
+
+const ITEM_IDENTIFIERS: Record<ProductCodeField, ItemIdentifier> = {
+  alu:         { field: 'alu',         column: 'ALU',          label: 'ALU' },
+  upc:         { field: 'upc',         column: 'UPC',          label: 'UPC' },
+  description: { field: 'description', column: 'DESCRIPTION1', label: 'Description' },
+}
+
+export const itemIdentifierFor = (f?: string): ItemIdentifier =>
+  ITEM_IDENTIFIERS[(f as ProductCodeField)] ?? ITEM_IDENTIFIERS.alu
 
 export interface Currency { code: string; name: string; symbol: string }
 
@@ -32,6 +54,9 @@ export const CURRENCIES: Currency[] = [
 interface AppSettings {
   productCodeField:    ProductCodeField
   setProductCodeField: (v: ProductCodeField) => void
+  /** Resolved form of productCodeField — ask this for the item identifier
+   *  (field key / DIM_ITEM column / display label) instead of hardcoding ALU. */
+  itemId:              ItemIdentifier
   currency:            Currency
   setCurrency:         (code: string) => void
   showCurrency:        boolean
@@ -60,6 +85,7 @@ const DEFAULT_CURRENCY = CURRENCIES[0]
 const AppSettingsContext = createContext<AppSettings>({
   productCodeField:    'alu',
   setProductCodeField: () => {},
+  itemId:              itemIdentifierFor('alu'),
   currency:            DEFAULT_CURRENCY,
   setCurrency:         () => {},
   showCurrency:        true,
@@ -99,7 +125,36 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const setProductCodeField = (v: ProductCodeField) => {
     localStorage.setItem('productCodeField', v)
     setFieldState(v)
+    // Write through to the server: scheduled/emailed report attachments are
+    // built server-side and read settings.json → display.item_identifier.
+    // (PUT is admin-only, matching the Settings → Display page; failures are
+    // non-fatal — the browser keeps working from localStorage.)
+    axios.put('/api/settings/display', { item_identifier: v }).catch(() => {})
   }
+
+  // ── Server sync: the item identifier is authoritative on the SERVER ───────
+  // localStorage stays as an offline-first cache, but on load (and again on
+  // login, so a fresh token can seed) we adopt the server's value. If the
+  // server has never been configured, seed it once from this browser so
+  // existing users keep the identifier they already chose.
+  const { token, isAdmin } = useAuth()
+  useEffect(() => {
+    let stale = false
+    axios.get('/api/settings/display')
+      .then(r => {
+        if (stale) return
+        const v = r.data?.item_identifier
+        if (v === 'alu' || v === 'upc' || v === 'description') {
+          localStorage.setItem('productCodeField', v)
+          setFieldState(v)
+        } else if (token && isAdmin) {
+          const mine = (localStorage.getItem('productCodeField') as ProductCodeField) ?? 'alu'
+          axios.put('/api/settings/display', { item_identifier: mine }).catch(() => {})
+        }
+      })
+      .catch(() => {})   // offline / server down → keep the cached value
+    return () => { stale = true }
+  }, [token, isAdmin])
 
   const [showCurrency, setShowCurrencyState] = useState<boolean>(
     () => localStorage.getItem('showCurrency') !== 'false'   // default ON
@@ -181,6 +236,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppSettingsContext.Provider value={{ productCodeField, setProductCodeField,
+                                          itemId: itemIdentifierFor(productCodeField),
                                           currency, setCurrency,
                                           showCurrency, setShowCurrency, moneyPrefix,
                                           moneyDecimals, setMoneyDecimals,

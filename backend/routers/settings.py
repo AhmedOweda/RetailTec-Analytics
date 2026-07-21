@@ -272,6 +272,46 @@ def update_settings(payload: SettingsPayload, _admin: dict = Depends(require_adm
     return {"ok": True, "message": "Settings saved", "host_changed": new_host != old_host}
 
 
+# ── Display settings (settings.json → display) ─────────────────────────────
+# The item identifier (ALU / UPC / Description) used to live only in browser
+# localStorage, so the server-side report engine couldn't honour it. It is now
+# persisted here too: the frontend reads it on load (GET is public — it must
+# resolve before login, like GET /api/settings) and writes it back when an
+# admin changes it in Settings → Display. Whitelisted server-side.
+
+_ITEM_IDENTIFIERS = ("alu", "upc", "description")
+
+
+@router.get("/api/settings/display")
+def get_display_settings():
+    """Current display settings. item_identifier is null until first seeded so
+    the frontend can tell 'never configured' from 'configured as alu'."""
+    d = load_settings().get("display") or {}
+    v = d.get("item_identifier")
+    if v not in _ITEM_IDENTIFIERS:
+        v = None
+    return {"item_identifier": v, "default": "alu"}
+
+
+class DisplaySettingsPut(BaseModel):
+    item_identifier: str
+
+
+@router.put("/api/settings/display")
+def put_display_settings(payload: DisplaySettingsPut,
+                         _admin: dict = Depends(require_admin)):
+    v = (payload.item_identifier or "").strip().lower()
+    if v not in _ITEM_IDENTIFIERS:
+        raise HTTPException(status_code=422,
+                            detail=f"item_identifier must be one of {list(_ITEM_IDENTIFIERS)}")
+    current = load_settings()
+    display = current.setdefault("display", {})
+    display["item_identifier"] = v
+    save_settings(current)
+    record_audit(_admin["username"], "display_settings_saved", f"item_identifier={v}")
+    return {"ok": True, "item_identifier": v}
+
+
 @router.post("/api/settings/test-connection")
 async def test_connection(conn: ConnectionSettings, _admin: dict = Depends(require_admin)):
     password = conn.password
@@ -313,15 +353,27 @@ def get_model_status():
     lic = {}
     try:
         from services.license import evaluate
-        from db.model import DB_LOCK as _L, get_db as _g
+        from db.model import DB_LOCK as _L, get_db as _g, ACCOUNTING_SBS_NO
         with _L:
             con = _g()
             try:
+                # sbs 100 is the synthetic accounting subsidiary (the virtual
+                # GL), not a trading entity — it must never consume one of the
+                # customer's licensed subsidiary slots.
                 sub_count = con.execute(
-                    "SELECT COUNT(*) FROM DIM_SUBSIDIARY").fetchone()[0]
+                    "SELECT COUNT(*) FROM DIM_SUBSIDIARY "
+                    "WHERE SBS_NO IS DISTINCT FROM ?",
+                    [ACCOUNTING_SBS_NO]).fetchone()[0]
             except Exception:
                 sub_count = None
             lic = evaluate(host, sub_count, duck=con)
+    except Exception:
+        pass
+    # Licensed product domains: null = all (legacy license / no restriction).
+    lic_domains = None
+    try:
+        from services.license import licensed_domains
+        lic_domains = licensed_domains()
     except Exception:
         pass
     return {"model_status": s.get("model_status", "empty"),
@@ -332,6 +384,7 @@ def get_model_status():
             "license_violation": bool(lic.get("violation")),
             "license_reason": lic.get("reason"),
             "license_warnings": lic.get("warnings") or [],
+            "licensed_domains": lic_domains,
             "device_code": lic.get("device_code")}
 
 
@@ -435,10 +488,13 @@ def sync_table_stats():
         "FACT_TRANSFERS", "FACT_ADJUSTMENTS",
         "FACT_INVENTORY", "FACT_INVENTORY_HISTORY",
         "FACT_PURCHASES", "FACT_PURCHASE_ITEMS",
+        "FACT_GL", "FACT_GL_DOC",
         # Dims
         "DIM_DATE", "DIM_STORE", "DIM_SUBSIDIARY", "DIM_EMPLOYEE",
-        "DIM_CUSTOMER", "DIM_ITEM", "DIM_VENDOR",
+        "DIM_CUSTOMER", "DIM_ITEM", "DIM_VENDOR", "DIM_ACCOUNT",
     ]
+    # NOTE: hardcoded list — a new fact/dim table must be added here by hand
+    # (missing tables simply report None, they never break the endpoint).
 
     counts = {}
     with DB_LOCK:
@@ -525,7 +581,15 @@ def sync_coverage():
         ("adjustments",       "FACT_ADJUSTMENTS",       "ADJ_DATE"),
         ("purchases",         "FACT_PURCHASES",         "VOU_DATE"),
         ("inventory_history", "FACT_INVENTORY_HISTORY", "ACTION_DATE"),
+        # The virtual GL (subsidiary 100). Absent on servers without the
+        # accounting customisation — the try/except below reports it as 0 rows
+        # rather than failing the whole coverage call.
+        ("accounting",        "FACT_GL",                "POST_DATE"),
     ]
+    # NOTE: hardcoded domain→table→date-column map. It mirrors, but does not
+    # read, services.settings_schema.DOMAINS: only domains with a dated fact
+    # table can report coverage (`inventory` is a snapshot, so it is reported
+    # separately below as `inventory_snapshot`).
     coverage = []
     with DB_LOCK:
         duck = get_db().cursor()   # per-request cursor — don't block behind syncs

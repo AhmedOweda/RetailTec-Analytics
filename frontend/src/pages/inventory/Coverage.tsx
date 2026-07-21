@@ -7,7 +7,8 @@
  *   • Period selector for Daily AVG basis (30 / 60 / 90 days)
  *   • AG Grid with CSV + PDF export
  */
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Box, Typography, Stack, TextField, Chip,
   Autocomplete, ToggleButtonGroup, ToggleButton,
@@ -18,7 +19,9 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import KpiCard       from '../../components/KpiCard'
 import GridExportBar from '../../components/GridExportBar'
+import DataSlicer, { splitSlicer, itemFieldValue } from '../../components/DataSlicer'
 import { noRowsOverlay } from '../../utils/gridOverlay'
+import { gridLocaleText } from '../../utils/gridLocale'
 import axios from 'axios'
 import { useAppSettings } from '../../context/AppSettings'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
@@ -80,21 +83,44 @@ function getBucket(row: any, period: number): BucketKey {
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function InventoryCoverage() {
   const gridRef = useRef<AgGridReact>(null)
-  const { productCodeField } = useAppSettings()
-  const codeFieldUpper = productCodeField.toUpperCase()
+  // The configured item identifier (Settings → Product Code Field). Ask
+  // `itemId`, never `productCodeField === 'upc'` — that comparison silently
+  // treats the 'description' setting as ALU.
+  const { itemId } = useAppSettings()
   const { onGridReady: onColGridReady, onColumnChanged, resetColumns } = useGridColumnState('coverage')
 
   // Filters
   const [stores,   setStores]   = useState<string[]>([])
   const [vendors,  setVendors]  = useState<string[]>([])
-  const [depts,    setDepts]    = useState<string[]>([])
-  const [itemSearch, setItemSearch] = useState('')   // one field: ALU / UPC / description
+  // Department and Item are the shared <DataSlicer> — same shape, data and
+  // behaviour as Sales → Journals. Both hold a mix of picked option objects
+  // and typed free text; splitSlicer() turns that into filter tokens.
+  const [dcsSel,  setDcsSel ] = useState<any[]>([])
+  const [itemSel, setItemSel] = useState<any[]>([])
+  const dcsToken  = (o: any) => (typeof o === 'string' ? o : String(o?.department ?? ''))
+  const itemToken = (o: any) => (typeof o === 'string' ? o : itemFieldValue(o, itemId.field))
+  const deptTokens = splitSlicer(dcsSel,  undefined, dcsToken ).tokens.map(t => t.toLowerCase())
+  const itemTokens = splitSlicer(itemSel, undefined, itemToken).tokens.map(t => t.toLowerCase())
 
   // Period for Daily AVG (30 / 60 / 90)
   const [period, setPeriod] = useState<number>(30)
 
   // Coverage bucket selection
   const [bucket, setBucket] = useState<BucketKey>('all')
+
+  // ── Drill-through from the Home "stagnant stock lines" alert ────────────────
+  // The alert links here with ?stagnant=true (plus the store/subsidiary scope).
+  // The SERVER applies the exact same predicate home_summary counted (sold in
+  // the prior 60-day window but nothing in the last 30, anchored to the
+  // warehouse's latest date), so the grid row count equals the alert card — the
+  // client-side buckets read from *today* and would drift on an offline copy.
+  // A removable chip makes the applied filter visible so the user can clear it.
+  const [sp] = useSearchParams()
+  const [stagnantOnly, setStagnantOnly] = useState(false)
+  useEffect(() => {
+    const st = sp.get('stores'); if (st) setStores(st.split(',').filter(Boolean))
+    if (sp.get('stagnant') === 'true' || sp.get('stagnant') === '1') setStagnantOnly(true)
+  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dropdown lists ──────────────────────────────────────────────────────────
   const { data: storeList = [] } = useQuery<{ STORE_NAME: string }[]>({
@@ -107,17 +133,13 @@ export default function InventoryCoverage() {
     queryFn:  () => axios.get('/api/inventory/vendors-list').then(r => r.data),
     staleTime: Infinity,
   })
-  const { data: deptList = [] } = useQuery<{ department: string }[]>({
-    queryKey: ['inv-dcs-list'],
-    queryFn:  () => axios.get('/api/inventory/dcs-list').then(r => r.data),
-    staleTime: Infinity,
-  })
+  // Department is no longer a preloaded list — it is a server type-ahead
+  // against /api/inventory/search/dcs, exactly like the Journals DCS slicer.
 
   // Defensive key lookup — the APIs return UPPERCASE column names for
   // unaliased selects (undefined options crashed the Autocomplete slicers)
   const storeOptions  = storeList.map((r: any) => r.STORE_NAME ?? r.store_name).filter(Boolean)
   const vendorOptions = vendorList.map((r: any) => r.VEND_NAME ?? r.vend_name).filter(Boolean)
-  const deptOptions   = deptList.map((r: any) => r.department ?? r.D_NAME).filter(Boolean)
 
   // ── Data fetch ──────────────────────────────────────────────────────────────
   // Only stores filter server-side; vendor/department filter CLIENT-side —
@@ -125,7 +147,8 @@ export default function InventoryCoverage() {
   // contain commas, returning no data)
   const params = useMemo(() => ({
     ...(stores.length  ? { stores:  stores.join(',')  } : {}),
-  }), [stores])
+    ...(stagnantOnly   ? { stagnant: true } : {}),
+  }), [stores, stagnantOnly])
 
   const { data: raw = [], isFetching } = useQuery<any[]>({
     queryKey: ['inv-coverage', params],
@@ -144,19 +167,28 @@ export default function InventoryCoverage() {
   const rows = useMemo(() => {
     let r = enriched
     if (vendors.length) r = r.filter(x => vendors.includes(x.vendor))
-    if (depts.length)   r = r.filter(x => depts.includes(x.department))
-    if (itemSearch.trim()) {
-      const q = itemSearch.trim().toLowerCase()
-      r = r.filter(x =>
-        (x.description ?? '').toLowerCase().includes(q) ||
-        (x.alu ?? '').toLowerCase().includes(q) ||
-        String(x.upc ?? '').toLowerCase().includes(q))
+    // Department: any chip matches (picked option or typed free text).
+    if (deptTokens.length) {
+      r = r.filter(x => {
+        const d = String(x.department ?? '').toLowerCase()
+        return deptTokens.some(t => d.includes(t))
+      })
+    }
+    // Item: matches ONLY the configured identifier column, never a combined
+    // ALU/UPC/description blob. The coverage rows expose the three identifier
+    // columns under exactly the setting keys (alu | upc | description).
+    if (itemTokens.length) {
+      r = r.filter(x => {
+        const v = String(x[itemId.field] ?? '').toLowerCase()
+        return itemTokens.some(t => v.includes(t))
+      })
     }
     if (bucket !== 'all') {
       r = r.filter(x => x.coverage_bucket === bucket)
     }
     return r
-  }, [enriched, vendors, depts, itemSearch, bucket])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enriched, vendors, deptTokens.join('|'), itemTokens.join('|'), itemId.field, bucket])
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
   const kpi = useMemo(() => {
@@ -179,7 +211,7 @@ export default function InventoryCoverage() {
   const colDefs = useMemo<any[]>(() => [
     { field: 'store_name',    headerName: 'Store',           width: 160, pinned: 'left',
       cellStyle: { fontWeight: 600 } },
-    { field: productCodeField, headerName: codeFieldUpper,   width: 130,
+    { field: itemId.field, headerName: itemId.label,   width: 130,
       cellStyle: { fontFamily: 'monospace', color: C_PURPLE, fontWeight: 700 } },
     { field: 'description',   headerName: 'Item Description',flex: 2, minWidth: 180 },
     { field: 'vendor',        headerName: 'Item Vendor',     width: 150,
@@ -211,7 +243,7 @@ export default function InventoryCoverage() {
       }},
     { field: 'last_sold',     headerName: 'Last Sold',       width: 105,
       cellStyle: (p: any) => ({ color: !p.value ? C_ROSE : C_SLATE }) },
-  ], [period, productCodeField, codeFieldUpper])
+  ], [period, itemId.field, itemId.label])
 
   return (
     <Box sx={{ pt: 0, px: 3, pb: 3 }}>
@@ -232,7 +264,6 @@ export default function InventoryCoverage() {
           {[
             { label:tr('Store'),      options: storeOptions,  value: stores,  set: setStores  },
             { label:tr('Item Vendor'), options: vendorOptions, value: vendors, set: setVendors },
-            { label:tr('Department'), options: deptOptions,   value: depts,   set: setDepts   },
           ].map(f => (
             <Autocomplete key={f.label} multiple disableCloseOnSelect size="small"
               options={f.options} value={f.value}
@@ -245,11 +276,20 @@ export default function InventoryCoverage() {
               )} />
           ))}
 
-          {/* Item search — ALU / UPC / description in one field */}
-          <TextField size="small" label={trf('Search item ({{code}} / description)', { code: codeFieldUpper })}
-            value={itemSearch} onChange={e => setItemSearch(e.target.value)}
-            sx={{ width: 260,
-                  '& .MuiOutlinedInput-root': { borderRadius: 2.5, bgcolor: 'var(--rt-surface)' } }} />
+          {/* Dept / Class / Subclass — the shared slicer, server type-ahead */}
+          <DataSlicer sx={{ minWidth: 220, maxWidth: 360 }} value={dcsSel} onChange={setDcsSel}
+            searchEndpoint="/api/inventory/search/dcs"
+            getToken={dcsToken} placeholder="Dept / Class / Subclass"
+            renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
+              : { code: o.department || '—', rest: [o.class, o.subclass].filter(Boolean).join(' | ') })} />
+
+          {/* Item — the shared slicer, restricted to the configured identifier */}
+          <DataSlicer sx={{ minWidth: 240, maxWidth: 380 }} value={itemSel} onChange={setItemSel}
+            searchEndpoint="/api/inventory/items-search"
+            getToken={itemToken} itemField={itemId.field} searchByItemField
+            placeholder="Item (code / description)"
+            renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
+              : { code: itemFieldValue(o, itemId.field), rest: o.DESCRIPTION1 })} />
 
           {/* Period selector */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -269,6 +309,13 @@ export default function InventoryCoverage() {
               ))}
             </ToggleButtonGroup>
           </Box>
+
+          {/* Criterion arriving from the Home "stagnant stock lines" alert */}
+          {stagnantOnly && (
+            <Chip size="small" label={tr('Stagnant: sold before, idle 30d')}
+              onDelete={() => setStagnantOnly(false)}
+              sx={{ fontWeight: 600, fontSize: 11, bgcolor: `${C_PURPLE}18`, color: C_PURPLE }} />
+          )}
         </Stack>
       </Box>
 
@@ -344,7 +391,7 @@ export default function InventoryCoverage() {
         </Stack>
 
         <div className="ag-theme-alpine" style={{ height: 520 }}>
-          <AgGridReact
+          <AgGridReact localeText={gridLocaleText()}
             ref={gridRef}
             overlayNoRowsTemplate={noRowsOverlay()}
             rowData={rows}

@@ -29,6 +29,21 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 
 ACCENT  = "#7c3aed"
 
+# Licensed product domains (must match services/license.py ALL_DOMAINS).
+# All boxes checked → the "domains" field is OMITTED from the payload, which
+# means "all domains" — identical to every license issued before this feature,
+# so old customers keep the full product.
+DOMAINS = [
+    ("home",       "Home dashboard"),
+    ("ai",         "Ask AI assistant"),
+    ("sales",      "Sales"),
+    ("inventory",  "Inventory"),
+    ("purchases",  "Purchasing"),
+    ("accounting", "Accounting"),
+    ("dimensions", "Dimensions"),
+    ("reports",    "Reports & Email"),
+]
+
 
 def _find_license_py() -> Path | None:
     """Locate backend/services/license.py. Works from source (relative) AND
@@ -63,7 +78,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("RetailTec License Studio")
-        self.geometry("700x640")
+        self.geometry("700x720")
         self.resizable(False, False)
         self.configure(bg="#f8fafc")
         try:
@@ -135,6 +150,20 @@ class App(tk.Tk):
             var = tk.StringVar(value=default)
             self.f[key] = var
             ttk.Entry(form, textvariable=var, width=42).grid(row=i, column=1, sticky="w")
+
+        # Licensed domains — all checked = full product (field omitted from the
+        # payload, so legacy verification behaviour is unchanged).
+        ttk.Label(form, text="Licensed domains (all = full product)",
+                  width=30, anchor="w").grid(row=len(fields), column=0,
+                                             sticky="nw", pady=(6, 0))
+        domf = ttk.Frame(form)
+        domf.grid(row=len(fields), column=1, sticky="w", pady=(4, 0))
+        self.domain_vars: dict[str, tk.BooleanVar] = {}
+        for i, (key, label) in enumerate(DOMAINS):
+            var = tk.BooleanVar(value=True)
+            self.domain_vars[key] = var
+            ttk.Checkbutton(domf, text=label, variable=var).grid(
+                row=i // 2, column=i % 2, sticky="w", padx=(0, 12))
 
         ttk.Button(lf, text="Generate signed license.json…", style="Go.TButton",
                    command=self.generate).pack(anchor="w", pady=(8, 0))
@@ -255,6 +284,17 @@ class App(tk.Tk):
         if host:
             payload["oracle_host"] = host
 
+        # Licensed domains: all checked → omit the field entirely (= all
+        # domains, byte-identical payload shape to pre-domain licenses).
+        picked = [k for k, _ in DOMAINS if self.domain_vars[k].get()]
+        if not picked:
+            messagebox.showwarning(
+                "No domains", "Select at least one licensed domain "
+                "(all checked = full product).")
+            return
+        if len(picked) < len(DOMAINS):
+            payload["domains"] = picked
+
         out = filedialog.asksaveasfilename(
             title="Save signed license as…", defaultextension=".json",
             initialfile="license.json", filetypes=[("JSON", "*.json")])
@@ -267,6 +307,8 @@ class App(tk.Tk):
                  + "  ".join(f"{k}={payload[k]}" for k in
                              ("max_subsidiaries", "max_users", "device_code", "oracle_host")
                              if k in payload))
+        self.log("  domains=" + (",".join(payload["domains"])
+                                 if "domains" in payload else "ALL"))
         self.log("Send this file to the customer — it goes next to the app's settings"
                  " (backend/ in dev, _internal in the packaged install).")
 
@@ -302,6 +344,8 @@ class App(tk.Tk):
         self.log(f"Verify {p}:")
         self.log(f"  signature: {'VALID' if ok else 'INVALID (wrong key or tampered)'}")
         self.log(f"  payload:   {json.dumps(payload)}")
+        self.log("  domains:   " + (",".join(payload.get("domains"))
+                                    if payload.get("domains") else "ALL (unrestricted)"))
         if days is not None:
             self.log(f"  expiry:    {exp} ({'EXPIRED ' + str(-days) + 'd ago' if days < 0 else str(days) + ' days left'})")
 

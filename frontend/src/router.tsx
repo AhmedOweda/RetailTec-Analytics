@@ -19,6 +19,10 @@ import InventoryLedger       from './pages/inventory/Ledger'
 import InventoryHistory      from './pages/inventory/History'
 import InventoryStockAsOf    from './pages/inventory/StockAsOf'
 import InventoryCoverage     from './pages/inventory/Coverage'
+import AccountingJournal     from './pages/accounting/Journal'
+import AccountingTrialBalance from './pages/accounting/TrialBalance'
+import AccountingGeneralLedger from './pages/accounting/GeneralLedger'
+import AccountingExceptions   from './pages/accounting/Exceptions'
 import Assistant             from './pages/assistant/Assistant'
 import PurchasesOverview     from './pages/purchases/Overview'
 import PurchasesTransactions from './pages/purchases/Transactions'
@@ -53,6 +57,10 @@ export const router = createBrowserRouter([
       { path: 'inventory/history',       element: <InventoryHistory />      },
       { path: 'inventory/stock-asof',    element: <InventoryStockAsOf />    },
       { path: 'inventory/coverage',      element: <InventoryCoverage />     },
+      { path: 'accounting/journal',         element: <AccountingJournal />       },
+      { path: 'accounting/trial-balance',   element: <AccountingTrialBalance />  },
+      { path: 'accounting/general-ledger',  element: <AccountingGeneralLedger /> },
+      { path: 'accounting/exceptions',      element: <AccountingExceptions />    },
       { path: 'purchases/overview',      element: <PurchasesOverview />     },
       { path: 'purchases/transactions',  element: <PurchasesTransactions /> },
       { path: 'dimensions/stores',       element: <DimStores />             },

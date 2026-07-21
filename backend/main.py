@@ -49,6 +49,7 @@ from routers.admin      import router as admin_router
 from routers.prefs      import router as prefs_router
 from routers.diagnostics import router as diagnostics_router
 from routers.assistant   import router as assistant_router
+from routers.accounting  import router as accounting_router
 from services.scheduler import background_loop
 
 logging.basicConfig(
@@ -75,6 +76,33 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+# ── Licensed-domain gate ───────────────────────────────────────────────────
+# A license may restrict the product to a subset of domains (home, ai, sales,
+# inventory, purchases, accounting, dimensions, reports). Requests to an
+# unlicensed domain's endpoints get a clear 403 — for EVERY user, admins
+# included. Legacy licenses without a "domains" field pass everything through
+# (services.license.licensed_domains() returns None). Implemented as
+# middleware, not an endpoint dependency, so plain `def` endpoint signatures
+# stay untouched (report_grid.run_grid introspects them).
+from fastapi.responses import JSONResponse as _JSONResponse
+from services.license import licensed_domains as _licensed_domains, \
+                             domains_for_path as _domains_for_path
+
+
+@app.middleware("http")
+async def _license_domain_gate(request, call_next):
+    doms = _licensed_domains()
+    if doms is not None:
+        need = _domains_for_path(request.url.path)
+        if need is not None and not any(d in doms for d in need):
+            return _JSONResponse(
+                status_code=403,
+                content={"detail": f"This feature is not included in your "
+                                   f"license (domain: {need[0]}). Contact "
+                                   f"RetailTec to upgrade."})
+    return await call_next(request)
+
+
 # Every data router requires a valid JWT (EXPERT_REVIEW.md C1).
 # Only /api/auth/login, /health and /api/cache/status are reachable without one.
 _authed = [Depends(get_current_user)]
@@ -86,6 +114,7 @@ app.include_router(admin_router,     dependencies=_authed)
 app.include_router(prefs_router,     dependencies=_authed)
 app.include_router(diagnostics_router, dependencies=_authed)
 app.include_router(assistant_router, dependencies=_authed)
+app.include_router(accounting_router, dependencies=_authed)
 app.include_router(auth_router)
 
 
