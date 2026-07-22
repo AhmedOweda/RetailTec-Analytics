@@ -314,7 +314,7 @@ export default function UsersManagement() {
                     <Typography fontSize={11} color="#94a3b8">@{u.username}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={u.role} size="small"
+                    <Chip label={tr(u.role)} size="small"
                       sx={{ bgcolor: ROLE_COLORS[u.role] + '1a', color: ROLE_COLORS[u.role],
                             fontWeight: 700, fontSize: 11 }} />
                   </TableCell>

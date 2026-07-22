@@ -872,20 +872,36 @@ def _sync_inventory_snapshot(duck, ora):
 #   NOTE4 = source DOC_NO      NOTE5 = journal DOC_TYPE    NOTE7 = source DOC_SID
 #   NOTE8 = source DOC_POST_DATE, as text 'DD-MM-YYYY HH24:MI:SS'
 #
-# ⚠ THE DATE. NOTE8 is the ACCOUNTING date and is the only correct one to
-# report on. The sbs-100 document's own INVC_POST_DATE / CREATED_DATETIME is the
-# date the poster RAN — on this server the Jan-2026 entries all carry 19-07-2026.
-# Filtering or grouping on those would collapse every journal onto the posting
-# run date. NOTE8 is text so there is no index to hint; sbs 100 is small (one row
-# per journal line) and the owner has confirmed read performance here is a
-# non-issue, so a full scan is accepted deliberately.
+# MANUAL ENTRIES (2026-07-22). The NOTE fields are written by the INTEGRATION
+# POSTER only. Journals the accountant keys directly into Prism on sbs 100
+# (payroll, rent, accruals) have NOTE5/NOTE7/NOTE8 EMPTY — they have no source
+# document at all. They are deliberately INCLUDED here:
+#   * SRC_DOC_SID stays NULL (TO_NUMBER(NOTE7) of NULL) — never faked. NULL
+#     SRC_DOC_SID is exactly how the reporting layer recognises a manual
+#     'Entry' journal (three-way category: Payment / Transaction / Entry).
+#   * SRC_DOC_TYPE falls back to the literal 'Entry' via NVL(NOTE5, 'Entry').
+#   * POST_DATE falls back to TRUNC(D.INVC_POST_DATE): a USER-entered sbs-100
+#     document's own posting date IS its accounting date (the day/month
+#     transposition bug affects only the poster's AL_POST_DATE writes, not
+#     user-entered documents). The final guard keeps out any line where BOTH
+#     dates are missing, because FACT_GL.POST_DATE is NOT NULL.
+#
+# ⚠ THE DATE. For poster-written lines NOTE8 is the ACCOUNTING date and is the
+# only correct one to report on. The sbs-100 document's own INVC_POST_DATE /
+# CREATED_DATETIME is the date the poster RAN — on this server the Jan-2026
+# entries all carry 19-07-2026. Filtering or grouping on those would collapse
+# every poster journal onto the posting run date. NOTE8 is text so there is no
+# index to hint; sbs 100 is small (one row per journal line) and the owner has
+# confirmed read performance here is a non-issue, so a full scan is accepted
+# deliberately.
 def _sql_gl(df, dt):
     return f"""
         SELECT
             DI.SID                                              AS GL_LINE_SID,
             DI.DOC_SID                                          AS GL_DOC_SID,
             TO_CHAR(D.DOC_NO)                                   AS GL_DOC_NO,
-            TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY')      AS POST_DATE,
+            COALESCE(TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY'),
+                     TRUNC(D.INVC_POST_DATE))                   AS POST_DATE,
             TRUNC(NVL(D.INVC_POST_DATE, D.CREATED_DATETIME))    AS GL_POST_DATE,
             DI.INVN_SBS_ITEM_SID                                AS ACCOUNT_SID,
             DI.ALU                                              AS ACCOUNT_CODE,
@@ -895,7 +911,7 @@ def _sql_gl(df, dt):
             DI.NOTE2                                            AS SRC_STORE_CODE,
             TO_NUMBER(DI.NOTE7)                                 AS SRC_DOC_SID,
             DI.NOTE4                                            AS SRC_DOC_NO,
-            DI.NOTE5                                            AS SRC_DOC_TYPE,
+            NVL(DI.NOTE5, 'Entry')                              AS SRC_DOC_TYPE,
             DI.NOTE3                                            AS BP_ID,
             NVL(CASE WHEN DI.ITEM_TYPE = 1 THEN DI.PRICE END, 0)      AS DEBIT,
             NVL(CASE WHEN DI.ITEM_TYPE = 2 THEN DI.PRICE END, 0)      AS CREDIT,
@@ -907,11 +923,13 @@ def _sql_gl(df, dt):
         LEFT JOIN RPS.STORE ST      ON ST.STORE_CODE = DI.NOTE2
                                    AND ST.SBS_SID    = SB.SID
         WHERE DI.SBS_NO = 100
-          AND DI.NOTE8 IS NOT NULL
-          AND DI.NOTE7 IS NOT NULL
-          AND TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY')
+          AND COALESCE(TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY'),
+                       TRUNC(D.INVC_POST_DATE)) IS NOT NULL
+          AND COALESCE(TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY'),
+                       TRUNC(D.INVC_POST_DATE))
                   >= TO_DATE('{df}', 'YYYY-MM-DD')
-          AND TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY')
+          AND COALESCE(TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY'),
+                       TRUNC(D.INVC_POST_DATE))
                   <  TO_DATE('{dt}', 'YYYY-MM-DD') + 1
     """
 # Column order matches FACT_GL exactly (18 cols) — _stream_insert maps positionally.
@@ -920,10 +938,13 @@ def _sql_gl(df, dt):
 # position in the FACT_GL DDL and bump the ncols argument at the _stream_insert
 # call site: a positional mismatch corrupts every GL row silently.
 #
-# The date WINDOW deliberately still filters on the TRANSACTION date (NOTE8).
-# GL_POST_DATE is carried for reporting only — filtering the extract on it would
-# change which rows a given sync window loads, and an incremental run anchored to
-# the posting date would silently skip back-dated journals.
+# The date WINDOW deliberately still filters on the TRANSACTION date (NOTE8,
+# falling back to the document's own INVC_POST_DATE for manual entries — the
+# same COALESCE the POST_DATE column carries, so a row is windowed on exactly
+# the date it is loaded with). GL_POST_DATE is carried for reporting only —
+# filtering the extract on it would change which rows a given sync window
+# loads, and an incremental run anchored to the posting date would silently
+# skip back-dated journals.
 
 
 def _sql_accounts():
@@ -984,13 +1005,27 @@ def _load_accounts(duck, ora):
 def _derive_gl_docs(duck):
     """Rebuild FACT_GL_DOC from FACT_GL — no extra Oracle scan.
 
-    One row per SOURCE document. The poster deliberately splits a single source
-    document into several sbs-100 journals by DOC_TYPE (a sale journal, a
-    payment journal per tender, …) which clear against each other through AR, so
-    balance is only meaningful across ALL journals of a source document —
-    i.e. grouped by SRC_DOC_SID ALONE. Do NOT group by SRC_DOC_TYPE, and do NOT
-    split by store: transfer slips are intentionally +X in the receiving store
-    and -X in the sending store.
+    One row per BALANCE UNIT, keyed COALESCE(SRC_DOC_SID, GL_DOC_SID):
+
+      * Poster journals — the poster deliberately splits a single source
+        document into several sbs-100 journals by DOC_TYPE (a sale journal, a
+        payment journal per tender, …) which clear against each other through
+        AR, so balance is only meaningful across ALL journals of a source
+        document — i.e. grouped by SRC_DOC_SID ALONE. Do NOT group by
+        SRC_DOC_TYPE, and do NOT split by store: transfer slips are
+        intentionally +X in the receiving store and -X in the sending store.
+      * Manual entries (2026-07-22) — the accountant's own journals have NO
+        source document (SRC_DOC_SID IS NULL), so each one falls back to its
+        own GL_DOC_SID: a manual journal must balance WITHIN ITSELF. The two
+        key spaces cannot collide — both SIDs come from the same
+        RPS.DOCUMENT.SID sequence, and a GL document is never anyone's source
+        document.
+
+    The stored SRC_DOC_SID column therefore HOLDS the coalesced key, and every
+    consumer joins it with the same COALESCE (see accounting.py _balanced /
+    _scope_doc). SRC_DOC_NO falls back to GL_DOC_NO the same way, so a manual
+    journal in the exceptions report shows the number the accountant can
+    actually find in Prism.
 
     The 0.01 tolerance absorbs decimal noise only. The poster already plugs any
     document out by <= 0.20 into the Tender Rounding account, so anything that
@@ -998,14 +1033,14 @@ def _derive_gl_docs(duck):
     duck.execute("""
         CREATE OR REPLACE TABLE FACT_GL_DOC AS
         SELECT
-            SRC_DOC_SID,
+            COALESCE(SRC_DOC_SID, GL_DOC_SID)   AS SRC_DOC_SID,
             MIN(POST_DATE)                      AS POST_DATE,
             -- Both bases, so the exceptions report and the balanced gate work
             -- under either one. MIN(): a source document's journals share a
             -- posting run, and where they do not, the earliest is the date the
             -- books first received the document.
             MIN(GL_POST_DATE)                   AS GL_POST_DATE,
-            MIN(SRC_DOC_NO)                     AS SRC_DOC_NO,
+            MIN(COALESCE(SRC_DOC_NO, GL_DOC_NO)) AS SRC_DOC_NO,
             MIN(SRC_STORE_CODE)                 AS SRC_STORE_CODE,
             MIN(STORE_SID)                      AS STORE_SID,
             COUNT(DISTINCT SRC_DOC_TYPE)        AS JOURNALS,
@@ -1013,7 +1048,7 @@ def _derive_gl_docs(duck):
             ROUND(SUM(AMOUNT), 2)               AS NET,
             ABS(ROUND(SUM(AMOUNT), 2)) < 0.01   AS IS_BALANCED
         FROM FACT_GL
-        GROUP BY SRC_DOC_SID
+        GROUP BY COALESCE(SRC_DOC_SID, GL_DOC_SID)
     """)
     bad = duck.execute(
         "SELECT COUNT(*), ROUND(SUM(NET), 2) FROM FACT_GL_DOC WHERE NOT IS_BALANCED"

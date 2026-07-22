@@ -59,7 +59,7 @@ function Kpi({ label, value, delta, sub, invert }: { label: string; value: React
 
 const QUICK_LINKS = [
   { to: '/sales/overview',       label: 'Sales Overview', icon: <DashboardIcon /> },
-  { to: '/sales/journals',       label: 'Journals',       icon: <MenuBookIcon /> },
+  { to: '/sales/journals',       label: 'Invoice Explorer', icon: <MenuBookIcon /> },
   { to: '/inventory/coverage',   label: 'Coverage',       icon: <WarehouseIcon /> },
   { to: '/dimensions/customers', label: 'Customers',      icon: <PeopleIcon /> },
   { to: '/inventory/ledger',     label: 'Ledger',         icon: <AssessmentIcon /> },

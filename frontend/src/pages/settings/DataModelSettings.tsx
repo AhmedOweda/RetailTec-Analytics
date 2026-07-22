@@ -53,7 +53,7 @@ function etaText(s: any): string {
   const remain = (Date.now() / 1000 - s.started_at) * (1 - pct) / pct
   if (remain < 1) return ''
   const m = Math.floor(remain / 60), sec = Math.round(remain % 60)
-  return m > 0 ? `~${m}m ${sec}s left` : `~${sec}s left`
+  return m > 0 ? trf('~{{m}}m {{s}}s left', { m, s: sec }) : trf('~{{s}}s left', { s: sec })
 }
 
 // ── Domain presentation metadata ─────────────────────────────────────────────
@@ -116,7 +116,9 @@ const INCR_OPTIONS = [1, 3, 7, 14, 30]
 const REFR_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 1440]
 // Friendly label for an interval in minutes (e.g. 90 → "1h 30m", 1440 → "24h").
 const everyLabel = (m: number) =>
-  m < 60 ? `${m} min` : (m % 60 === 0 ? `${m / 60}h` : `${Math.floor(m / 60)}h ${m % 60}m`)
+  m < 60 ? trf('{{n}} min', { n: m })
+         : (m % 60 === 0 ? trf('{{n}}h', { n: m / 60 })
+                         : trf('{{n}}h {{m}}m', { n: Math.floor(m / 60), m: m % 60 }))
 
 // ── v2 settings shape (per-domain schedules + retention) ──────────────────────
 export interface ScheduleCfg {
@@ -231,6 +233,89 @@ const SETTINGS_CATS = [
   { i: 3, label: 'Reports & Email',    desc: 'SMTP & schedules' },
   { i: 4, label: 'Maintenance',        desc: 'Backup, compact, about' },
 ]
+
+// ── Logo upload normalization ───────────────────────────────────────────────
+// The logo is stored as a base64 data-URL inside settings.json and rendered
+// small (36 px sidebar, 32 px preview). Raw uploads are often huge squares
+// with the mark floating in a sea of transparent padding — the padding is what
+// made uploaded logos "appear tiny". On pick we therefore: (1) trim the
+// transparent margins (alpha bounding-box scan — a no-op for JPEGs, which
+// have no alpha), (2) downscale to fit within 512×512 (never upscale), and
+// (3) re-encode as PNG to keep transparency. Any failure — decode error,
+// missing canvas, tainted pixels — falls back to storing the file as-is.
+const LOGO_BOX = 512        // stored logo fits within this square (px)
+const LOGO_ALPHA_MIN = 8    // alpha ≤ this counts as transparent when trimming
+
+function readFileAsDataURL(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload  = () => resolve(String(r.result || ''))
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(f)
+  })
+}
+
+async function normalizeLogoFile(f: File): Promise<string> {
+  const original = await readFileAsDataURL(f)
+  // SVG is resolution-independent — rasterizing it would only lose quality.
+  if (f.type === 'image/svg+xml') return original
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload  = () => resolve(el)
+      el.onerror = () => reject(new Error('logo decode failed'))
+      el.src = original
+    })
+    const w = img.naturalWidth, h = img.naturalHeight
+    if (!w || !h) return original
+
+    // Draw full-size once so we can scan for the opaque bounding box.
+    const src = document.createElement('canvas')
+    src.width = w; src.height = h
+    const sctx = src.getContext('2d')
+    if (!sctx) return original
+    sctx.drawImage(img, 0, 0)
+    let left = w, top = h, right = -1, bottom = -1
+    try {
+      const data = sctx.getImageData(0, 0, w, h).data
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++)
+          if (data[(y * w + x) * 4 + 3] > LOGO_ALPHA_MIN) {
+            if (x < left)   left = x
+            if (x > right)  right = x
+            if (y < top)    top = y
+            if (y > bottom) bottom = y
+          }
+    } catch { right = -1 }   // getImageData can throw — just skip trimming
+    if (right < 0) { left = 0; top = 0; right = w - 1; bottom = h - 1 }
+    // Small breathing margin so the crop isn't pixel-tight.
+    const margin = Math.round(Math.max(right - left, bottom - top) * 0.02)
+    left   = Math.max(0, left - margin);      top    = Math.max(0, top - margin)
+    right  = Math.min(w - 1, right + margin); bottom = Math.min(h - 1, bottom + margin)
+    const cw = right - left + 1, ch = bottom - top + 1
+
+    // Fit within the storage box, keeping aspect ratio; never upscale.
+    const scale = Math.min(1, LOGO_BOX / cw, LOGO_BOX / ch)
+    const ow = Math.max(1, Math.round(cw * scale))
+    const oh = Math.max(1, Math.round(ch * scale))
+    const out = document.createElement('canvas')
+    out.width = ow; out.height = oh
+    const octx = out.getContext('2d')
+    if (!octx) return original
+    octx.imageSmoothingEnabled = true
+    octx.imageSmoothingQuality = 'high'
+    octx.drawImage(src, left, top, cw, ch, 0, 0, ow, oh)
+    const png = out.toDataURL('image/png')
+    // PNG re-encode can lose to a well-compressed original (e.g. small JPEG):
+    // if nothing was trimmed or scaled and the PNG is bigger, keep the file.
+    const changed = cw !== w || ch !== h || scale < 1
+    if (!changed && png.length >= original.length) return original
+    // Pathological case guard: photo-style JPEG ballooning as PNG.
+    return png.length < original.length * 4 ? png : original
+  } catch {
+    return original
+  }
+}
 
 export default function DataModelSettings() {
   const qc = useQueryClient()
@@ -556,7 +641,7 @@ export default function DataModelSettings() {
                 <MenuItem key={c.code} value={c.code}>
                   <Box component="span" sx={{ display:'inline-flex', alignItems:'center', gap:1 }}>
                     <Box component="span" sx={{ fontWeight:700, minWidth:28, textAlign:'center' }}><CurrencyMark code={c.code} symbol={c.symbol} /></Box>
-                    {c.name} ({c.code})
+                    {tr(c.name)} ({c.code})
                   </Box>
                 </MenuItem>
               ))}
@@ -570,7 +655,7 @@ export default function DataModelSettings() {
             label={<Typography sx={{ fontSize:12.5, color: 'var(--rt-text-2)' }}>{tr('Show sign on money values')}</Typography>}
           />
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-            {showCurrency ? `e.g. ${currency.symbol} 17.2M` : tr('e.g. 17.2M (no sign)')}
+            {showCurrency ? `${tr('e.g.')} ${currency.symbol} 17.2M` : tr('e.g. 17.2M (no sign)')}
           </Typography>
         </Box>
 
@@ -595,7 +680,7 @@ export default function DataModelSettings() {
             label={<Typography sx={{ fontSize:12.5, color: 'var(--rt-text-2)' }}>{tr('Abbreviate large numbers (1.2M / 340K)')}</Typography>}
           />
           <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-            {abbreviateNumbers ? 'e.g. 1.23M' : `e.g. 1,234,${moneyDecimals === 2 ? '567.89' : '568'}`}
+            {abbreviateNumbers ? `${tr('e.g.')} 1.23M` : `${tr('e.g.')} 1,234,${moneyDecimals === 2 ? '567.89' : '568'}`}
           </Typography>
         </Box>
 
@@ -684,8 +769,8 @@ export default function DataModelSettings() {
               <Box sx={{ display:'flex', alignItems:'center', gap:1.5 }}>
                 {brandLogo
                   ? <Box component="img" src={brandLogo} alt="logo"
-                      sx={{ height:32, maxWidth:120, objectFit:'contain',
-                            bgcolor:'#160b33', px:1, borderRadius:1 }} />
+                      sx={{ height:32, width:'auto', maxWidth:140, objectFit:'contain',
+                            bgcolor:'#160b33', px:1, py:0.5, borderRadius:1 }} />
                   : <Typography sx={{ fontSize:12, color:'#94a3b8' }}>{tr('Default logo')}</Typography>}
                 <Button component="label" variant="outlined" size="small"
                   sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600 }}>
@@ -693,10 +778,11 @@ export default function DataModelSettings() {
                   <input hidden type="file" accept="image/*"
                     onChange={e => {
                       const f = e.target.files?.[0]
+                      e.target.value = ''   // allow re-picking the same file
                       if (!f) return
-                      const reader = new FileReader()
-                      reader.onload = () => setBrandLogo(String(reader.result || ''))
-                      reader.readAsDataURL(f)
+                      // Trim transparent padding + fit within 512×512 (PNG);
+                      // falls back to the raw file if processing fails.
+                      normalizeLogoFile(f).then(setBrandLogo)
                     }} />
                 </Button>
                 {brandLogo && (
@@ -706,6 +792,9 @@ export default function DataModelSettings() {
                   </Button>
                 )}
               </Box>
+              <Typography sx={{ fontSize:10.5, color:'#94a3b8', maxWidth:380, lineHeight:1.5 }}>
+                {tr('Best: a wide PNG with a transparent background, at least 150 px tall. Transparent edges are trimmed and the image is resized automatically.')}
+              </Typography>
             </Box>
           </Box>
         </Box>
@@ -904,7 +993,7 @@ export default function DataModelSettings() {
                 </FormControl>
                 {/* Offering a load that can only return nothing is worse than
                     offering none: it reads as a broken sync. */}
-                <Tooltip title={d.unavailable ? (d.reason || tr('Not available on this server')) : ''}
+                <Tooltip title={d.unavailable ? (d.reason ? tr(d.reason) : tr('Not available on this server')) : ''}
                          placement="top" arrow>
                   <span>
                     <Button variant="outlined" size="small"
@@ -922,7 +1011,7 @@ export default function DataModelSettings() {
               {d.unavailable && (
                 <Typography sx={{ fontSize:11.5, color:'var(--rt-text-2)', mt:0.8 }}>
                   {tr('Not available on this server')}
-                  {d.reason ? ` — ${d.reason}` : ''}
+                  {d.reason ? ` — ${tr(d.reason)}` : ''}
                 </Typography>
               )}
 
@@ -962,7 +1051,7 @@ export default function DataModelSettings() {
               <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:0.8 }}>
                 <CircularProgress size={14} sx={{ color:ACCENT }} />
                 <Typography sx={{ fontSize:13, fontWeight:600, color:ACCENT, flex:1 }}>
-                  {syncState.step}…
+                  {tr(syncState.step)}…
                 </Typography>
                 <Typography sx={{ fontSize:11, color:'#94a3b8' }}>
                   {syncState.total ? Math.round((syncState.done / syncState.total) * 100) : 0}%
@@ -1065,7 +1154,7 @@ export default function DataModelSettings() {
           <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)', textAlign:'right' }}>{tr('Rows')}</Typography>
           {(coverage ?? []).map((c:any) => (
             <Box key={c.domain} sx={{ display:'contents' }}>
-              <Typography sx={{ color: 'var(--rt-text)', fontWeight:600 }}>{c.domain}</Typography>
+              <Typography sx={{ color: 'var(--rt-text)', fontWeight:600 }}>{tr(c.domain)}</Typography>
               <Typography sx={{ color: 'var(--rt-text-2)' }}>{c.from ?? '-'}</Typography>
               <Typography sx={{ color: 'var(--rt-text-2)' }}>{c.to ?? (c.synced_at ? tr('snapshot') : '-')}</Typography>
               <Typography sx={{ color: 'var(--rt-text-2)', textAlign:'right' }}>
@@ -1086,7 +1175,7 @@ export default function DataModelSettings() {
         <Box sx={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <Typography sx={{ fontSize:13, color: 'var(--rt-text-2)' }}>
             {history?.length
-              ? trf('Last run: {{type}} · {{status}}', { type: history[0].run_type, status: history[0].status }) +
+              ? trf('Last run: {{type}} · {{status}}', { type: tr(history[0].run_type), status: tr(history[0].status) }) +
                 (history[0].duration_sec ? ` · ${fmtDur(history[0].duration_sec)}` : '')
               : tr('No sync runs yet.')}
           </Typography>
@@ -1783,7 +1872,7 @@ function ReportsCard() {
                 <FormControl size="small" sx={{ minWidth:230 }}>
                   <Select value={r.type} onChange={e => upd(i, { type: String(e.target.value) })}>
                     {Object.entries(types).map(([k, label]) =>
-                      <MenuItem key={k} value={k}>{label}</MenuItem>)}
+                      <MenuItem key={k} value={k}>{tr(label)}</MenuItem>)}
                   </Select>
                 </FormControl>
               </LabeledCtl>
@@ -1968,9 +2057,9 @@ function AlertsCard() {
 function fmtDur(sec: number | null | undefined): string {
   if (sec == null) return '-'
   const s = Math.round(Number(sec))
-  if (s < 60)   return `${s}s`
-  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
-  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+  if (s < 60)   return trf('{{n}}s', { n: s })
+  if (s < 3600) return trf('{{m}}m {{s}}s', { m: Math.floor(s / 60), s: s % 60 })
+  return trf('{{h}}h {{m}}m', { h: Math.floor(s / 3600), m: Math.floor((s % 3600) / 60) })
 }
 
 
@@ -2043,7 +2132,7 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
             <Typography sx={{ fontWeight:700, color: 'var(--rt-text-2)', textAlign:'right', position:'sticky', top:0, bgcolor: 'var(--rt-surface)' }}>{tr('Duration')}</Typography>
             {rows.map((r: any) => (
               <Box key={r.run_id} sx={{ display:'contents' }}>
-                <Typography sx={{ color: 'var(--rt-text)', fontWeight:600 }}>{r.run_type}</Typography>
+                <Typography sx={{ color: 'var(--rt-text)', fontWeight:600 }}>{tr(r.run_type)}</Typography>
                 <Typography sx={{ color: 'var(--rt-text-2)' }}>{r.triggered_by}</Typography>
                 <Typography sx={{ color:'#64748b', whiteSpace:'nowrap' }}>
                   {(r.date_from ?? '-')} → {(r.date_to ?? '-')}
@@ -2052,7 +2141,7 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
                   {r.started_at ? new Date(r.started_at).toLocaleString('en-GB',
                     { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '-'}
                 </Typography>
-                <Typography sx={{ color:statusColor(r.status), fontWeight:600 }}>{r.status}</Typography>
+                <Typography sx={{ color:statusColor(r.status), fontWeight:600 }}>{tr(r.status)}</Typography>
                 <Typography sx={{ color: 'var(--rt-text-2)', textAlign:'right' }}>{fmtDur(r.duration_sec)}</Typography>
               </Box>
             ))}

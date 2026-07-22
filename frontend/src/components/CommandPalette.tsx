@@ -28,7 +28,7 @@ const PAGES: { to: string; label: string; group: string }[] = [
   { to: '/sales/performance',     label: 'Performance',  group: 'Sales' },
   { to: '/sales/products',        label: 'Products',     group: 'Sales' },
   { to: '/sales/transactions',    label: 'Invoices',     group: 'Sales' },
-  { to: '/sales/journals',        label: 'Journals',     group: 'Sales' },
+  { to: '/sales/journals',        label: 'Invoice Explorer', group: 'Sales' },
   { to: '/purchases/overview',    label: 'Overview',     group: 'Purchases' },
   { to: '/purchases/transactions',label: 'Vouchers',     group: 'Purchases' },
   { to: '/dimensions/stores',     label: 'Stores',       group: 'Dimensions' },

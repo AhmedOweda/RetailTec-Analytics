@@ -26,7 +26,7 @@ import SavedViewsBar from '../../components/SavedViewsBar'
 import DataSlicer, { splitSlicer } from '../../components/DataSlicer'
 import {
   DateBasisToggle, JournalCategoryFilter, DEFAULT_DATE_BASIS,
-  dateBasisLabel, journalCategoryLabel,
+  dateBasisLabel, journalCategoryLabel, restoreJournalCategory,
 } from '../../components/AccountingFilters'
 import type { DateBasis, JournalCategory } from '../../components/AccountingFilters'
 import { AgGridReact } from 'ag-grid-react'
@@ -76,18 +76,22 @@ function BalanceBadge({ value }: { value: any }) {
   )
 }
 
-/** Payment / Entry badge. Derived server-side from the SRC_DOC_TYPE prefix:
- *  'P_*' journals are PAYMENTS (they net to zero by design), the rest are the
- *  transaction ENTRIES. Neutral tokens — this is a classification, not a
- *  pass/fail, so it must not borrow the pos/neg status colours. */
+/** Payment / Transaction / Entry badge. Derived server-side: 'P_*' doc types
+ *  are PAYMENTS (net to zero by design); the rest split on whether a source
+ *  document exists — Transaction (the integration's journals) or Entry (a
+ *  journal a user keyed directly into Prism). Neutral tokens for the two
+ *  integration kinds — a classification, not a pass/fail, so it must not
+ *  borrow the pos/neg status colours; the warn tokens single out MANUAL
+ *  entries, the one kind the integration did not write. */
 function CategoryBadge({ value }: { value: any }) {
   if (!value) return null
-  const payment = String(value) === 'Payment'
+  const v = String(value)
+  const manual = v === 'Entry'
   return (
     <Box sx={{ display: 'inline-flex', px: 1, py: 0.2, borderRadius: 1, fontSize: 11, fontWeight: 700,
-      bgcolor: payment ? 'var(--rt-surface-3)' : 'var(--rt-warn-bg)',
-      color:   payment ? 'var(--rt-text-2)'    : 'var(--rt-warn-fg)' }}>
-      {payment ? tr('Payment') : tr('Entry')}
+      bgcolor: manual ? 'var(--rt-warn-bg)' : 'var(--rt-surface-3)',
+      color:   manual ? 'var(--rt-warn-fg)' : 'var(--rt-text-2)' }}>
+      {tr(v)}
     </Box>
   )
 }
@@ -125,7 +129,8 @@ export default function Journal() {
   // the period the activity belongs to, which is what "January's journals"
   // means to an accountant.
   const [dateBasis, setDateBasis] = useState<DateBasis>(DEFAULT_DATE_BASIS)
-  // '' = all journals; 'payment' / 'entry' narrow to one category.
+  // '' = all journals; 'payment' / 'transaction' / 'entry' narrow to one
+  // category ('entry' = MANUAL journals only, since the 2026-07-22 split).
   const [journalCat, setJournalCat] = useState<JournalCategory>('')
   // The balanced-document gate. OFF by default: the reports show balanced
   // source documents only until the user deliberately opens the gate.
@@ -156,8 +161,10 @@ export default function Journal() {
     if (bpi) setBpSel(bpi.split('|').filter(Boolean).map(id => ({ bp_id: id, bp_name: '' })))
     const db  = sp.get('date_basis')
     if (db === 'transaction' || db === 'posting') setDateBasis(db)
+    // URL values use the NEW taxonomy ('entry' = manual journals): every link
+    // generator ships with this build, so no legacy mapping applies here.
     const jc  = sp.get('journal_category')
-    if (jc === 'payment' || jc === 'entry') setJournalCat(jc)
+    if (jc === 'payment' || jc === 'transaction' || jc === 'entry') setJournalCat(jc)
     const sid = sp.get('src_doc_sid')          // string in, string out
     if (sid) setSelSid(sid)
     const iu = sp.get('include_unbalanced')
@@ -360,8 +367,12 @@ export default function Journal() {
     includeUnbalanced ? tr('Including unbalanced documents') : tr('Balanced documents only')}`
 
   // Saved views: serialise/restore the whole slicer set, gate included.
+  // journalCatV marks the THREE-WAY category taxonomy (2026-07-22): a view
+  // without it predates the split, where 'entry' meant every non-payment
+  // journal — restoreJournalCategory maps that old value to 'transaction'.
   const currentView = { preset, dateFrom, dateTo, stores, subs, accSel, dtSel,
-                        docNo, bpSel, search, includeUnbalanced, dateBasis, journalCat }
+                        docNo, bpSel, search, includeUnbalanced, dateBasis, journalCat,
+                        journalCatV: 2 }
   const applyView = (s: any) => {
     if (!s) return
     setPreset(s.preset ?? ''); setDateFrom(s.dateFrom ?? dateFrom); setDateTo(s.dateTo ?? dateTo)
@@ -379,7 +390,7 @@ export default function Journal() {
     // Views saved before the date basis existed carry neither key — they fall
     // back to the documented defaults, which is exactly how they behaved then.
     setDateBasis(s.dateBasis === 'posting' ? 'posting' : DEFAULT_DATE_BASIS)
-    setJournalCat(s.journalCat === 'payment' || s.journalCat === 'entry' ? s.journalCat : '')
+    setJournalCat(restoreJournalCategory(s.journalCat, s.journalCatV))
   }
 
   const from = total ? page * PAGE_SIZE + 1 : 0

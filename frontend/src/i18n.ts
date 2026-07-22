@@ -24,7 +24,9 @@ const nav_en = {
   'nav./accounting/exceptions': 'GL Exceptions',
   'nav./sales/overview': 'Overview', 'nav./sales/performance': 'Performance',
   'nav./sales/products': 'Products', 'nav./sales/transactions': 'Invoices',
-  'nav./sales/journals': 'Journals',
+  // Renamed from "Journals" 2026-07-22 to avoid clashing with the Accounting
+  // Journal page. The route/permissions key stays /sales/journals.
+  'nav./sales/journals': 'Invoice Explorer',
   'nav./inventory/overview': 'Stock Levels', 'nav./inventory/movement': 'Movement',
   'nav./inventory/transfers': 'Transfers', 'nav./inventory/adjustments': 'Adjustments',
   'nav./inventory/ledger': 'Ledger', 'nav./inventory/coverage': 'Coverage',
@@ -47,7 +49,7 @@ const nav_ar = {
   'nav./accounting/exceptions': 'استثناءات دفتر الأستاذ',
   'nav./sales/overview': 'نظرة عامة', 'nav./sales/performance': 'الأداء',
   'nav./sales/products': 'المنتجات', 'nav./sales/transactions': 'الفواتير',
-  'nav./sales/journals': 'اليومية',
+  'nav./sales/journals': 'مستكشف الفواتير',
   'nav./inventory/overview': 'مستويات المخزون', 'nav./inventory/movement': 'حركة المخزون',
   'nav./inventory/transfers': 'التحويلات', 'nav./inventory/adjustments': 'التسويات',
   'nav./inventory/ledger': 'دفتر المخزون', 'nav./inventory/coverage': 'تغطية المخزون',
@@ -336,6 +338,8 @@ const ar_strings: Record<string, string> = {
   'Default logo': 'الشعار الافتراضي',
   'Upload': 'رفع',
   'Remove': 'إزالة',
+  'Best: a wide PNG with a transparent background, at least 150 px tall. Transparent edges are trimmed and the image is resized automatically.':
+    'الأفضل: صورة PNG عريضة بخلفية شفافة بارتفاع 150 بكسل على الأقل. تُقصّ الحواف الشفافة ويُغيَّر حجم الصورة تلقائيًا.',
   // Automatic maintenance
   'Automatic Maintenance': 'الصيانة التلقائية',
   'Weekly automatic maintenance': 'صيانة تلقائية أسبوعية',
@@ -887,6 +891,9 @@ const ar_strings: Record<string, string> = {
   'GL Exceptions': 'استثناءات دفتر الأستاذ',
   'Journal': 'قيود اليومية',
   'Journals': 'قيود اليومية',
+  // Sales page renamed from "Journals" (2026-07-22) — the 'Journals' key above
+  // stays: it is still used by the Accounting KPI cards as a count label.
+  'Invoice Explorer': 'مستكشف الفواتير',
   'Account Code': 'رمز الحساب', 'Account Name': 'اسم الحساب',
   'Opening': 'الرصيد الافتتاحي', 'Closing': 'الرصيد الختامي',
   'Debit': 'مدين', 'Credit': 'دائن',
@@ -907,8 +914,8 @@ const ar_strings: Record<string, string> = {
 
   // ── Accounting: date basis (transaction vs posting) ──
   'Date basis': 'أساس التاريخ',
-  'Transaction': 'تاريخ العملية',
-  'Posting': 'تاريخ الترحيل',
+  // (the toggle buttons use 'Transaction date' / 'Posting date' — the bare
+  // 'Transaction' key belongs to the journal category below)
   'Transaction date': 'تاريخ العملية',
   'Posting date': 'تاريخ الترحيل',
   'Transaction Date': 'تاريخ العملية',
@@ -916,13 +923,20 @@ const ar_strings: Record<string, string> = {
   'Filter by the date the activity happened': 'التصفية حسب تاريخ حدوث النشاط',
   'Filter by the date the entry reached the books': 'التصفية حسب تاريخ وصول القيد إلى الدفاتر',
 
-  // ── Accounting: journal category (payment vs entry) ──
+  // ── Accounting: journal category (Payment / Transaction / Entry) ──
+  // Three-way since 2026-07-22: Payment = the poster's 'P_*' tender journals,
+  // Transaction = the poster's source-document journals, Entry = MANUAL
+  // journals keyed directly into Prism. NOTE: the bare key 'Transaction'
+  // belongs to this category; the date-basis toggle uses 'Transaction date' /
+  // 'Posting date' instead, so one English key never needs two translations.
   'Journal Category': 'نوع القيد',
   'All': 'الكل',
-  'Payment': 'قيد سداد',
-  'Entry': 'قيد عملية',
-  'Payment journals only': 'قيود السداد فقط',
-  'Transaction entries only': 'قيود العمليات فقط',
+  'Payment': 'دفعة',
+  'Transaction': 'معاملة',
+  'Entry': 'قيد',
+  'Payment journals only': 'قيود الدفعات فقط',
+  'Transaction journals only': 'قيود المعاملات فقط',
+  'Manual entries only': 'القيود اليدوية فقط',
   'All journals': 'جميع القيود',
 
   // ── Accounting: resolved business partner ──
@@ -1237,6 +1251,51 @@ const ar_strings: Record<string, string> = {
   'Discount %': 'نسبة الخصم %',
   'Amount ≥': 'المبلغ ≥',
   'Save Alert Rules': 'حفظ قواعد التنبيهات',
+
+  // ── Settings: Arabic completion sweep (2026-07-22) ──
+  // Left-rail category subtitles
+  'Database, domains, refresh': 'قاعدة البيانات والنطاقات والتحديث',
+  'Currency, language, fields': 'العملة واللغة والحقول',
+  'Provider & model': 'المزوّد والنموذج',
+  'Reports & Email': 'التقارير والبريد الإلكتروني',
+  'SMTP & schedules': 'خادم البريد (SMTP) والجدولة',
+  'Backup, compact, about': 'النسخ الاحتياطي والضغط وحول التطبيق',
+  // Domain row descriptions (Your data)
+  'Daily totals, invoices & line items': 'الإجماليات اليومية والفواتير وبنود الفواتير',
+  'Store-to-store transfer slips': 'سندات التحويل بين الفروع',
+  'Inventory adjustment documents': 'مستندات تسويات المخزون',
+  'On-hand quantity snapshot': 'لقطة الكمية المتوفرة بالمخزون',
+  'Purchase orders & received lines': 'أوامر الشراء والبنود المستلمة',
+  // Full weekday names (report schedules)
+  'Monday': 'الاثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء',
+  'Thursday': 'الخميس', 'Friday': 'الجمعة', 'Saturday': 'السبت', 'Sunday': 'الأحد',
+  // Coverage table domain codes (backend values, translated at render)
+  'sales': 'المبيعات', 'transfers': 'التحويلات', 'adjustments': 'التسويات',
+  'purchases': 'المشتريات', 'inventory_history': 'سجل المخزون',
+  'accounting': 'المحاسبة', 'inventory_snapshot': 'لقطة المخزون',
+  // Sync progress step words from the backend
+  'Starting': 'جارٍ البدء', 'Done': 'تم', 'Error': 'خطأ', 'Not configured': 'غير مضبوط',
+  // Built-in report types (backend labels, translated at render)
+  'Daily sales summary (yesterday)': 'ملخص المبيعات اليومي (الأمس)',
+  'Inventory snapshot (current stock)': 'لقطة المخزون (الرصيد الحالي)',
+  'Purchases summary (last 7 days)': 'ملخص المشتريات (آخر 7 أيام)',
+  // Governance alert rule names (backend labels, translated at render)
+  'Big discount on a line': 'خصم كبير على بند',
+  'Large return': 'مرتجع كبير',
+  // Currency names (Display settings dropdown — stored value stays the code)
+  'Saudi Riyal': 'الريال السعودي', 'UAE Dirham': 'الدرهم الإماراتي',
+  'Qatari Riyal': 'الريال القطري', 'Kuwaiti Dinar': 'الدينار الكويتي',
+  'Bahraini Dinar': 'الدينار البحريني', 'Omani Rial': 'الريال العماني',
+  'US Dollar': 'الدولار الأمريكي', 'Euro': 'اليورو',
+  'e.g.': 'مثال:',
+  // Sync ETA + duration units
+  '~{{m}}m {{s}}s left': 'متبقٍ نحو {{m}} د {{s}} ث',
+  '~{{s}}s left': 'متبقٍ نحو {{s}} ث',
+  '{{n}}h': '{{n}} ساعة',
+  '{{n}}h {{m}}m': '{{n}} س {{m}} د',
+  '{{n}}s': '{{n}} ث',
+  '{{m}}m {{s}}s': '{{m}} د {{s}} ث',
+  '{{h}}h {{m}}m': '{{h}} س {{m}} د',
 }
 
 i18n.use(initReactI18next).init({

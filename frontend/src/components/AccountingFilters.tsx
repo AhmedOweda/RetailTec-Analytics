@@ -17,9 +17,12 @@
  * balanced-document gate.
  *
  * ── JournalCategoryFilter ───────────────────────────────────────────────────
- * Every SRC_DOC_TYPE beginning 'P_' is a PAYMENT journal (and nets to zero by
- * design); the rest are the transaction ENTRIES. Derived server-side; this is
- * just the picker.
+ * THREE-WAY (2026-07-22). Derived server-side; this is just the picker:
+ *   Payment     — SRC_DOC_TYPE beginning 'P_' (nets to zero by design).
+ *   Transaction — has a source document: the integration's Sale / Return /
+ *                 Purchase / Transfer Slips journals.
+ *   Entry       — NO source document: a journal the accountant keyed directly
+ *                 into Prism (payroll, rent, accruals).
  *
  * Both values are sent verbatim as the `date_basis` / `journal_category` query
  * params, which the backend validates against a whitelist — the UI is a
@@ -35,9 +38,22 @@ import { tr } from '../i18n'
 export type DateBasis = 'transaction' | 'posting'
 export const DEFAULT_DATE_BASIS: DateBasis = 'transaction'
 
-/** Payment / Entry / All, matching the backend's _JOURNAL_CATEGORIES keys.
- *  '' means "no filter" and is simply omitted from the request. */
-export type JournalCategory = '' | 'payment' | 'entry'
+/** All / Payment / Transaction / Entry, matching the backend's
+ *  _JOURNAL_CATEGORIES keys. '' means "no filter" and is simply omitted from
+ *  the request. NOTE: before 2026-07-22 'entry' meant "everything that is not
+ *  a payment"; it now means MANUAL entries only — saved views carry a
+ *  journalCatV marker so the old meaning restores as 'transaction'. */
+export type JournalCategory = '' | 'payment' | 'transaction' | 'entry'
+
+/** Restore a saved-view / URL category under the new taxonomy. Views saved
+ *  before the three-way split (no journalCatV marker) used 'entry' to mean
+ *  the integration's transaction journals, so that exact value maps to
+ *  'transaction'; anything unrecognised falls back to All. */
+export function restoreJournalCategory(value: any, marker: any): JournalCategory {
+  if (value === 'payment' || value === 'transaction') return value
+  if (value === 'entry') return marker === 2 ? 'entry' : 'transaction'
+  return ''
+}
 
 /** Shared look for both groups — small, quiet, and unmistakably a choice. */
 const GROUP_SX = {
@@ -78,11 +94,15 @@ export function DateBasisToggle({
         // Ignore a null value: MUI emits it when the active button is clicked
         // again, and there is no meaningful "no basis" state.
         onChange={(_, v) => { if (v) onChange(v as DateBasis) }}>
+        {/* 'Transaction date' / 'Posting date', not the bare words: the bare
+            key 'Transaction' now belongs to the journal CATEGORY (a different
+            Arabic word), and one flat tr() dictionary cannot give one English
+            key two translations. */}
         <ToggleButton value="transaction" title={tr('Filter by the date the activity happened')}>
-          {tr('Transaction')}
+          {tr('Transaction date')}
         </ToggleButton>
         <ToggleButton value="posting" title={tr('Filter by the date the entry reached the books')}>
-          {tr('Posting')}
+          {tr('Posting date')}
         </ToggleButton>
       </ToggleButtonGroup>
     </Box>
@@ -101,8 +121,9 @@ export function JournalCategoryFilter({
         exclusive size="small" value={value} sx={GROUP_SX}
         onChange={(_, v) => onChange((v ?? '') as JournalCategory)}>
         <ToggleButton value="">{tr('All')}</ToggleButton>
-        <ToggleButton value="entry">{tr('Entry')}</ToggleButton>
         <ToggleButton value="payment">{tr('Payment')}</ToggleButton>
+        <ToggleButton value="transaction">{tr('Transaction')}</ToggleButton>
+        <ToggleButton value="entry">{tr('Entry')}</ToggleButton>
       </ToggleButtonGroup>
     </Box>
   )
@@ -115,7 +136,8 @@ export function dateBasisLabel(b: DateBasis): string {
 
 /** Human summary of the active category filter. */
 export function journalCategoryLabel(c: JournalCategory): string {
-  if (c === 'payment') return tr('Payment journals only')
-  if (c === 'entry')   return tr('Transaction entries only')
+  if (c === 'payment')     return tr('Payment journals only')
+  if (c === 'transaction') return tr('Transaction journals only')
+  if (c === 'entry')       return tr('Manual entries only')
   return tr('All journals')
 }
