@@ -26,7 +26,7 @@ import SavedViewsBar from '../../components/SavedViewsBar'
 import DataSlicer, { splitSlicer } from '../../components/DataSlicer'
 import {
   DateBasisToggle, JournalCategoryFilter, DEFAULT_DATE_BASIS,
-  dateBasisLabel, journalCategoryLabel,
+  dateBasisLabel, journalCategoryLabel, restoreJournalCategory,
 } from '../../components/AccountingFilters'
 import type { DateBasis, JournalCategory } from '../../components/AccountingFilters'
 import { AgGridReact } from 'ag-grid-react'
@@ -106,8 +106,10 @@ export default function GeneralLedger() {
     if (iu === 'true' || iu === '1') setIncludeUnbalanced(true)
     const db  = sp.get('date_basis')
     if (db === 'transaction' || db === 'posting') setDateBasis(db)
+    // URL values use the NEW taxonomy ('entry' = manual journals): every link
+    // generator ships with this build, so no legacy mapping applies here.
     const jc  = sp.get('journal_category')
-    if (jc === 'payment' || jc === 'entry') setJournalCat(jc)
+    if (jc === 'payment' || jc === 'transaction' || jc === 'entry') setJournalCat(jc)
     const df = sp.get('date_from'), dt = sp.get('date_to')
     if (df && dt) { winPinned.current = true; setPreset(''); setDateFrom(df); setDateTo(dt) }
   }, [])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -199,8 +201,11 @@ export default function GeneralLedger() {
     accountCsv ? ` · ${tr('Account')} ${accountCsv}` : ''} · ${
     includeUnbalanced ? tr('Including unbalanced documents') : tr('Balanced documents only')}`
 
+  // journalCatV marks the THREE-WAY category taxonomy (2026-07-22): a view
+  // without it predates the split, where 'entry' meant every non-payment
+  // journal — restoreJournalCategory maps that old value to 'transaction'.
   const currentView = { preset, dateFrom, dateTo, stores, subs, accSel,
-                        includeUnbalanced, dateBasis, journalCat }
+                        includeUnbalanced, dateBasis, journalCat, journalCatV: 2 }
   const applyView = (s: any) => {
     if (!s) return
     setPreset(s.preset ?? ''); setDateFrom(s.dateFrom ?? dateFrom); setDateTo(s.dateTo ?? dateTo)
@@ -211,7 +216,7 @@ export default function GeneralLedger() {
     setIncludeUnbalanced(!!s.includeUnbalanced)
     // Absent on views saved before these existed → documented defaults.
     setDateBasis(s.dateBasis === 'posting' ? 'posting' : DEFAULT_DATE_BASIS)
-    setJournalCat(s.journalCat === 'payment' || s.journalCat === 'entry' ? s.journalCat : '')
+    setJournalCat(restoreJournalCategory(s.journalCat, s.journalCatV))
   }
 
   // Optional customisation: the accounting subsidiary (100). Absent → FACT_GL is

@@ -29,9 +29,17 @@ Domain rules (hard-won — do not "improve"):
      `date_basis=posting` windows on FACT_GL.GL_POST_DATE, when the books
      received it. They differ by months on production. Whitelisted, never
      interpolated — see _DATE_BASIS / _date_col.
-  6. `journal_category` is DERIVED, not stored: SRC_DOC_TYPE LIKE 'P\\_%' means
-     a Payment journal (nets to zero by design), anything else is an Entry.
+  6. `journal_category` is DERIVED, not stored, and THREE-WAY (2026-07-22):
+     SRC_DOC_TYPE LIKE 'P\\_%' means a Payment journal (nets to zero by
+     design); anything else WITH a source document (SRC_DOC_SID IS NOT NULL)
+     is a Transaction — the integration's Sale / Return / Purchase / Transfer
+     Slips journals; anything WITHOUT a source document is an Entry — a
+     journal a USER keyed directly into Prism (payroll, rent, accruals).
      See _CATEGORY. Filter values go through _JOURNAL_CATEGORIES, a whitelist.
+     Balance grouping follows the same split: a poster document balances
+     across ALL its journals, a manual Entry balances within its own GL
+     document — FACT_GL_DOC is keyed COALESCE(SRC_DOC_SID, GL_DOC_SID) and
+     every join to it uses the same COALESCE (see _balanced / _scope_doc).
   7. BP_ID is a raw SID and resolves to two DIFFERENT dimensions by journal
      type — vendor on purchases/vouchers, customer on everything else. Always
      LEFT JOINed so an unresolvable partner shows its id, never disappears.
@@ -117,25 +125,37 @@ def _date_col(date_basis: str, alias: str = "G") -> str:
     return f"{alias}.{col}"
 
 
-# ── Journal category: Payment vs Entry ───────────────────────────────────────
-# Verified against live Oracle: every SRC_DOC_TYPE beginning 'P_' is a PAYMENT
-# journal (P_Sale-MADA, P_Sale-Cash, P_Return-Cash, …) and nets to zero; the
-# rest (Sale, Return, Purchase, Transfer Slips) are the transaction entries.
+# ── Journal category: Payment / Transaction / Entry ──────────────────────────
+# THREE-WAY since 2026-07-22 (owner-requested):
+#   Payment     — SRC_DOC_TYPE LIKE 'P_%' (P_Sale-MADA, P_Sale-Cash,
+#                 P_Return-Cash, …); nets to zero by design. Unchanged.
+#   Transaction — has a SOURCE document (SRC_DOC_SID IS NOT NULL) and is not a
+#                 Payment: the integration poster's Sale / Return / Purchase /
+#                 Transfer Slips journals. (These were called 'Entry' under the
+#                 old binary rule.)
+#   Entry       — NO source document (SRC_DOC_SID IS NULL): a journal a USER
+#                 keyed directly into Prism (payroll, rent, accruals). The
+#                 extract loads these with SRC_DOC_TYPE = NVL(NOTE5, 'Entry')
+#                 and never fakes a SRC_DOC_SID, so NULL-ness is authoritative.
 #
-# DERIVED IN SQL, not stored on FACT_GL. Deliberate: it is a pure function of a
-# column we already have, so a stored copy could drift from its source, costs a
+# DERIVED IN SQL, not stored on FACT_GL. Deliberate: it is a pure function of
+# columns we already have, so a stored copy could drift from its source, costs a
 # schema change plus a re-sync to populate, and buys nothing — the CASE is free
 # next to the scan we already do. Defined ONCE here and reused by every query.
-_CATEGORY = ("CASE WHEN G.SRC_DOC_TYPE LIKE 'P\\_%' ESCAPE '\\' "
-             "THEN 'Payment' ELSE 'Entry' END")
+_CATEGORY = ("CASE WHEN G.SRC_DOC_TYPE LIKE 'P\\_%' ESCAPE '\\' THEN 'Payment' "
+             "WHEN G.SRC_DOC_SID IS NOT NULL THEN 'Transaction' "
+             "ELSE 'Entry' END")
 
 # Same whitelist discipline as the date basis: a key, never raw SQL. 'all' (or
-# anything unrecognised) means no filter.
-_JOURNAL_CATEGORIES = {"payment": "Payment", "entry": "Entry"}
+# anything unrecognised) means no filter. 'entry' is deliberately still
+# accepted from old saved views / URLs — it now means MANUAL entries only,
+# which is the owner's stated intent for the word.
+_JOURNAL_CATEGORIES = {"payment": "Payment", "transaction": "Transaction",
+                       "entry": "Entry"}
 
 
 def _category_filter(journal_category: Optional[str]) -> str:
-    """Whitelisted Payment/Entry filter. Returns '' for all / unknown values."""
+    """Whitelisted Payment/Transaction/Entry filter. '' for all / unknown."""
     cat = _JOURNAL_CATEGORIES.get((journal_category or "").strip().lower())
     if not cat:
         return ""
@@ -183,12 +203,23 @@ _FROM = """
 _FROM_BP = _FROM + _BP_JOIN
 
 
+def _doc_key(alias: str = "G") -> str:
+    """The balance-unit key of a FACT_GL line: the SOURCE document for poster
+    journals, the line's OWN GL document for manual entries (SRC_DOC_SID NULL).
+    MUST match how _derive_gl_docs keys FACT_GL_DOC — one definition of the
+    grouping, used identically on both sides of every join."""
+    return f"COALESCE({alias}.SRC_DOC_SID, {alias}.GL_DOC_SID)"
+
+
 def _balanced(include_unbalanced: bool, alias: str = "G") -> str:
-    """The reporting gate — balanced SOURCE documents only, unless asked."""
+    """The reporting gate — balanced balance-units only, unless asked.
+    FACT_GL_DOC.SRC_DOC_SID holds COALESCE(SRC_DOC_SID, GL_DOC_SID), so the
+    join must coalesce the FACT_GL side the same way or manual entries
+    (SRC_DOC_SID NULL) would never match and silently vanish."""
     if include_unbalanced:
         return ""
     return (f" AND EXISTS (SELECT 1 FROM FACT_GL_DOC GD"
-            f" WHERE GD.SRC_DOC_SID = {alias}.SRC_DOC_SID AND GD.IS_BALANCED)")
+            f" WHERE GD.SRC_DOC_SID = {_doc_key(alias)} AND GD.IS_BALANCED)")
 
 
 def _dt(d: date) -> str:
@@ -225,17 +256,19 @@ def _scope_doc(stores: Optional[str], subsidiaries: Optional[str],
                alias: str = "D") -> tuple[str, list]:
     """Same scope, for the FACT_GL_DOC (document-level) queries.
 
-    FACT_GL_DOC deliberately has no SUBSIDIARY_SID — it is a per-source-document
-    roll-up keyed on SRC_DOC_SID. The subsidiary of a document is the subsidiary
-    of its GL lines, so we test that with EXISTS against FACT_GL rather than
-    routing through DIM_STORE (which is NULL, see _scope)."""
+    FACT_GL_DOC deliberately has no SUBSIDIARY_SID — it is a per-balance-unit
+    roll-up whose SRC_DOC_SID column holds COALESCE(SRC_DOC_SID, GL_DOC_SID).
+    The subsidiary of a document is the subsidiary of its GL lines, so we test
+    that with EXISTS against FACT_GL rather than routing through DIM_STORE
+    (which is NULL, see _scope) — coalescing the FACT_GL side with _doc_key so
+    manual entries resolve to the same key the roll-up stored."""
     sf, sp = store_filter(stores, alias="S")
     vals = [s.strip() for s in (subsidiaries or "").split(",") if s.strip()]
     if not vals:
         return sf, sp
     ph = ",".join(["?"] * len(vals))
     subf = (f" AND EXISTS (SELECT 1 FROM FACT_GL GS"
-            f" WHERE GS.SRC_DOC_SID = {alias}.SRC_DOC_SID"
+            f" WHERE {_doc_key('GS')} = {alias}.SRC_DOC_SID"
             f"   AND GS.SUBSIDIARY_SID IN ({ph}))")
     return sf + subf, sp + vals
 
@@ -310,15 +343,18 @@ def gl_journal(
     doc_no:   Optional[str] = Query(None),
     bp:       Optional[str] = Query(None),      # fuzzy: typed free text
     bp_id:    Optional[str] = Query(None),      # exact: '|'-joined BP_ID SIDs
-    journal_category: Optional[str] = Query(None),  # 'payment' | 'entry' | all
+    journal_category: Optional[str] = Query(None),  # 'payment'|'transaction'|'entry'|all
     date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
     include_unbalanced: bool = Query(False),
     search:   str = Query(""),
     limit:    Optional[int] = Query(None, ge=1, le=1000000),
     offset:   int = Query(0, ge=0),
 ):
-    """One row per JOURNAL = (SRC_DOC_SID, SRC_DOC_TYPE). is_balanced is the
-    SOURCE document's flag, so several journals of one document share it."""
+    """One row per JOURNAL = (balance-unit key, SRC_DOC_TYPE), where the key is
+    COALESCE(SRC_DOC_SID, GL_DOC_SID) — the source document for poster
+    journals, the GL document itself for manual entries. is_balanced is the
+    balance-unit's flag, so several journals of one source document share it,
+    while each manual entry carries its own."""
     if _gl_off():
         return {"total": 0, "rows": [], "unavailable": True, "reason": _gl_reason()}
     dcol = _date_col(date_basis)
@@ -332,9 +368,9 @@ def gl_journal(
 
     base = f"""
         {_FROM_BP}
-        LEFT JOIN FACT_GL_DOC GD ON GD.SRC_DOC_SID = G.SRC_DOC_SID
+        LEFT JOIN FACT_GL_DOC GD ON GD.SRC_DOC_SID = {_doc_key()}
         WHERE {where}
-        GROUP BY G.SRC_DOC_SID, G.SRC_DOC_TYPE
+        GROUP BY {_doc_key()}, G.SRC_DOC_TYPE
     """
     total = _q(f"SELECT COUNT(*) FROM (SELECT 1 {base})", params)[0][0]
     lim = f"LIMIT {int(limit)} OFFSET {int(offset)}" if limit else (
@@ -342,7 +378,10 @@ def gl_journal(
     rows = _qdf(f"""
         SELECT MIN(G.POST_DATE)::VARCHAR        AS post_date,
                MIN(G.GL_POST_DATE)::VARCHAR     AS gl_post_date,
-               G.SRC_DOC_SID::VARCHAR           AS src_doc_sid,
+               -- The balance-unit key, NOT the raw column: manual entries have
+               -- no SRC_DOC_SID, and this value is what the lines drill sends
+               -- back, so it must be non-NULL and match the lines filter.
+               {_doc_key()}::VARCHAR            AS src_doc_sid,
                MAX(G.SRC_DOC_NO)                AS src_doc_no,
                G.SRC_DOC_TYPE                   AS src_doc_type,
                MAX({_CATEGORY})                 AS journal_category,
@@ -380,7 +419,7 @@ def gl_journal_lines(
     doc_no:   Optional[str] = Query(None),
     bp:       Optional[str] = Query(None),      # fuzzy: typed free text
     bp_id:    Optional[str] = Query(None),      # exact: '|'-joined BP_ID SIDs
-    journal_category: Optional[str] = Query(None),  # 'payment' | 'entry' | all
+    journal_category: Optional[str] = Query(None),  # 'payment'|'transaction'|'entry'|all
     date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
     include_unbalanced: bool = Query(False),
     search:   str = Query(""),
@@ -395,9 +434,12 @@ def gl_journal_lines(
     where += scf
     # Drill by document id. Compared as VARCHAR: the SID is a BIGINT that loses
     # precision as a JSON number, so the frontend carries it as a string.
+    # Matched on the balance-unit key (_doc_key) because that is what the
+    # journal master emits as src_doc_sid — for a manual entry it is the GL
+    # document's own SID, and the raw SRC_DOC_SID column would never match.
     sids = [t.strip() for t in (src_doc_sid or "").split("|") if t.strip()]
     if sids:
-        where += " AND G.SRC_DOC_SID::VARCHAR IN (" + ",".join(["?"] * len(sids)) + ")"
+        where += f" AND {_doc_key()}::VARCHAR IN (" + ",".join(["?"] * len(sids)) + ")"
         params += sids
     slf, slp = _slicers(account, doc_type, doc_no, bp, search, journal_category,
                         bp_id=bp_id)
@@ -407,7 +449,7 @@ def gl_journal_lines(
     return _qdf(f"""
         SELECT G.POST_DATE::VARCHAR             AS post_date,
                G.GL_POST_DATE::VARCHAR          AS gl_post_date,
-               G.SRC_DOC_SID::VARCHAR           AS src_doc_sid,
+               {_doc_key()}::VARCHAR            AS src_doc_sid,
                G.SRC_DOC_NO                     AS src_doc_no,
                G.SRC_DOC_TYPE                   AS src_doc_type,
                {_CATEGORY}                      AS journal_category,
@@ -496,7 +538,7 @@ def gl_general_ledger(
     stores:       Optional[str] = Depends(scoped_stores),
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     account:  Optional[str] = Query(None),   # comma-separated account codes
-    journal_category: Optional[str] = Query(None),  # 'payment' | 'entry' | all
+    journal_category: Optional[str] = Query(None),  # 'payment'|'transaction'|'entry'|all
     date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
     include_unbalanced: bool = Query(False),
     limit:    Optional[int] = Query(None, ge=1, le=1000000),
@@ -594,9 +636,11 @@ def gl_exceptions(
     date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
     limit:    Optional[int] = Query(None, ge=1, le=1000000),
 ):
-    """Every SOURCE document that does not net to zero across all its journals.
-    Money is never silently dropped: whatever the default gate excludes from the
-    statements shows up here."""
+    """Every balance unit that does not net to zero: a SOURCE document across
+    all its journals, or a MANUAL entry within its own GL document (the
+    src_doc_sid / src_doc_no shown for those are the GL document's own).
+    Money is never silently dropped: whatever the default gate excludes from
+    the statements shows up here."""
     if _gl_off():
         return []
     # FACT_GL_DOC carries BOTH dates, so the exceptions report windows on the
@@ -652,8 +696,9 @@ def gl_search_accounts(q: str = Query(..., min_length=1, max_length=100)):
 def gl_search_doc_types(q: str = Query("", max_length=100),
                         journal_category: Optional[str] = Query(None)):
     """Source-document types actually present in FACT_GL, with a line count so
-    the dropdown shows how common each one is, and the derived Payment/Entry
-    category of each.
+    the dropdown shows how common each one is, and the derived Payment /
+    Transaction / Entry category of each (MAX() per type: a type is uniform in
+    practice — 'P_*' are Payments, NOTE5-less manual lines are all 'Entry').
 
     `q` is OPTIONAL and defaults to '' = RETURN EVERYTHING. That is what turns
     this from a type-ahead into a real dropdown: the slicer opens with the full
@@ -786,7 +831,7 @@ def gl_summary(
     date_to:   date = Query(...),
     stores:       Optional[str] = Depends(scoped_stores),
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
-    journal_category: Optional[str] = Query(None),  # 'payment' | 'entry' | all
+    journal_category: Optional[str] = Query(None),  # 'payment'|'transaction'|'entry'|all
     date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
     include_unbalanced: bool = Query(False),
 ):
@@ -809,8 +854,11 @@ def gl_summary(
         SELECT ROUND(SUM(G.DEBIT), 2)  AS total_debit,
                ROUND(SUM(G.CREDIT), 2) AS total_credit,
                ROUND(SUM(G.AMOUNT), 2) AS difference,
-               COUNT(DISTINCT G.SRC_DOC_SID) AS documents,
-               COUNT(DISTINCT (G.SRC_DOC_SID::VARCHAR || '|'
+               -- Balance-unit key, so manual entries (SRC_DOC_SID NULL) are
+               -- counted one per GL document instead of collapsing into a
+               -- single NULL bucket / vanishing from the distinct count.
+               COUNT(DISTINCT {_doc_key()}) AS documents,
+               COUNT(DISTINCT ({_doc_key()}::VARCHAR || '|'
                                || COALESCE(G.SRC_DOC_TYPE, ''))) AS journals,
                COUNT(*) AS lines,
                COUNT(DISTINCT G.ACCOUNT_CODE) AS accounts_used

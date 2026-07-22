@@ -80,7 +80,7 @@ const SALES_NAV = [
   { to: '/sales/performance',   icon: <TrendingUpIcon />, label: 'Performance'  },
   { to: '/sales/products',      icon: <InventoryIcon  />, label: 'Products'     },
   { to: '/sales/transactions',  icon: <ReceiptLongIcon/>, label: 'Invoices' },
-  { to: '/sales/journals',      icon: <MenuBookIcon    />, label: 'Journals' },
+  { to: '/sales/journals',      icon: <MenuBookIcon    />, label: 'Invoice Explorer' },
 ]
 
 // Accounting — the virtual General Ledger (subsidiary 100). GL Exceptions is
@@ -290,8 +290,12 @@ function SubsidiarySelect() {
 function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) {
   const { t } = useTranslation()
   label = t(`nav.${to}`, label)   // falls back to the English label
+  // `end` = exact-path matching. Without it NavLink treats "/settings" as
+  // active on "/settings/users" and "/settings/audit" too (prefix match),
+  // so BOTH sidebar items lit up at once. Every nav entry is a leaf route,
+  // so exact matching is correct across the board.
   return (
-    <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
+    <NavLink key={to} to={to} end style={{ textDecoration:'none' }}>
       {({ isActive }) => (
         <Box sx={{
           display:'flex', alignItems:'center', gap:1.5,
@@ -434,7 +438,7 @@ export default function AppShell() {
         <Box sx={{ px:2.5, py:2, display:'flex', alignItems:'center', gap:1.5,
                    borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
           <Box component="img" src={brandLogo || '/logo-white.png'} alt={brandName}
-               sx={{ height:36, maxWidth:180, objectFit:'contain' }} />
+               sx={{ height:36, width:'auto', maxWidth:180, objectFit:'contain' }} />
         </Box>
 
         {/* ── Scrollable nav area ─────────────────────────────────────── */}

@@ -760,10 +760,28 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     #   * the sign is carried by ITEM_TYPE: 1 = DEBIT, 2 = CREDIT.
     # AMOUNT below is the signed form (debit positive) so measures just SUM it.
     #
-    # POST_DATE is the ACCOUNTING date, taken from the source document via
-    # NOTE8 - NOT the sbs-100 document's own INVC_POST_DATE, which is the date
-    # the poster ran. Those differ by months (Jan-2026 entries posted 19-Jul);
-    # using the wrong one collapses every journal onto the posting-run date.
+    # THREE KINDS OF JOURNAL live here, derived (never stored) by the routers'
+    # _CATEGORY expression from two columns of this table (2026-07-22):
+    #   Payment     — SRC_DOC_TYPE LIKE 'P_%': the poster's tender journals;
+    #                 net to zero by design.
+    #   Transaction — SRC_DOC_SID IS NOT NULL and not a Payment: the poster's
+    #                 Sale / Return / Purchase / Transfer Slips journals.
+    #   Entry       — SRC_DOC_SID IS NULL: a MANUAL journal the accountant
+    #                 keyed directly into Prism (payroll, rent, accruals). The
+    #                 poster's NOTE fields are absent on those, so the extract
+    #                 loads SRC_DOC_SID/SRC_SBS_NO/SRC_STORE_CODE/SRC_DOC_NO/
+    #                 BP_ID as NULL (never faked), SRC_DOC_TYPE as
+    #                 NVL(NOTE5,'Entry') and POST_DATE from the sbs-100
+    #                 document's own INVC_POST_DATE, which IS trustworthy for
+    #                 user-entered documents. SRC_DOC_SID is therefore
+    #                 deliberately NULLABLE — its NULL-ness is the category.
+    #
+    # POST_DATE is the ACCOUNTING date: for poster journals the source
+    # document's date via NOTE8 — NOT the sbs-100 document's own
+    # INVC_POST_DATE, which is the date the poster ran. Those differ by months
+    # (Jan-2026 entries posted 19-Jul); using the wrong one collapses every
+    # poster journal onto the posting-run date. For manual entries the two
+    # coincide by definition.
     #
     # GL_POST_DATE is that other date, kept DELIBERATELY alongside it: the
     # sbs-100 document's own INVC_POST_DATE = when the entry was migrated into
@@ -794,12 +812,20 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             AMOUNT         DECIMAL(18,4)   DEFAULT 0
         )
     """)
-    # One row per SOURCE document (SRC_DOC_SID), derived locally after each GL
-    # load. IS_BALANCED drives the reporting gate: a source document must net to
-    # zero across ALL of its journals, because the poster deliberately splits
-    # one source document into several by DOC_TYPE and they clear through AR.
-    # Unbalanced documents are excluded from the statements but surfaced by the
-    # GL Exceptions report, so money is never silently dropped.
+    # One row per BALANCE UNIT, derived locally after each GL load. The
+    # SRC_DOC_SID column HOLDS COALESCE(FACT_GL.SRC_DOC_SID, GL_DOC_SID)
+    # (2026-07-22): the source document for poster journals — a source document
+    # must net to zero across ALL of its journals, because the poster
+    # deliberately splits one into several by DOC_TYPE and they clear through
+    # AR — and the GL document itself for MANUAL entries, which have no source
+    # document and must balance within themselves. Both SIDs come from the same
+    # RPS.DOCUMENT.SID sequence, so the key spaces cannot collide and the key
+    # is never NULL (the PRIMARY KEY below stays valid; note _derive_gl_docs
+    # rebuilds this table with CREATE OR REPLACE ... AS, so no migration was
+    # needed for the key change). Every consumer must join it through the
+    # routers' _doc_key() COALESCE. IS_BALANCED drives the reporting gate;
+    # unbalanced units are excluded from the statements but surfaced by the GL
+    # Exceptions report, so money is never silently dropped.
     con.execute("""
         CREATE TABLE IF NOT EXISTS FACT_GL_DOC (
             SRC_DOC_SID    BIGINT          PRIMARY KEY,
