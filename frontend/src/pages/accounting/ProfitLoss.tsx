@@ -37,7 +37,7 @@ import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import TitleLoader from '../../components/TitleLoader'
 import FeatureUnavailable from '../../components/FeatureUnavailable'
-import { DateBasisToggle, DEFAULT_DATE_BASIS, dateBasisLabel } from '../../components/AccountingFilters'
+import { DateBasisToggle, DEFAULT_DATE_BASIS, dateBasisLabel, useAccountingDefaults } from '../../components/AccountingFilters'
 import type { DateBasis } from '../../components/AccountingFilters'
 import { useAuth } from '../../contexts/AuthContext'
 import { useFeature, FEATURE_ACCOUNTING } from '../../hooks/useFeatures'
@@ -149,6 +149,8 @@ export default function ProfitLoss() {
   const [subs,     setSubs]     = useState<{ sid: string; name: string }[]>([])
   const [includeUnbalanced, setIncludeUnbalanced] = useState(false)
   const [dateBasis, setDateBasis] = useState<DateBasis>(DEFAULT_DATE_BASIS)
+  // Admin-configured report defaults (Settings → Accounting) as initial state
+  useAccountingDefaults(setDateBasis, setIncludeUnbalanced)
   const winPinned = useRef(false)
   useGlDefaultWindow(winPinned, (f, t) => { setPreset(''); setDateFrom(f); setDateTo(t) })
 

@@ -33,7 +33,7 @@ import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import TitleLoader from '../../components/TitleLoader'
 import FeatureUnavailable from '../../components/FeatureUnavailable'
-import { DateBasisToggle, DEFAULT_DATE_BASIS, dateBasisLabel } from '../../components/AccountingFilters'
+import { DateBasisToggle, DEFAULT_DATE_BASIS, dateBasisLabel, useAccountingDefaults } from '../../components/AccountingFilters'
 import type { DateBasis } from '../../components/AccountingFilters'
 import { useFeature, FEATURE_ACCOUNTING } from '../../hooks/useFeatures'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
@@ -72,6 +72,8 @@ export default function BalanceSheet() {
   const [subs,   setSubs]   = useState<{ sid: string; name: string }[]>([])
   const [includeUnbalanced, setIncludeUnbalanced] = useState(false)
   const [dateBasis, setDateBasis] = useState<DateBasis>(DEFAULT_DATE_BASIS)
+  // Admin-configured report defaults (Settings → Accounting) as initial state
+  useAccountingDefaults(setDateBasis, setIncludeUnbalanced)
   // Open on the GL's own loaded end date — "today" is routinely past the
   // loaded period, which reads as an empty sheet on a healthy warehouse.
   const winPinned = useRef(false)

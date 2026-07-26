@@ -1,7 +1,7 @@
 /**
  * Data Model Settings — admin panel
  */
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { CurrencyMark } from '../../components/RiyalSign'
 import SendHistoryDialog from '../../components/SendHistoryDialog'
 import HistoryIcon2 from '@mui/icons-material/History'
@@ -30,8 +30,11 @@ import FolderIcon       from '@mui/icons-material/Folder'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import ArrowUpwardIcon  from '@mui/icons-material/ArrowUpward'
 import InsightsIcon   from '@mui/icons-material/Insights'
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
+import ContactPageIcon    from '@mui/icons-material/ContactPage'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
+import DataSlicer from '../../components/DataSlicer'
 import { useAppSettings, CURRENCIES, type ProductCodeField } from '../../context/AppSettings'
 import { ITEM_FIELDS, itemFieldLabel } from '../../utils/itemFields'
 import { setSubsidiary } from '../../state/subsidiary'
@@ -231,6 +234,7 @@ const SETTINGS_CATS = [
   { i: 1, label: 'Display',            desc: 'Currency, language, fields' },
   { i: 2, label: 'AI Assistant',       desc: 'Provider & model' },
   { i: 3, label: 'Reports & Email',    desc: 'SMTP & schedules' },
+  { i: 5, label: 'Accounting',         desc: 'Class roles, AR/AP, defaults' },
   { i: 4, label: 'Maintenance',        desc: 'Backup, compact, about' },
 ]
 
@@ -492,10 +496,15 @@ export default function DataModelSettings() {
   }, [dm.domains, features, licDomains])
 
   // Settings categories under this license: the AI Assistant and Reports &
-  // Email sections do not exist when their domains are unlicensed.
+  // Email sections do not exist when their domains are unlicensed. The
+  // Accounting section additionally needs the accounting CUSTOMISATION on the
+  // server (fails open while /api/features loads, like every capability
+  // check on this page).
+  const accountingAvailable = features?.[FEATURE_ACCOUNTING]?.available !== false
   const visibleCats = SETTINGS_CATS.filter(c =>
     (c.i !== 2 || domainLicensed(licDomains, 'ai')) &&
-    (c.i !== 3 || domainLicensed(licDomains, 'reports')))
+    (c.i !== 3 || domainLicensed(licDomains, 'reports')) &&
+    (c.i !== 5 || (domainLicensed(licDomains, 'accounting') && accountingAvailable)))
   // If the license narrows while a hidden tab is open, fall back to tab 0.
   useEffect(() => {
     if (!visibleCats.some(c => c.i === tab)) setTab(0)
@@ -1238,6 +1247,13 @@ export default function DataModelSettings() {
       {/* ── Governance alert emails (auto digest) ─────────────────── */}
       <AlertsCard />
       </Box>{/* end Tab 3 */}
+
+      {/* ── Tab 5: Accounting (license + customisation gated) ── */}
+      {visibleCats.some(c => c.i === 5) && (
+        <Box sx={{ display: tab === 5 ? 'block' : 'none' }}>
+          <AccountingCard />
+        </Box>
+      )}{/* end Tab 5 */}
 
         </Box>{/* end content column */}
       </Box>{/* end rail + content row */}
@@ -2155,4 +2171,237 @@ function SyncHistoryDialog({ open, onClose, history, refetch, fetching }: {
       </DialogContent>
     </Dialog>
   )
+}
+
+// ── Accounting settings (Settings → Accounting, 2026-07-26) ─────────────────
+// Rendered only when the accounting license domain AND the accounting
+// customisation are available (gated in visibleCats). Everything here
+// persists in settings.json → accounting via the two admin-gated PUTs:
+//   PUT /api/accounting/class-roles — role overrides (the statement pages'
+//     own endpoint, reused verbatim)
+//   PUT /api/accounting/settings    — receivable/payable account lists +
+//     report defaults
+const ACCOUNT_ROLES: { v: string; l: string }[] = [
+  { v: 'asset',     l: 'Asset' },
+  { v: 'liability', l: 'Liability' },
+  { v: 'equity',    l: 'Equity' },
+  { v: 'revenue',   l: 'Revenue' },
+  { v: 'cost',      l: 'Cost' },
+]
+
+function AccountingCard() {
+  const qc = useQueryClient()
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn:  () => axios.get('/api/settings').then(r => r.data),
+    staleTime: 60_000,
+  })
+  const { data: status } = useQuery({
+    queryKey: ['acc-status'],
+    queryFn:  () => axios.get('/api/accounting/status').then(r => r.data),
+    retry: false,
+  })
+  const { data: classRoles = [] } = useQuery<any[]>({
+    queryKey: ['acc-class-roles'],
+    queryFn:  () => axios.get('/api/accounting/class-roles').then(r => r.data),
+    retry: false,
+  })
+
+  // ── Class-role overrides (saved per change — the same PUT the pages use) ──
+  const [savingCls, setSavingCls] = useState<string | null>(null)
+  const putRole = async (cls: string, role: string) => {
+    setSavingCls(cls)
+    try {
+      await axios.put('/api/accounting/class-roles',
+        { class_roles: { [cls]: role || null } })
+      await qc.invalidateQueries({ queryKey: ['acc-class-roles'] })
+      await qc.invalidateQueries({ queryKey: ['acc-status'] })
+    } finally { setSavingCls(null) }
+  }
+
+  // ── Receivable / payable lists + report defaults ──
+  const accTok = (o: any) => (typeof o === 'string' ? o : String(o?.account_code ?? ''))
+  const [recv, setRecv] = useState<string[]>([])
+  const [pay,  setPay]  = useState<string[]>([])
+  const [defBasis, setDefBasis] = useState<'transaction' | 'posting'>('transaction')
+  const [defUnbal, setDefUnbal] = useState(false)
+  const seeded = useRef(false)
+  useEffect(() => {
+    // Seed once from the EFFECTIVE values (status carries the lists after
+    // defaults, so the UI never duplicates the backend's default constants).
+    if (seeded.current || !status || !settings) return
+    seeded.current = true
+    setRecv((status.receivable_accounts ?? []).map(String))
+    setPay((status.payable_accounts ?? []).map(String))
+    const acc = settings?.accounting || {}
+    if (acc.default_date_basis === 'posting') setDefBasis('posting')
+    setDefUnbal(!!acc.default_include_unbalanced)
+  }, [status, settings])
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  const saveAcct = useMutation({
+    mutationFn: () => axios.put('/api/accounting/settings', {
+      receivable_accounts: recv.filter(Boolean),
+      payable_accounts:    pay.filter(Boolean),
+      default_date_basis:  defBasis,
+      default_include_unbalanced: defUnbal,
+    }),
+    onSuccess: () => {
+      setSaveMsg(tr('Settings saved'))
+      qc.invalidateQueries({ queryKey: ['settings'] })
+      qc.invalidateQueries({ queryKey: ['acc-status'] })
+      qc.invalidateQueries({ queryKey: ['acc-aging'] })
+    },
+    onError: (e: any) =>
+      setSaveMsg(e?.response?.data?.detail?.toString?.() ?? tr('Save failed')),
+  })
+  const saveBtn = (
+    <Box sx={{ display:'flex', alignItems:'center', gap:1.5, mt:2 }}>
+      <Button variant="contained" size="small" disabled={saveAcct.isPending}
+        onClick={() => { setSaveMsg(null); saveAcct.mutate() }}
+        sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, boxShadow:'none',
+              '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
+        {saveAcct.isPending ? tr('Saving…') : tr('Save Accounting Settings')}
+      </Button>
+      {saveMsg && <Typography sx={{ fontSize:12, fontWeight:600,
+        color: saveMsg === tr('Settings saved') ? '#16a34a' : 'var(--rt-neg-fg)' }}>{saveMsg}</Typography>}
+    </Box>
+  )
+
+  const unclassified = status?.unclassified_accounts ?? 0
+  const roleSrcColor: Record<string, string> = {
+    auto: '#16a34a', override: ACCENT, unmapped: '#f59e0b',
+  }
+
+  return (<>
+    {/* ── Status block ── */}
+    <SectionCard title="Accounting Status" icon={<InfoOutlinedIcon />}>
+      <Box sx={{ display:'grid', gridTemplateColumns:{ xs:'1fr 1fr', md:'repeat(4, 1fr)' },
+                 rowGap:1.2, columnGap:2, fontSize:12.5 }}>
+        <Box>
+          <Typography sx={{ fontSize:11, fontWeight:700, color:'var(--rt-text-2)', textTransform:'uppercase', letterSpacing:0.6 }}>{tr('GL Lines')}</Typography>
+          <Typography sx={{ fontSize:15, fontWeight:700, color:'var(--rt-text)' }}>{(status?.gl_rows ?? 0).toLocaleString()}</Typography>
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize:11, fontWeight:700, color:'var(--rt-text-2)', textTransform:'uppercase', letterSpacing:0.6 }}>{tr('Documents')}</Typography>
+          <Typography sx={{ fontSize:15, fontWeight:700, color:'var(--rt-text)' }}>{(status?.documents ?? 0).toLocaleString()}</Typography>
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize:11, fontWeight:700, color:'var(--rt-text-2)', textTransform:'uppercase', letterSpacing:0.6 }}>{tr('Period')}</Typography>
+          <Typography sx={{ fontSize:13, fontWeight:600, color:'var(--rt-text)' }}>
+            {status?.date_from ? `${status.date_from} → ${status.date_to ?? '-'}` : '-'}
+          </Typography>
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize:11, fontWeight:700, color:'var(--rt-text-2)', textTransform:'uppercase', letterSpacing:0.6 }}>{tr('Last accounting sync')}</Typography>
+          <Typography sx={{ fontSize:13, fontWeight:600, color:'var(--rt-text)' }}>
+            {status?.last_sync ? new Date(status.last_sync).toLocaleString('en-GB',
+              { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '-'}
+          </Typography>
+        </Box>
+      </Box>
+      {unclassified > 0 && (
+        <Box sx={{ mt:1.5, px:1.5, py:1, borderRadius:2,
+                   bgcolor:'rgba(245,158,11,0.10)', border:'1px solid rgba(245,158,11,0.35)' }}>
+          <Typography sx={{ fontSize:12.5, fontWeight:600, color:'var(--rt-warn-fg)' }}>
+            {trf('{{n}} accounts unclassified — place them in the accounting touch menu in Prism', { n: unclassified })}
+          </Typography>
+        </Box>
+      )}
+    </SectionCard>
+
+    {/* ── Class → statement-role mapping ── */}
+    <SectionCard title="Class Roles" icon={<AccountBalanceIcon />}>
+      <Typography sx={{ fontSize:13, color:'var(--rt-text-2)', mb:1 }}>
+        {tr('Every account class with its statement role. Roles drive the Profit & Loss and the Balance Sheet. Changes save immediately.')}
+      </Typography>
+      <Typography sx={{ fontSize:12, color:'var(--rt-text-2)', mb:2 }}>
+        {trf('{{a}} of {{b}}', { a: (status?.classified_accounts ?? 0).toLocaleString(),
+                                 b: (status?.accounts ?? 0).toLocaleString() })} · {tr('Classified accounts')}
+      </Typography>
+      <Box sx={{ display:'grid', gridTemplateColumns:'1.6fr 0.6fr 1fr 0.8fr',
+                 rowGap:0.8, columnGap:2, fontSize:12.5, alignItems:'center', maxWidth:720 }}>
+        <Typography sx={{ fontWeight:700, color:'var(--rt-text-2)' }}>{tr('Class')}</Typography>
+        <Typography sx={{ fontWeight:700, color:'var(--rt-text-2)', textAlign:'right' }}>{tr('Accounts Used')}</Typography>
+        <Typography sx={{ fontWeight:700, color:'var(--rt-text-2)' }}>{tr('Role')}</Typography>
+        <Typography sx={{ fontWeight:700, color:'var(--rt-text-2)' }}>{tr('Source')}</Typography>
+        {classRoles.map((r: any) => (
+          <Box key={r.class} sx={{ display:'contents' }}>
+            <Typography sx={{ color:'var(--rt-text)', fontWeight:600 }}>{r.class}</Typography>
+            <Typography sx={{ color:'var(--rt-text-2)', textAlign:'right' }}>{(r.accounts ?? 0).toLocaleString()}</Typography>
+            <Select size="small" value={r.role ?? ''} disabled={savingCls === r.class}
+              onChange={e => putRole(r.class, String(e.target.value))}
+              displayEmpty sx={{ fontSize:12.5, height:30 }}>
+              <MenuItem value="" sx={{ fontSize:12.5 }}>{tr('Unclassified')}</MenuItem>
+              {ACCOUNT_ROLES.map(o => (
+                <MenuItem key={o.v} value={o.v} sx={{ fontSize:12.5 }}>{tr(o.l)}</MenuItem>
+              ))}
+            </Select>
+            <Typography sx={{ fontSize:11.5, fontWeight:700,
+                              color: roleSrcColor[r.source] ?? 'var(--rt-text-2)' }}>
+              {savingCls === r.class ? tr('Saving…') : tr(r.source)}
+            </Typography>
+          </Box>
+        ))}
+        {classRoles.length === 0 && (
+          <Typography sx={{ gridColumn:'1 / -1', color:'#94a3b8', py:1.5 }}>
+            {tr('No data to display')}
+          </Typography>
+        )}
+      </Box>
+    </SectionCard>
+
+    {/* ── Receivable / payable control accounts ── */}
+    <SectionCard title="Receivable & Payable Accounts" icon={<ContactPageIcon />}>
+      <Typography sx={{ fontSize:13, color:'var(--rt-text-2)', mb:2 }}>
+        {tr('Used by AR/AP Aging to identify partner balances: only lines on these accounts count as a partner’s receivable or payable balance. Clear a list to fall back to class-role matching.')}
+      </Typography>
+      <Box sx={{ display:'flex', flexDirection:'column', gap:2, maxWidth:560 }}>
+        <LabeledCtl label="Receivable accounts">
+          <DataSlicer sx={{ width:'100%' }} value={recv}
+            onChange={(v: any[]) => setRecv(v.map(accTok).filter(Boolean))}
+            searchEndpoint="/api/accounting/search/accounts"
+            getToken={accTok} placeholder="Account (code / name)"
+            renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
+              : { code: String(o.account_code ?? ''),
+                  rest: [o.name_en, o.name_ar].filter(Boolean).join(' | ') })} />
+        </LabeledCtl>
+        <LabeledCtl label="Payable accounts">
+          <DataSlicer sx={{ width:'100%' }} value={pay}
+            onChange={(v: any[]) => setPay(v.map(accTok).filter(Boolean))}
+            searchEndpoint="/api/accounting/search/accounts"
+            getToken={accTok} placeholder="Account (code / name)"
+            renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
+              : { code: String(o.account_code ?? ''),
+                  rest: [o.name_en, o.name_ar].filter(Boolean).join(' | ') })} />
+        </LabeledCtl>
+      </Box>
+      {saveBtn}
+    </SectionCard>
+
+    {/* ── Report defaults ── */}
+    <SectionCard title="Report Defaults" icon={<TuneIcon />}>
+      <Typography sx={{ fontSize:13, color:'var(--rt-text-2)', mb:2 }}>
+        {tr('The accounting pages open with these defaults. Links that carry their own parameters still win.')}
+      </Typography>
+      <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap', rowGap:1.5 }}>
+        <LabeledCtl label="Default date basis">
+          <ToggleButtonGroup exclusive size="small" value={defBasis}
+            onChange={(_, v) => { if (v) setDefBasis(v) }}
+            sx={{ '& .MuiToggleButton-root': { px:2, fontWeight:700, fontSize:12, textTransform:'none' },
+                  '& .Mui-selected': { bgcolor:`${ACCENT}18 !important`, color:`${ACCENT} !important` } }}>
+            <ToggleButton value="transaction">{tr('Transaction date')}</ToggleButton>
+            <ToggleButton value="posting">{tr('Posting date')}</ToggleButton>
+          </ToggleButtonGroup>
+        </LabeledCtl>
+        <FormControlLabel sx={{ ml:1 }}
+          control={<Switch size="small" checked={defUnbal}
+            onChange={e => setDefUnbal(e.target.checked)}
+            sx={{ '& .Mui-checked': { color: ACCENT },
+                  '& .Mui-checked + .MuiSwitch-track': { bgcolor: `${ACCENT} !important` } }} />}
+          label={<Typography sx={{ fontSize:13, fontWeight:600 }}>{tr('Include unbalanced documents by default')}</Typography>} />
+      </Box>
+      {saveBtn}
+    </SectionCard>
+  </>)
 }

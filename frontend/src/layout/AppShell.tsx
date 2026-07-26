@@ -2,7 +2,7 @@
  * AppShell — persistent sidebar + header + page outlet
  * Same dark-purple theme as the original dashboard.
  */
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import CommandPalette from '../components/CommandPalette'
 import {
@@ -44,6 +44,8 @@ import BalanceIcon        from '@mui/icons-material/Balance'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
 import ReportProblemIcon  from '@mui/icons-material/ReportProblem'
+import ContactPageIcon    from '@mui/icons-material/ContactPage'
+import HourglassBottomIcon from '@mui/icons-material/HourglassBottom'
 import DarkModeIcon       from '@mui/icons-material/DarkModeOutlined'
 import LightModeIcon      from '@mui/icons-material/LightModeOutlined'
 import { useAppSettings } from '../context/AppSettings'
@@ -92,6 +94,8 @@ const ACCOUNTING_NAV = [
   { to: '/accounting/trial-balance',  icon: <BalanceIcon        />, label: 'Trial Balance'  },
   { to: '/accounting/profit-loss',    icon: <TrendingUpIcon     />, label: 'Profit & Loss'  },
   { to: '/accounting/balance-sheet',  icon: <AccountBalanceWalletIcon />, label: 'Balance Sheet' },
+  { to: '/accounting/bp-statement',   icon: <ContactPageIcon    />, label: 'BP Statement'   },
+  { to: '/accounting/aging',          icon: <HourglassBottomIcon />, label: 'Aging'          },
   { to: '/accounting/general-ledger', icon: <AccountBalanceIcon />, label: 'General Ledger' },
   { to: '/accounting/exceptions',     icon: <ReportProblemIcon  />, label: 'GL Exceptions'  },
 ]
@@ -118,6 +122,16 @@ const INVENTORY_NAV = [
   { to: '/inventory/ledger',      icon: <AssessmentIcon        />, label: 'Ledger'    },
   { to: '/inventory/history',     icon: <HistoryIcon           />, label: 'History'   },
   { to: '/inventory/coverage',   icon: <CalendarViewWeekIcon  />, label: 'Coverage'  },
+]
+
+// Sidebar section ids → the route prefix each one owns. Used by the
+// auto-expand rule: the section containing the current route opens itself.
+const NAV_SECTION_PREFIXES: [string, string][] = [
+  ['sales',      '/sales/'],
+  ['inventory',  '/inventory/'],
+  ['accounting', '/accounting/'],
+  ['purchases',  '/purchases/'],
+  ['dimensions', '/dimensions/'],
 ]
 
 // ── Forced password change: blocks the app while on the default password ───
@@ -367,6 +381,7 @@ export default function AppShell() {
     '/dimensions/items', '/dimensions/vendors',
     '/accounting/journal', '/accounting/trial-balance',
     '/accounting/profit-loss', '/accounting/balance-sheet',
+    '/accounting/bp-statement', '/accounting/aging',
     '/accounting/general-ledger', '/accounting/exceptions',
   ])
   // A nav entry exists only when the LICENSE covers its domain AND the user
@@ -393,12 +408,39 @@ export default function AppShell() {
     }
   }, [location.pathname, allowed, lic, navigate])
 
-  // ── Sidebar section collapse state (all expanded by default) ─────
-  const [salesOpen,      setSalesOpen     ] = useState(true)
-  const [inventoryOpen,  setInventoryOpen ] = useState(true)
-  const [accountingOpen, setAccountingOpen] = useState(true)
-  const [purchasesOpen,  setPurchasesOpen ] = useState(true)
-  const [dimensionsOpen, setDimensionsOpen] = useState(true)
+  // ── Sidebar section collapse state ───────────────────────────────
+  // ALL sections start COLLAPSED (owner request 2026-07-26). Two ways a
+  // section opens:
+  //   1. The user clicks its header — that choice (open OR closed) persists
+  //      in localStorage 'rt_nav_open' and survives reloads.
+  //   2. The section containing the CURRENT route auto-expands, on mount and
+  //      whenever navigation ENTERS the section. Auto-expand only ever ADDS
+  //      an open — it is not persisted and never closes a user's opens.
+  const [navOpen, setNavOpen] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('rt_nav_open') || '{}') }
+    catch { return {} }
+  })
+  const toggleNavSection = (id: string) =>
+    setNavOpen(prev => {
+      const next = { ...prev, [id]: !(prev[id] ?? false) }
+      try { localStorage.setItem('rt_nav_open', JSON.stringify(next)) } catch { /* private mode */ }
+      return next
+    })
+  // Auto-expand the active route's section (add-only; fires on section entry)
+  const prevNavSection = useRef<string | null>(null)
+  useEffect(() => {
+    const hit = NAV_SECTION_PREFIXES.find(([, p]) => location.pathname.startsWith(p))
+    const id = hit?.[0] ?? null
+    if (id && id !== prevNavSection.current)
+      setNavOpen(prev => (prev[id] ? prev : { ...prev, [id]: true }))
+    prevNavSection.current = id
+  }, [location.pathname])
+  // Per-section open flags (default false = collapsed)
+  const salesOpen      = !!navOpen['sales']
+  const inventoryOpen  = !!navOpen['inventory']
+  const accountingOpen = !!navOpen['accounting']
+  const purchasesOpen  = !!navOpen['purchases']
+  const dimensionsOpen = !!navOpen['dimensions']
 
   // ── Whitelabel branding (falls back to the hardcoded defaults) ──
   const { data: brandSettings } = useQuery({
@@ -450,17 +492,20 @@ export default function AppShell() {
                    '&::-webkit-scrollbar':{ width:4 },
                    '&::-webkit-scrollbar-thumb':{ bgcolor:'rgba(255,255,255,0.12)', borderRadius:2 } }}>
 
-          {/* Home dashboard — top link (only when the 'home' domain is licensed) */}
-          {domainLicensed(lic, 'home') && (
+          {/* Home dashboard — top link. Same gate as every other nav entry:
+              the license must cover it AND the user's pages list (General →
+              Home) must allow it. */}
+          {_navOk('/home') && (
             <Box sx={{ px:1.5, pt:1.5 }}>
               <NavItem to="/home" icon={<HomeIcon />} label="Home" />
             </Box>
           )}
 
-          {/* AI Assistant — prominent top link. Requires the 'ai' domain to be
-              licensed; within that, admins ALWAYS see it (so they can reach
-              the setup even while it's off); other users only once enabled. */}
-          {domainLicensed(lic, 'ai') && (asstEnabled || isAdmin) && (
+          {/* AI Assistant — prominent top link. License + per-user page
+              permission (General → Data Analyst), like every other entry;
+              within that, admins ALWAYS see it (so they can reach the setup
+              even while it's off); other users only once enabled. */}
+          {_navOk('/assistant') && (asstEnabled || isAdmin) && (
             <Box sx={{ px:1.5, pt:1.5 }}>
               <NavItem to="/assistant" icon={<InsightsIcon />} label="Data Analyst" />
               <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:0.5, mt:1 }} />
@@ -469,7 +514,7 @@ export default function AppShell() {
 
           {/* Sales section */}
           {salesNav.length > 0 && (<>
-          <Box onClick={() => setSalesOpen(o => !o)} sx={{
+          <Box onClick={() => toggleNavSection('sales')} sx={{
             px:2.5, pt:2.5, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
@@ -491,7 +536,7 @@ export default function AppShell() {
           </>)}
           {/* Inventory section */}
           {inventoryNav.length > 0 && (<>
-          <Box onClick={() => setInventoryOpen(o => !o)} sx={{
+          <Box onClick={() => toggleNavSection('inventory')} sx={{
             px:2.5, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
@@ -513,7 +558,7 @@ export default function AppShell() {
           </>)}
           {/* Accounting section */}
           {accountingNav.length > 0 && (<>
-          <Box onClick={() => setAccountingOpen(o => !o)} sx={{
+          <Box onClick={() => toggleNavSection('accounting')} sx={{
             px:2.5, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
@@ -535,7 +580,7 @@ export default function AppShell() {
           </>)}
           {/* Purchasing section */}
           {purchasesNav.length > 0 && (<>
-          <Box onClick={() => setPurchasesOpen(o => !o)} sx={{
+          <Box onClick={() => toggleNavSection('purchases')} sx={{
             px:2.5, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
@@ -557,7 +602,7 @@ export default function AppShell() {
           </>)}
           {/* Dimensions section */}
           {dimensionsNav.length > 0 && (<>
-          <Box onClick={() => setDimensionsOpen(o => !o)} sx={{
+          <Box onClick={() => toggleNavSection('dimensions')} sx={{
             px:2.5, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },

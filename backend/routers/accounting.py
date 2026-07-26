@@ -10,6 +10,8 @@ Endpoints:
   GET /api/accounting/class-roles      — ACCOUNT_CLASS -> statement role map
   PUT /api/accounting/class-roles      — admin: override a class's role
   GET /api/accounting/general-ledger   — per-account ledger with running balance
+  GET /api/accounting/bp-statement     — one partner's ledger with running balance
+  GET /api/accounting/aging            — AR / AP aging (balance-FIFO buckets)
   GET /api/accounting/exceptions       — source documents that do NOT balance
   GET /api/accounting/search/accounts  — account slicer type-ahead
   GET /api/accounting/search/doc-types — document-type slicer type-ahead
@@ -59,7 +61,7 @@ Security: all free text is bound (?); only FastAPI-validated dates and ints are
 interpolated (EXPERT_REVIEW.md C2). Store/subsidiary scope comes from the JWT
 claims via scoped_stores / scoped_subsidiaries (C1), never from raw Query.
 """
-from datetime import date
+from datetime import date, datetime
 from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -1085,6 +1087,161 @@ def gl_put_class_roles(payload: ClassRolesPut, _admin: dict = Depends(_require_a
     return {"ok": True, "class_roles": stored}
 
 
+# ── Accounting settings (Settings → Accounting) ──────────────────────────────
+# Persisted in settings.json -> accounting, next to class_roles:
+#   receivable_accounts / payable_accounts — the account codes whose lines ARE
+#     a partner's receivable / payable balance. Used by /aging (see gl_aging):
+#     on the real data payment journals stamp the customer BP on BOTH lines,
+#     so filtering by class-ROLE nets payments to zero and overstates balances;
+#     filtering by the configured ACCOUNT list is the correct measure.
+#   default_date_basis / default_include_unbalanced — the INITIAL state the
+#     accounting pages open with (drill-through URL params still win).
+#
+# Defaults: when the key has NEVER been stored the documented default account
+# lists apply; an EXPLICITLY saved empty list means "no account filter" and
+# /aging falls back to the legacy role-based behaviour.
+
+DEFAULT_RECEIVABLE_ACCOUNTS = ["1220.01"]
+DEFAULT_PAYABLE_ACCOUNTS    = ["3100.01"]
+
+
+def _partner_account_codes(ar: bool) -> list:
+    """The effective receivable (ar=True) / payable account-code list.
+    Missing key → the documented default; stored empty list → [] (role
+    fallback); anything malformed degrades to the default."""
+    default = DEFAULT_RECEIVABLE_ACCOUNTS if ar else DEFAULT_PAYABLE_ACCOUNTS
+    try:
+        from services.config import load_settings
+        acct = load_settings().get("accounting") or {}
+    except Exception:
+        return list(default)
+    raw = acct.get("receivable_accounts" if ar else "payable_accounts")
+    if raw is None:
+        return list(default)
+    if not isinstance(raw, list):
+        return list(default)
+    return [str(x).strip() for x in raw if str(x).strip()]
+
+
+class AccountingSettingsPut(BaseModel):
+    # All optional — omitted fields stay unchanged. Lists are stored as sent
+    # (deduplicated, blanks dropped); an empty list is a valid explicit value.
+    receivable_accounts: Optional[list] = None
+    payable_accounts:    Optional[list] = None
+    default_date_basis:  Optional[str] = None    # 'transaction' | 'posting'
+    default_include_unbalanced: Optional[bool] = None
+
+
+def _clean_codes(raw: list) -> list:
+    out, seen = [], set()
+    for x in raw[:200]:                      # sanity cap, not a paging scheme
+        s = str(x).strip()[:40]
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
+@router.put("/api/accounting/settings")
+def gl_put_settings(payload: AccountingSettingsPut,
+                    _admin: dict = Depends(_require_admin)):
+    from services.config import load_settings, save_settings
+    if payload.default_date_basis is not None \
+            and payload.default_date_basis not in _DATE_BASIS:
+        raise HTTPException(status_code=422,
+                            detail=f"default_date_basis must be one of {list(_DATE_BASIS)}")
+    current = load_settings()
+    acct = current.setdefault("accounting", {})
+    changed = []
+    if payload.receivable_accounts is not None:
+        acct["receivable_accounts"] = _clean_codes(payload.receivable_accounts)
+        changed.append(f"receivable={acct['receivable_accounts']}")
+    if payload.payable_accounts is not None:
+        acct["payable_accounts"] = _clean_codes(payload.payable_accounts)
+        changed.append(f"payable={acct['payable_accounts']}")
+    if payload.default_date_basis is not None:
+        acct["default_date_basis"] = payload.default_date_basis
+        changed.append(f"date_basis={payload.default_date_basis}")
+    if payload.default_include_unbalanced is not None:
+        acct["default_include_unbalanced"] = bool(payload.default_include_unbalanced)
+        changed.append(f"include_unbalanced={acct['default_include_unbalanced']}")
+    save_settings(current)
+    record_audit(_admin["username"], "accounting_settings_saved",
+                 ", ".join(changed)[:500])
+    return {"ok": True, "accounting": {
+        "receivable_accounts": _partner_account_codes(True),
+        "payable_accounts":    _partner_account_codes(False),
+        "default_date_basis":  acct.get("default_date_basis", DEFAULT_DATE_BASIS),
+        "default_include_unbalanced": bool(acct.get("default_include_unbalanced", False)),
+    }}
+
+
+@router.get("/api/accounting/status")
+def gl_status():
+    """Small status block for Settings → Accounting: GL size, loaded span,
+    account classification counts, last accounting sync, and the EFFECTIVE
+    receivable / payable account lists (after defaults) so the UI never has
+    to duplicate the backend's default constants."""
+    out = {
+        "unavailable": _gl_off(),
+        "reason": _gl_reason() if _gl_off() else "",
+        "gl_rows": 0, "documents": 0, "date_from": None, "date_to": None,
+        "accounts": 0, "classified_accounts": 0, "unclassified_accounts": 0,
+        "unmapped_classes": 0, "last_sync": None,
+        "receivable_accounts": _partner_account_codes(True),
+        "payable_accounts":    _partner_account_codes(False),
+    }
+    if _gl_off():
+        return out
+    try:
+        r = _qdf("""
+            SELECT COUNT(*) AS n,
+                   COUNT(DISTINCT COALESCE(SRC_DOC_SID, GL_DOC_SID)) AS docs,
+                   MIN(POST_DATE)::VARCHAR AS dfrom,
+                   MAX(POST_DATE)::VARCHAR AS dto
+            FROM FACT_GL G
+        """)[0]
+        out["gl_rows"]   = int(r["n"] or 0)
+        out["documents"] = int(r["docs"] or 0)
+        out["date_from"], out["date_to"] = r["dfrom"], r["dto"]
+    except Exception:
+        pass
+    # Classification: one row per ACCOUNT_CODE (the reports' own granularity).
+    # An account is classified when its class resolves to a role.
+    try:
+        rows = _qdf(f"""
+            SELECT ACCOUNT_CLASS AS cls, COUNT(*) AS accounts
+            FROM {_ACC} A
+            GROUP BY ACCOUNT_CLASS
+        """)
+        total = classified = unmapped_classes = 0
+        for r in rows:
+            n = int(r["accounts"] or 0)
+            total += n
+            role, _src = resolve_class_role(r["cls"])
+            if role:
+                classified += n
+            elif r["cls"] is not None:
+                unmapped_classes += 1
+        out["accounts"] = total
+        out["classified_accounts"] = classified
+        out["unclassified_accounts"] = total - classified
+        out["unmapped_classes"] = unmapped_classes
+    except Exception:
+        pass
+    try:
+        rows = _qdf("""
+            SELECT MAX(finished_at)::VARCHAR AS t
+            FROM SYNC_RUN
+            WHERE status = 'completed'
+              AND (domains IS NULL OR domains = '' OR domains LIKE '%accounting%')
+        """)
+        out["last_sync"] = rows[0]["t"] if rows else None
+    except Exception:
+        pass
+    return out
+
+
 # ── Profit & Loss ────────────────────────────────────────────────────────────
 
 @router.get("/api/accounting/profit-loss")
@@ -1254,4 +1411,334 @@ def gl_balance_sheet(
     out.sort(key=lambda x: (_ROLE_RANK.get(x["role"], 3), x["section_seq"],
                             x["section"] or "", x["group"] or "",
                             x["synthetic"], x["account_code"] or ""))
+    return out
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Business partner reports — BP Statement (كشف حساب) / AR-AP Aging (أعمار الديون)
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ── BP Statement (one partner's ledger with a running balance) ───────────────
+
+@router.get("/api/accounting/bp-statement")
+def gl_bp_statement(
+    bp_id: str = Query(..., min_length=1, max_length=40),
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:       Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
+    date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
+    include_unbalanced: bool = Query(False),
+    limit:    Optional[int] = Query(None, ge=1, le=1000000),
+):
+    """ONE business partner's WHOLE GL relationship inside the window: every
+    line that carries their BP_ID, whatever the account — AR/AP, sales, tax,
+    tender. The statement deliberately does NOT guess which accounts are "the
+    receivable": the partner's full activity is the honest كشف حساب, and the
+    receivable-only view is what /aging is for.
+
+    Synthetic FIRST row: 'Opening Balance', dated date_from, carrying the
+    partner's SUM(AMOUNT) strictly before date_from (all time, same scope and
+    gate) so the running balance starts at the right place — the exact
+    pattern /general-ledger uses per account. Always emitted, even when 0.00:
+    an explicit zero opening is information, not noise.
+
+    `bp_id` is the raw SID, compared as VARCHAR exactly as stored — the only
+    unique partner key (CUST_ID is nullable AND non-unique). It travels as a
+    string because the SID is a BIGINT that loses precision as a JSON number.
+    Guarded for None as well as empty: a scheduled replay (run_grid) calls
+    this function directly, bypassing FastAPI's required-param validation."""
+    if _gl_off() or not (bp_id or "").strip():
+        return []
+    dcol = _date_col(date_basis)
+    # Window ceiling only — everything earlier feeds the opening balance.
+    where = f"{dcol} <= {_dt(date_to)}"
+    where += " AND COALESCE(G.BP_ID,'') = ?"
+    params: list = [bp_id.strip()]
+    scf, sp_ = _scope(stores, subsidiaries)
+    where += scf; params += sp_
+    where += _balanced(include_unbalanced)
+    lim = f"LIMIT {int(limit)}" if limit else ""
+    return _qdf(f"""
+        WITH SCOPED AS (
+            -- POST_DATE is the ACTIVE BASIS date: the opening cut and the
+            -- running balance must use the basis the caller chose, or the
+            -- opening row and the period rows disagree about the window.
+            SELECT {dcol} AS POST_DATE, G.SRC_DOC_NO, G.SRC_DOC_TYPE,
+                   {_CATEGORY} AS JOURNAL_CATEGORY,
+                   G.ACCOUNT_CODE, G.DEBIT, G.CREDIT, G.AMOUNT, G.GL_LINE_SID
+            {_FROM}
+            WHERE {where}
+        ),
+        OPEN_BAL AS (
+            SELECT COALESCE(SUM(AMOUNT), 0) AS AMT FROM SCOPED
+            WHERE POST_DATE < {_dt(date_from)}
+        ),
+        LEDGER AS (
+            SELECT 0 AS SEQ, {_dt(date_from)} AS POST_DATE,
+                   NULL::VARCHAR AS SRC_DOC_NO, 'Opening Balance' AS SRC_DOC_TYPE,
+                   NULL::VARCHAR AS JOURNAL_CATEGORY, NULL::VARCHAR AS ACCOUNT_CODE,
+                   0::DECIMAL(18,4) AS DEBIT, 0::DECIMAL(18,4) AS CREDIT,
+                   O.AMT::DECIMAL(18,4) AS AMOUNT, 0::BIGINT AS GL_LINE_SID
+            FROM OPEN_BAL O
+            UNION ALL
+            SELECT 1, POST_DATE, SRC_DOC_NO, SRC_DOC_TYPE, JOURNAL_CATEGORY,
+                   ACCOUNT_CODE, DEBIT, CREDIT, AMOUNT, GL_LINE_SID
+            FROM SCOPED
+            WHERE POST_DATE >= {_dt(date_from)}
+        )
+        SELECT L.POST_DATE::VARCHAR                  AS post_date,
+               L.SRC_DOC_NO                          AS src_doc_no,
+               L.SRC_DOC_TYPE                        AS src_doc_type,
+               L.JOURNAL_CATEGORY                    AS journal_category,
+               L.ACCOUNT_CODE                        AS account_code,
+               COALESCE(A.NAME_EN, L.ACCOUNT_CODE)   AS account_name,
+               ROUND(L.DEBIT, 2)                     AS debit,
+               ROUND(L.CREDIT, 2)                    AS credit,
+               ROUND(L.AMOUNT, 2)                    AS amount,
+               ROUND(SUM(L.AMOUNT) OVER (
+                   ORDER BY L.SEQ, L.POST_DATE, L.SRC_DOC_NO, L.GL_LINE_SID
+                   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2)
+                                                     AS running_balance
+        FROM LEDGER L
+        LEFT JOIN {_ACC} A ON A.ACCOUNT_CODE = L.ACCOUNT_CODE
+        ORDER BY L.SEQ, L.POST_DATE, L.SRC_DOC_NO, L.GL_LINE_SID
+        {lim}
+    """, params)
+
+
+# ── AR / AP Aging (balance-based, FIFO against the most recent charges) ──────
+# OPEN-ITEM MATCHING DOES NOT EXIST IN THIS GL: the poster clears documents
+# through AR/AP without ever linking a payment line to the invoice line it
+# pays, and manual entries carry no allocation either. True open-item aging is
+# therefore impossible here — this is BALANCE-based aging, the standard
+# fallback: the partner's outstanding balance as of `as_of` is allocated FIFO
+# against their MOST RECENT charges (newest first), so the residue that lands
+# in the old buckets is the part no recent charge can explain. Any balance
+# older than every recorded charge (e.g. an opening imbalance) lands in the
+# oldest bucket — shown, never dropped.
+
+_AGING_MAX_BUCKETS = 6
+
+
+def _parse_bucket_edges(buckets: str) -> list:
+    """Comma-separated ascending day edges, e.g. '30,60,90'. Validated hard
+    (422), not silently defaulted: aging against edges the caller did not ask
+    for is a wrong report, which is worse than no report. Empty → default."""
+    vals = []
+    for tok in (buckets or "").split(","):
+        tok = tok.strip()
+        if not tok:
+            continue
+        if not tok.isdigit():
+            raise HTTPException(status_code=422,
+                                detail=f"buckets: '{tok}' is not a positive integer")
+        vals.append(int(tok))
+    if not vals:
+        return [30, 60, 90]
+    if len(vals) > _AGING_MAX_BUCKETS:
+        raise HTTPException(status_code=422,
+                            detail=f"buckets: at most {_AGING_MAX_BUCKETS} edges")
+    if vals[0] <= 0 or any(b <= a for a, b in zip(vals, vals[1:])):
+        raise HTTPException(status_code=422,
+                            detail="buckets must be strictly increasing positive day counts")
+    return vals
+
+
+def _day(v) -> date:
+    """DuckDB hands back datetime.date for a ::DATE column; be tolerant of
+    datetime / ISO strings anyway (direct calls, test seeds)."""
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    return date.fromisoformat(str(v)[:10])
+
+
+@router.get("/api/accounting/aging")
+def gl_aging(
+    as_of: date = Query(...),
+    side: str = Query("ar", pattern="^(ar|ap)$"),
+    stores:       Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
+    date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
+    include_unbalanced: bool = Query(False),
+    buckets: str = Query("30,60,90"),
+):
+    """One row per partner with an outstanding balance as of `as_of`.
+
+    SIDE (whitelisted, re-checked for direct run_grid calls):
+      ar — CUSTOMER-resolving lines (NOT _BP_IS_VENDOR); the partner owes US,
+           so a DEBIT balance (+SUM(AMOUNT)) is outstanding, shown positive.
+      ap — VENDOR-resolving lines (_BP_IS_VENDOR); WE owe the partner, so a
+           CREDIT balance (−SUM(AMOUNT)) is outstanding, shown positive.
+    Partners whose balance nets to zero or the other sign are omitted — an
+    aging report is a list of what is outstanding, not a partner census (the
+    BP Statement shows any partner's full relationship, either sign).
+
+    ACCOUNT FILTER (2026-07-26 — the correctness fix): partner lines are
+    filtered to the CONFIGURED receivable / payable account codes
+    (settings.json -> accounting.receivable_accounts / payable_accounts;
+    defaults 1220.01 / 3100.01, editable in Settings → Accounting). Why not
+    the class-ROLE filter this endpoint used before: on the real data the
+    payment journals ('P_*') stamp the customer BP on BOTH lines — the tender
+    debit AND the AR credit — so as soon as the tender accounts are classified
+    as Assets, each payment nets to ZERO inside a role filter and every
+    customer balance is overstated by exactly what they already paid. Only
+    the AR/AP control accounts measure the true outstanding balance.
+
+    FALLBACK (kept, documented): when the configured list is EMPTY (an admin
+    explicitly cleared it), the legacy role-based behaviour applies — lines
+    whose class resolves to a role OTHER than the receivable role (asset for
+    ar, liability for ap) are excluded, NULL/unmapped classes are kept. The
+    same filter feeds both the balance and the charge list, so they can never
+    disagree.
+
+    BUCKET COLUMNS (grid-friendly compromise): the response always carries the
+    same five keys — current, d1_30, d31_60, d61_90, d90_plus — because AG
+    Grid / the report engine need stable field names. 'current' is age 0 (a
+    charge dated `as_of` itself); the three middle buckets are shaped by the
+    FIRST THREE edges of `buckets`; anything older than the last used edge
+    falls into d90_plus. Custom edges therefore recompute the same five
+    columns; the headers stay generic. Rounded buckets are reconciled to the
+    rounded balance (cent drift pinned on the oldest non-empty bucket) so
+    balance == current + d1_30 + d31_60 + d61_90 + d90_plus, always."""
+    if _gl_off():
+        return []
+    if side not in ("ar", "ap"):        # direct (non-HTTP) callers bypass the pattern
+        side = "ar"
+    edges = _parse_bucket_edges(buckets)
+    ar = side == "ar"
+    wanted_role = "asset" if ar else "liability"
+
+    dcol = _date_col(date_basis)
+    where = f"{dcol} <= {_dt(as_of)}"
+    where += " AND G.BP_ID IS NOT NULL AND TRIM(G.BP_ID) <> ''"
+    where += f" AND {'NOT ' if ar else ''}{_BP_IS_VENDOR}"
+    scf, params = _scope(stores, subsidiaries)
+    where += scf
+    where += _balanced(include_unbalanced)
+
+    # PRIMARY: the configured AR / AP control-account list (see docstring).
+    # FALLBACK (empty list only): the legacy role filter — classes resolved to
+    # a DIFFERENT role are excluded; NULL / unmapped classes stay in.
+    partner_accounts = _partner_account_codes(ar)
+    if partner_accounts:
+        ph = ",".join(["?"] * len(partner_accounts))
+        where += f" AND G.ACCOUNT_CODE IN ({ph})"
+        params += partner_accounts
+    else:
+        try:
+            cls_rows = _qdf("SELECT DISTINCT ACCOUNT_CLASS AS cls FROM DIM_ACCOUNT"
+                            " WHERE ACCOUNT_CLASS IS NOT NULL")
+        except Exception:
+            cls_rows = []
+        excluded = [r["cls"] for r in cls_rows
+                    if resolve_class_role(r["cls"])[0] not in (None, wanted_role)]
+        if excluded:
+            ph = ",".join(["?"] * len(excluded))
+            where += f" AND (A.ACCOUNT_CLASS IS NULL OR A.ACCOUNT_CLASS NOT IN ({ph}))"
+            params += excluded
+
+    # Side-specific fragments. `sign` flips AP balances positive-when-credit;
+    # `charge` is the side's debt-increasing movement (AR: debits, AP: credits,
+    # both expressed positive). All fixed strings — never caller text.
+    if ar:
+        dim, name_col, code_col = "DIM_CUSTOMER", "FULL_NAME", "CUST_ID::VARCHAR"
+        sign = ""
+        charge = "SUM(CASE WHEN G.AMOUNT > 0 THEN G.AMOUNT ELSE 0 END)"
+    else:
+        dim, name_col, code_col = "DIM_VENDOR", "VEND_NAME", "VEND_CODE"
+        sign = "-"
+        charge = "SUM(CASE WHEN G.AMOUNT < 0 THEN -G.AMOUNT ELSE 0 END)"
+
+    joins = f"""
+        FROM FACT_GL G
+        LEFT JOIN DIM_STORE S ON S.SID = G.STORE_SID
+        LEFT JOIN {_ACC} A ON A.ACCOUNT_CODE = G.ACCOUNT_CODE
+    """
+
+    # 1) Outstanding balance per partner (resolved to a name, LEFT join — an
+    #    unresolvable SID still ages under its raw id, never disappears).
+    bal_rows = _qdf(f"""
+        SELECT G.BP_ID                                    AS bp_id,
+               MAX(COALESCE(BP.{name_col}, G.BP_ID))      AS bp_name,
+               MAX(COALESCE(BP.{code_col}, ''))           AS bp_code,
+               {sign}SUM(G.AMOUNT)                        AS balance
+        {joins}
+        LEFT JOIN {dim} BP ON BP.SID = TRY_CAST(G.BP_ID AS BIGINT)
+        WHERE {where}
+        GROUP BY G.BP_ID
+        HAVING {sign}SUM(G.AMOUNT) > 0.005
+        ORDER BY {sign}SUM(G.AMOUNT) DESC
+    """, params)
+    if not bal_rows:
+        return []
+
+    # 2) The same partners' charges per day (newest first) for the FIFO walk.
+    #    Aggregated per (partner, day): same-day charges share a bucket, so
+    #    the per-day roll-up allocates identically and moves far fewer rows.
+    chg_rows = _qdf(f"""
+        SELECT G.BP_ID       AS bp_id,
+               {dcol}::DATE  AS post_date,
+               {charge}      AS charged
+        {joins}
+        WHERE {where}
+        GROUP BY G.BP_ID, {dcol}::DATE
+        HAVING {charge} > 0
+        ORDER BY G.BP_ID, {dcol}::DATE DESC
+    """, params)
+    charges: dict = {}
+    for r in chg_rows:
+        charges.setdefault(r["bp_id"], []).append((_day(r["post_date"]),
+                                                   float(r["charged"] or 0)))
+
+    # 3) Allocate each balance FIFO against the newest charges. Fixed keys —
+    #    only the FIRST THREE edges shape the middle buckets (see docstring).
+    e1 = edges[0]
+    e2 = edges[1] if len(edges) > 1 else None
+    e3 = edges[2] if len(edges) > 2 else None
+
+    def bucket_key(age_days: int) -> str:
+        if age_days <= 0:
+            return "current"
+        if age_days <= e1:
+            return "d1_30"
+        if e2 is not None and age_days <= e2:
+            return "d31_60"
+        if e3 is not None and age_days <= e3:
+            return "d61_90"
+        return "d90_plus"
+
+    kind = "Customer" if ar else "Supplier"
+    out = []
+    for r in bal_rows:
+        bal = float(r["balance"] or 0)
+        b = {"current": 0.0, "d1_30": 0.0, "d31_60": 0.0,
+             "d61_90": 0.0, "d90_plus": 0.0}
+        remaining = bal
+        for chg_date, amt in charges.get(r["bp_id"], []):     # newest first
+            if remaining <= 0:
+                break
+            take = min(remaining, amt)
+            b[bucket_key((as_of - chg_date).days)] += take
+            remaining -= take
+        if remaining > 0.0:
+            # Balance no recorded charge explains (opening imbalance, or a
+            # later-reversed payment): oldest bucket, shown — never dropped.
+            b["d90_plus"] += remaining
+        row = {"bp_id": r["bp_id"], "bp_name": r["bp_name"],
+               "bp_code": r["bp_code"], "bp_kind": kind,
+               "balance": round(bal, 2)}
+        rb = {k: round(v, 2) for k, v in b.items()}
+        # Reconcile rounding drift so balance == sum of buckets EXACTLY:
+        # the cent lands on the oldest non-empty bucket (else 'current').
+        resid = round(row["balance"] - sum(rb.values()), 2)
+        if abs(resid) >= 0.005:
+            for k in ("d90_plus", "d61_90", "d31_60", "d1_30", "current"):
+                if rb[k] or k == "current":
+                    rb[k] = round(rb[k] + resid, 2)
+                    break
+        row.update(rb)
+        out.append(row)
     return out

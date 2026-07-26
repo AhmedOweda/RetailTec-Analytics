@@ -117,6 +117,8 @@ export default function InventoryHistory() {
   const detailCols = [
     { field: 'action_date',  headerName: 'Date',        flex: 1 },
     { field: 'action_type',  headerName: 'Type',        flex: 0.7,
+      // INSERT / UPDATE are backend data values — translated at render only.
+      valueFormatter: (p: any) => (p.value ? tr(String(p.value)) : ''),
       cellStyle: (p: any) => ({ color: p.value === 'INSERT' ? '#4caf50' : '#2196f3', fontWeight: 600 }) },
     { field: 'store_name',   headerName: 'Store',       flex: 1 },
     ...idCols,
@@ -174,7 +176,8 @@ export default function InventoryHistory() {
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography variant="subtitle1" fontWeight={600}>{tr('Most Active Items')}</Typography>
-            <GridExportBar gridRef={byItemGridRef} filename="history_by_item" title="Inventory History — Most Active Items" />
+            <GridExportBar gridRef={byItemGridRef} filename="history_by_item"
+              title={`${tr('Inventory History')} — ${tr('Most Active Items')}`} />
           </Box>
           <Box className="ag-theme-alpine" sx={{ height: 300 }}>
             <AgGridReact localeText={gridLocaleText()} ref={byItemGridRef} overlayNoRowsTemplate={noRowsOverlay()} rowData={byItem} columnDefs={trCols(itemCols as any[])} defaultColDef={gridDefault} animateRows onGridReady={colsA.onGridReady} onColumnMoved={colsA.onColumnChanged} onColumnResized={colsA.onColumnChanged} onColumnVisible={colsA.onColumnChanged} onColumnPinned={colsA.onColumnChanged} />
@@ -188,7 +191,7 @@ export default function InventoryHistory() {
             <Typography variant="subtitle1" fontWeight={600}>
               {tr('Change Log')} ({details.length.toLocaleString()} {tr('rows')})
             </Typography>
-            <GridExportBar gridRef={detailsGridRef} filename="history_details" title="Inventory History"
+            <GridExportBar gridRef={detailsGridRef} filename="history_details" title={tr('Inventory History')}
               view={tr('Change Log')} filters={`${dateFrom} → ${dateTo} · ${store ? tr('Selected stores') : tr('All stores')}`}
               reportEndpoint="/api/inventory/history/details" reportPeriod="custom" reportParams={params} />
           </Box>

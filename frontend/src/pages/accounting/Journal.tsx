@@ -27,6 +27,7 @@ import DataSlicer, { splitSlicer } from '../../components/DataSlicer'
 import {
   DateBasisToggle, JournalCategoryFilter, DEFAULT_DATE_BASIS,
   dateBasisLabel, journalCategoryLabel, restoreJournalCategory,
+  useAccountingDefaults,
 } from '../../components/AccountingFilters'
 import type { DateBasis, JournalCategory } from '../../components/AccountingFilters'
 import { AgGridReact } from 'ag-grid-react'
@@ -135,6 +136,9 @@ export default function Journal() {
   // The balanced-document gate. OFF by default: the reports show balanced
   // source documents only until the user deliberately opens the gate.
   const [includeUnbalanced, setIncludeUnbalanced] = useState(false)
+  // Admin-configured report defaults (Settings → Accounting) as initial
+  // state; the drill-through URL params below still win.
+  useAccountingDefaults(setDateBasis, setIncludeUnbalanced)
   // Selected journal — the SID stays a STRING (BIGINT precision).
   const [selSid,  setSelSid]  = useState<string | null>(null)
   const [selDocNo, setSelDocNo] = useState<string>('')

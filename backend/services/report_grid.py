@@ -89,6 +89,10 @@ def _registry() -> dict:
         "/api/accounting/profit-loss":  getattr(accounting, "gl_profit_loss", None),
         "/api/accounting/balance-sheet": getattr(accounting, "gl_balance_sheet", None),
         "/api/accounting/general-ledger": getattr(accounting, "gl_general_ledger", None),
+        # bp-statement replays with the partner SID riding params["bp_id"];
+        # aging replays with params["as_of"] / ["side"] / ["buckets"].
+        "/api/accounting/bp-statement": getattr(accounting, "gl_bp_statement", None),
+        "/api/accounting/aging":        getattr(accounting, "gl_aging", None),
         "/api/accounting/exceptions":   getattr(accounting, "gl_exceptions", None),
     }
     return {k: v for k, v in reg.items() if v is not None}

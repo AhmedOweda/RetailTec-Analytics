@@ -33,7 +33,7 @@ import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
 import TitleLoader from '../../components/TitleLoader'
 import FeatureUnavailable from '../../components/FeatureUnavailable'
-import { DateBasisToggle, DEFAULT_DATE_BASIS, dateBasisLabel } from '../../components/AccountingFilters'
+import { DateBasisToggle, DEFAULT_DATE_BASIS, dateBasisLabel, useAccountingDefaults } from '../../components/AccountingFilters'
 import type { DateBasis } from '../../components/AccountingFilters'
 import { useFeature, FEATURE_ACCOUNTING } from '../../hooks/useFeatures'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
@@ -95,6 +95,8 @@ export default function TrialBalance() {
   // the payment journals would not net to zero, which is the one property the
   // report exists to demonstrate.
   const [dateBasis, setDateBasis] = useState<DateBasis>(DEFAULT_DATE_BASIS)
+  // Admin-configured report defaults (Settings → Accounting) as initial state
+  useAccountingDefaults(setDateBasis, setIncludeUnbalanced)
   // True once the window is authoritative (preset chip or manual edit).
   const winPinned = useRef(false)
 
