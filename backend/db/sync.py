@@ -962,6 +962,124 @@ def _sql_accounts():
     """
 
 
+def _sql_account_classes(seq_expr: str = "B.SID"):
+    """Chart-of-accounts CLASSIFICATION from the Prism touch-menu tree (sbs 100).
+
+    The owner maintains the account taxonomy as a touch menu named 'accounting'
+    whose SIX first-level buttons are the classes (Assets, Liabilities, Equity,
+    Purchases, Sales, Expenses — the BUTTON_TEXT verbatim is the taxonomy; we
+    only TRIM it, never translate or normalise). A button either navigates
+    (TARGET_MENU_SID), references an account item (INVN_ITEM_SID -> RPS.
+    INVN_SBS_ITEM.SID), or BOTH — so the walk carries every button row, not
+    just the menu chain, and an item anywhere under a first-level button
+    inherits that button's text as its class.
+
+    ANCHOR ON THE NAME, not a SID: the owner may recreate the menu, but it
+    will always be named 'accounting'. sbs 100 also contains junk root menus
+    ('dada', 'dfr', ...) — walking only from this root avoids them, and when
+    several menus match the name we prefer the one that actually HAS buttons
+    (COUNT desc, then SID for determinism). CYCLE protection is required:
+    Oracle's CYCLE clause stops the recursion instead of erroring on a loop.
+
+    2026-07-26 (P&L / Balance Sheet):
+      * ROOT_SEQ  — the first-level button's ORDER, so the statements can list
+        sections in the customer's own tree order. `seq_expr` is tried as
+        B.BUTTON_SEQ first (the Prism display order) and falls back to B.SID
+        (creation order — deterministic and stable) when that column does not
+        exist on this server. See _fetch_account_classes.
+      * DEPTH/GRP — the LEVEL-2 branch text. A depth-2 button carries its own
+        text as GRP; deeper rows inherit it. The final SELECT only emits GRP
+        for items found at depth >= 3, so an account button sitting directly
+        in a class menu (depth 2 — its text is the ACCOUNT's label, not a
+        group) gets NULL, exactly as agreed with the owner."""
+    return f"""
+        WITH WALK (BTN_SID, MENU_SID, ITEM_SID, ROOT_CLASS, ROOT_SEQ, DEPTH, GRP) AS (
+            SELECT B.SID, B.TARGET_MENU_SID, B.INVN_ITEM_SID, TRIM(B.BUTTON_TEXT),
+                   {seq_expr}, 1, CAST(NULL AS VARCHAR2(4000))
+            FROM RPS.TOUCH_BUTTON B
+            WHERE B.MENU_SID = (
+                SELECT SID FROM (
+                    SELECT M.SID
+                    FROM RPS.TOUCH_MENU M
+                    WHERE M.SBS_SID = (SELECT SID FROM RPS.SUBSIDIARY
+                                       WHERE SBS_NO = 100)
+                      AND LOWER(TRIM(M.MENU_TEXT)) = 'accounting'
+                    ORDER BY (SELECT COUNT(*) FROM RPS.TOUCH_BUTTON X
+                              WHERE X.MENU_SID = M.SID) DESC, M.SID
+                ) WHERE ROWNUM = 1
+            )
+            UNION ALL
+            SELECT B.SID, B.TARGET_MENU_SID, B.INVN_ITEM_SID, W.ROOT_CLASS,
+                   W.ROOT_SEQ, W.DEPTH + 1,
+                   CASE WHEN W.DEPTH = 1 THEN TRIM(B.BUTTON_TEXT) ELSE W.GRP END
+            FROM RPS.TOUCH_BUTTON B
+            JOIN WALK W ON B.MENU_SID = W.MENU_SID
+        ) CYCLE BTN_SID SET IS_CYCLE TO 'Y' DEFAULT 'N'
+        SELECT DISTINCT ITEM_SID, ROOT_CLASS,
+               CASE WHEN DEPTH >= 3 THEN GRP ELSE NULL END,
+               ROOT_SEQ
+        FROM WALK
+        WHERE ITEM_SID IS NOT NULL
+          AND ROOT_CLASS IS NOT NULL
+    """
+
+
+def _fetch_account_classes(ora):
+    """(mapping, conflicts) from the accounting touch-menu tree.
+
+    mapping   — INVN_ITEM_SID -> (class, group, seq):
+                  class — first-level branch text. When an item is reachable
+                          under MORE than one class (a data error the owner
+                          must see) the choice is deterministic: MIN(class).
+                  group — LEVEL-2 branch text (NULL when the account hangs
+                          directly under the class). Deterministic under
+                          conflicts: the MIN non-NULL group of the chosen
+                          class, else NULL.
+                  seq   — the class branch's first-level order (see below).
+    conflicts — multi-class SIDs -> sorted list of the classes found,
+                so the caller can log exactly what is wrong.
+
+    SECTION ORDER: tried with B.BUTTON_SEQ (Prism's display order) first; a
+    server whose TOUCH_BUTTON has no such column raises ORA-00904, and we fall
+    back to B.SID (creation order — stable and deterministic, and in practice
+    the order the owner created the branches in). Any other error propagates
+    to _load_accounts' own tolerance handling."""
+    def _run(seq_expr):
+        cur = ora.cursor()
+        try:
+            cur.execute(_sql_account_classes(seq_expr))
+            return cur.fetchall()
+        finally:
+            cur.close()
+
+    try:
+        rows = _run("B.BUTTON_SEQ")
+    except Exception as e:
+        if "ORA-00904" not in str(e):     # invalid identifier = column absent
+            raise
+        rows = _run("B.SID")
+
+    # sid -> class -> {'groups': set, 'seq': min}
+    by_sid: dict = {}
+    for sid, cls, grp, seq in rows:
+        if sid is None or cls is None:
+            continue
+        per = by_sid.setdefault(sid, {}).setdefault(cls, {"groups": set(), "seq": None})
+        per["groups"].add(grp)
+        if seq is not None:
+            s = int(seq)
+            per["seq"] = s if per["seq"] is None else min(per["seq"], s)
+
+    mapping, conflicts = {}, {}
+    for sid, per_cls in by_sid.items():
+        cls = min(per_cls)                       # deterministic under conflicts
+        groups = sorted(g for g in per_cls[cls]["groups"] if g is not None)
+        mapping[sid] = (cls, groups[0] if groups else None, per_cls[cls]["seq"])
+        if len(per_cls) > 1:
+            conflicts[sid] = sorted(per_cls)
+    return mapping, conflicts
+
+
 def _load_accounts(duck, ora):
     """Refresh DIM_ACCOUNT, preserving the accountant's ACCOUNT_CLASS.
 
@@ -975,23 +1093,75 @@ def _load_accounts(duck, ora):
     if not rows:
         log.warning("DIM_ACCOUNT: source returned 0 rows — keeping existing data (no wipe)")
         return
+
+    # ── ACCOUNT_CLASS from the Prism touch-menu tree (OPTIONAL enhancement) ──
+    # Tolerance mirrors _try_optional, but LOCALLY: a missing TOUCH_MENU /
+    # TOUCH_BUTTON must not fail the sync AND must not mark the whole
+    # accounting feature unavailable — classification is an enhancement, the
+    # GL itself is fine without it. Any other error still propagates.
+    class_map, class_conflicts, tree_available = {}, {}, True
+    try:
+        class_map, class_conflicts = _fetch_account_classes(ora)
+    except SyncCancelled:
+        raise
+    except Exception as e:
+        if not _is_missing_object(e):
+            raise
+        tree_available = False
+        log.warning("ACCOUNT_CLASS: touch-menu tables not available on this "
+                    f"server — classification skipped ({str(e).strip()[:120]})")
+    # CLASS_SEQ: compress the raw first-level order values (BUTTON_SEQ or, on
+    # the fallback path, 18-digit button SIDs) into a small dense rank per
+    # class — stable, fits INTEGER, and identical whichever source ordered it.
+    seq_rank: dict = {}
+    if class_map:
+        by_class: dict = {}
+        for cls, _grp, seq in class_map.values():
+            cur_v = by_class.get(cls)
+            if seq is not None and (cur_v is None or seq < cur_v):
+                by_class[cls] = seq
+            else:
+                by_class.setdefault(cls, cur_v)
+        ordered = sorted(by_class.items(),
+                         key=lambda kv: (kv[1] is None, kv[1] if kv[1] is not None else 0, kv[0]))
+        seq_rank = {cls: i + 1 for i, (cls, _v) in enumerate(ordered)}
+
     duck.execute("BEGIN TRANSACTION")
     try:
-        # ACCOUNT_CLASS is owned by the accountant, not by Retail Pro, so carry
-        # it across the refresh instead of blanking it on every sync.
+        # ACCOUNT_CLASS/GROUP/SEQ are owned by the accountant's tree, not by
+        # Retail Pro's item extract, so carry them across the refresh instead
+        # of blanking them on every sync. DROP+CREATE (not IF NOT EXISTS): the
+        # temp table's shape changed in v7 and a stale same-session copy must
+        # never survive with the old column list.
+        duck.execute("DROP TABLE IF EXISTS _acct_class")
         duck.execute("""
-            CREATE TEMP TABLE IF NOT EXISTS _acct_class AS
-            SELECT SID, ACCOUNT_CLASS FROM DIM_ACCOUNT WHERE ACCOUNT_CLASS IS NOT NULL
+            CREATE TEMP TABLE _acct_class AS
+            SELECT SID, ACCOUNT_CLASS, ACCOUNT_GROUP, CLASS_SEQ
+            FROM DIM_ACCOUNT WHERE ACCOUNT_CLASS IS NOT NULL
         """)
         duck.execute("DELETE FROM DIM_ACCOUNT")
         duck.executemany(
             "INSERT INTO DIM_ACCOUNT (SID, ACCOUNT_CODE, ACCOUNT_KEY, NAME_EN, NAME_AR) "
             "VALUES (?, ?, ?, ?, ?)", rows)
         duck.execute("""
-            UPDATE DIM_ACCOUNT d SET ACCOUNT_CLASS = c.ACCOUNT_CLASS
+            UPDATE DIM_ACCOUNT d SET ACCOUNT_CLASS = c.ACCOUNT_CLASS,
+                                     ACCOUNT_GROUP = c.ACCOUNT_GROUP,
+                                     CLASS_SEQ     = c.CLASS_SEQ
             FROM _acct_class c WHERE c.SID = d.SID
         """)
         duck.execute("DROP TABLE IF EXISTS _acct_class")
+        # PRECEDENCE: a class from the TREE always wins (applied after the
+        # carry-over so it overwrites); accounts absent from the tree keep the
+        # carried manual class; accounts in neither stay NULL. This is exactly
+        # what lets the owner place the missing integration accounts in Prism
+        # and have the next sync pick them up with zero code changes. The
+        # same precedence applies to the level-2 group and the section order.
+        if class_map:
+            duck.executemany(
+                "UPDATE DIM_ACCOUNT SET ACCOUNT_CLASS = ?, ACCOUNT_GROUP = ?, "
+                "CLASS_SEQ = ? WHERE SID = ?",
+                [(cls, grp, seq_rank.get(cls), sid)
+                 for sid, (cls, grp, _seq) in class_map.items()])
         duck.execute("COMMIT")
     except BaseException:
         try:
@@ -999,7 +1169,38 @@ def _load_accounts(duck, ora):
         except Exception:
             pass
         raise
-    log.info(f"DIM_ACCOUNT: {len(rows):,} accounts loaded")
+
+    if class_conflicts:
+        # An account reachable under two first-level classes is a data error
+        # the owner must see; resolved deterministically to MIN(class) above.
+        alu_by_sid = {r[0]: r[1] for r in rows}
+        listing = "; ".join(
+            f"{alu_by_sid.get(sid, sid)} -> {', '.join(classes)} (kept {min(classes)})"
+            for sid, classes in sorted(class_conflicts.items()))
+        log.warning("ACCOUNT_CLASS: %d account(s) reachable under MORE than one "
+                    "class in the accounting touch menu — fix in Prism: %s",
+                    len(class_conflicts), listing)
+    if tree_available and not class_map:
+        log.warning("ACCOUNT_CLASS: no 'accounting' touch menu found in "
+                    "subsidiary 100 (or it references no account items) — "
+                    "existing classifications kept, nothing reclassified")
+
+    classified = duck.execute(
+        "SELECT COUNT(*) FROM DIM_ACCOUNT WHERE ACCOUNT_CLASS IS NOT NULL"
+    ).fetchone()[0]
+    try:
+        gl_unclassified = duck.execute("""
+            SELECT COUNT(DISTINCT G.ACCOUNT_CODE) FROM FACT_GL G
+            LEFT JOIN DIM_ACCOUNT d ON d.SID = G.ACCOUNT_SID
+            WHERE d.ACCOUNT_CLASS IS NULL
+        """).fetchone()[0]
+        gl_note = f"; {gl_unclassified} GL-used account(s) still unclassified"
+    except Exception:
+        gl_note = ""  # FACT_GL not created yet (first-ever sync)
+    tree_n = sum(1 for r in rows if r[0] in class_map)
+    log.info(f"DIM_ACCOUNT: {len(rows):,} accounts loaded; "
+             f"{classified}/{len(rows)} classified "
+             f"({tree_n} from the accounting touch-menu tree){gl_note}")
 
 
 def _derive_gl_docs(duck):

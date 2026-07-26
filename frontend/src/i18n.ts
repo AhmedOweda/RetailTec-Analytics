@@ -20,6 +20,8 @@ const nav_en = {
   'nav.accounting': 'Accounting',
   'nav./accounting/journal': 'Journal',
   'nav./accounting/trial-balance': 'Trial Balance',
+  'nav./accounting/profit-loss': 'Profit & Loss',
+  'nav./accounting/balance-sheet': 'Balance Sheet',
   'nav./accounting/general-ledger': 'General Ledger',
   'nav./accounting/exceptions': 'GL Exceptions',
   'nav./sales/overview': 'Overview', 'nav./sales/performance': 'Performance',
@@ -45,6 +47,8 @@ const nav_ar = {
   'nav.accounting': 'المحاسبة',
   'nav./accounting/journal': 'قيود اليومية',
   'nav./accounting/trial-balance': 'ميزان المراجعة',
+  'nav./accounting/profit-loss': 'الأرباح والخسائر',
+  'nav./accounting/balance-sheet': 'الميزانية العمومية',
   'nav./accounting/general-ledger': 'دفتر الأستاذ العام',
   'nav./accounting/exceptions': 'استثناءات دفتر الأستاذ',
   'nav./sales/overview': 'نظرة عامة', 'nav./sales/performance': 'الأداء',
@@ -911,6 +915,50 @@ const ar_strings: Record<string, string> = {
   'in current filter': 'ضمن التصفية الحالية',
   'Hide zero accounts': 'إخفاء الحسابات الصفرية',
   'Include unbalanced documents': 'تضمين المستندات غير المتوازنة',
+
+  // ── Accounting: chart-of-accounts class (ACCOUNT_CLASS, synced from the
+  //    'accounting' touch menu in Prism). 'Purchases', 'Sales' and 'Class'
+  //    already exist above — DO NOT duplicate them here.
+  'Assets': 'الأصول',
+  'Liabilities': 'الالتزامات',
+  'Equity': 'حقوق الملكية',
+  'Expenses': 'المصروفات',
+  '{{n}} accounts unclassified — place them in the accounting touch menu in Prism':
+    '{{n}} حسابًا غير مصنّف — ضعها ضمن قائمة المحاسبة (touch menu) في Prism',
+
+  // ── Accounting: financial statements (P&L / Balance Sheet, 2026-07-26) ──
+  // Sections are the CUSTOMER's own class names (translated only when a
+  // translation exists); 'Unclassified' is the API's stable English constant.
+  'Profit & Loss': 'الأرباح والخسائر',
+  'Balance Sheet': 'الميزانية العمومية',
+  'Gross Profit': 'مجمل الربح',
+  'Net Profit': 'صافي الربح',
+  'Current period result': 'نتيجة الفترة الحالية',
+  'Total Assets': 'إجمالي الأصول',
+  'Total Liabilities & Equity': 'إجمالي الالتزامات وحقوق الملكية',
+  'Unclassified': 'غير مصنّف',
+  'Section': 'القسم',
+  'Group': 'المجموعة',
+  'Balance': 'الرصيد',
+  'Total {{s}}': 'إجمالي {{s}}',
+  'Total Costs': 'إجمالي التكاليف',
+  'revenue − costs': 'الإيرادات − التكاليف',
+  'revenue − first cost section': 'الإيرادات − أول قسم تكاليف',
+  'not included in net profit': 'غير مشمول في صافي الربح',
+  'outside assets and liabilities + equity': 'خارج الأصول والالتزامات وحقوق الملكية',
+  'incl. current period result': 'شامل نتيجة الفترة الحالية',
+  'Sections follow your accounting touch-menu order':
+    'الأقسام تتبع ترتيب قائمة المحاسبة الخاصة بك',
+  '{{n}} account class(es) have no statement role yet — assign roles so their accounts join the statements':
+    '{{n}} تصنيف حسابات بلا دور في القوائم بعد — عيّن الأدوار لتنضم حساباتها إلى القوائم',
+  'ask an administrator to assign a role': 'اطلب من المسؤول تعيين الدور',
+  'Balance sheet difference {{v}} — assets do not equal liabilities + equity':
+    'فرق الميزانية {{v}} — الأصول لا تساوي الالتزامات وحقوق الملكية',
+  'Unclassified accounts and unmapped classes explain this gap — nothing is hidden.':
+    'الحسابات غير المصنّفة والتصنيفات بلا دور تفسّر هذا الفرق — لا شيء مخفي.',
+  // Role picker options ('Equity', 'Revenue' and 'Cost' already exist above).
+  'Asset': 'أصل',
+  'Liability': 'التزام',
 
   // ── Accounting: date basis (transaction vs posting) ──
   'Date basis': 'أساس التاريخ',
