@@ -1393,6 +1393,10 @@ const ar_strings: Record<string, string> = {
   'Source': 'المصدر',
   // role sources (backend values, translated at render)
   'auto': 'تلقائي', 'override': 'مخصص', 'unmapped': 'بدون دور',
+  // built-in integration classification defaults (2026-07-26)
+  'default': 'افتراضي',
+  'Classification: {{t}} from the Prism tree · {{d}} built-in defaults · {{u}} unclassified':
+    'التصنيف: {{t}} من شجرة بريزم · {{d}} من الافتراضات المدمجة · {{u}} غير مصنّف',
   'Receivable & Payable Accounts': 'حسابات الذمم المدينة والدائنة',
   'Used by AR/AP Aging to identify partner balances: only lines on these accounts count as a partner’s receivable or payable balance. Clear a list to fall back to class-role matching.':
     'تُستخدم في تقرير أعمار الديون لتحديد أرصدة الأطراف: تُحتسب فقط السطور على هذه الحسابات ضمن رصيد الطرف المدين أو الدائن. امسح القائمة للرجوع إلى المطابقة حسب دور التصنيف.',

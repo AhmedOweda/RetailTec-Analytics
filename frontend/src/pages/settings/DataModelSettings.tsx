@@ -2300,6 +2300,14 @@ function AccountingCard() {
           </Typography>
         </Box>
       </Box>
+      {(status?.classified_accounts ?? 0) > 0 && (
+        <Typography sx={{ mt:1.2, fontSize:12, color:'var(--rt-text-2)' }}>
+          {trf('Classification: {{t}} from the Prism tree · {{d}} built-in defaults · {{u}} unclassified',
+               { t: (status?.tree_classified_accounts ?? 0).toLocaleString(),
+                 d: (status?.default_classified_accounts ?? 0).toLocaleString(),
+                 u: (status?.unclassified_accounts ?? 0).toLocaleString() })}
+        </Typography>
+      )}
       {unclassified > 0 && (
         <Box sx={{ mt:1.5, px:1.5, py:1, borderRadius:2,
                    bgcolor:'rgba(245,158,11,0.10)', border:'1px solid rgba(245,158,11,0.35)' }}>
@@ -2327,7 +2335,18 @@ function AccountingCard() {
         <Typography sx={{ fontWeight:700, color:'var(--rt-text-2)' }}>{tr('Source')}</Typography>
         {classRoles.map((r: any) => (
           <Box key={r.class} sx={{ display:'contents' }}>
-            <Typography sx={{ color:'var(--rt-text)', fontWeight:600 }}>{r.class}</Typography>
+            <Box sx={{ display:'flex', alignItems:'center', gap:0.6, flexWrap:'wrap' }}>
+              <Typography sx={{ color:'var(--rt-text)', fontWeight:600 }}>{r.class}</Typography>
+              {/* Some/all of this class's accounts were classified by the
+                  BUILT-IN integration defaults, not the Prism tree. */}
+              {(r.default_accounts ?? 0) > 0 && (
+                <Chip label={tr('default')} size="small"
+                  sx={{ height:16, fontSize:9, fontWeight:700, letterSpacing:0.3,
+                        bgcolor:'var(--rt-surface-2)', color:'var(--rt-text-2)',
+                        border:'1px solid var(--rt-border)',
+                        '& .MuiChip-label':{ px:0.6 } }} />
+              )}
+            </Box>
             <Typography sx={{ color:'var(--rt-text-2)', textAlign:'right' }}>{(r.accounts ?? 0).toLocaleString()}</Typography>
             <Select size="small" value={r.role ?? ''} disabled={savingCls === r.class}
               onChange={e => putRole(r.class, String(e.target.value))}

@@ -1031,7 +1031,8 @@ def gl_class_roles():
     if _gl_off():
         return []
     rows = _qdf("""
-        SELECT ACCOUNT_CLASS AS cls, MIN(CLASS_SEQ) AS seq, COUNT(*) AS accounts
+        SELECT ACCOUNT_CLASS AS cls, MIN(CLASS_SEQ) AS seq, COUNT(*) AS accounts,
+               SUM(CASE WHEN CLASS_SOURCE = 'default' THEN 1 ELSE 0 END) AS default_accounts
         FROM DIM_ACCOUNT
         WHERE ACCOUNT_CLASS IS NOT NULL
         GROUP BY ACCOUNT_CLASS
@@ -1040,8 +1041,12 @@ def gl_class_roles():
     out = []
     for r in rows:
         role, source = resolve_class_role(r["cls"])
+        # default_accounts: how many of the class's accounts were classified
+        # by the BUILT-IN integration defaults (CLASS_SOURCE = 'default') —
+        # the UI shows a small 'default' chip on such classes.
         out.append({"class": r["cls"], "role": role, "source": source,
-                    "section_seq": r["seq"], "accounts": int(r["accounts"] or 0)})
+                    "section_seq": r["seq"], "accounts": int(r["accounts"] or 0),
+                    "default_accounts": int(r["default_accounts"] or 0)})
     return out
 
 
@@ -1187,6 +1192,7 @@ def gl_status():
         "reason": _gl_reason() if _gl_off() else "",
         "gl_rows": 0, "documents": 0, "date_from": None, "date_to": None,
         "accounts": 0, "classified_accounts": 0, "unclassified_accounts": 0,
+        "tree_classified_accounts": 0, "default_classified_accounts": 0,
         "unmapped_classes": 0, "last_sync": None,
         "receivable_accounts": _partner_account_codes(True),
         "payable_accounts":    _partner_account_codes(False),
@@ -1207,26 +1213,43 @@ def gl_status():
     except Exception:
         pass
     # Classification: one row per ACCOUNT_CODE (the reports' own granularity).
-    # An account is classified when its class resolves to a role.
+    # An account is classified when its class resolves to a role. CLASS_SOURCE
+    # (persisted by the sync, v8) splits WHERE the classification came from:
+    # 'tree' (Prism touch menu) vs 'default' (built-in integration defaults);
+    # 'manual' (carried prior values) counts as classified but in neither
+    # bucket. Grouped by (class, source), so distinct unmapped classes must be
+    # deduped with a set — one class can now span several source rows.
     try:
-        rows = _qdf(f"""
-            SELECT ACCOUNT_CLASS AS cls, COUNT(*) AS accounts
-            FROM {_ACC} A
-            GROUP BY ACCOUNT_CLASS
+        rows = _qdf("""
+            SELECT ACCOUNT_CLASS AS cls, CLASS_SOURCE AS src, COUNT(*) AS accounts
+            FROM (SELECT ACCOUNT_CODE,
+                         MAX(ACCOUNT_CLASS) AS ACCOUNT_CLASS,
+                         MAX(CLASS_SOURCE)  AS CLASS_SOURCE
+                  FROM DIM_ACCOUNT
+                  WHERE ACCOUNT_CODE IS NOT NULL
+                  GROUP BY ACCOUNT_CODE) A
+            GROUP BY 1, 2
         """)
-        total = classified = unmapped_classes = 0
+        total = classified = tree_n = default_n = 0
+        unmapped = set()
         for r in rows:
             n = int(r["accounts"] or 0)
             total += n
             role, _src = resolve_class_role(r["cls"])
             if role:
                 classified += n
+                if r["src"] == "tree":
+                    tree_n += n
+                elif r["src"] == "default":
+                    default_n += n
             elif r["cls"] is not None:
-                unmapped_classes += 1
+                unmapped.add(r["cls"])
         out["accounts"] = total
         out["classified_accounts"] = classified
         out["unclassified_accounts"] = total - classified
-        out["unmapped_classes"] = unmapped_classes
+        out["tree_classified_accounts"] = tree_n
+        out["default_classified_accounts"] = default_n
+        out["unmapped_classes"] = len(unmapped)
     except Exception:
         pass
     try:
