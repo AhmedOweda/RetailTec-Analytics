@@ -991,11 +991,25 @@ def _sql_account_classes(seq_expr: str = "B.SID"):
         text as GRP; deeper rows inherit it. The final SELECT only emits GRP
         for items found at depth >= 3, so an account button sitting directly
         in a class menu (depth 2 — its text is the ACCOUNT's label, not a
-        group) gets NULL, exactly as agreed with the owner."""
+        group) gets NULL, exactly as agreed with the owner.
+
+    ⚠ CHARACTER SET (ORA-12704) — do NOT remove the TO_NCHAR wrappers.
+    On Prism installs every RPS text column (BUTTON_TEXT, MENU_TEXT, NOTE*,
+    DESCRIPTION*, ALU …) is NVARCHAR2 (the national character set), not
+    VARCHAR2. The recursive WALK fixes each column's type from the ANCHOR
+    branch, so the GRP seed MUST already be national: seeding it
+    CAST(NULL AS VARCHAR2) makes the recursive CASE/UNION ALL combine a
+    VARCHAR2 NULL with an NVARCHAR2 BUTTON_TEXT and Oracle raises
+    'ORA-12704: character set mismatch', which aborts the whole accounting
+    load. Wrapping every text read in TO_NCHAR() (national charset is always
+    Unicode, so the conversion is lossless whether the column is VARCHAR2 or
+    NVARCHAR2) and using the N'accounting' literal keeps the entire CTE in one
+    charset. Verified live on 26.158.231.155 (all RPS text is NVARCHAR2): the
+    un-wrapped query raises ORA-12704, the wrapped one returns 93 rows."""
     return f"""
         WITH WALK (BTN_SID, MENU_SID, ITEM_SID, ROOT_CLASS, ROOT_SEQ, DEPTH, GRP) AS (
-            SELECT B.SID, B.TARGET_MENU_SID, B.INVN_ITEM_SID, TRIM(B.BUTTON_TEXT),
-                   {seq_expr}, 1, CAST(NULL AS VARCHAR2(4000))
+            SELECT B.SID, B.TARGET_MENU_SID, B.INVN_ITEM_SID, TRIM(TO_NCHAR(B.BUTTON_TEXT)),
+                   {seq_expr}, 1, CAST(NULL AS NVARCHAR2(2000))
             FROM RPS.TOUCH_BUTTON B
             WHERE B.MENU_SID = (
                 SELECT SID FROM (
@@ -1003,7 +1017,7 @@ def _sql_account_classes(seq_expr: str = "B.SID"):
                     FROM RPS.TOUCH_MENU M
                     WHERE M.SBS_SID = (SELECT SID FROM RPS.SUBSIDIARY
                                        WHERE SBS_NO = 100)
-                      AND LOWER(TRIM(M.MENU_TEXT)) = 'accounting'
+                      AND LOWER(TRIM(TO_NCHAR(M.MENU_TEXT))) = N'accounting'
                     ORDER BY (SELECT COUNT(*) FROM RPS.TOUCH_BUTTON X
                               WHERE X.MENU_SID = M.SID) DESC, M.SID
                 ) WHERE ROWNUM = 1
@@ -1011,7 +1025,7 @@ def _sql_account_classes(seq_expr: str = "B.SID"):
             UNION ALL
             SELECT B.SID, B.TARGET_MENU_SID, B.INVN_ITEM_SID, W.ROOT_CLASS,
                    W.ROOT_SEQ, W.DEPTH + 1,
-                   CASE WHEN W.DEPTH = 1 THEN TRIM(B.BUTTON_TEXT) ELSE W.GRP END
+                   CASE WHEN W.DEPTH = 1 THEN TRIM(TO_NCHAR(B.BUTTON_TEXT)) ELSE W.GRP END
             FROM RPS.TOUCH_BUTTON B
             JOIN WALK W ON B.MENU_SID = W.MENU_SID
         ) CYCLE BTN_SID SET IS_CYCLE TO 'Y' DEFAULT 'N'
@@ -1149,18 +1163,28 @@ def _load_accounts(duck, ora):
     # Tolerance mirrors _try_optional, but LOCALLY: a missing TOUCH_MENU /
     # TOUCH_BUTTON must not fail the sync AND must not mark the whole
     # accounting feature unavailable — classification is an enhancement, the
-    # GL itself is fine without it. Any other error still propagates.
+    # GL itself is fine without it. Any other error is logged loudly but also
+    # tolerated (the GL still loads); see the except block below.
     class_map, class_conflicts, tree_available = {}, {}, True
     try:
         class_map, class_conflicts = _fetch_account_classes(ora)
     except SyncCancelled:
         raise
     except Exception as e:
-        if not _is_missing_object(e):
-            raise
         tree_available = False
-        log.warning("ACCOUNT_CLASS: touch-menu tables not available on this "
-                    f"server — classification skipped ({str(e).strip()[:120]})")
+        if _is_missing_object(e):
+            log.warning("ACCOUNT_CLASS: touch-menu tables not available on this "
+                        f"server — classification skipped ({str(e).strip()[:120]})")
+        else:
+            # Classification is an OPTIONAL enhancement — never let a fault here
+            # abort the GL load (this is what turned an ORA-12704 charset quirk
+            # into a hard "character mismatch" failure of the whole accounting
+            # screen). Surface it loudly so it gets fixed, but keep the GL and
+            # the chart of accounts flowing with whatever classes DIM_ACCOUNT
+            # already carries.
+            log.error("ACCOUNT_CLASS: classification query failed — GL loaded "
+                      "WITHOUT reclassifying (existing classes kept): %s",
+                      str(e).strip()[:200])
     # CLASS_SEQ: compress the raw first-level order values (BUTTON_SEQ or, on
     # the fallback path, 18-digit button SIDs) into a small dense rank per
     # class — stable, fits INTEGER, and identical whichever source ordered it.
