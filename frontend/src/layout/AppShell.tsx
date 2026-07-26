@@ -556,28 +556,6 @@ export default function AppShell() {
           <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
 
           </>)}
-          {/* Accounting section */}
-          {accountingNav.length > 0 && (<>
-          <Box onClick={() => toggleNavSection('accounting')} sx={{
-            px:2.5, pb:0.5, display:'flex', alignItems:'center',
-            justifyContent:'space-between', cursor:'pointer',
-            '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
-          }}>
-            <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
-                              letterSpacing:1.2, textTransform:'uppercase' }}>{t('nav.accounting')}</Typography>
-            <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
-              transform: accountingOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-              transition:'transform 0.2s' }} />
-          </Box>
-          <Collapse in={accountingOpen}>
-            <Box sx={{ px:1.5, pt:0.5 }}>
-              {accountingNav.map(n => <NavItem key={n.to} {...n} />)}
-            </Box>
-          </Collapse>
-
-          <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
-
-          </>)}
           {/* Purchasing section */}
           {purchasesNav.length > 0 && (<>
           <Box onClick={() => toggleNavSection('purchases')} sx={{
@@ -616,6 +594,28 @@ export default function AppShell() {
           <Collapse in={dimensionsOpen}>
             <Box sx={{ px:1.5, pt:0.5 }}>
               {dimensionsNav.map(n => <NavItem key={n.to} {...n} />)}
+            </Box>
+          </Collapse>
+
+          <Divider sx={{ borderColor:'rgba(255,255,255,0.08)', mx:2, my:1 }} />
+
+          </>)}
+          {/* Accounting section — LAST by owner request (26 Jul 2026) */}
+          {accountingNav.length > 0 && (<>
+          <Box onClick={() => toggleNavSection('accounting')} sx={{
+            px:2.5, pb:0.5, display:'flex', alignItems:'center',
+            justifyContent:'space-between', cursor:'pointer',
+            '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
+          }}>
+            <Typography sx={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.35)',
+                              letterSpacing:1.2, textTransform:'uppercase' }}>{t('nav.accounting')}</Typography>
+            <ExpandMoreIcon sx={{ fontSize:14, color:'rgba(255,255,255,0.3)',
+              transform: accountingOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+              transition:'transform 0.2s' }} />
+          </Box>
+          <Collapse in={accountingOpen}>
+            <Box sx={{ px:1.5, pt:0.5 }}>
+              {accountingNav.map(n => <NavItem key={n.to} {...n} />)}
             </Box>
           </Collapse>
           </>)}

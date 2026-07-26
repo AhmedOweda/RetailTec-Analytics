@@ -44,19 +44,6 @@ export const PAGE_DOMAINS: PageDomain[] = [
     ],
   },
   {
-    domain: 'Accounting',
-    pages: [
-      { key: '/accounting/journal',        label: 'Journal' },
-      { key: '/accounting/trial-balance',  label: 'Trial Balance' },
-      { key: '/accounting/profit-loss',    label: 'Profit & Loss' },
-      { key: '/accounting/balance-sheet',  label: 'Balance Sheet' },
-      { key: '/accounting/bp-statement',   label: 'BP Statement' },
-      { key: '/accounting/aging',          label: 'Aging' },
-      { key: '/accounting/general-ledger', label: 'General Ledger' },
-      { key: '/accounting/exceptions',     label: 'GL Exceptions' },
-    ],
-  },
-  {
     domain: 'Purchasing',
     pages: [
       { key: '/purchases/overview',     label: 'Overview' },
@@ -71,6 +58,23 @@ export const PAGE_DOMAINS: PageDomain[] = [
       { key: '/dimensions/employees', label: 'Employees' },
       { key: '/dimensions/items',     label: 'Items' },
       { key: '/dimensions/vendors',   label: 'Suppliers' },
+    ],
+  },
+  {
+    // Accounting is LAST by owner request (26 Jul 2026) — sidebar order and
+    // this catalog stay in step. Note ALL_PAGE_KEYS order feeds
+    // firstLicensedPage, so an accounting-only user lands here after the
+    // earlier domains fail their license/permission checks.
+    domain: 'Accounting',
+    pages: [
+      { key: '/accounting/journal',        label: 'Journal' },
+      { key: '/accounting/trial-balance',  label: 'Trial Balance' },
+      { key: '/accounting/profit-loss',    label: 'Profit & Loss' },
+      { key: '/accounting/balance-sheet',  label: 'Balance Sheet' },
+      { key: '/accounting/bp-statement',   label: 'BP Statement' },
+      { key: '/accounting/aging',          label: 'Aging' },
+      { key: '/accounting/general-ledger', label: 'General Ledger' },
+      { key: '/accounting/exceptions',     label: 'GL Exceptions' },
     ],
   },
 ]
