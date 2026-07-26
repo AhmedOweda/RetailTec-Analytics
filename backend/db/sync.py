@@ -1080,6 +1080,57 @@ def _fetch_account_classes(ora):
     return mapping, conflicts
 
 
+# ── Built-in classification defaults for the integration's accounts ─────────
+# The POS→Accounting integration's master script preinstalls a KNOWN chart of
+# accounts (the 0000.xx / 1010.xx / 1200.xx / 3xxx.xx / 5xxx.xx / 6xxx.xx ALUs
+# below). Out of the box those accounts sat in the statements' 'Unclassified'
+# bucket until the customer placed them in the Prism accounting touch menu.
+# This map classifies them BY DEFAULT so a fresh install produces correct
+# statements with zero Prism work.
+#
+# PRECEDENCE (lowest of the three, applied LAST and only into NULLs):
+#   tree > carried manual/prior value > built-in default.
+# A customer placing one of these accounts under ANY branch of their tree
+# overrides the default on the next sync. Removed-from-tree nuance: once a
+# tree class has been applied it is CARRIED across later syncs like any other
+# prior value (source 'manual'), so deleting the account from the tree does
+# NOT snap it back to the built-in default — that is the documented
+# 'manual/carried' precedence, not a bug.
+#
+# The class names are deliberately the CANONICAL ones: they auto-resolve to
+# statement roles via routers/accounting.resolve_class_role's _AUTO_ROLE map
+# (Assets→asset, Liabilities→liability, Sales→revenue, Purchases/Expenses→
+# cost) AND they match the owner's own first-level branch names, so on his
+# tree the defaulted accounts merge straight into his existing sections.
+# COGS accounts live under 'Purchases' (trading-account model) by the OWNER'S
+# DECISION — do not move them to 'Expenses'.
+# ACCOUNT_GROUP / CLASS_SEQ stay NULL for defaulted accounts: they sort after
+# the tree-ordered sections, which is correct.
+_INTEGRATION_CLASS_DEFAULTS: dict = {
+    # Assets — cash/tender clearing (1010.xx), inventory (1200.xx), VAT input
+    "1010.01": "Assets", "1010.03": "Assets", "1010.05": "Assets",
+    "1010.07": "Assets", "1010.13": "Assets", "1010.14": "Assets",
+    "1010.15": "Assets", "1010.16": "Assets", "1010.21": "Assets",
+    "1010.26": "Assets", "1010.30": "Assets", "1010.40": "Assets",
+    "1010.46": "Assets", "1200.00": "Assets", "1200.01": "Assets",
+    "1200.02": "Assets", "1200.03": "Assets", "1200.04": "Assets",
+    "1200.05": "Assets", "1220.01": "Assets",
+    # Liabilities — payables, VAT output, deposits/credits
+    "3100.01": "Liabilities", "3240.01": "Liabilities",
+    "3250.01": "Liabilities", "3250.02": "Liabilities",
+    "3500.01": "Liabilities", "3500.02": "Liabilities",
+    # Sales — revenue, returns, discounts, fees/charges
+    "5100.01": "Sales", "5110.01": "Sales", "5200.01": "Sales",
+    "5300.02": "Sales", "5300.03": "Sales", "5300.04": "Sales",
+    "5300.05": "Sales", "5300.06": "Sales", "5400.01": "Sales",
+    # Purchases — COGS under the trading-account model (owner's decision)
+    "6010.01": "Purchases", "6020.01": "Purchases",
+    "6050.01": "Purchases", "6060.01": "Purchases",
+    # Expenses — adjustment/shrinkage write-offs
+    "0000.01": "Expenses", "0000.02": "Expenses", "0000.03": "Expenses",
+}
+
+
 def _load_accounts(duck, ora):
     """Refresh DIM_ACCOUNT, preserving the accountant's ACCOUNT_CLASS.
 
@@ -1134,10 +1185,21 @@ def _load_accounts(duck, ora):
         # temp table's shape changed in v7 and a stale same-session copy must
         # never survive with the old column list.
         duck.execute("DROP TABLE IF EXISTS _acct_class")
+        # 'default'-sourced rows are deliberately NOT carried: the built-in
+        # defaults are re-applied fresh from _INTEGRATION_CLASS_DEFAULTS below,
+        # so a code update that changes the map takes effect on the next sync
+        # instead of being pinned by its own previous output. Everything else
+        # (tree or manual or pre-v8 NULL source) is carried and restored as
+        # 'manual' — accounts still in the tree are immediately re-stamped
+        # 'tree' by the tree UPDATE that follows; accounts REMOVED from the
+        # tree keep the carried class as 'manual' (the documented
+        # manual/carried precedence — see _INTEGRATION_CLASS_DEFAULTS).
         duck.execute("""
             CREATE TEMP TABLE _acct_class AS
             SELECT SID, ACCOUNT_CLASS, ACCOUNT_GROUP, CLASS_SEQ
-            FROM DIM_ACCOUNT WHERE ACCOUNT_CLASS IS NOT NULL
+            FROM DIM_ACCOUNT
+            WHERE ACCOUNT_CLASS IS NOT NULL
+              AND COALESCE(CLASS_SOURCE, 'manual') <> 'default'
         """)
         duck.execute("DELETE FROM DIM_ACCOUNT")
         duck.executemany(
@@ -1146,22 +1208,33 @@ def _load_accounts(duck, ora):
         duck.execute("""
             UPDATE DIM_ACCOUNT d SET ACCOUNT_CLASS = c.ACCOUNT_CLASS,
                                      ACCOUNT_GROUP = c.ACCOUNT_GROUP,
-                                     CLASS_SEQ     = c.CLASS_SEQ
+                                     CLASS_SEQ     = c.CLASS_SEQ,
+                                     CLASS_SOURCE  = 'manual'
             FROM _acct_class c WHERE c.SID = d.SID
         """)
         duck.execute("DROP TABLE IF EXISTS _acct_class")
         # PRECEDENCE: a class from the TREE always wins (applied after the
         # carry-over so it overwrites); accounts absent from the tree keep the
-        # carried manual class; accounts in neither stay NULL. This is exactly
-        # what lets the owner place the missing integration accounts in Prism
-        # and have the next sync pick them up with zero code changes. The
-        # same precedence applies to the level-2 group and the section order.
+        # carried manual class; accounts in neither fall through to the
+        # built-in integration defaults below, and only then stay NULL. This
+        # is exactly what lets the owner place the missing integration
+        # accounts in Prism and have the next sync pick them up with zero
+        # code changes. The same precedence applies to the level-2 group and
+        # the section order.
         if class_map:
             duck.executemany(
                 "UPDATE DIM_ACCOUNT SET ACCOUNT_CLASS = ?, ACCOUNT_GROUP = ?, "
-                "CLASS_SEQ = ? WHERE SID = ?",
+                "CLASS_SEQ = ?, CLASS_SOURCE = 'tree' WHERE SID = ?",
                 [(cls, grp, seq_rank.get(cls), sid)
                  for sid, (cls, grp, _seq) in class_map.items()])
+        # BUILT-IN DEFAULTS, last and only into NULLs: neither the tree nor a
+        # carried prior value classified these, so the integration's known
+        # chart gets its canonical class. ACCOUNT_GROUP / CLASS_SEQ stay NULL
+        # on purpose (defaulted sections sort after the tree-ordered ones).
+        duck.executemany(
+            "UPDATE DIM_ACCOUNT SET ACCOUNT_CLASS = ?, CLASS_SOURCE = 'default' "
+            "WHERE ACCOUNT_CLASS IS NULL AND ACCOUNT_CODE = ?",
+            [(cls, code) for code, cls in _INTEGRATION_CLASS_DEFAULTS.items()])
         duck.execute("COMMIT")
     except BaseException:
         try:
@@ -1197,10 +1270,14 @@ def _load_accounts(duck, ora):
         gl_note = f"; {gl_unclassified} GL-used account(s) still unclassified"
     except Exception:
         gl_note = ""  # FACT_GL not created yet (first-ever sync)
-    tree_n = sum(1 for r in rows if r[0] in class_map)
+    src_counts = dict(duck.execute(
+        "SELECT CLASS_SOURCE, COUNT(*) FROM DIM_ACCOUNT "
+        "WHERE ACCOUNT_CLASS IS NOT NULL GROUP BY CLASS_SOURCE").fetchall())
     log.info(f"DIM_ACCOUNT: {len(rows):,} accounts loaded; "
              f"{classified}/{len(rows)} classified "
-             f"({tree_n} from the accounting touch-menu tree){gl_note}")
+             f"({src_counts.get('tree', 0)} from tree, "
+             f"{src_counts.get('default', 0)} from built-in integration defaults, "
+             f"{len(rows) - classified} unclassified){gl_note}")
 
 
 def _derive_gl_docs(duck):

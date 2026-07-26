@@ -50,7 +50,14 @@ DB_LOCK = threading.RLock()
 # APP_VERSION mirrors the FastAPI app version in main.py; SCHEMA_VERSION is the
 # DuckDB star-schema revision (bump when _ensure_schema changes shape).
 APP_VERSION = "3.0.0"
-SCHEMA_VERSION = 7   # v7 (2026-07-26): DIM_ACCOUNT.ACCOUNT_GROUP (level-2 branch of
+SCHEMA_VERSION = 8   # v8 (2026-07-26): DIM_ACCOUNT.CLASS_SOURCE ('tree' | 'default'
+                     #     | 'manual') — WHERE a classification came from, so the
+                     #     Settings Accounting card can split tree-classified vs
+                     #     built-in-integration-default vs carried counts honestly.
+                     #     Additive column only — the DIM_ACCOUNT loader inserts by
+                     #     explicit column list, so existing warehouses just gain a
+                     #     NULL column until the next sync.
+                     # v7 (2026-07-26): DIM_ACCOUNT.ACCOUNT_GROUP (level-2 branch of
                      #     the Prism accounting touch-menu tree, for statement
                      #     subtotals) + DIM_ACCOUNT.CLASS_SEQ (the level-1 branch
                      #     order, so P&L / Balance Sheet sections follow the
@@ -526,7 +533,8 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             NAME_AR       VARCHAR,
             ACCOUNT_CLASS VARCHAR,
             ACCOUNT_GROUP VARCHAR,
-            CLASS_SEQ     INTEGER
+            CLASS_SEQ     INTEGER,
+            CLASS_SOURCE  VARCHAR
         )
     """)
     # Migration v7 (2026-07-26): statement subtotal group + section order.
@@ -537,6 +545,11 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
     # so existing warehouses just gain two NULL columns until the next sync.
     con.execute("ALTER TABLE DIM_ACCOUNT ADD COLUMN IF NOT EXISTS ACCOUNT_GROUP VARCHAR")
     con.execute("ALTER TABLE DIM_ACCOUNT ADD COLUMN IF NOT EXISTS CLASS_SEQ INTEGER")
+    # Migration v8 (2026-07-26): classification provenance — 'tree' (Prism
+    # accounting touch menu), 'default' (built-in integration defaults in
+    # db/sync.py), 'manual' (carried from a prior warehouse / prior sync).
+    # NULL when ACCOUNT_CLASS is NULL. Additive, same rationale as v7.
+    con.execute("ALTER TABLE DIM_ACCOUNT ADD COLUMN IF NOT EXISTS CLASS_SOURCE VARCHAR")
 
     # ── Sales fact tables ─────────────────────────────────────────────────────
     con.execute("""
