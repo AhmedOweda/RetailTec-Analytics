@@ -86,6 +86,8 @@ def _registry() -> dict:
         # engine can render — the lines grid covers the same data as rows.
         "/api/accounting/journal/lines": getattr(accounting, "gl_journal_lines", None),
         "/api/accounting/trial-balance": getattr(accounting, "gl_trial_balance", None),
+        "/api/accounting/profit-loss":  getattr(accounting, "gl_profit_loss", None),
+        "/api/accounting/balance-sheet": getattr(accounting, "gl_balance_sheet", None),
         "/api/accounting/general-ledger": getattr(accounting, "gl_general_ledger", None),
         "/api/accounting/exceptions":   getattr(accounting, "gl_exceptions", None),
     }
@@ -129,9 +131,10 @@ def resolve_window(report: dict) -> tuple[str, str]:
 # ── Run the grid's data function ──────────────────────────────────────────────
 
 def _coerce(name: str, value):
-    """date_from / date_to arrive as ISO strings; endpoint signatures type them
-    as datetime.date, so convert."""
-    if name in ("date_from", "date_to") and isinstance(value, str):
+    """date_from / date_to / as_of arrive as ISO strings; endpoint signatures
+    type them as datetime.date, so convert. (as_of: the Balance Sheet's single
+    cut-off date — scheduled BS reports replay the stored absolute date.)"""
+    if name in ("date_from", "date_to", "as_of") and isinstance(value, str):
         try:
             return date.fromisoformat(value[:10])
         except Exception:

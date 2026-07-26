@@ -148,6 +148,17 @@ export default function TrialBalance() {
 
   const outOfBalance = Math.abs(totals.movement) >= EPS
 
+  // Accounts WITH ACTIVITY in this window but no ACCOUNT_CLASS: until the
+  // owner places them under the 'accounting' touch menu in Prism, the
+  // financial statements cannot be built from this trial balance. Zero-only
+  // rows (visible when the hide-zero switch is off) don't count — a dormant
+  // unclassified account blocks nothing.
+  const unclassified = useMemo(() =>
+    rows.filter(r => !r.account_class && (
+      Math.abs(+(r.opening ?? 0)) >= EPS || Math.abs(+(r.debit ?? 0)) >= EPS ||
+      Math.abs(+(r.credit ?? 0)) >= EPS || Math.abs(+(r.closing ?? 0)) >= EPS
+    )).length, [rows])
+
   const pinnedBottom = useMemo(() => [{
     account_code: '', account_name: tr('TOTAL'),
     opening: totals.opening, debit: totals.debit, credit: totals.credit,
@@ -183,6 +194,15 @@ export default function TrialBalance() {
                          color: p.node?.rowPinned ? 'var(--rt-text)' : PURPLE_BRAND[500] }) },
     { field: 'account_name', headerName: 'Account Name', flex: 1, minWidth: 200,
       cellStyle: p => ({ fontWeight: p.node?.rowPinned ? 800 : 500, color: 'var(--rt-text)' }) },
+    // Chart-of-accounts class, synced from the 'accounting' touch menu in
+    // Prism (DIM_ACCOUNT.ACCOUNT_CLASS). Blank = not yet placed in the tree —
+    // never guessed client-side. Values are the owner's taxonomy verbatim
+    // (Assets / Liabilities / Equity / Purchases / Sales / Expenses),
+    // translated at render only.
+    { field: 'account_class', headerName: 'Class', width: 110,
+      valueFormatter: p => (p.value ? tr(String(p.value)) : ''),
+      cellStyle: p => ({ fontSize: 11, fontWeight: 600,
+                         color: p.node?.rowPinned ? 'var(--rt-text)' : 'var(--rt-text-2)' }) },
     { field: 'opening', headerName: 'Opening', width: 140, type: 'numericColumn',
       valueFormatter: p => fmtMoney(p.value), cellStyle: moneyCell },
     { field: 'debit', headerName: 'Debit', width: 140, type: 'numericColumn',
@@ -294,6 +314,20 @@ export default function TrialBalance() {
           <Typography sx={{ fontSize: 12, color: 'var(--rt-neg-fg)', mt: 0.3 }}>
             {tr('Review GL Exceptions: some source documents do not balance across their journals.')}
           </Typography>
+        </Box>
+      )}
+
+      {/* ── Unclassified-accounts chip: subtle (warn tokens, not a strip) —
+             the books still balance, but the statements cannot be built until
+             every active account carries a class from the Prism touch menu. ── */}
+      {unclassified > 0 && (
+        <Box sx={{ mt: 2 }}>
+          <Chip size="small"
+            label={trf('{{n}} accounts unclassified — place them in the accounting touch menu in Prism',
+              { n: num(unclassified, 0) })}
+            sx={{ bgcolor: 'var(--rt-warn-bg)', color: 'var(--rt-warn-fg)',
+                  border: '1px solid var(--rt-warn-fg)', fontWeight: 600, fontSize: 11.5,
+                  height: 'auto', py: 0.4, '& .MuiChip-label': { whiteSpace: 'normal' } }} />
         </Box>
       )}
 

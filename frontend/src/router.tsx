@@ -21,6 +21,8 @@ import InventoryStockAsOf    from './pages/inventory/StockAsOf'
 import InventoryCoverage     from './pages/inventory/Coverage'
 import AccountingJournal     from './pages/accounting/Journal'
 import AccountingTrialBalance from './pages/accounting/TrialBalance'
+import AccountingProfitLoss   from './pages/accounting/ProfitLoss'
+import AccountingBalanceSheet from './pages/accounting/BalanceSheet'
 import AccountingGeneralLedger from './pages/accounting/GeneralLedger'
 import AccountingExceptions   from './pages/accounting/Exceptions'
 import Assistant             from './pages/assistant/Assistant'
@@ -59,6 +61,8 @@ export const router = createBrowserRouter([
       { path: 'inventory/coverage',      element: <InventoryCoverage />     },
       { path: 'accounting/journal',         element: <AccountingJournal />       },
       { path: 'accounting/trial-balance',   element: <AccountingTrialBalance />  },
+      { path: 'accounting/profit-loss',     element: <AccountingProfitLoss />    },
+      { path: 'accounting/balance-sheet',   element: <AccountingBalanceSheet />  },
       { path: 'accounting/general-ledger',  element: <AccountingGeneralLedger /> },
       { path: 'accounting/exceptions',      element: <AccountingExceptions />    },
       { path: 'purchases/overview',      element: <PurchasesOverview />     },

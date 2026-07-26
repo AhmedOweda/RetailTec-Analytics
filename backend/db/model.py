@@ -50,7 +50,13 @@ DB_LOCK = threading.RLock()
 # APP_VERSION mirrors the FastAPI app version in main.py; SCHEMA_VERSION is the
 # DuckDB star-schema revision (bump when _ensure_schema changes shape).
 APP_VERSION = "3.0.0"
-SCHEMA_VERSION = 6   # v6 (2026-07-20): SUBSIDIARY_SID carried on FACT_SALES_ITEMS,
+SCHEMA_VERSION = 7   # v7 (2026-07-26): DIM_ACCOUNT.ACCOUNT_GROUP (level-2 branch of
+                     #     the Prism accounting touch-menu tree, for statement
+                     #     subtotals) + DIM_ACCOUNT.CLASS_SEQ (the level-1 branch
+                     #     order, so P&L / Balance Sheet sections follow the
+                     #     customer's own tree order). Additive columns only —
+                     #     the DIM_ACCOUNT loader inserts by explicit column list.
+                     # v6 (2026-07-20): SUBSIDIARY_SID carried on FACT_SALES_ITEMS,
                      #     FACT_PURCHASES, FACT_PURCHASE_ITEMS and FACT_INVENTORY.
                      #     These four facts previously had NO subsidiary column and
                      #     were scoped through the DERIVED DIM_STORE.SUBSIDIARY_SID,
@@ -518,9 +524,19 @@ def _ensure_schema(con: duckdb.DuckDBPyConnection):
             ACCOUNT_KEY   VARCHAR,
             NAME_EN       VARCHAR,
             NAME_AR       VARCHAR,
-            ACCOUNT_CLASS VARCHAR
+            ACCOUNT_CLASS VARCHAR,
+            ACCOUNT_GROUP VARCHAR,
+            CLASS_SEQ     INTEGER
         )
     """)
+    # Migration v7 (2026-07-26): statement subtotal group + section order.
+    # ACCOUNT_GROUP is the LEVEL-2 branch of the accounting touch-menu tree
+    # (NULL for accounts hanging directly under a class); CLASS_SEQ is the
+    # level-1 branch order so the statements list sections in the customer's
+    # own tree order. Additive — the loader inserts by explicit column list,
+    # so existing warehouses just gain two NULL columns until the next sync.
+    con.execute("ALTER TABLE DIM_ACCOUNT ADD COLUMN IF NOT EXISTS ACCOUNT_GROUP VARCHAR")
+    con.execute("ALTER TABLE DIM_ACCOUNT ADD COLUMN IF NOT EXISTS CLASS_SEQ INTEGER")
 
     # ── Sales fact tables ─────────────────────────────────────────────────────
     con.execute("""

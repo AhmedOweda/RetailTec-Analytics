@@ -5,6 +5,10 @@ Endpoints:
   GET /api/accounting/journal          — one row per journal (src doc x doc type)
   GET /api/accounting/journal/lines    — GL line detail (drill-through)
   GET /api/accounting/trial-balance    — opening / movement / closing per account
+  GET /api/accounting/profit-loss      — P&L rows per account (class-role based)
+  GET /api/accounting/balance-sheet    — cumulative balances as of a date
+  GET /api/accounting/class-roles      — ACCOUNT_CLASS -> statement role map
+  PUT /api/accounting/class-roles      — admin: override a class's role
   GET /api/accounting/general-ledger   — per-account ledger with running balance
   GET /api/accounting/exceptions       — source documents that do NOT balance
   GET /api/accounting/search/accounts  — account slicer type-ahead
@@ -22,8 +26,14 @@ Domain rules (hard-won — do not "improve"):
   3. Reports show balanced documents only BY DEFAULT; every report takes
      include_unbalanced=true to see everything, and /exceptions lists exactly
      what the default gate hides. Nothing is ever silently dropped.
-  4. No P&L / Balance Sheet here: those need DIM_ACCOUNT.ACCOUNT_CLASS, which is
-     nullable and currently all NULL (the accountant has not classified yet).
+  4. The statements (P&L / Balance Sheet) are CLASS-ROLE driven: level 1 of the
+     Prism accounting touch-menu tree is fixed in MEANING, free in NAME and
+     COUNT. Each first-level class resolves to one of five roles
+     (asset|liability|equity|revenue|cost) via stored overrides
+     (settings.json -> accounting.class_roles) or the built-in auto-map of
+     common EN/AR names (see _AUTO_ROLE). Accounts with a NULL or unmapped
+     class are NEVER dropped: they surface in an explicit 'Unclassified'
+     section, always last.
   5. TWO date bases, both real and both needed: `date_basis=transaction` (the
      default) windows on FACT_GL.POST_DATE, the period the activity belongs to;
      `date_basis=posting` windows on FACT_GL.GL_POST_DATE, when the books
@@ -50,11 +60,12 @@ interpolated (EXPERT_REVIEW.md C2). Store/subsidiary scope comes from the JWT
 claims via scoped_stores / scoped_subsidiaries (C1), never from raw Query.
 """
 from datetime import date
-from typing import Optional
+from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
-from db.model import feature_available, feature_reason, FEATURE_ACCOUNTING
+from db.model import feature_available, feature_reason, record_audit, FEATURE_ACCOUNTING
 from routers.common import (q as _q, qdf as _qdf, csv_in,
                             scoped_stores, store_filter,
                             scoped_subsidiaries, subsidiary_filter)
@@ -883,4 +894,364 @@ def gl_summary(
         out[k] = float(out.get(k) or 0)
     for k in ("documents", "journals", "lines", "accounts_used", "unbalanced_docs"):
         out[k] = int(out.get(k) or 0)
+    return out
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Financial statements — Profit & Loss / Balance Sheet (class-role driven)
+# ═════════════════════════════════════════════════════════════════════════════
+# DESIGN CONTRACT (agreed with the owner, 2026-07): level 1 of the accounting
+# touch-menu tree is fixed in MEANING, free in NAME and COUNT. Every first-
+# level branch maps to exactly one of five ROLES; below level 1 the tree is
+# fully free. A customer may have 5, 6 or 8 branches, in any language.
+#
+# ROLE RESOLUTION, in order:
+#   1. Stored override  — settings.json -> accounting.class_roles["<class>"].
+#      Only overrides are stored; auto-hits are NOT persisted, so improved
+#      auto-mapping benefits existing installs with zero migration.
+#   2. Auto-map         — common EN/AR class names, case-insensitive, alef
+#      variants normalised. Recognised names work with ZERO setup.
+#   3. Unmapped         — the class exists but has no role. Its accounts go to
+#      the 'Unclassified' section (always last, never dropped) and the UI
+#      offers an inline role picker.
+
+_ROLES = ("asset", "liability", "equity", "revenue", "cost")
+
+# The 'Unclassified' bucket's stable section key. The FRONTEND translates it;
+# the API always emits the English constant so report params / saved views /
+# scheduled grids are language-independent.
+_UNCLASSIFIED = "Unclassified"
+_UNCLASSIFIED_SEQ = 999999      # sorts after every real section, always
+
+
+def _norm_class(name: str) -> str:
+    """Casefolded, whitespace-collapsed, alef-normalised key for matching a
+    class name against the auto-map and the stored overrides. Never shown."""
+    s = " ".join((name or "").split()).casefold()
+    for ch in "أإآ":
+        s = s.replace(ch, "ا")
+    return s
+
+
+# Common first-level branch names → role. Keys are _norm_class()-ed.
+_AUTO_ROLE: Dict[str, str] = {}
+for _role, _names in (
+    ("asset",     ["assets", "asset", "الأصول", "الاصول"]),
+    ("liability", ["liabilities", "liability", "الالتزامات", "الخصوم"]),
+    ("equity",    ["equity", "حقوق الملكية", "راس المال", "رأس المال"]),
+    ("revenue",   ["sales", "revenue", "income",
+                   "المبيعات", "الإيرادات", "الايرادات"]),
+    ("cost",      ["purchases", "expenses", "cost of sales", "cogs",
+                   "المشتريات", "المصروفات", "التكاليف"]),
+):
+    for _n in _names:
+        _AUTO_ROLE[_norm_class(_n)] = _role
+
+
+def _stored_class_roles() -> Dict[str, str]:
+    """Admin overrides from settings.json, whitelisted on read as well as on
+    write — a hand-edited settings file must not inject an unknown role."""
+    try:
+        from services.config import load_settings
+        raw = (load_settings().get("accounting") or {}).get("class_roles") or {}
+    except Exception:
+        raw = {}
+    return {str(k): v for k, v in raw.items()
+            if isinstance(v, str) and v in _ROLES}
+
+
+def resolve_class_role(account_class) -> tuple:
+    """(role | None, source) for a class name.
+    source: 'override' | 'auto' | 'unmapped'. NULL/blank class → unmapped."""
+    if account_class is None or not str(account_class).strip():
+        return None, "unmapped"
+    key = _norm_class(str(account_class))
+    for cls, role in _stored_class_roles().items():
+        if _norm_class(cls) == key:
+            return role, "override"
+    role = _AUTO_ROLE.get(key)
+    if role:
+        return role, "auto"
+    return None, "unmapped"
+
+
+# DIM_ACCOUNT collapsed per ACCOUNT_CODE — same de-duplication rationale as
+# _ACC, extended with the statement columns (group + section order).
+_ACC_STMT = """(SELECT ACCOUNT_CODE,
+                       MAX(NAME_EN)       AS NAME_EN,
+                       MAX(NAME_AR)       AS NAME_AR,
+                       MAX(ACCOUNT_CLASS) AS ACCOUNT_CLASS,
+                       MAX(ACCOUNT_GROUP) AS ACCOUNT_GROUP,
+                       MIN(CLASS_SEQ)     AS CLASS_SEQ
+                FROM DIM_ACCOUNT
+                WHERE ACCOUNT_CODE IS NOT NULL
+                GROUP BY ACCOUNT_CODE)"""
+
+
+def _class_seq_map() -> dict:
+    """class name -> tree order (small int from the level-1 branch order,
+    compressed at sync time into DIM_ACCOUNT.CLASS_SEQ). Classes the sync has
+    not ordered yet (pre-v7 warehouse) get None → callers sort them after the
+    ordered ones, alphabetically."""
+    try:
+        rows = _qdf("""
+            SELECT ACCOUNT_CLASS AS cls, MIN(CLASS_SEQ) AS seq
+            FROM DIM_ACCOUNT
+            WHERE ACCOUNT_CLASS IS NOT NULL
+            GROUP BY ACCOUNT_CLASS
+        """)
+    except Exception:
+        rows = []
+    return {r["cls"]: r["seq"] for r in rows}
+
+
+def _section_seq(cls, seq_map: dict) -> int:
+    """Concrete sort key for a class: its tree order when known, else a large
+    band that still sorts deterministically (alphabetical within the band)."""
+    seq = seq_map.get(cls)
+    if seq is not None:
+        return int(seq)
+    # Unordered but mapped classes sort after ordered ones, before Unclassified.
+    ordered = sorted(k for k, v in seq_map.items() if v is None)
+    try:
+        return 1000 + ordered.index(cls)
+    except ValueError:
+        return 1000
+
+
+# ── Class → role mapping (GET public with reports; PUT admin) ────────────────
+
+@router.get("/api/accounting/class-roles")
+def gl_class_roles():
+    """Every DISTINCT ACCOUNT_CLASS present in DIM_ACCOUNT with its resolved
+    role, where the role came from, and how many accounts carry the class —
+    the UI shows what is resolved and offers a picker for what is not."""
+    if _gl_off():
+        return []
+    rows = _qdf("""
+        SELECT ACCOUNT_CLASS AS cls, MIN(CLASS_SEQ) AS seq, COUNT(*) AS accounts
+        FROM DIM_ACCOUNT
+        WHERE ACCOUNT_CLASS IS NOT NULL
+        GROUP BY ACCOUNT_CLASS
+        ORDER BY (MIN(CLASS_SEQ) IS NULL), MIN(CLASS_SEQ), ACCOUNT_CLASS
+    """)
+    out = []
+    for r in rows:
+        role, source = resolve_class_role(r["cls"])
+        out.append({"class": r["cls"], "role": role, "source": source,
+                    "section_seq": r["seq"], "accounts": int(r["accounts"] or 0)})
+    return out
+
+
+# Admin gate for the override PUT — same dependency Settings uses. Imported
+# here (module level, like routers/settings.py) so Depends() sees the real
+# callable; routers.auth has no import back into this module.
+from routers.auth import require_admin as _require_admin  # noqa: E402
+
+
+class ClassRolesPut(BaseModel):
+    # {"<class text>": "asset|liability|equity|revenue|cost"} — upserted into
+    # settings.json -> accounting.class_roles. An empty string / null value
+    # REMOVES the override (the class falls back to auto / unmapped).
+    class_roles: Dict[str, Optional[str]]
+
+
+@router.put("/api/accounting/class-roles")
+def gl_put_class_roles(payload: ClassRolesPut, _admin: dict = Depends(_require_admin)):
+    from services.config import load_settings, save_settings
+    bad = {k: v for k, v in payload.class_roles.items() if v and v not in _ROLES}
+    if bad:
+        raise HTTPException(status_code=422,
+                            detail=f"Unknown role(s) {sorted(set(bad.values()))} — "
+                                   f"expected one of {list(_ROLES)}")
+    current = load_settings()
+    acct = current.setdefault("accounting", {})
+    stored = acct.setdefault("class_roles", {})
+    changed = []
+    for cls, role in payload.class_roles.items():
+        cls = str(cls).strip()
+        if not cls:
+            continue
+        if role:
+            stored[cls] = role
+            changed.append(f"{cls}={role}")
+        else:
+            # remove any stored key that normalises to the same class
+            for k in [k for k in stored if _norm_class(k) == _norm_class(cls)]:
+                stored.pop(k, None)
+            changed.append(f"{cls}=<cleared>")
+    save_settings(current)
+    record_audit(_admin["username"], "class_roles_saved", ", ".join(changed)[:500])
+    return {"ok": True, "class_roles": stored}
+
+
+# ── Profit & Loss ────────────────────────────────────────────────────────────
+
+@router.get("/api/accounting/profit-loss")
+def gl_profit_loss(
+    date_from: date = Query(...),
+    date_to:   date = Query(...),
+    stores:       Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
+    date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
+    include_unbalanced: bool = Query(False),
+):
+    """One row per account WITH ACTIVITY in the window whose class role is
+    revenue or cost — plus, never dropped, every active account whose class is
+    NULL or unmapped, in the 'Unclassified' section (always last).
+
+    SIGN CONVENTION: revenue is positive when CREDIT (-SUM(AMOUNT)), costs are
+    positive when DEBIT (+SUM(AMOUNT)), so every displayed figure is naturally
+    positive and net profit = revenue − costs. Unclassified rows keep the raw
+    signed movement (debit positive) — no role, no sign guess.
+
+    PURE ROWS: no synthetic subtotal lines. The page computes section
+    subtotals, gross profit and net profit; `section_seq` (the level-1 branch
+    order persisted at sync time into DIM_ACCOUNT.CLASS_SEQ) tells it the
+    customer's own section order. Balance-sheet-role accounts (asset/
+    liability/equity) are excluded — they belong to /balance-sheet."""
+    if _gl_off():
+        return []
+    dcol = _date_col(date_basis)
+    where = f"{dcol} BETWEEN {_dt(date_from)} AND {_dt(date_to)}"
+    scf, params = _scope(stores, subsidiaries)
+    where += scf
+    where += _balanced(include_unbalanced)
+    rows = _qdf(f"""
+        SELECT G.ACCOUNT_CODE                       AS account_code,
+               COALESCE(A.NAME_EN, G.ACCOUNT_CODE)  AS account_name,
+               A.NAME_AR                            AS account_name_ar,
+               A.ACCOUNT_CLASS                      AS account_class,
+               A.ACCOUNT_GROUP                      AS account_group,
+               SUM(G.AMOUNT)                        AS amt
+        {_FROM}
+        LEFT JOIN {_ACC_STMT} A ON A.ACCOUNT_CODE = G.ACCOUNT_CODE
+        WHERE {where}
+        GROUP BY 1, 2, 3, 4, 5
+        ORDER BY G.ACCOUNT_CODE
+    """, params)
+    seq_map = _class_seq_map()
+    out = []
+    for r in rows:
+        role, _src = resolve_class_role(r["account_class"])
+        amt = float(r["amt"] or 0)
+        if role == "revenue":
+            section, seq, amount = r["account_class"], _section_seq(r["account_class"], seq_map), -amt
+        elif role == "cost":
+            section, seq, amount = r["account_class"], _section_seq(r["account_class"], seq_map), amt
+        elif role in ("asset", "liability", "equity"):
+            continue                            # balance-sheet account — not P&L
+        else:
+            # NULL or unmapped class: NEVER dropped. Raw signed movement.
+            section, seq, amount, role = _UNCLASSIFIED, _UNCLASSIFIED_SEQ, amt, None
+        out.append({
+            "section":       section,
+            "section_seq":   seq,
+            "role":          role,
+            "group":         r["account_group"],
+            "account_code":  r["account_code"],
+            "account_name":  r["account_name"],
+            "account_name_ar": r["account_name_ar"],
+            "amount":        round(amount, 2),
+        })
+    out.sort(key=lambda x: (x["section_seq"], x["section"] or "",
+                            x["group"] or "", x["account_code"] or ""))
+    return out
+
+
+# ── Balance Sheet ────────────────────────────────────────────────────────────
+
+@router.get("/api/accounting/balance-sheet")
+def gl_balance_sheet(
+    as_of: date = Query(...),
+    stores:       Optional[str] = Depends(scoped_stores),
+    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
+    date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
+    include_unbalanced: bool = Query(False),
+):
+    """One row per account with a NON-ZERO cumulative balance up to and
+    including `as_of`, for classes whose role is asset / liability / equity —
+    plus 'Unclassified' rows (never dropped), PLUS one synthetic row:
+
+        Current period result = the cumulative net P&L (revenue − cost roles)
+        to `as_of`, shown under the customer's equity class (or 'Equity').
+
+    That synthetic row is what makes the sheet balance: there is no
+    retained-earnings posting in the source books yet, so without it total
+    assets could never equal liabilities + equity. It is marked
+    `synthetic: true` and the page renders it as computed, not posted.
+
+    SIGN CONVENTION: assets positive when DEBIT (+SUM(AMOUNT)); liabilities
+    and equity positive when CREDIT (-SUM(AMOUNT)). Unclassified rows keep the
+    raw signed balance (debit positive) so the page can show the imbalance
+    honestly — never hidden."""
+    if _gl_off():
+        return []
+    dcol = _date_col(date_basis)
+    where = f"{dcol} <= {_dt(as_of)}"
+    scf, params = _scope(stores, subsidiaries)
+    where += scf
+    where += _balanced(include_unbalanced)
+    rows = _qdf(f"""
+        SELECT G.ACCOUNT_CODE                       AS account_code,
+               COALESCE(A.NAME_EN, G.ACCOUNT_CODE)  AS account_name,
+               A.NAME_AR                            AS account_name_ar,
+               A.ACCOUNT_CLASS                      AS account_class,
+               A.ACCOUNT_GROUP                      AS account_group,
+               SUM(G.AMOUNT)                        AS amt
+        {_FROM}
+        LEFT JOIN {_ACC_STMT} A ON A.ACCOUNT_CODE = G.ACCOUNT_CODE
+        WHERE {where}
+        GROUP BY 1, 2, 3, 4, 5
+        HAVING ROUND(SUM(G.AMOUNT), 2) <> 0
+        ORDER BY G.ACCOUNT_CODE
+    """, params)
+    seq_map = _class_seq_map()
+    _ROLE_RANK = {"asset": 0, "liability": 1, "equity": 2, None: 3}
+    out, net_pl = [], 0.0
+    for r in rows:
+        role, _src = resolve_class_role(r["account_class"])
+        amt = float(r["amt"] or 0)
+        if role == "asset":
+            section, seq, balance = r["account_class"], _section_seq(r["account_class"], seq_map), amt
+        elif role in ("liability", "equity"):
+            section, seq, balance = r["account_class"], _section_seq(r["account_class"], seq_map), -amt
+        elif role in ("revenue", "cost"):
+            net_pl += amt                       # rolls into Current period result
+            continue
+        else:
+            section, seq, balance, role = _UNCLASSIFIED, _UNCLASSIFIED_SEQ, amt, None
+        out.append({
+            "section":       section,
+            "section_seq":   seq,
+            "role":          role,
+            "group":         r["account_group"],
+            "account_code":  r["account_code"],
+            "account_name":  r["account_name"],
+            "account_name_ar": r["account_name_ar"],
+            "balance":       round(balance, 2),
+            "synthetic":     False,
+        })
+    # Current period result: net P&L positive when CREDIT (a profit grows
+    # equity), i.e. -(sum of revenue+cost movements, debit positive).
+    result = round(-net_pl, 2)
+    if abs(result) >= 0.005:
+        eq_classes = [(cls, _section_seq(cls, seq_map)) for cls in seq_map
+                      if resolve_class_role(cls)[0] == "equity"]
+        eq_classes.sort(key=lambda x: x[1])
+        eq_name, eq_seq = (eq_classes[0] if eq_classes else ("Equity", 998))
+        out.append({
+            "section":       eq_name,
+            "section_seq":   eq_seq,
+            "role":          "equity",
+            "group":         None,
+            "account_code":  "—",
+            "account_name":  "Current period result",
+            "account_name_ar": None,
+            "balance":       result,
+            "synthetic":     True,
+        })
+    out.sort(key=lambda x: (_ROLE_RANK.get(x["role"], 3), x["section_seq"],
+                            x["section"] or "", x["group"] or "",
+                            x["synthetic"], x["account_code"] or ""))
     return out

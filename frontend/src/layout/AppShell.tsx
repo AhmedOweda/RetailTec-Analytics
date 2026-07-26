@@ -42,6 +42,7 @@ import MenuIcon           from '@mui/icons-material/Menu'
 import AutoStoriesIcon    from '@mui/icons-material/AutoStories'
 import BalanceIcon        from '@mui/icons-material/Balance'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
 import ReportProblemIcon  from '@mui/icons-material/ReportProblem'
 import DarkModeIcon       from '@mui/icons-material/DarkModeOutlined'
 import LightModeIcon      from '@mui/icons-material/LightModeOutlined'
@@ -89,6 +90,8 @@ const SALES_NAV = [
 const ACCOUNTING_NAV = [
   { to: '/accounting/journal',        icon: <AutoStoriesIcon    />, label: 'Journal'        },
   { to: '/accounting/trial-balance',  icon: <BalanceIcon        />, label: 'Trial Balance'  },
+  { to: '/accounting/profit-loss',    icon: <TrendingUpIcon     />, label: 'Profit & Loss'  },
+  { to: '/accounting/balance-sheet',  icon: <AccountBalanceWalletIcon />, label: 'Balance Sheet' },
   { to: '/accounting/general-ledger', icon: <AccountBalanceIcon />, label: 'General Ledger' },
   { to: '/accounting/exceptions',     icon: <ReportProblemIcon  />, label: 'GL Exceptions'  },
 ]
@@ -363,6 +366,7 @@ export default function AppShell() {
     '/dimensions/stores', '/dimensions/customers', '/dimensions/employees',
     '/dimensions/items', '/dimensions/vendors',
     '/accounting/journal', '/accounting/trial-balance',
+    '/accounting/profit-loss', '/accounting/balance-sheet',
     '/accounting/general-ledger', '/accounting/exceptions',
   ])
   // A nav entry exists only when the LICENSE covers its domain AND the user

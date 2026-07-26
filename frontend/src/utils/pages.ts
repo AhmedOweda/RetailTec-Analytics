@@ -36,6 +36,8 @@ export const PAGE_DOMAINS: PageDomain[] = [
     pages: [
       { key: '/accounting/journal',        label: 'Journal' },
       { key: '/accounting/trial-balance',  label: 'Trial Balance' },
+      { key: '/accounting/profit-loss',    label: 'Profit & Loss' },
+      { key: '/accounting/balance-sheet',  label: 'Balance Sheet' },
       { key: '/accounting/general-ledger', label: 'General Ledger' },
       { key: '/accounting/exceptions',     label: 'GL Exceptions' },
     ],
