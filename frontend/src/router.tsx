@@ -23,6 +23,8 @@ import AccountingJournal     from './pages/accounting/Journal'
 import AccountingTrialBalance from './pages/accounting/TrialBalance'
 import AccountingProfitLoss   from './pages/accounting/ProfitLoss'
 import AccountingBalanceSheet from './pages/accounting/BalanceSheet'
+import AccountingBpStatement  from './pages/accounting/BpStatement'
+import AccountingAging        from './pages/accounting/Aging'
 import AccountingGeneralLedger from './pages/accounting/GeneralLedger'
 import AccountingExceptions   from './pages/accounting/Exceptions'
 import Assistant             from './pages/assistant/Assistant'
@@ -63,6 +65,8 @@ export const router = createBrowserRouter([
       { path: 'accounting/trial-balance',   element: <AccountingTrialBalance />  },
       { path: 'accounting/profit-loss',     element: <AccountingProfitLoss />    },
       { path: 'accounting/balance-sheet',   element: <AccountingBalanceSheet />  },
+      { path: 'accounting/bp-statement',    element: <AccountingBpStatement />   },
+      { path: 'accounting/aging',           element: <AccountingAging />         },
       { path: 'accounting/general-ledger',  element: <AccountingGeneralLedger /> },
       { path: 'accounting/exceptions',      element: <AccountingExceptions />    },
       { path: 'purchases/overview',      element: <PurchasesOverview />     },

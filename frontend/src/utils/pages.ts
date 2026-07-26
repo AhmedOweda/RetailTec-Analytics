@@ -9,6 +9,18 @@ export interface PageDomain { domain: string; pages: PageDef[] }
 
 export const PAGE_DOMAINS: PageDomain[] = [
   {
+    // General — the cross-domain pages. Listed FIRST so '/home' is the first
+    // key in ALL_PAGE_KEYS: an unrestricted user's landing page stays Home.
+    // Users with a restricted list that predates these keys LOSE Home and the
+    // Data Analyst — deliberate (owner request): "accounting only" must hide
+    // them. NULL/empty lists still see everything, as always.
+    domain: 'General',
+    pages: [
+      { key: '/home',      label: 'Home' },
+      { key: '/assistant', label: 'Data Analyst' },
+    ],
+  },
+  {
     domain: 'Sales',
     pages: [
       { key: '/sales/overview',     label: 'Overview' },
@@ -38,6 +50,8 @@ export const PAGE_DOMAINS: PageDomain[] = [
       { key: '/accounting/trial-balance',  label: 'Trial Balance' },
       { key: '/accounting/profit-loss',    label: 'Profit & Loss' },
       { key: '/accounting/balance-sheet',  label: 'Balance Sheet' },
+      { key: '/accounting/bp-statement',   label: 'BP Statement' },
+      { key: '/accounting/aging',          label: 'Aging' },
       { key: '/accounting/general-ledger', label: 'General Ledger' },
       { key: '/accounting/exceptions',     label: 'GL Exceptions' },
     ],
@@ -116,13 +130,14 @@ export function pathLicensed(domains: LicensedDomains, path: string): boolean {
   return hit ? domains.includes(hit[1]) : true
 }
 
-/** Landing page for this user under this license: Home when licensed, else
- *  the first page that is BOTH user-allowed and license-covered. */
+/** Landing page for this user under this license: the first page that is
+ *  BOTH user-allowed and license-covered. '/home' and '/assistant' are the
+ *  first two keys in ALL_PAGE_KEYS (General domain), so Home stays the
+ *  landing page whenever the user may open it — but a user whose pages list
+ *  omits it now falls through to their first allowed+licensed page. */
 export function firstLicensedPage(allowed: Set<string> | null,
                                   domains: LicensedDomains): string {
-  if (domainLicensed(domains, 'home')) return '/home'
   for (const key of ALL_PAGE_KEYS)
     if (pathLicensed(domains, key) && pageAllowed(allowed, key)) return key
-  if (domainLicensed(domains, 'ai')) return '/assistant'
   return '/settings'   // last resort — always exists, admin-gated by its route
 }

@@ -28,7 +28,7 @@ import { format, subDays, startOfMonth, startOfYear } from 'date-fns'
 import GridExportBar from '../../components/GridExportBar'
 import TitleLoader from '../../components/TitleLoader'
 import FeatureUnavailable from '../../components/FeatureUnavailable'
-import { DateBasisToggle, DEFAULT_DATE_BASIS, dateBasisLabel } from '../../components/AccountingFilters'
+import { DateBasisToggle, DEFAULT_DATE_BASIS, dateBasisLabel, useAccountingDefaults } from '../../components/AccountingFilters'
 import type { DateBasis } from '../../components/AccountingFilters'
 import { useFeature, FEATURE_ACCOUNTING } from '../../hooks/useFeatures'
 import { useGridColumnState } from '../../hooks/useGridColumnState'
@@ -72,6 +72,9 @@ export default function Exceptions() {
   // FACT_GL_DOC carries both dates, so this report windows on the same basis
   // as the statements whose exclusions it explains.
   const [dateBasis, setDateBasis] = useState<DateBasis>(DEFAULT_DATE_BASIS)
+  // Admin-configured default basis (Settings → Accounting) as initial state.
+  // No include_unbalanced here — this report exists to LIST the unbalanced.
+  useAccountingDefaults(setDateBasis)
   // True once the window is authoritative (preset chip or manual edit).
   const winPinned = useRef(false)
 

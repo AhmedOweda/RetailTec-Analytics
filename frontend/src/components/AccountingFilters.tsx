@@ -31,6 +31,10 @@
  * Colours are --rt-* design tokens only, so dark mode and RTL are automatic.
  * Labels go through tr() (EN + AR entries live in i18n.ts).
  */
+import { useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import axios from 'axios'
 import { ToggleButton, ToggleButtonGroup, Typography, Box } from '@mui/material'
 import { tr } from '../i18n'
 
@@ -53,6 +57,53 @@ export function restoreJournalCategory(value: any, marker: any): JournalCategory
   if (value === 'payment' || value === 'transaction') return value
   if (value === 'entry') return marker === 2 ? 'entry' : 'transaction'
   return ''
+}
+
+/**
+ * useAccountingDefaults — admin-configured report defaults as INITIAL state.
+ * =========================================================================
+ * Settings → Accounting stores `accounting.default_date_basis` and
+ * `accounting.default_include_unbalanced` in settings.json. Every accounting
+ * page still initialises its own useState with the documented hardcoded
+ * defaults (transaction / false), then this hook applies the configured
+ * values ONCE when GET /api/settings resolves — so the page renders
+ * immediately and simply re-queries if the admin chose different defaults.
+ *
+ * Drill-through URL params always WIN: when the current URL carries a
+ * `date_basis` or `include_unbalanced` param (Trial Balance → General Ledger,
+ * Aging → BP Statement, alert links), that value was chosen so the target
+ * ties back to the number that was clicked — the stored default must not
+ * override it, so this hook skips the corresponding setter.
+ */
+export function useAccountingDefaults(
+  setDateBasis?: (v: DateBasis) => void,
+  setIncludeUnbalanced?: (v: boolean) => void,
+) {
+  const [sp] = useSearchParams()
+  const { data } = useQuery({
+    queryKey: ['settings'],       // same cache entry AppShell already fills
+    queryFn:  () => axios.get('/api/settings').then(r => r.data),
+    staleTime: 60_000,
+    retry: false,
+  })
+  const applied = useRef(false)
+  // Capture the URL params of the FIRST render: the hook must not re-apply
+  // defaults when the user later edits the URL or a saved view lands.
+  const urlBasis = useRef(sp.get('date_basis'))
+  const urlUnbal = useRef(sp.get('include_unbalanced'))
+  useEffect(() => {
+    if (applied.current || !data) return
+    applied.current = true
+    const acc = (data as any)?.accounting || {}
+    if (!urlBasis.current && setDateBasis) {
+      const db = acc.default_date_basis
+      if (db === 'transaction' || db === 'posting') setDateBasis(db)
+    }
+    if (!urlUnbal.current && setIncludeUnbalanced
+        && typeof acc.default_include_unbalanced === 'boolean') {
+      setIncludeUnbalanced(acc.default_include_unbalanced)
+    }
+  }, [data])   // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /** Shared look for both groups — small, quiet, and unmistakably a choice. */

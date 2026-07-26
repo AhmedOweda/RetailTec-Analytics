@@ -27,6 +27,7 @@ import DataSlicer, { splitSlicer } from '../../components/DataSlicer'
 import {
   DateBasisToggle, JournalCategoryFilter, DEFAULT_DATE_BASIS,
   dateBasisLabel, journalCategoryLabel, restoreJournalCategory,
+  useAccountingDefaults,
 } from '../../components/AccountingFilters'
 import type { DateBasis, JournalCategory } from '../../components/AccountingFilters'
 import { AgGridReact } from 'ag-grid-react'
@@ -91,6 +92,9 @@ export default function GeneralLedger() {
   // Which of the two GL dates the window (and the opening-balance cut) uses.
   const [dateBasis, setDateBasis] = useState<DateBasis>(DEFAULT_DATE_BASIS)
   const [journalCat, setJournalCat] = useState<JournalCategory>('')
+  // Admin-configured report defaults (Settings → Accounting) as initial
+  // state; the drill-through URL params below still win.
+  useAccountingDefaults(setDateBasis, setIncludeUnbalanced)
   // True once the window is authoritative (drill-through, preset chip, manual
   // edit) — see useGlDefaultWindow.
   const winPinned = useRef(false)

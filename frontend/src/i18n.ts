@@ -22,6 +22,8 @@ const nav_en = {
   'nav./accounting/trial-balance': 'Trial Balance',
   'nav./accounting/profit-loss': 'Profit & Loss',
   'nav./accounting/balance-sheet': 'Balance Sheet',
+  'nav./accounting/bp-statement': 'BP Statement',
+  'nav./accounting/aging': 'Aging',
   'nav./accounting/general-ledger': 'General Ledger',
   'nav./accounting/exceptions': 'GL Exceptions',
   'nav./sales/overview': 'Overview', 'nav./sales/performance': 'Performance',
@@ -49,6 +51,8 @@ const nav_ar = {
   'nav./accounting/trial-balance': 'ميزان المراجعة',
   'nav./accounting/profit-loss': 'الأرباح والخسائر',
   'nav./accounting/balance-sheet': 'الميزانية العمومية',
+  'nav./accounting/bp-statement': 'كشف حساب',
+  'nav./accounting/aging': 'أعمار الديون',
   'nav./accounting/general-ledger': 'دفتر الأستاذ العام',
   'nav./accounting/exceptions': 'استثناءات دفتر الأستاذ',
   'nav./sales/overview': 'نظرة عامة', 'nav./sales/performance': 'الأداء',
@@ -960,6 +964,26 @@ const ar_strings: Record<string, string> = {
   'Asset': 'أصل',
   'Liability': 'التزام',
 
+  // ── Accounting: BP Statement + AR/AP Aging (2026-07-26) ──
+  // 'Opening', 'Closing', 'Current', 'Business Partner', 'Partner Code',
+  // 'Customer', 'Supplier' and 'As of' already exist above — DO NOT duplicate.
+  // Bucket headers ('1-30', '31-60', '61-90', '90+') stay latin numerals in
+  // both languages, so they carry no entry here on purpose.
+  'BP Statement': 'كشف حساب',
+  'Aging': 'أعمار الديون',
+  'Receivables': 'الذمم المدينة',
+  'Payables': 'الذمم الدائنة',
+  'Total Outstanding': 'إجمالي المستحق',
+  'Overdue': 'متأخر',
+  'Partners': 'الأطراف',
+  'with outstanding balance': 'ذات رصيد مستحق',
+  'Kind': 'النوع',
+  'Statement Lines': 'سطور الكشف',
+  'Pick a business partner to see their statement': 'اختر طرفًا تجاريًا لعرض كشف حسابه',
+  'Click a partner to open their statement': 'اضغط على طرف لفتح كشف حسابه',
+  'Balance-based aging — the outstanding balance is allocated FIFO against the most recent charges':
+    'أعمار الديون على أساس الرصيد — يُوزَّع الرصيد المستحق على أحدث الحركات المدينة أولًا بأول',
+
   // ── Accounting: date basis (transaction vs posting) ──
   'Date basis': 'أساس التاريخ',
   // (the toggle buttons use 'Transaction date' / 'Posting date' — the bare
@@ -1344,6 +1368,48 @@ const ar_strings: Record<string, string> = {
   '{{n}}s': '{{n}} ث',
   '{{m}}m {{s}}s': '{{m}} د {{s}} ث',
   '{{h}}h {{m}}m': '{{h}} س {{m}} د',
+
+  // ── Page-permission General domain (Home + Data Analyst, 2026-07-26) ──
+  // 'Home' and 'Data Analyst' already exist above — DO NOT duplicate.
+  'General': 'عام',
+
+  // ── Inventory History data values (INSERT / UPDATE action types) ──
+  'INSERT': 'إدراج',
+  'UPDATE': 'تحديث',
+
+  // ── Settings → Accounting (2026-07-26) ──
+  // 'Accounting', 'Class', 'Role', 'Accounts Used', 'Period', 'Documents',
+  // 'GL Lines', 'Unclassified', 'Settings saved', 'Save failed', 'Saving…',
+  // 'Account (code / name)', 'Asset', 'Liability', 'Equity', 'Revenue',
+  // 'Cost', 'Transaction date', 'Posting date' already exist — DO NOT
+  // duplicate them here.
+  'Class roles, AR/AP, defaults': 'أدوار التصنيفات وحسابات الذمم والافتراضات',
+  'Accounting Status': 'حالة المحاسبة',
+  'Last accounting sync': 'آخر مزامنة محاسبية',
+  'Class Roles': 'أدوار تصنيفات الحسابات',
+  'Every account class with its statement role. Roles drive the Profit & Loss and the Balance Sheet. Changes save immediately.':
+    'كل تصنيف حسابات مع دوره في القوائم المالية. الأدوار تُغذّي الأرباح والخسائر والميزانية العمومية. تُحفظ التغييرات فورًا.',
+  'Classified accounts': 'حسابات مصنّفة',
+  'Source': 'المصدر',
+  // role sources (backend values, translated at render)
+  'auto': 'تلقائي', 'override': 'مخصص', 'unmapped': 'بدون دور',
+  'Receivable & Payable Accounts': 'حسابات الذمم المدينة والدائنة',
+  'Used by AR/AP Aging to identify partner balances: only lines on these accounts count as a partner’s receivable or payable balance. Clear a list to fall back to class-role matching.':
+    'تُستخدم في تقرير أعمار الديون لتحديد أرصدة الأطراف: تُحتسب فقط السطور على هذه الحسابات ضمن رصيد الطرف المدين أو الدائن. امسح القائمة للرجوع إلى المطابقة حسب دور التصنيف.',
+  'Receivable accounts': 'حسابات الذمم المدينة',
+  'Payable accounts': 'حسابات الذمم الدائنة',
+  'Report Defaults': 'الإعدادات الافتراضية للتقارير',
+  'The accounting pages open with these defaults. Links that carry their own parameters still win.':
+    'تفتح صفحات المحاسبة بهذه الإعدادات الافتراضية. الروابط التي تحمل معاملاتها الخاصة لها الأولوية.',
+  'Default date basis': 'أساس التاريخ الافتراضي',
+  'Include unbalanced documents by default': 'تضمين المستندات غير المتوازنة افتراضيًا',
+  'Save Accounting Settings': 'حفظ إعدادات المحاسبة',
+
+  // ── Aging method note (account-list measurement, 2026-07-26) ──
+  'Aged on the configured receivable accounts ({{codes}}) — the outstanding balance is allocated FIFO against the most recent charges':
+    'تُحتسب الأعمار على حسابات الذمم المدينة المحددة ({{codes}}) — ويُوزَّع الرصيد المستحق على أحدث الحركات أولًا بأول',
+  'Aged on the configured payable accounts ({{codes}}) — the outstanding balance is allocated FIFO against the most recent charges':
+    'تُحتسب الأعمار على حسابات الذمم الدائنة المحددة ({{codes}}) — ويُوزَّع الرصيد المستحق على أحدث الحركات أولًا بأول',
 }
 
 i18n.use(initReactI18next).init({

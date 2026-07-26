@@ -200,8 +200,9 @@ export default function InventoryStockAsOf() {
             <Typography variant="subtitle1" fontWeight={600}>
               {tr('Stock on')} {asof} ({rows.length.toLocaleString()} {tr('rows')}){isFetching ? ' …' : ''}
             </Typography>
-            <GridExportBar gridRef={gridRef} filename={`stock_asof_${asof}`} title="Stock by Date"
-              view={groupBy} filters={`${tr('As of')} ${asof} · ${store ? tr('Selected stores') : tr('All stores')}`}
+            <GridExportBar gridRef={gridRef} filename={`stock_asof_${asof}`} title={tr('Stock by Date')}
+              view={tr(GROUPS.find(g => g.value === groupBy)?.label ?? groupBy)}
+              filters={`${tr('As of')} ${asof} · ${store ? tr('Selected stores') : tr('All stores')}`}
               reportEndpoint="/api/inventory/stock-asof" reportPeriod="custom" reportParams={params} />
           </Box>
           <Box className="ag-theme-alpine" sx={{ height: 560 }}>

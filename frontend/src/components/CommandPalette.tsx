@@ -46,6 +46,8 @@ const PAGES: { to: string; label: string; group: string }[] = [
   { to: '/inventory/coverage',    label: 'Coverage',     group: 'Inventory' },
   { to: '/accounting/profit-loss',   label: 'Profit & Loss', group: 'Accounting' },
   { to: '/accounting/balance-sheet', label: 'Balance Sheet', group: 'Accounting' },
+  { to: '/accounting/bp-statement',  label: 'BP Statement',  group: 'Accounting' },
+  { to: '/accounting/aging',         label: 'Aging',         group: 'Accounting' },
   { to: '/assistant',             label: 'Ask AI',       group: 'Tools' },
   { to: '/settings',              label: 'Settings',     group: 'Tools' },
 ]
