@@ -895,13 +895,29 @@ def _sync_inventory_snapshot(duck, ora):
 # confirmed read performance here is a non-issue, so a full scan is accepted
 # deliberately.
 def _sql_gl(df, dt):
+    # NOTE8 is the poster's source posting-date TEXT. TWO formats occur in the
+    # wild on the SAME server (verified live on 26.158.231.155): the C# poster
+    # writes 'DD-MM-YYYY HH24:MI:SS' (e.g. '02-01-2026 20:13:46') for the vast
+    # majority, but a handful of rows carry ISO-8601 'YYYY-MM-DDThh:mi:ss.sssZ'
+    # (e.g. '2026-01-15T10:30:00.000Z'). A single TO_DATE mask raises
+    # ORA-01861 ("literal does not match format string") on whichever format it
+    # was NOT given. Oracle 12.1 has no 'DEFAULT NULL ON CONVERSION ERROR', so
+    # pick the mask by where the first dash sits: col 3 => DD-MM-YYYY, col 5 =>
+    # ISO YYYY-MM-DD. Anything else yields NULL (falls back to INVC_POST_DATE).
+    note8_date = (
+        "CASE WHEN DI.NOTE8 IS NULL THEN NULL "
+        "WHEN SUBSTR(DI.NOTE8, 5, 1) = '-' "
+        "THEN TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'YYYY-MM-DD') "
+        "WHEN SUBSTR(DI.NOTE8, 3, 1) = '-' "
+        "THEN TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY') "
+        "END")
+    acct_date = f"COALESCE({note8_date}, TRUNC(D.INVC_POST_DATE))"
     return f"""
         SELECT
             DI.SID                                              AS GL_LINE_SID,
             DI.DOC_SID                                          AS GL_DOC_SID,
             TO_CHAR(D.DOC_NO)                                   AS GL_DOC_NO,
-            COALESCE(TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY'),
-                     TRUNC(D.INVC_POST_DATE))                   AS POST_DATE,
+            {acct_date}                                         AS POST_DATE,
             TRUNC(NVL(D.INVC_POST_DATE, D.CREATED_DATETIME))    AS GL_POST_DATE,
             DI.INVN_SBS_ITEM_SID                                AS ACCOUNT_SID,
             DI.ALU                                              AS ACCOUNT_CODE,
@@ -923,14 +939,9 @@ def _sql_gl(df, dt):
         LEFT JOIN RPS.STORE ST      ON ST.STORE_CODE = DI.NOTE2
                                    AND ST.SBS_SID    = SB.SID
         WHERE DI.SBS_NO = 100
-          AND COALESCE(TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY'),
-                       TRUNC(D.INVC_POST_DATE)) IS NOT NULL
-          AND COALESCE(TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY'),
-                       TRUNC(D.INVC_POST_DATE))
-                  >= TO_DATE('{df}', 'YYYY-MM-DD')
-          AND COALESCE(TO_DATE(SUBSTR(DI.NOTE8, 1, 10), 'DD-MM-YYYY'),
-                       TRUNC(D.INVC_POST_DATE))
-                  <  TO_DATE('{dt}', 'YYYY-MM-DD') + 1
+          AND {acct_date} IS NOT NULL
+          AND {acct_date} >= TO_DATE('{df}', 'YYYY-MM-DD')
+          AND {acct_date} <  TO_DATE('{dt}', 'YYYY-MM-DD') + 1
     """
 # Column order matches FACT_GL exactly (18 cols) — _stream_insert maps positionally.
 # The 18th is GL_POST_DATE, in ordinal position 5 (right after POST_DATE), which
