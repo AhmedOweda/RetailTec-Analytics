@@ -1278,9 +1278,6 @@ export default function DataModelSettings() {
                 px:3, '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
           {saveSettings.isPending ? tr('Saving…') : tr('Save Settings')}
         </Button>
-        <Typography sx={{ fontSize:12, color:'#94a3b8' }}>
-          {tr('Applies connection, data model and schedule changes')}
-        </Typography>
         <Box sx={{ flex:1 }} />
         {saveMsg && (
           <Typography sx={{ fontSize:12, color: saveMsg.includes('Host') ? '#f59e0b' : '#16a34a',

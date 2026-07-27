@@ -82,8 +82,8 @@ const SALES_NAV = [
   { to: '/sales/overview',      icon: <DashboardIcon  />, label: 'Overview'     },
   { to: '/sales/performance',   icon: <TrendingUpIcon />, label: 'Performance'  },
   { to: '/sales/products',      icon: <InventoryIcon  />, label: 'Products'     },
-  { to: '/sales/transactions',  icon: <ReceiptLongIcon/>, label: 'Invoices' },
-  { to: '/sales/journals',      icon: <MenuBookIcon    />, label: 'Invoice Explorer' },
+  { to: '/sales/transactions',  icon: <ReceiptLongIcon/>, label: 'Invoice Summary' },
+  { to: '/sales/journals',      icon: <MenuBookIcon    />, label: 'Invoice Details' },
 ]
 
 // Accounting — the virtual General Ledger (subsidiary 100). GL Exceptions is

@@ -1334,8 +1334,17 @@ def gl_profit_loss(
             "account_name_ar": r["account_name_ar"],
             "amount":        round(amount, 2),
         })
-    out.sort(key=lambda x: (x["section_seq"], x["section"] or "",
-                            x["group"] or "", x["account_code"] or ""))
+    # FINANCIAL ORDER (2026-07-27): revenue sections FIRST, cost sections
+    # after, Unclassified last — WITHIN each band the customer's own tree
+    # order (section_seq) still rules. Sorting by section_seq alone put
+    # Purchases (tree position 4) ahead of Sales (tree position 8), so the
+    # statement opened with COGS and showed Gross Profit BEFORE the revenue
+    # that produced it. A P&L reads revenue → cost of sales → gross profit →
+    # expenses; the tree keeps deciding the order of PEER sections only.
+    _PL_ROLE_RANK = {"revenue": 0, "cost": 1}
+    out.sort(key=lambda x: (_PL_ROLE_RANK.get(x["role"], 2), x["section_seq"],
+                            x["section"] or "", x["group"] or "",
+                            x["account_code"] or ""))
     return out
 
 
@@ -1452,13 +1461,28 @@ def gl_bp_statement(
     subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
     date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
     include_unbalanced: bool = Query(False),
+    view: str = Query("control", pattern="^(control|all)$"),
     limit:    Optional[int] = Query(None, ge=1, le=1000000),
 ):
-    """ONE business partner's WHOLE GL relationship inside the window: every
-    line that carries their BP_ID, whatever the account — AR/AP, sales, tax,
-    tender. The statement deliberately does NOT guess which accounts are "the
-    receivable": the partner's full activity is the honest كشف حساب, and the
-    receivable-only view is what /aging is for.
+    """One business partner's ledger inside the window, in one of two VIEWS.
+
+    view='control' (DEFAULT — the financially correct كشف حساب, 2026-07-27):
+    only the partner's lines on the configured AR/AP CONTROL accounts
+    (settings.json -> accounting.receivable_accounts / payable_accounts,
+    defaults 1220.01 / 3100.01 — the exact filter /aging uses). Charges are
+    debits, payments are credits, and the running balance IS what the partner
+    owes (or is owed). Why the old all-lines default was wrong as a statement:
+    every posted journal balances to zero across its own lines, so a statement
+    containing BOTH sides of every entry always collapses back to 0.00 after
+    each complete document — paid or unpaid read identically, and the closing
+    figure could never show the partner's true position (it also exposed
+    internal COGS / inventory / revenue lines that don't belong on a partner
+    statement). With the control view, the statement's closing now RECONCILES
+    with the partner's /aging balance by construction.
+
+    view='all' (the audit view): every line that carries their BP_ID,
+    whatever the account — AR/AP, sales, tax, tender. Useful to trace how a
+    document was posted; meaningless as a balance (see above).
 
     Synthetic FIRST row: 'Opening Balance', dated date_from, carrying the
     partner's SUM(AMOUNT) strictly before date_from (all time, same scope and
@@ -1481,6 +1505,22 @@ def gl_bp_statement(
     scf, sp_ = _scope(stores, subsidiaries)
     where += scf; params += sp_
     where += _balanced(include_unbalanced)
+    # ── The control-account gate (view='control', the default). Both sides'
+    # lists apply together: a partner can be customer AND supplier, and the
+    # statement shows their whole control-account position. Falls back to the
+    # 'all' behaviour only when an admin explicitly CLEARED both lists (the
+    # helpers return the built-in defaults when unset). Re-validated locally:
+    # scheduled replays (run_grid) call this function directly and bypass
+    # FastAPI's pattern check.
+    if view not in ("control", "all"):
+        view = "control"
+    if view == "control":
+        codes = list(dict.fromkeys(
+            _partner_account_codes(True) + _partner_account_codes(False)))
+        if codes:
+            ph = ",".join(["?"] * len(codes))
+            where += f" AND G.ACCOUNT_CODE IN ({ph})"
+            params += codes
     lim = f"LIMIT {int(limit)}" if limit else ""
     return _qdf(f"""
         WITH SCOPED AS (

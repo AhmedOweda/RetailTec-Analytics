@@ -1,12 +1,19 @@
 /**
  * Accounting → BP Statement (كشف حساب) — one business partner's ledger.
  *
- * The endpoint returns a BARE LIST: every GL line carrying the chosen
- * partner's BP_ID in the window — their WHOLE relationship (AR/AP, sales,
- * tax, tender lines alike), with a running balance. The first row is the
- * synthetic 'Opening Balance' the backend manufactures (dated date_from,
- * carrying the pre-window SUM(AMOUNT)), rendered muted + italic exactly like
- * the General Ledger's opening rows — computed, not a document.
+ * TWO VIEWS (2026-07-27, the financial-correctness fix):
+ *   · Statement (default) — only the configured AR/AP CONTROL-account lines
+ *     (the same lists Aging uses). Charges are debits, payments credits, and
+ *     the running balance IS what the partner owes; the closing reconciles
+ *     with their Aging balance by construction.
+ *   · All lines (audit) — every GL line carrying the BP id, whatever the
+ *     account. Every balanced document nets to ZERO across its own lines, so
+ *     this view always collapses to 0.00 per complete document — it traces
+ *     postings; it is NOT a balance and must never read as one.
+ * The first row is the synthetic 'Opening Balance' the backend manufactures
+ * (dated date_from, carrying the pre-window SUM(AMOUNT) under the SAME view
+ * filter), rendered muted + italic exactly like the General Ledger's opening
+ * rows — computed, not a document.
  *
  * The partner picker is the shared <DataSlicer> over /api/accounting/search/bp
  * — SINGLE select, no free text: the statement is meaningless without exactly
@@ -24,7 +31,7 @@ import { useMemo, useRef, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Box, Typography, Chip, TextField, Autocomplete, Stack, Paper,
-  Switch, FormControlLabel, useTheme,
+  Switch, FormControlLabel, ToggleButton, ToggleButtonGroup, useTheme,
 } from '@mui/material'
 import SavedViewsBar from '../../components/SavedViewsBar'
 import DataSlicer from '../../components/DataSlicer'
@@ -47,7 +54,7 @@ import { useGlDefaultWindow } from '../../hooks/useGlWindow'
 import { noRowsOverlay } from '../../utils/gridOverlay'
 import { gridLocaleText } from '../../utils/gridLocale'
 import { moneyExact, money, num } from '../../utils/formatters'
-import { tr, trCols } from '../../i18n'
+import { tr, trf, trCols } from '../../i18n'
 import { PURPLE_BRAND } from '../../theme'
 
 const iso = (d: Date) => format(d, 'yyyy-MM-dd')
@@ -66,6 +73,18 @@ const isOpening = (r: any) => r?.src_doc_type === OPENING
 const fmtMoney = (v: any) => (v == null ? '' : moneyExact(v))
 const moneySx = (p: any) =>
   (+(p.value ?? 0) < 0 ? { color: 'var(--rt-neg-fg)', fontWeight: 600 } : undefined)
+
+/** Same visual contract as the shared DateBasisToggle (AccountingFilters). */
+const GROUP_SX = {
+  '& .MuiToggleButton-root': {
+    textTransform: 'none', fontSize: 11.5, fontWeight: 600, px: 1.2, py: 0.35,
+    color: 'var(--rt-text-2)', borderColor: 'var(--rt-border)',
+  },
+  '& .MuiToggleButton-root.Mui-selected': {
+    bgcolor: 'var(--rt-surface-3)', color: 'var(--rt-text)',
+  },
+  '& .MuiToggleButton-root.Mui-selected:hover': { bgcolor: 'var(--rt-surface-3)' },
+} as const
 
 const GRID_SX = {
   width: '100%',
@@ -90,6 +109,10 @@ export default function BpStatement() {
   const [bpSel,    setBpSel]    = useState<any[]>([])
   const [includeUnbalanced, setIncludeUnbalanced] = useState(false)
   const [dateBasis, setDateBasis] = useState<DateBasis>(DEFAULT_DATE_BASIS)
+  // 'control' (default) = the real كشف حساب: control-account lines only, the
+  // running balance is what the partner owes. 'all' = audit view: every GL
+  // line with their BP id — balanced documents net to zero, NOT a balance.
+  const [view, setView] = useState<'control' | 'all'>('control')
   // Admin-configured report defaults (Settings → Accounting) as initial
   // state; the drill-through URL params below still win.
   useAccountingDefaults(setDateBasis, setIncludeUnbalanced)
@@ -142,8 +165,22 @@ export default function BpStatement() {
     ...(stores.length ? { stores: stores.join(',') } : {}),
     ...(subs.length   ? { subsidiaries: subs.map(s => s.sid).join(',') } : {}),
     date_basis: dateBasis,
+    view,
     ...(includeUnbalanced ? { include_unbalanced: true } : {}),
-  }), [bpId, dateFrom, dateTo, stores, subs, dateBasis, includeUnbalanced])
+  }), [bpId, dateFrom, dateTo, stores, subs, dateBasis, view, includeUnbalanced])
+
+  // The EFFECTIVE control-account lists (Settings → Accounting) — shown in
+  // the method chip so the reader knows exactly what the balance measures.
+  const { data: accStatus } = useQuery<any>({
+    queryKey: ['acc-status'],
+    queryFn: () => axios.get('/api/accounting/status').then(r => r.data),
+    staleTime: 60_000,
+    retry: false,
+  })
+  const controlAccounts: string[] = [...new Set([
+    ...((accStatus?.receivable_accounts ?? []) as string[]),
+    ...((accStatus?.payable_accounts ?? []) as string[]),
+  ])]
 
   // Bare list — rows directly, NOT {total, rows}. Fetched only once a partner
   // is picked: a statement without a partner is not a report.
@@ -201,10 +238,11 @@ export default function BpStatement() {
     + ` · ${dateBasisLabel(dateBasis)}`
     + ` · ${stores.length ? `${stores.length} ${tr('store(s)')}` : tr('All stores')}`
     + `${subs.length ? ` · ${subs.map(s => s.name).join(', ')}` : ''}`
+    + ` · ${view === 'control' ? tr('Statement') : tr('All lines (audit)')}`
     + ` · ${includeUnbalanced ? tr('Including unbalanced documents') : tr('Balanced documents only')}`
 
   const currentView = { preset, dateFrom, dateTo, stores, subs, bpSel,
-                        includeUnbalanced, dateBasis }
+                        includeUnbalanced, dateBasis, view }
   const applyView = (s: any) => {
     if (!s) return
     setPreset(s.preset ?? ''); setDateFrom(s.dateFrom ?? dateFrom); setDateTo(s.dateTo ?? dateTo)
@@ -212,6 +250,7 @@ export default function BpStatement() {
     setBpSel(Array.isArray(s.bpSel) ? s.bpSel.filter((o: any) => o && typeof o !== 'string') : [])
     setIncludeUnbalanced(!!s.includeUnbalanced)
     setDateBasis(s.dateBasis === 'posting' ? 'posting' : DEFAULT_DATE_BASIS)
+    setView(s.view === 'all' ? 'all' : 'control')
     winPinned.current = true
   }
 
@@ -281,6 +320,20 @@ export default function BpStatement() {
                   rest: [o.bp_code, o.bp_kind ? tr(String(o.bp_kind)) : '']
                     .filter(Boolean).join(' | ') })} />
 
+          {/* Statement vs audit — changes WHICH LINES the server returns and
+              therefore what the running balance means (see file header). */}
+          <ToggleButtonGroup exclusive size="small" value={view} sx={GROUP_SX}
+            onChange={(_, v) => { if (v) setView(v) }}>
+            <ToggleButton value="control"
+              title={tr('Only the receivable / payable control accounts — the balance is what the partner owes')}>
+              {tr('Statement')}
+            </ToggleButton>
+            <ToggleButton value="all"
+              title={tr('Every GL line carrying this partner — for tracing postings, not a balance')}>
+              {tr('All lines (audit)')}
+            </ToggleButton>
+          </ToggleButtonGroup>
+
           <DateBasisToggle value={dateBasis} onChange={setDateBasis} />
 
           <FormControlLabel
@@ -309,6 +362,19 @@ export default function BpStatement() {
         </Paper>
       ) : (
         <>
+          {/* ── Method note: what the balance MEASURES in the active view ── */}
+          <Box sx={{ mt: 2 }}>
+            <Chip size="small"
+              label={view === 'control'
+                ? trf('Statement on the control accounts ({{codes}}) — the running balance is what the partner owes',
+                      { codes: controlAccounts.join(', ') || '…' })
+                : tr('All journal lines (audit) — every balanced document nets to zero, so the closing is not the partner balance')}
+              sx={{ bgcolor: view === 'control' ? 'var(--rt-surface-3)' : 'var(--rt-warn-bg)',
+                    color:   view === 'control' ? 'var(--rt-text-2)'   : 'var(--rt-warn-fg)',
+                    fontWeight: 600, fontSize: 11.5, height: 'auto', py: 0.4,
+                    '& .MuiChip-label': { whiteSpace: 'normal' } }} />
+          </Box>
+
           {/* ── KPI cards — derived from the grid rows themselves ── */}
           <Box sx={{ display: 'grid', gap: 2, mt: 2,
             gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(4,1fr)' } }}>

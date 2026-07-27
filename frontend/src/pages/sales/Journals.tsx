@@ -287,7 +287,7 @@ export default function Journals() {
       <Box sx={{ position: 'sticky', top: 0, zIndex: 10, bgcolor: 'var(--rt-surface)', mx: -3, px: 3, pt: 3, pb: 2,
         borderBottom: '1px solid var(--rt-border)' }}>
         <Typography variant="h6" sx={{ fontWeight: 800, color: 'var(--rt-text)', letterSpacing: '-0.3px', mb: 0.3 }}>
-          {tr('Invoice Explorer')}<TitleLoader />
+          {tr('Invoice Details')}<TitleLoader />
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>{dateFrom} — {dateTo}</Typography>
 
@@ -366,9 +366,9 @@ export default function Journals() {
       <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid var(--rt-border)', overflow: 'hidden', mt: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 1.5, py: 1 }}>
           <Typography sx={{ fontWeight: 700, fontSize: 13, color: 'var(--rt-text)' }}>
-            {tr('Invoice Details')} <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {num(invTotal, 0)}</span>
+            {tr('Invoices')} <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {num(invTotal, 0)}</span>
           </Typography>
-          <GridExportBar gridRef={invGridRef} filename="journal_invoices" title="Invoice Explorer" view={tr('Invoices')}
+          <GridExportBar gridRef={invGridRef} filename="journal_invoices" title="Invoice Details" view={tr('Invoices')}
             filters={journalFilters} reportEndpoint="/api/sales/journal/invoices" reportPeriod={preset || 'custom'}
             reportParams={filterParams} colDefs={invColDefs} onResetColumns={invCols.resetColumns} />
         </Stack>
@@ -396,7 +396,7 @@ export default function Journals() {
             <FormControlLabel control={<Switch size="small" checked={showAll} onChange={e => setShowAll(e.target.checked)}
               sx={{ '& .Mui-checked': { color: ACCENT }, '& .Mui-checked + .MuiSwitch-track': { bgcolor: `${ACCENT} !important` } }} />}
               label={<Typography sx={{ fontSize: 12, fontWeight: 600 }}>{tr('Show all lines')}</Typography>} />
-            <GridExportBar gridRef={itemGridRef} filename="journal_items" title="Invoice Explorer" view={tr('Item lines')}
+            <GridExportBar gridRef={itemGridRef} filename="journal_items" title="Invoice Details" view={tr('Item lines')}
               filters={journalFilters} reportEndpoint="/api/sales/journal/items" reportPeriod={preset || 'custom'}
               reportParams={filterParams} colDefs={itemColDefs} onResetColumns={itemColsState.resetColumns} />
           </Stack>

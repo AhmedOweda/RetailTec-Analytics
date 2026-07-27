@@ -20,7 +20,6 @@ import PictureAsPdfIcon  from '@mui/icons-material/PictureAsPdf'
 import ViewColumnIcon    from '@mui/icons-material/ViewColumn'
 import EmailIcon         from '@mui/icons-material/Email'
 import HistoryIcon       from '@mui/icons-material/History'
-import ScheduleSendIcon  from '@mui/icons-material/ScheduleSend'
 import CloseIcon         from '@mui/icons-material/Close'
 import type { AgGridReact } from 'ag-grid-react'
 import type { ColDef }      from 'ag-grid-community'
@@ -402,15 +401,13 @@ export default function GridExportBar({
         startIcon={exporting === 'pdf' ? <CircularProgress size={13} sx={{ color: 'var(--rt-neg-fg)' }} /> : <PictureAsPdfIcon sx={{ fontSize: '17px !important' }} />}
         sx={btnSx('var(--rt-neg-fg)')}>{tr('PDF')}</Button>
 
+      {/* Scheduling lives INSIDE the Email dialog ('Send now' / 'Schedule
+          recurring' toggle) — the old standalone Schedule button opened the
+          very same dialog, so it was pure duplication on every grid and was
+          removed (2026-07-27, owner request). */}
       <Button size="small" variant="outlined" onClick={() => { setMode('now'); setEmailOpen(true) }}
         startIcon={<EmailIcon sx={{ fontSize: '17px !important' }} />}
         sx={btnSx(ACCENT)}>{tr('Email')}</Button>
-
-      {isAdmin && reportEndpoint && (
-        <Button size="small" variant="outlined" onClick={() => { setMode('schedule'); setEmailOpen(true) }}
-          startIcon={<ScheduleSendIcon sx={{ fontSize: '17px !important' }} />}
-          sx={btnSx('#0284c7')}>{tr('Schedule')}</Button>
-      )}
 
       {/* ── Email dialog ── */}
       <Dialog open={emailOpen} onClose={() => setEmailOpen(false)} maxWidth="sm" fullWidth
