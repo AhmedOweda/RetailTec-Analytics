@@ -1414,6 +1414,13 @@ const ar_strings: Record<string, string> = {
     'تُحتسب الأعمار على حسابات الذمم المدينة المحددة ({{codes}}) — ويُوزَّع الرصيد المستحق على أحدث الحركات أولًا بأول',
   'Aged on the configured payable accounts ({{codes}}) — the outstanding balance is allocated FIFO against the most recent charges':
     'تُحتسب الأعمار على حسابات الذمم الدائنة المحددة ({{codes}}) — ويُوزَّع الرصيد المستحق على أحدث الحركات أولًا بأول',
+
+  // ── Aging charts + accounting settings sticky save bar (2026-07-27) ──
+  'Outstanding by age': 'المستحق حسب العمر',
+  'Top partners by outstanding': 'أعلى الأطراف حسب الرصيد المستحق',
+  'Top {{n}} of {{m}}': 'أعلى {{n}} من {{m}}',
+  'You have unsaved accounting changes': 'لديك تغييرات محاسبية غير محفوظة',
+  'Discard': 'تجاهل',
 }
 
 i18n.use(initReactI18next).init({

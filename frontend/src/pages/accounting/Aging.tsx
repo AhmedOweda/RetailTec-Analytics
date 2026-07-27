@@ -33,6 +33,7 @@ import axios from 'axios'
 import { format, parseISO, startOfYear, isValid } from 'date-fns'
 import GridExportBar from '../../components/GridExportBar'
 import KpiCard from '../../components/KpiCard'
+import ReactECharts from '../../components/ReactEChartsThemed'
 import TitleLoader from '../../components/TitleLoader'
 import FeatureUnavailable from '../../components/FeatureUnavailable'
 import { DateBasisToggle, DEFAULT_DATE_BASIS, dateBasisLabel, useAccountingDefaults } from '../../components/AccountingFilters'
@@ -50,6 +51,26 @@ import { PURPLE_BRAND } from '../../theme'
 const today = format(new Date(), 'yyyy-MM-dd')
 const fmtMoney = (v: any) => (v == null || v === '' ? '' : moneyExact(v, 2))
 const EPS = 0.005
+
+/**
+ * Bucket severity ramp for the charts. This is an ORDERED severity scale, not
+ * a categorical palette: green anchors the healthy 'Current' bucket, then the
+ * four overdue buckets darken monotonically (amber → dark red) so age reads as
+ * increasing risk even under colour-vision deficiency (lightness survives
+ * CVD). Identity is never colour-alone: the bars carry axis labels, the
+ * stacked chart has a legend, and both have tooltips. Canvas can't resolve
+ * --rt-* CSS variables, so these are literal hexes on purpose (the same rule
+ * every chart in this app follows); dark mode is handled by chartDark.ts.
+ */
+const BUCKETS = [
+  { k: 'current',  label: 'Current', color: '#1B7A3E' },
+  { k: 'd1_30',    label: '1-30',    color: '#D9A21B' },
+  { k: 'd31_60',   label: '31-60',   color: '#DD7231' },
+  { k: 'd61_90',   label: '61-90',   color: '#C2413B' },
+  { k: 'd90_plus', label: '90+',     color: '#8E1F1F' },
+] as const
+const kFmt = (v: number) =>
+  Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)
 
 type Side = 'ar' | 'ap'
 
@@ -148,6 +169,64 @@ export default function Aging() {
     balance: totals.balance, current: totals.current, d1_30: totals.d1_30,
     d31_60: totals.d31_60, d61_90: totals.d61_90, d90_plus: totals.d90_plus,
   }], [totals])
+
+  // ── Charts ────────────────────────────────────────────────────────────────
+  // Left: how much of the outstanding balance sits in each age bucket — the
+  // shape a credit controller reads first (weight drifting right = trouble).
+  const bucketLabel = (b: (typeof BUCKETS)[number]) =>
+    b.k === 'current' ? tr('Current') : b.label
+  const ageOpt = useMemo(() => {
+    const total = Math.abs(totals.balance) >= EPS ? totals.balance : 0
+    return {
+      tooltip: { trigger: 'item', formatter: (p: any) =>
+        `${p.name}<br/><b>${moneyExact(p.value, 2)}</b>${total
+          ? ` · ${(+p.value / total * 100).toFixed(1)}%` : ''}` },
+      grid: { left: 8, right: 12, top: 24, bottom: 4, containLabel: true },
+      xAxis: { type: 'category', data: BUCKETS.map(bucketLabel),
+               axisLabel: { fontSize: 11, fontWeight: 600 }, axisTick: { show: false } },
+      yAxis: { type: 'value', axisLabel: { fontSize: 10, formatter: kFmt },
+               splitLine: { lineStyle: { opacity: 0.5 } } },
+      series: [{
+        type: 'bar', barWidth: '56%',
+        data: BUCKETS.map(b => ({
+          value: +(+(totals as any)[b.k]).toFixed(2),
+          itemStyle: { color: b.color, borderRadius: [3, 3, 0, 0] },
+        })),
+        // Selective direct labels: only buckets that actually hold money.
+        label: { show: true, position: 'top', fontSize: 10, fontWeight: 700,
+                 formatter: (p: any) => (Math.abs(p.value) >= EPS ? money(p.value) : '') },
+      }],
+    }
+  }, [totals])
+
+  // Right: WHO the balance is concentrated in — top partners, each bar
+  // stacked by the same age buckets (same colours, so the two charts read
+  // as one system). Sorted biggest first; ECharts draws category 0 at the
+  // bottom, so the array is reversed to put the biggest on top.
+  const topOpt = useMemo(() => {
+    const top = [...rows]
+      .sort((a, b) => Math.abs(+(b.balance ?? 0)) - Math.abs(+(a.balance ?? 0)))
+      .slice(0, 8).reverse()
+    return {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (ps: any[]) => {
+          const lines = ps.filter(p => Math.abs(+p.value) >= EPS)
+            .map(p => `${p.marker} ${p.seriesName}: ${moneyExact(p.value, 2)}`)
+          return `<b>${ps[0]?.name ?? ''}</b><br/>${lines.join('<br/>')}`
+        } },
+      legend: { top: 0, textStyle: { fontSize: 10.5 }, itemWidth: 10, itemHeight: 10 },
+      grid: { left: 8, right: 34, top: 26, bottom: 4, containLabel: true },
+      xAxis: { type: 'value', axisLabel: { fontSize: 10, formatter: kFmt },
+               splitLine: { lineStyle: { opacity: 0.5 } } },
+      yAxis: { type: 'category', data: top.map(r => r.bp_name),
+               axisLabel: { fontSize: 10.5, width: 130, overflow: 'truncate' } },
+      series: BUCKETS.map(b => ({
+        name: bucketLabel(b), type: 'bar', stack: 'age', barWidth: '62%',
+        data: top.map(r => +(+(r[b.k] ?? 0)).toFixed(2)),
+        itemStyle: { color: b.color },
+      })),
+    }
+  }, [rows])
 
   // ── Drill-through → BP Statement for the clicked partner. Window: start of
   //    the as-of year → as_of (the statement's own Opening Balance row carries
@@ -295,6 +374,31 @@ export default function Aging() {
         <KpiCard label={tr('Partners')} value={num(rows.length, 0)}
           sub={tr('with outstanding balance')} color={PURPLE_BRAND[400]} icon="ti-users" />
       </Box>
+
+      {/* ── Charts: age distribution + partner concentration ── */}
+      {rows.length > 0 && (
+        <Box sx={{ display: 'grid', gap: 2, mt: 2,
+                   gridTemplateColumns: { xs: '1fr', md: '5fr 7fr' } }}>
+          <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid var(--rt-border)', p: 1.5 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 13, color: 'var(--rt-text)' }}>
+              {tr('Outstanding by age')}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: 'var(--rt-text-2)', mb: 0.5 }}>
+              {sideLabel} · {tr('As of')} {asOf}
+            </Typography>
+            <ReactECharts option={ageOpt} style={{ height: 232 }} />
+          </Paper>
+          <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid var(--rt-border)', p: 1.5 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 13, color: 'var(--rt-text)' }}>
+              {tr('Top partners by outstanding')}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: 'var(--rt-text-2)', mb: 0.5 }}>
+              {trf('Top {{n}} of {{m}}', { n: Math.min(8, rows.length), m: rows.length })}
+            </Typography>
+            <ReactECharts option={topOpt} style={{ height: 232 }} />
+          </Paper>
+        </Box>
+      )}
 
       {/* ── Aging grid ── */}
       <Paper elevation={0} sx={{ borderRadius: 2, border: '1px solid var(--rt-border)', overflow: 'hidden', mt: 2, mb: 1 }}>

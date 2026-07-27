@@ -1261,7 +1261,12 @@ export default function DataModelSettings() {
       <SyncHistoryDialog open={histOpen} onClose={() => setHistOpen(false)}
         history={history ?? []} refetch={refetchHistory} fetching={histFetching} />
 
-      {/* ── Sticky save bar — always visible, no more hunting mid-page ── */}
+      {/* ── Sticky save bar — connection / data-model / schedules scope.
+             HIDDEN on the Accounting tab (5): accounting saves through its own
+             endpoint and shows its own dirty-aware sticky bar inside
+             AccountingCard. One tab, one save bar — showing this one there
+             misled users into clicking a Save that does not cover their edits. */}
+      {tab !== 5 && (
       <Box sx={{ position:'sticky', bottom:0, zIndex:10, mt:2, mx:-3, px:3, py:1.5,
                  bgcolor: 'var(--rt-surface)', borderTop:'1px solid var(--rt-border)',
                  display:'flex', alignItems:'center', gap:2,
@@ -1287,6 +1292,7 @@ export default function DataModelSettings() {
           <Typography sx={{ fontSize:12, color:'#ef4444', fontWeight:600 }}>{saveErr}</Typography>
         )}
       </Box>
+      )}
     </Box>
   )
 }
@@ -2227,17 +2233,32 @@ function AccountingCard() {
   const [defBasis, setDefBasis] = useState<'transaction' | 'posting'>('transaction')
   const [defUnbal, setDefUnbal] = useState(false)
   const seeded = useRef(false)
+  // Last SAVED state — the reference the dirty check compares against and the
+  // state Discard restores. Filled on seed, refreshed on every successful save.
+  const base = useRef<{ recv: string[]; pay: string[]
+                        basis: 'transaction' | 'posting'; unbal: boolean } | null>(null)
   useEffect(() => {
     // Seed once from the EFFECTIVE values (status carries the lists after
     // defaults, so the UI never duplicates the backend's default constants).
     if (seeded.current || !status || !settings) return
     seeded.current = true
-    setRecv((status.receivable_accounts ?? []).map(String))
-    setPay((status.payable_accounts ?? []).map(String))
+    const recv0 = (status.receivable_accounts ?? []).map(String)
+    const pay0  = (status.payable_accounts ?? []).map(String)
+    setRecv(recv0)
+    setPay(pay0)
     const acc = settings?.accounting || {}
-    if (acc.default_date_basis === 'posting') setDefBasis('posting')
+    const basis0: 'transaction' | 'posting' =
+      acc.default_date_basis === 'posting' ? 'posting' : 'transaction'
+    if (basis0 === 'posting') setDefBasis('posting')
     setDefUnbal(!!acc.default_include_unbalanced)
+    base.current = { recv: recv0, pay: pay0, basis: basis0,
+                     unbal: !!acc.default_include_unbalanced }
   }, [status, settings])
+  const dirty = !!base.current && (
+    JSON.stringify(recv) !== JSON.stringify(base.current.recv) ||
+    JSON.stringify(pay)  !== JSON.stringify(base.current.pay)  ||
+    defBasis !== base.current.basis ||
+    defUnbal !== base.current.unbal)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const saveAcct = useMutation({
     mutationFn: () => axios.put('/api/accounting/settings', {
@@ -2247,7 +2268,11 @@ function AccountingCard() {
       default_include_unbalanced: defUnbal,
     }),
     onSuccess: () => {
+      // The just-saved values become the new baseline — the bar disappears
+      // and only the transient confirmation stays for a few seconds.
+      base.current = { recv: [...recv], pay: [...pay], basis: defBasis, unbal: defUnbal }
       setSaveMsg(tr('Settings saved'))
+      window.setTimeout(() => setSaveMsg(null), 4000)
       qc.invalidateQueries({ queryKey: ['settings'] })
       qc.invalidateQueries({ queryKey: ['acc-status'] })
       qc.invalidateQueries({ queryKey: ['acc-aging'] })
@@ -2255,18 +2280,14 @@ function AccountingCard() {
     onError: (e: any) =>
       setSaveMsg(e?.response?.data?.detail?.toString?.() ?? tr('Save failed')),
   })
-  const saveBtn = (
-    <Box sx={{ display:'flex', alignItems:'center', gap:1.5, mt:2 }}>
-      <Button variant="contained" size="small" disabled={saveAcct.isPending}
-        onClick={() => { setSaveMsg(null); saveAcct.mutate() }}
-        sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, boxShadow:'none',
-              '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
-        {saveAcct.isPending ? tr('Saving…') : tr('Save Accounting Settings')}
-      </Button>
-      {saveMsg && <Typography sx={{ fontSize:12, fontWeight:600,
-        color: saveMsg === tr('Settings saved') ? '#16a34a' : 'var(--rt-neg-fg)' }}>{saveMsg}</Typography>}
-    </Box>
-  )
+  const discard = () => {
+    if (!base.current) return
+    setRecv([...base.current.recv])
+    setPay([...base.current.pay])
+    setDefBasis(base.current.basis)
+    setDefUnbal(base.current.unbal)
+    setSaveMsg(null)
+  }
 
   const unclassified = status?.unclassified_accounts ?? 0
   const roleSrcColor: Record<string, string> = {
@@ -2395,7 +2416,6 @@ function AccountingCard() {
                   rest: [o.name_en, o.name_ar].filter(Boolean).join(' | ') })} />
         </LabeledCtl>
       </Box>
-      {saveBtn}
     </SectionCard>
 
     {/* ── Report defaults ── */}
@@ -2420,7 +2440,38 @@ function AccountingCard() {
                   '& .Mui-checked + .MuiSwitch-track': { bgcolor: `${ACCENT} !important` } }} />}
           label={<Typography sx={{ fontSize:13, fontWeight:600 }}>{tr('Include unbalanced documents by default')}</Typography>} />
       </Box>
-      {saveBtn}
     </SectionCard>
+
+    {/* ── THE one sticky save bar for this tab. Appears only while there are
+           unsaved edits (or briefly after a save, to show the confirmation).
+           Covers BOTH sections above (R&P accounts + report defaults) — they
+           always saved together through one endpoint; now the UI says so. */}
+    {(dirty || saveAcct.isPending || saveMsg) && (
+      <Box sx={{ position:'sticky', bottom:8, zIndex:10, mt:2,
+                 px:2.5, py:1.25, borderRadius:2,
+                 bgcolor:'var(--rt-surface)', border:'1px solid var(--rt-border)',
+                 display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap',
+                 boxShadow:'0 -4px 16px rgba(15,23,42,0.10)' }}>
+        {(dirty || saveAcct.isPending) ? (<>
+          <Button variant="contained" size="small" disabled={saveAcct.isPending}
+            onClick={() => { setSaveMsg(null); saveAcct.mutate() }}
+            sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, boxShadow:'none', px:2.5,
+                  '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
+            {saveAcct.isPending ? tr('Saving…') : tr('Save Accounting Settings')}
+          </Button>
+          <Button size="small" onClick={discard} disabled={saveAcct.isPending}
+            sx={{ textTransform:'none', fontWeight:600, color:'var(--rt-text-2)' }}>
+            {tr('Discard')}
+          </Button>
+          <Typography sx={{ fontSize:12, fontWeight:600, color:'var(--rt-text-2)' }}>
+            {tr('You have unsaved accounting changes')}
+          </Typography>
+        </>) : null}
+        <Box sx={{ flex:1 }} />
+        {saveMsg && <Typography sx={{ fontSize:12, fontWeight:700,
+          color: saveMsg === tr('Settings saved') ? '#16a34a' : 'var(--rt-neg-fg)' }}>
+          {saveMsg === tr('Settings saved') ? '✓ ' : ''}{saveMsg}</Typography>}
+      </Box>
+    )}
   </>)
 }
