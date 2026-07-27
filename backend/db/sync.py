@@ -1147,9 +1147,11 @@ _INTEGRATION_CLASS_DEFAULTS: dict = {
     "1010.60": "Assets",
     "1200.00": "Assets", "1200.01": "Assets",
     "1200.02": "Assets", "1200.03": "Assets", "1200.04": "Assets",
-    "1200.05": "Assets", "1220.01": "Assets",
+    # AR/AP appear under BOTH codes: the items are being renamed to ALU
+    # 'AR'/'AP' (UDF5 keeps the number) — see accounting.py control defaults.
+    "1200.05": "Assets", "1220.01": "Assets", "AR": "Assets",
     # Liabilities — payables, VAT output, deposits/credits
-    "3100.01": "Liabilities", "3240.01": "Liabilities",
+    "3100.01": "Liabilities", "AP": "Liabilities", "3240.01": "Liabilities",
     "3250.01": "Liabilities", "3250.02": "Liabilities",
     "3500.01": "Liabilities", "3500.02": "Liabilities",
     # Sales — revenue, returns, discounts, fees/charges

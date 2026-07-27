@@ -1106,8 +1106,13 @@ def gl_put_class_roles(payload: ClassRolesPut, _admin: dict = Depends(_require_a
 # lists apply; an EXPLICITLY saved empty list means "no account filter" and
 # /aging falls back to the legacy role-based behaviour.
 
-DEFAULT_RECEIVABLE_ACCOUNTS = ["1220.01"]
-DEFAULT_PAYABLE_ACCOUNTS    = ["3100.01"]
+# Both codes per side: the AR/AP account items are being RENAMED (27-07-2026,
+# owner's convention) from ALU 1220.01/3100.01 to ALU 'AR'/'AP' — UDF5 keeps
+# the number, so the posting query is unchanged, but FACT_GL.ACCOUNT_CODE
+# carries the ALU. Listing both makes Aging / BP Statement correct before AND
+# after the rename (a code with no GL lines is a harmless IN-list member).
+DEFAULT_RECEIVABLE_ACCOUNTS = ["1220.01", "AR"]
+DEFAULT_PAYABLE_ACCOUNTS    = ["3100.01", "AP"]
 
 
 def _partner_account_codes(ar: bool) -> list:
