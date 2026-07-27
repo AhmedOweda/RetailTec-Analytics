@@ -1579,7 +1579,11 @@ def inv_coverage(
         )"""
             stag_join = "JOIN stag ON stag.ITEM_SID = FI.ITEM_SID AND stag.STORE_SID = FI.STORE_SID"
             stag_pred = "AND stag.q30 = 0 AND stag.qprev > 0"
-            stag_params = [as_of, as_of, as_of]
+            # FOUR placeholders in stag_cte (q30, the qprev BETWEEN pair, and
+            # the WHERE floor) — supplying three made DuckDB raise 'Values were
+            # not provided for prepared statement parameters' and the Home
+            # stagnant drill-through 500'd into an empty grid (fixed 27-07).
+            stag_params = [as_of, as_of, as_of, as_of]
 
     # Params follow placeholder order: s30, s60, s90 CTEs, the optional stag CTE,
     # then the WHERE filters (store, subsidiary, vendor, dcs — matching the ?
