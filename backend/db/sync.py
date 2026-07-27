@@ -1767,6 +1767,23 @@ def _sync_chunk(duck, df: str, dt: str, skip_existing: bool = False,
                         "exist on this server.")
                 else:
                     _load_accounts(duck, ora)
+                    if force_replace or rebuild:
+                        # The GL is the ONE fact whose SOURCE rows get deleted
+                        # wholesale: the owner wipes subsidiary 100 and
+                        # re-posts everything under a corrected query
+                        # (27-07-2026 workflow). A PK upsert never removes
+                        # vanished rows, so a deleted journal would survive
+                        # every re-post as a stale line and corrupt the TB.
+                        # Full / range / rebuild loads therefore REPLACE the
+                        # loaded window: clear it, then stream the fresh
+                        # extract (same transaction-date window _sql_gl uses).
+                        duck.execute(
+                            "DELETE FROM FACT_GL WHERE POST_DATE >= CAST(? AS DATE) "
+                            "AND POST_DATE < CAST(? AS DATE) + INTERVAL 1 DAY",
+                            [df, dt])
+                        log.info(f"FACT_GL: window {df}->{dt} cleared before "
+                                 "full reload (stale journals cannot survive "
+                                 "a source re-post)")
                     _stream_insert(duck, ora, _sql_gl(df, dt), "FACT_GL", 18, force_replace)
                     _derive_gl_docs(duck)
                     set_feature_available(duck, FEATURE_ACCOUNTING, True, "")
