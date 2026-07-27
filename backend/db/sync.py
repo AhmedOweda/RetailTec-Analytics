@@ -1138,10 +1138,13 @@ _INTEGRATION_CLASS_DEFAULTS: dict = {
     "1010.15": "Assets", "1010.16": "Assets", "1010.21": "Assets",
     "1010.26": "Assets", "1010.30": "Assets", "1010.40": "Assets",
     "1010.46": "Assets",
-    # 1010.90 Credit Card (undefined) — the posting query's catch-all for any
-    # tender it has no specific mapping for (added 27-07-2026 with the
-    # undefined-tender fix). An asset clearing account like its 1010 siblings.
-    "1010.90": "Assets",
+    # 1010.51..1010.60 Custom Tender 1..10 — the posting query's per-type
+    # clearing accounts for Prism custom tender types 19..28 (added 27-07-2026
+    # with the undefined-tender fix; the catch-all itself reuses 1010.30).
+    "1010.51": "Assets", "1010.52": "Assets", "1010.53": "Assets",
+    "1010.54": "Assets", "1010.55": "Assets", "1010.56": "Assets",
+    "1010.57": "Assets", "1010.58": "Assets", "1010.59": "Assets",
+    "1010.60": "Assets",
     "1200.00": "Assets", "1200.01": "Assets",
     "1200.02": "Assets", "1200.03": "Assets", "1200.04": "Assets",
     "1200.05": "Assets", "1220.01": "Assets",
