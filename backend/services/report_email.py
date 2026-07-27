@@ -19,6 +19,7 @@ import logging
 import smtplib
 import uuid
 from datetime import date, datetime, timedelta
+from email import policy as email_policy
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
@@ -26,6 +27,28 @@ from email.mime.application import MIMEApplication
 from services.config import load_settings, save_settings
 
 log = logging.getLogger(__name__)
+
+
+def _usable_recipients(raw: str | None) -> tuple[list, list]:
+    """Split a comma-separated recipients string into (valid, junk).
+
+    A token counts as an address only when it has an '@' with a dot in the
+    domain part. Old test reports carried free-text NAMES (Arabic strings) as
+    their 'recipients'; on Python 3.14 a non-ASCII address flips smtplib into
+    its SMTPUTF8 path (policy.clone(utf8=True)) which the legacy Compat32
+    policy rejects — every scheduled run then crashed with "'utf8' is an
+    invalid keyword argument for Compat32" and retried each minute forever.
+    Junk tokens are dropped LOUDLY (logged + named in the raised error when
+    nothing valid remains), never silently."""
+    valid, junk = [], []
+    for t in (raw or "").split(","):
+        a = t.strip()
+        if not a:
+            continue
+        (valid if ("@" in a and "." in a.rsplit("@", 1)[-1]) else junk).append(a)
+    if junk:
+        log.warning("Ignoring non-address recipient token(s): %s", ", ".join(junk))
+    return valid, junk
 
 REPORT_TYPES = {
     "daily_sales":       "Daily sales summary (yesterday)",
@@ -372,7 +395,7 @@ def _send_alert_digest(rule: dict, rows: list[dict], day: str) -> None:
     for r in rows:
         w.writerow([r.get(c, "") for c in cols])
     content = buf.getvalue().encode("utf-8-sig")
-    recipients = [x.strip() for x in (rule.get("recipients") or "").split(",") if x.strip()]
+    recipients, _junk = _usable_recipients(rule.get("recipients"))
     subject = f"Alert: {rule.get('name')} — {day} ({len(rows)})"
     fname = f"alert_{rule.get('condition')}_{day}.csv"
     details = {"Alert": rule.get("name"), "Day": day, "Matches": f"{len(rows):,}",
@@ -415,7 +438,7 @@ def maybe_send_alerts() -> None:
         except Exception:
             if now.hour < 7:
                 continue
-        recipients = [x.strip() for x in (r.get("recipients") or "").split(",") if x.strip()]
+        recipients, _junk = _usable_recipients(r.get("recipients"))
         if not recipients:
             continue
         try:
@@ -441,9 +464,10 @@ def _send_grid_report(report: dict) -> str:
     19 Jul 2026: "i dont want to make a preview or data sample .. just adequate
     info about the data sent and attach the data sheet"."""
     from services import report_grid
-    recipients = [x.strip() for x in (report.get("recipients") or "").split(",") if x.strip()]
+    recipients, junk = _usable_recipients(report.get("recipients"))
     if not recipients:
-        raise RuntimeError("No recipients configured")
+        raise RuntimeError("No valid recipient addresses"
+                           + (f" (ignored: {', '.join(junk)})" if junk else " configured"))
     endpoint = report.get("endpoint")
     if not endpoint:
         raise RuntimeError("Grid report has no endpoint")
@@ -504,16 +528,20 @@ def send_one(report: dict) -> str:
     if rtype not in _BUILDERS:
         raise RuntimeError(f"Unknown report type: {rtype}")
     stores = [x.strip() for x in (report.get("stores") or "").split(",") if x.strip()]
-    recipients = [x.strip() for x in (report.get("recipients") or "").split(",") if x.strip()]
+    recipients, junk = _usable_recipients(report.get("recipients"))
     if not recipients:
-        raise RuntimeError("No recipients configured")
+        raise RuntimeError("No valid recipient addresses"
+                           + (f" (ignored: {', '.join(junk)})" if junk else " configured"))
 
     title, builder = _BUILDERS[rtype]
     subject, body = builder(stores)
     scope = ", ".join(stores) if stores else "All stores"
     html = _wrap(title, datetime.now().strftime("%A, %d %B %Y"), body, scope)
 
-    msg = MIMEText(html, "html", "utf-8")
+    # email_policy.SMTP (not the legacy Compat32 default): supports the
+    # smtplib SMTPUTF8 path, so a legitimately international address can
+    # never crash the send again.
+    msg = MIMEText(html, "html", "utf-8", policy=email_policy.SMTP)
     msg["Subject"] = f"{report.get('name') or title} — {subject}"
     msg["From"]    = email.get("from_addr") or email.get("username", "")
     msg["To"]      = ", ".join(recipients)
@@ -596,6 +624,15 @@ def maybe_send_scheduled() -> None:
             changed = True
         except Exception as e:
             log.error(f"Report '{r.get('name')}' failed: {e}")
+            # A CONFIGURATION failure (no valid recipient address) cannot heal
+            # itself by retrying — before this guard, two old test reports
+            # whose 'recipients' were free-text names retried EVERY MINUTE
+            # forever, spamming the log. Mark them done for today; transient
+            # failures (SMTP down, network) keep the retry-until-sent
+            # behaviour unchanged.
+            if str(e).startswith("No valid recipient"):
+                r["last_sent"] = today
+                changed = True
     if changed:
         save_reports(reports)
 
@@ -654,10 +691,12 @@ def send_attachment(recipients: list[str], subject: str, note: str | None,
     """Email `content` (bytes) as an attachment to `recipients` via the app SMTP,
     with a branded HTML body (nice even when there is no note)."""
     email = _smtp_email()
-    recipients = [r for r in recipients if r]
+    recipients, junk = _usable_recipients(",".join(r for r in recipients if r))
     if not recipients:
-        raise RuntimeError("No recipients")
-    msg = MIMEMultipart()
+        raise RuntimeError("No valid recipient addresses"
+                           + (f" (ignored: {', '.join(junk)})" if junk else ""))
+    # email_policy.SMTP — see send_one: never crash on international addresses.
+    msg = MIMEMultipart(policy=email_policy.SMTP)
     msg["Subject"] = subject
     msg["From"] = email.get("from_addr") or email.get("username", "")
     msg["To"] = ", ".join(recipients)
