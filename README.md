@@ -14,11 +14,11 @@ runs in the system tray and serves the app on `http://127.0.0.1:7382`.
 | Domain | What it does |
 |---|---|
 | **Home** | KPI dashboard, sales trend, top stores/items/suppliers, governance **alerts** that drill through to the exact filtered rows they counted |
-| **Sales** | Overview, Performance (stores/associates/customers), Products, Invoices, **Journals** (master–detail invoice → lines) |
+| **Sales** | Overview, Performance (stores/associates/customers), Products, **Invoice Summary**, **Invoice Details** (master–detail invoice → lines) |
 | **Inventory** | Stock Levels, **Stock by Date** (as-of carry-forward), Movement, Transfers, Adjustments, Ledger, History, Coverage |
 | **Purchasing** | Overview, Vouchers (master–detail) |
 | **Dimensions** | Stores, Customers, Employees, Items, Suppliers |
-| **Accounting** | Financial reports over a **virtual general ledger** (Retail Pro subsidiary 100): Journal, Trial Balance, General Ledger, GL Exceptions — see below |
+| **Accounting** | Full financial suite over a **virtual general ledger** (Retail Pro subsidiary 100): Journal, Trial Balance, **Profit & Loss**, **Balance Sheet**, **BP Statement (كشف حساب)**, **AR/AP Aging** (with charts), General Ledger, GL Exceptions — see below |
 | **Data Analyst (AI)** | Ask-AI text-to-SQL assistant with a strict SQL safety guard; provider-agnostic (Ollama / OpenAI-compatible / Groq) |
 | **Reports & Email** | Any grid is schedulable: server-side engine renders CSV / Excel / PDF attachments and emails them on cron-like schedules |
 
@@ -30,9 +30,26 @@ accounts is stored as non-inventory items, and each journal line is a `DOCUMENT_
 NOTE fields). The warehouse extracts this into `FACT_GL` / `FACT_GL_DOC` / `DIM_ACCOUNT` and the
 reports enforce a **balanced-document gate**: statements include only source documents that net to
 zero, and the **GL Exceptions** page lists every excluded document with its imbalance so nothing is
-ever hidden. Features: transaction-date vs posting-date basis, Payment/Entry journal categories
-(`P_*` prefix), business-partner resolution (customer vs supplier), and drill-through from Trial
-Balance into the ledger. The Trial Balance is verified to tie to Oracle to the cent.
+ever hidden. Features: transaction-date vs posting-date basis, Payment/Transaction/Entry journal
+categories (`P_*` prefix), business-partner resolution (customer vs supplier), and drill-throughs
+(Trial Balance → General Ledger, Aging → BP Statement). The Trial Balance is verified to tie to
+Oracle to the cent.
+
+**Statements.** Account **classification** comes from a Prism touch menu named `accounting` in
+subsidiary 100 (level 1 = the classes, level 2 = groups; any depth is walked); each class maps to a
+statement role (asset / liability / equity / revenue / cost) via auto-recognition (EN + AR) plus
+admin overrides in Settings → Accounting. The **P&L** always lists revenue sections before cost
+sections (Gross Profit after the trading-cost section), the **Balance Sheet** balances via a
+synthetic *Current period result* equity row, and unclassified accounts are always shown, never
+dropped. Built-in defaults classify the integration's known chart on fresh installs.
+
+**Partner reports.** The **BP Statement** defaults to the *control-account view* — only the
+configured receivable/payable accounts, so the running balance IS what the partner owes and the
+closing reconciles with Aging by construction; an *All lines (audit)* toggle shows the full posting
+trail. **Aging** is balance-based FIFO against the most recent charges (open-item links don't
+exist in this GL), measured on the configured control accounts — the codes are configurable in
+Settings → Accounting and accept both the numeric (`1220.01` / `3100.01`) and renamed (`AR` / `AP`)
+ALU conventions.
 
 ---
 
@@ -92,10 +109,15 @@ Oracle Instant Client (thick mode) must be available; the packaged app bundles i
 
 ```powershell
 cd packaging
-powershell -ExecutionPolicy Bypass -File _exeonly.ps1      # → packaging\out\RetailTecAnalytics\
-# test the exe, then:
-powershell -ExecutionPolicy Bypass -File ..\..\_makeinstaller.ps1   # → packaging\Output\*-Setup-*.exe
+powershell -ExecutionPolicy Bypass -File _exeonly.ps1      # → packaging\out\RetailTecAnalytics\ (test build)
+# test the exe, then compile the versioned installer:
+powershell -ExecutionPolicy Bypass -File compile_installer_local_temp.ps1   # → packaging\Output\RetailTecAnalytics-Setup-<ver>-<stamp>.exe
+# or _fullbuild2.ps1 for the whole chain (build + installer + copy to the release drive)
 ```
+
+Notes: the `*_temp.ps1` helpers are load-bearing (the build scripts call them) — don't delete
+them. Before compiling an installer, make sure no `*.db.wal.*` recovery leftovers sit in
+`out\RetailTecAnalytics\_internal` — the `.iss` excludes live state but not renamed backups.
 
 The scheduler runs in-process, so the tray app must stay running for scheduled emails to fire.
 
@@ -119,6 +141,7 @@ non-accounting extract and screen.
 
 | Version | Highlights |
 |---|---|
+| 2026-07-27 | **Full accounting suite**: P&L + Balance Sheet (Prism touch-menu classification, class→role mapping), BP Statement with control-account view, AR/AP Aging (FIFO, charts), accounting settings (class roles, control accounts, report defaults, one dirty-aware save bar); cross-server hardening (NVARCHAR2 / ORA-12704, mixed NOTE8 date formats / ORA-01861); AR/AP ALU-rename support; posting-query companion fixes (deposit receipts, undefined-tender catch-all, custom tenders 19–28); Invoice Summary / Invoice Details renames; scheduled-email hardening (py3.14) |
 | v3.x backend / v2.0 app | Accounting virtual GL + 4 reports, domain licensing, DataSlicer unification, item-identifier setting end-to-end, complete Arabic coverage, report engine (schedules + CSV/Excel/PDF email), AI assistant, dark mode, mobile layout, saved views, alerts with exact drill-through |
 | v2.0 | DuckDB star schema rebuild, multi-page SPA, AG Grid, exports, KPI comparisons |
 | v1.0 | Initial release — live Oracle queries, single-page dashboard |
