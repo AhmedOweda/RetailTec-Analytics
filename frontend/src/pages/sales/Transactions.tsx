@@ -281,7 +281,7 @@ export default function Transactions() {
                  mx:-2.5, px:2.5, pt:2.5, pb:1.5, borderBottom:'1px solid var(--rt-border)',
                  display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap' }}>
         <Typography variant="h6" sx={{ fontWeight:800, color: 'var(--rt-text)', letterSpacing:'-0.3px', mr:'auto' }}>
-          {tr('Invoices')}
+          {tr('Invoice Summary')}
           <TitleLoader />
         </Typography>
 

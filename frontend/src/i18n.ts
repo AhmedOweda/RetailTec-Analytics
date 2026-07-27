@@ -27,10 +27,11 @@ const nav_en = {
   'nav./accounting/general-ledger': 'General Ledger',
   'nav./accounting/exceptions': 'GL Exceptions',
   'nav./sales/overview': 'Overview', 'nav./sales/performance': 'Performance',
-  'nav./sales/products': 'Products', 'nav./sales/transactions': 'Invoices',
-  // Renamed from "Journals" 2026-07-22 to avoid clashing with the Accounting
-  // Journal page. The route/permissions key stays /sales/journals.
-  'nav./sales/journals': 'Invoice Explorer',
+  'nav./sales/products': 'Products', 'nav./sales/transactions': 'Invoice Summary',
+  // Renamed 2026-07-27 ("Invoices"/"Invoice Explorer" → "Invoice Summary"/
+  // "Invoice Details", owner request). The route/permissions keys stay
+  // /sales/transactions and /sales/journals.
+  'nav./sales/journals': 'Invoice Details',
   'nav./inventory/overview': 'Stock Levels', 'nav./inventory/movement': 'Movement',
   'nav./inventory/transfers': 'Transfers', 'nav./inventory/adjustments': 'Adjustments',
   'nav./inventory/ledger': 'Ledger', 'nav./inventory/coverage': 'Coverage',
@@ -56,8 +57,8 @@ const nav_ar = {
   'nav./accounting/general-ledger': 'دفتر الأستاذ العام',
   'nav./accounting/exceptions': 'استثناءات دفتر الأستاذ',
   'nav./sales/overview': 'نظرة عامة', 'nav./sales/performance': 'الأداء',
-  'nav./sales/products': 'المنتجات', 'nav./sales/transactions': 'الفواتير',
-  'nav./sales/journals': 'مستكشف الفواتير',
+  'nav./sales/products': 'المنتجات', 'nav./sales/transactions': 'ملخص الفواتير',
+  'nav./sales/journals': 'تفاصيل الفواتير',
   'nav./inventory/overview': 'مستويات المخزون', 'nav./inventory/movement': 'حركة المخزون',
   'nav./inventory/transfers': 'التحويلات', 'nav./inventory/adjustments': 'التسويات',
   'nav./inventory/ledger': 'دفتر المخزون', 'nav./inventory/coverage': 'تغطية المخزون',
@@ -901,7 +902,11 @@ const ar_strings: Record<string, string> = {
   'Journals': 'قيود اليومية',
   // Sales page renamed from "Journals" (2026-07-22) — the 'Journals' key above
   // stays: it is still used by the Accounting KPI cards as a count label.
-  'Invoice Explorer': 'مستكشف الفواتير',
+  // Renamed again 2026-07-27: Invoices → Invoice Summary, Invoice Explorer →
+  // Invoice Details ('Invoice Explorer' key kept for old saved links/titles).
+  'Invoice Explorer': 'تفاصيل الفواتير',
+  'Invoice Summary': 'ملخص الفواتير',
+  'Invoice Details': 'تفاصيل الفواتير',
   'Account Code': 'رمز الحساب', 'Account Name': 'اسم الحساب',
   'Opening': 'الرصيد الافتتاحي', 'Closing': 'الرصيد الختامي',
   'Debit': 'مدين', 'Credit': 'دائن',
@@ -1421,6 +1426,18 @@ const ar_strings: Record<string, string> = {
   'Top {{n}} of {{m}}': 'أعلى {{n}} من {{m}}',
   'You have unsaved accounting changes': 'لديك تغييرات محاسبية غير محفوظة',
   'Discard': 'تجاهل',
+
+  // ── BP Statement: control-account view vs audit view (2026-07-27) ──
+  'Statement': 'كشف الحساب',
+  'All lines (audit)': 'كل السطور (تدقيق)',
+  'Only the receivable / payable control accounts — the balance is what the partner owes':
+    'حسابات الذمم المدينة/الدائنة فقط — الرصيد هو ما يدين به الطرف',
+  'Every GL line carrying this partner — for tracing postings, not a balance':
+    'كل سطور القيود الخاصة بهذا الطرف — لتتبّع الترحيل، وليس رصيدًا',
+  'Statement on the control accounts ({{codes}}) — the running balance is what the partner owes':
+    'كشف على حسابات الذمم ({{codes}}) — الرصيد الجاري هو ما يدين به الطرف',
+  'All journal lines (audit) — every balanced document nets to zero, so the closing is not the partner balance':
+    'كل سطور القيود (تدقيق) — كل مستند متوازن يساوي صفرًا، فالرصيد الختامي هنا ليس رصيد الطرف',
 }
 
 i18n.use(initReactI18next).init({
