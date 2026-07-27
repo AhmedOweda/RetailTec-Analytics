@@ -1137,7 +1137,12 @@ _INTEGRATION_CLASS_DEFAULTS: dict = {
     "1010.07": "Assets", "1010.13": "Assets", "1010.14": "Assets",
     "1010.15": "Assets", "1010.16": "Assets", "1010.21": "Assets",
     "1010.26": "Assets", "1010.30": "Assets", "1010.40": "Assets",
-    "1010.46": "Assets", "1200.00": "Assets", "1200.01": "Assets",
+    "1010.46": "Assets",
+    # 1010.90 Credit Card (undefined) — the posting query's catch-all for any
+    # tender it has no specific mapping for (added 27-07-2026 with the
+    # undefined-tender fix). An asset clearing account like its 1010 siblings.
+    "1010.90": "Assets",
+    "1200.00": "Assets", "1200.01": "Assets",
     "1200.02": "Assets", "1200.03": "Assets", "1200.04": "Assets",
     "1200.05": "Assets", "1220.01": "Assets",
     # Liabilities — payables, VAT output, deposits/credits
