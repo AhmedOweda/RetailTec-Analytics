@@ -154,6 +154,7 @@ non-accounting extract and screen.
 
 | Version | Highlights |
 |---|---|
+| 3.0.0 (2026-07-28) | **30-day minimum incremental window** (options 30/60/90 — rolling self-healing overlap; index path kept up to 92-day windows); per-domain **Replace everything (delete + reload)** dropdown + **Replace this period** range option; unified sticky save bars (accounting bar always visible); SQL bind-count assertion; WAL self-heal at startup; tray sync follows settings; network-exposure notice (EN/AR) |
 | 2026-07-27 | **Full accounting suite**: P&L + Balance Sheet (Prism touch-menu classification, class→role mapping), BP Statement with control-account view, AR/AP Aging (FIFO, charts), accounting settings (class roles, control accounts, report defaults, one dirty-aware save bar); cross-server hardening (NVARCHAR2 / ORA-12704, mixed NOTE8 date formats / ORA-01861); AR/AP ALU-rename support; posting-query companion fixes (deposit receipts, undefined-tender catch-all, custom tenders 19–28); Invoice Summary / Invoice Details renames; scheduled-email hardening (py3.14) |
 | v3.x backend / v2.0 app | Accounting virtual GL + 4 reports, domain licensing, DataSlicer unification, item-identifier setting end-to-end, complete Arabic coverage, report engine (schedules + CSV/Excel/PDF email), AI assistant, dark mode, mobile layout, saved views, alerts with exact drill-through |
 | v2.0 | DuckDB star schema rebuild, multi-page SPA, AG Grid, exports, KPI comparisons |
