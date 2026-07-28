@@ -130,6 +130,19 @@ The scheduler runs in-process, so the tray app must stay running for scheduled e
 
 ---
 
+## Network & security
+
+The packaged app listens on **all interfaces** (`0.0.0.0:7382`) so the dashboard is reachable
+over VPN/LAN at `http://<server-ip>:7382` — a deliberate deployment choice for customer servers.
+Operate it accordingly:
+
+- Keep the server behind a **VPN or firewall**. Never expose port 7382 to the public internet —
+  the login page would be reachable by anyone who can reach the network.
+- Allow the port explicitly where needed:
+  `netsh advfirewall firewall add rule name="RetailTec 7382" dir=in action=allow protocol=TCP localport=7382`
+- To restrict the app to the machine it runs on, set the environment variable
+  `RETAILTEC_HOST=127.0.0.1` before starting it (service/tray restart required).
+
 ## Warehouse
 
 29 tables: 9 dimensions, 11 fact tables (sales, inventory, purchases, GL), 9 ETL/control tables.

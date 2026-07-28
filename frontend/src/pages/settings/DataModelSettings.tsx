@@ -13,8 +13,9 @@ import {
   Checkbox, FormGroup, FormControlLabel, Tooltip,
   Dialog, DialogTitle, DialogContent,
   Collapse, IconButton, Autocomplete,
-  Tabs, Tab, Chip,
+  Tabs, Tab, Chip, Menu,
 } from '@mui/material'
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
 import CheckCircleIcon  from '@mui/icons-material/CheckCircle'
 import ExpandMoreIcon   from '@mui/icons-material/ExpandMore'
 import DeleteIcon       from '@mui/icons-material/Delete'
@@ -45,6 +46,16 @@ import { useLicensedDomains } from '../../hooks/useLicense'
 import { domainLicensed } from '../../utils/pages'
 
 const ACCENT = '#7c3aed'
+
+// ONE sticky save-bar geometry for every settings tab (owner request 28 Jul:
+// same position and shape everywhere). Used by the global Save Settings bar
+// and by AccountingCard's Save Accounting Settings bar — edit here, not there.
+const SAVE_BAR_SX = {
+  position: 'sticky', bottom: 0, zIndex: 10, mt: 2, px: 2.5, py: 1.5,
+  bgcolor: 'var(--rt-surface)', borderTop: '1px solid var(--rt-border)',
+  display: 'flex', alignItems: 'center', gap: 2,
+  boxShadow: '0 -4px 12px rgba(15,23,42,0.06)',
+} as const
 
 const KIND_LABEL: Record<string, string> = {
   full: 'Full load', range: 'Range load', scheduled: 'Scheduled sync', incremental: 'Incremental refresh',
@@ -115,7 +126,9 @@ const DAYS_LABEL: Record<number, string> = {
 const daysLabel = (v: number) => DAYS_LABEL[v] ? tr(DAYS_LABEL[v]) : trf('Last {{n}} days', { n: v })
 // One shared template so the header and every row stay aligned
 const DATA_GRID_COLS = 'minmax(118px,150px) minmax(88px,1fr) minmax(96px,1.1fr) minmax(88px,1fr) auto'
-const INCR_OPTIONS = [1, 3, 7, 14, 30]
+// 30-day floor (matches backend clamp): the incremental overlap is a rolling
+// self-healing window for late postings and sbs-100 accounting deletes.
+const INCR_OPTIONS = [30, 60, 90]
 const REFR_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 480, 720, 1440]
 // Friendly label for an interval in minutes (e.g. 90 → "1h 30m", 1440 → "24h").
 const everyLabel = (m: number) =>
@@ -161,7 +174,7 @@ const DEFAULT_DM: DataModelV2 = {
   background_enabled: true,
   timezone: 'UTC',
   quiet_hours: null,
-  default_incremental_days: 7,
+  default_incremental_days: 30,
   // Placeholder only — replaced by the server's own domain set as soon as
   // GET /api/settings resolves.
   domains: Object.fromEntries(DOMAIN_ORDER.map(k => [k, {
@@ -361,6 +374,9 @@ export default function DataModelSettings() {
   const [rangeFrom, setRangeFrom]     = useState('')
   const [rangeTo,   setRangeTo]       = useState('')
   const [rangeOpen, setRangeOpen]     = useState(false)
+  // Destructive opt-in for the range load: delete the period first, then
+  // reload (backend rebuild flag — owner request 28 Jul, "replace everything").
+  const [rangeRebuild, setRangeRebuild] = useState(false)
   const [tab, setTab]                 = useState(0)   // Settings tab (UI grouping only)
   const [brandName, setBrandName]     = useState('')  // whitelabel product name
   const [brandLogo, setBrandLogo]     = useState('')  // base64 data-URL or empty
@@ -440,6 +456,17 @@ export default function DataModelSettings() {
     onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
   })
 
+  // "Replace everything" for ONE domain (owner request 28 Jul): delete the
+  // domain's loaded window, then reload it from Oracle. Same endpoint,
+  // rebuild flag — destructive, confirmed in the dropdown handler.
+  const replaceOne = useMutation({
+    mutationFn: (domain: string) =>
+      axios.post('/api/sync/full-load', null, { params: { tables: domain, rebuild: true } }),
+    onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
+  })
+  // Which domain row's load-dropdown is open (anchor + domain key).
+  const [loadMenu, setLoadMenu] = useState<{ el: HTMLElement; key: string } | null>(null)
+
   const dimsLoad = useMutation({
     mutationFn: () => axios.post('/api/sync/dimensions-load'),
     onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
@@ -450,6 +477,7 @@ export default function DataModelSettings() {
       date_from: rangeFrom,
       date_to:   rangeTo,
       domains:   null,
+      rebuild:   rangeRebuild,
     }),
     onSuccess:  () => qc.invalidateQueries({ queryKey:['sync-status'] }),
   })
@@ -601,6 +629,14 @@ export default function DataModelSettings() {
             </Box>
           )}
         </Box>
+
+        {/* Network-exposure note (owner decision 28 Jul: keep listening on all
+            interfaces for VPN/LAN access — warn instead of changing behavior). */}
+        <Typography sx={{ mt:2, fontSize:12, color:'#b45309', display:'flex',
+                          alignItems:'center', gap:0.75 }}>
+          <span aria-hidden>⚠</span>
+          {tr('This server listens on all network interfaces (port 7382) so the dashboard is reachable over VPN/LAN. Keep it behind a VPN or firewall — never expose the port to the public internet. Set RETAILTEC_HOST=127.0.0.1 to restrict it to this machine only.')}
+        </Typography>
       </SectionCard>
 
       </Box>{/* end Tab 0 (part 1) */}
@@ -1004,14 +1040,23 @@ export default function DataModelSettings() {
                     offering none: it reads as a broken sync. */}
                 <Tooltip title={d.unavailable ? (d.reason ? tr(d.reason) : tr('Not available on this server')) : ''}
                          placement="top" arrow>
-                  <span>
+                  <span style={{ display:'inline-flex' }}>
                     <Button variant="outlined" size="small"
                       onClick={() => loadOne.mutate(d.key)}
-                      disabled={isRunning || !cfg.enabled || d.unavailable || loadOne.isPending}
+                      disabled={isRunning || !cfg.enabled || d.unavailable || loadOne.isPending || replaceOne.isPending}
                       sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
                             whiteSpace:'nowrap', minWidth:0, px:1.2,
+                            borderTopRightRadius:0, borderBottomRightRadius:0, borderRight:0,
                             '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
                       {tr('Load now')}
+                    </Button>
+                    <Button variant="outlined" size="small" aria-label={tr('More load options')}
+                      onClick={e => setLoadMenu({ el: e.currentTarget, key: d.key })}
+                      disabled={isRunning || !cfg.enabled || d.unavailable || loadOne.isPending || replaceOne.isPending}
+                      sx={{ borderColor:ACCENT, color:ACCENT, minWidth:0, px:0.25,
+                            borderTopLeftRadius:0, borderBottomLeftRadius:0,
+                            '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
+                      <ArrowDropDownIcon fontSize="small" />
                     </Button>
                   </span>
                 </Tooltip>
@@ -1131,12 +1176,32 @@ export default function DataModelSettings() {
               <TextField label={tr('To')} type="date" size="small"
                 InputLabelProps={{ shrink:true }}
                 value={rangeTo} onChange={e => setRangeTo(e.target.value)} />
+              <FormControlLabel sx={{ ml:0, width:'100%' }}
+                control={<Checkbox size="small" checked={rangeRebuild}
+                  onChange={e => setRangeRebuild(e.target.checked)}
+                  sx={{ color:'#ef4444', '&.Mui-checked':{ color:'#ef4444' } }} />}
+                label={<Typography sx={{ fontSize:13, fontWeight:600 }}>
+                  {tr('Replace this period (delete existing rows first, then reload)')}
+                </Typography>} />
+              {rangeRebuild && (
+                <Typography sx={{ fontSize:12.5, color:'#ef4444', width:'100%', mt:-1 }}>
+                  {tr('Deletes every loaded row in this period for all enabled data types, then reloads them from Oracle. Use for corrections. This cannot be undone.')}
+                </Typography>
+              )}
               <Button variant="outlined" size="small"
-                onClick={() => rangeLoad.mutate()}
+                onClick={() => {
+                  if (rangeRebuild && !window.confirm(
+                    tr('Deletes every loaded row in this period for all enabled data types, then reloads them from Oracle. Use for corrections. This cannot be undone.')))
+                    return
+                  rangeLoad.mutate()
+                }}
                 disabled={isRunning || rangeLoad.isPending || !rangeFrom || !rangeTo}
-                sx={{ borderColor:ACCENT, color:ACCENT, textTransform:'none', fontWeight:600,
-                      '&:hover':{ borderColor:ACCENT, bgcolor:'rgba(124,58,237,0.04)' } }}>
-                {tr('Load Range')}
+                sx={{ borderColor: rangeRebuild ? '#ef4444' : ACCENT,
+                      color: rangeRebuild ? '#ef4444' : ACCENT,
+                      textTransform:'none', fontWeight:600,
+                      '&:hover':{ borderColor: rangeRebuild ? '#ef4444' : ACCENT,
+                                  bgcolor: rangeRebuild ? 'rgba(239,68,68,0.04)' : 'rgba(124,58,237,0.04)' } }}>
+                {rangeRebuild ? tr('Replace Range') : tr('Load Range')}
               </Button>
             </Box>
           </Collapse>
@@ -1255,22 +1320,16 @@ export default function DataModelSettings() {
         </Box>
       )}{/* end Tab 5 */}
 
-        </Box>{/* end content column */}
-      </Box>{/* end rail + content row */}
-
-      <SyncHistoryDialog open={histOpen} onClose={() => setHistOpen(false)}
-        history={history ?? []} refetch={refetchHistory} fetching={histFetching} />
-
       {/* ── Sticky save bar — connection / data-model / schedules scope.
              HIDDEN on the Accounting tab (5): accounting saves through its own
-             endpoint and shows its own dirty-aware sticky bar inside
-             AccountingCard. One tab, one save bar — showing this one there
-             misled users into clicking a Save that does not cover their edits. */}
+             endpoint and shows its own sticky bar inside AccountingCard, with
+             the IDENTICAL geometry (SAVE_BAR_SX — owner request 28 Jul: same
+             bar position and shape on every tab). One tab, one save bar —
+             showing this one there misled users into clicking a Save that
+             does not cover their edits. Lives INSIDE the content column so
+             both bars align with the cards above them. */}
       {tab !== 5 && (
-      <Box sx={{ position:'sticky', bottom:0, zIndex:10, mt:2, mx:-3, px:3, py:1.5,
-                 bgcolor: 'var(--rt-surface)', borderTop:'1px solid var(--rt-border)',
-                 display:'flex', alignItems:'center', gap:2,
-                 boxShadow:'0 -4px 12px rgba(15,23,42,0.06)' }}>
+      <Box sx={SAVE_BAR_SX}>
         <Button variant="contained"
           onClick={() => saveSettings.mutate()}
           disabled={saveSettings.isPending}
@@ -1290,6 +1349,29 @@ export default function DataModelSettings() {
         )}
       </Box>
       )}
+
+        </Box>{/* end content column */}
+      </Box>{/* end rail + content row */}
+
+      <SyncHistoryDialog open={histOpen} onClose={() => setHistOpen(false)}
+        history={history ?? []} refetch={refetchHistory} fetching={histFetching} />
+
+      {/* Per-domain load dropdown (one Menu for all rows). */}
+      <Menu open={!!loadMenu} anchorEl={loadMenu?.el} onClose={() => setLoadMenu(null)}>
+        <MenuItem onClick={() => { if (loadMenu) loadOne.mutate(loadMenu.key); setLoadMenu(null) }}>
+          <Typography sx={{ fontSize:13.5 }}>{tr('Load now (append, nothing deleted)')}</Typography>
+        </MenuItem>
+        <MenuItem onClick={() => {
+          const k = loadMenu?.key
+          setLoadMenu(null)
+          if (k && window.confirm(tr('Delete ALL loaded data for this data type, then reload it from Oracle over its full history window. This cannot be undone.')))
+            replaceOne.mutate(k)
+        }}>
+          <Typography sx={{ fontSize:13.5, color:'#ef4444', fontWeight:600 }}>
+            {tr('Replace everything (delete + reload)')}
+          </Typography>
+        </MenuItem>
+      </Menu>
     </Box>
   )
 }
@@ -2439,36 +2521,34 @@ function AccountingCard() {
       </Box>
     </SectionCard>
 
-    {/* ── THE one sticky save bar for this tab. Appears only while there are
-           unsaved edits (or briefly after a save, to show the confirmation).
-           Covers BOTH sections above (R&P accounts + report defaults) — they
-           always saved together through one endpoint; now the UI says so. */}
-    {(dirty || saveAcct.isPending || saveMsg) && (
-      <Box sx={{ position:'sticky', bottom:8, zIndex:10, mt:2,
-                 px:2.5, py:1.25, borderRadius:2,
-                 bgcolor:'var(--rt-surface)', border:'1px solid var(--rt-border)',
-                 display:'flex', alignItems:'center', gap:1.5, flexWrap:'wrap',
-                 boxShadow:'0 -4px 16px rgba(15,23,42,0.10)' }}>
-        {(dirty || saveAcct.isPending) ? (<>
-          <Button variant="contained" size="small" disabled={saveAcct.isPending}
-            onClick={() => { setSaveMsg(null); saveAcct.mutate() }}
-            sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, boxShadow:'none', px:2.5,
-                  '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
-            {saveAcct.isPending ? tr('Saving…') : tr('Save Accounting Settings')}
-          </Button>
-          <Button size="small" onClick={discard} disabled={saveAcct.isPending}
-            sx={{ textTransform:'none', fontWeight:600, color:'var(--rt-text-2)' }}>
-            {tr('Discard')}
-          </Button>
-          <Typography sx={{ fontSize:12, fontWeight:600, color:'var(--rt-text-2)' }}>
-            {tr('You have unsaved accounting changes')}
-          </Typography>
-        </>) : null}
-        <Box sx={{ flex:1 }} />
-        {saveMsg && <Typography sx={{ fontSize:12, fontWeight:700,
-          color: saveMsg === tr('Settings saved') ? '#16a34a' : 'var(--rt-neg-fg)' }}>
-          {saveMsg === tr('Settings saved') ? '✓ ' : ''}{saveMsg}</Typography>}
-      </Box>
-    )}
+    {/* ── THE one sticky save bar for this tab. ALWAYS visible (owner report
+           28 Jul: a bar that only appears once something is edited read as
+           "the save bar disappeared"), and IDENTICAL in position and shape to
+           the global Save Settings bar (owner request 28 Jul: same bar
+           everywhere — full-width, flush bottom, same padding and shadow).
+           Discard + the unsaved-changes hint still show only while there are
+           edits. Covers BOTH sections above (R&P accounts + report
+           defaults) — they save together through one endpoint. */}
+    <Box sx={SAVE_BAR_SX}>
+      <Button variant="contained" disabled={saveAcct.isPending}
+        onClick={() => { setSaveMsg(null); saveAcct.mutate() }}
+        sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700, boxShadow:'none',
+              px:3, '&:hover':{ bgcolor:'#6d28d9', boxShadow:'none' } }}>
+        {saveAcct.isPending ? tr('Saving…') : tr('Save Accounting Settings')}
+      </Button>
+      {(dirty || saveAcct.isPending) && (<>
+        <Button size="small" onClick={discard} disabled={saveAcct.isPending}
+          sx={{ textTransform:'none', fontWeight:600, color:'var(--rt-text-2)' }}>
+          {tr('Discard')}
+        </Button>
+        <Typography sx={{ fontSize:12, fontWeight:600, color:'var(--rt-text-2)' }}>
+          {tr('You have unsaved accounting changes')}
+        </Typography>
+      </>)}
+      <Box sx={{ flex:1 }} />
+      {saveMsg && <Typography sx={{ fontSize:12, fontWeight:700,
+        color: saveMsg === tr('Settings saved') ? '#16a34a' : 'var(--rt-neg-fg)' }}>
+        {saveMsg === tr('Settings saved') ? '✓ ' : ''}{saveMsg}</Typography>}
+    </Box>
   </>)
 }

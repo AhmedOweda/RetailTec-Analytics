@@ -42,7 +42,7 @@ class ConnectionSettings(BaseModel):
 class DataModelSettings(BaseModel):
     """Legacy flat shape — still accepted; migrated on read by the scheduler."""
     initial_load_days:          int = 365
-    incremental_window_days:    int = 7
+    incremental_window_days:    int = 30
     background_refresh_minutes: int = 30
 
 
@@ -113,8 +113,15 @@ class DataModelV2(BaseModel):
     background_enabled: bool = True
     timezone: str = "UTC"
     quiet_hours: Optional[QuietHours] = None
-    default_incremental_days: int = Field(7, ge=1, le=60)
+    # 30-day floor: rolling self-healing overlap (late postings + sbs-100 DBA
+    # deletes). Clamped, not rejected, so pre-floor saved values (e.g. 7) load.
+    default_incremental_days: int = Field(30)
     domains: Dict[str, DomainCfg]
+
+    @field_validator("default_incremental_days")
+    @classmethod
+    def _incr_days_clamp(cls, v):
+        return min(max(int(v), 30), 90)
 
     @field_validator("timezone")
     @classmethod

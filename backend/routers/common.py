@@ -15,7 +15,7 @@ from typing import Optional
 
 from fastapi import Depends, HTTPException, Query
 
-from db.model import DB_LOCK, get_db
+from db.model import DB_LOCK, assert_binds, get_db
 from routers.auth import get_current_user
 
 
@@ -53,6 +53,7 @@ def _cursor():
 
 
 def q(sql: str, params: Optional[list] = None):
+    assert_binds(sql, params or [])
     cur = _cursor()
     try:
         return cur.execute(sql, params or []).fetchall()
@@ -61,6 +62,7 @@ def q(sql: str, params: Optional[list] = None):
 
 
 def qdf(sql: str, params: Optional[list] = None) -> list[dict]:
+    assert_binds(sql, params or [])
     cur = _cursor()
     try:
         rel  = cur.execute(sql, params or [])

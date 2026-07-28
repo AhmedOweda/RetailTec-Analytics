@@ -30,7 +30,7 @@ _SETTINGS_LOCK = threading.RLock()
 
 _DEFAULTS = {
     "connection":   {"host": "", "port": 1521, "sid": "", "username": "", "password": ""},
-    "data_model":   {"initial_load_days": 365, "incremental_window_days": 7,
+    "data_model":   {"initial_load_days": 365, "incremental_window_days": 30,
                      "background_refresh_minutes": 30},
     "last_sync":    None,
     "model_status": "empty",
