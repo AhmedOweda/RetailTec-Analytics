@@ -1,18 +1,24 @@
 """
 License Studio — vendor-side license generator with a GUI (NEVER ship this).
 ============================================================================
-Run:  python license_studio.py
+Run:  python license_studio.py          (pip install customtkinter cryptography)
 Build as its own exe:
-  pyinstaller license_studio.py --onefile --noconsole --name RetailTecLicenseStudio
+  pyinstaller license_studio.py --onefile --noconsole --name RetailTecLicenseStudio ^
+      --collect-all customtkinter --icon ..\..\packaging\app.ico
 
 What it does:
   1. Generate / load the vendor Ed25519 PRIVATE key (keep it offline & backed up
      — anyone holding it can mint licenses).
-  2. Fill in customer, expiry, limits, optional Oracle host binding →
-     signs and saves license.json (same canonical form services/license.py verifies).
-  3. Verify any existing license.json and show its contents/expiry.
+  2. Fill in customer, expiry, limits, licensed domains, optional device/Oracle
+     host binding → signs and saves license.json (same canonical form
+     services/license.py verifies). Every field is VALIDATED live: invalid
+     entries get a red border + message and Generate stays disabled.
+  3. Verify any existing license.json and show its contents/expiry/domains.
   4. "Apply public key to app" patches _PUBLIC_KEY_HEX in services/license.py
      (only needed after generating a NEW keypair).
+
+Redesigned 28 Jul 2026 (owner request): modern dark UI (CustomTkinter),
+per-domain switches, inline validation.
 """
 from __future__ import annotations
 
@@ -21,16 +27,29 @@ import re
 import tkinter as tk
 from datetime import date, datetime
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
 
+import customtkinter as ctk
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey, Ed25519PublicKey)
 
-ACCENT  = "#7c3aed"
+# ── Brand ────────────────────────────────────────────────────────────────────
+ACCENT       = "#7c3aed"
+ACCENT_HOVER = "#6d28d9"
+BG           = "#0f0a1e"
+CARD         = "#1a1230"
+CARD_2       = "#221740"
+BORDER       = "#37285e"
+TEXT         = "#ede9fe"
+TEXT_DIM     = "#a78bfa"
+TEXT_MUTED   = "#8b85a0"
+OK_GREEN     = "#34d399"
+ERR_RED      = "#f87171"
+WARN_AMBER   = "#fbbf24"
 
 # Licensed product domains (must match services/license.py ALL_DOMAINS).
-# All boxes checked → the "domains" field is OMITTED from the payload, which
+# All switches ON → the "domains" field is OMITTED from the payload, which
 # means "all domains" — identical to every license issued before this feature,
 # so old customers keep the full product.
 DOMAINS = [
@@ -43,6 +62,11 @@ DOMAINS = [
     ("dimensions", "Dimensions"),
     ("reports",    "Reports & Email"),
 ]
+
+_RE_DEVICE = re.compile(r"^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$")
+_RE_HOST   = re.compile(r"^(?=.{1,253}$)([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)"
+                        r"(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
+_RE_IPV4   = re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
 
 
 def _find_license_py() -> Path | None:
@@ -74,13 +98,71 @@ def canonical(payload: dict) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
 
 
-class App(tk.Tk):
+# ── Field validators ─────────────────────────────────────────────────────────
+# Each returns (ok, message). Empty message when ok.
+
+def v_customer(v: str):
+    v = v.strip()
+    if not v:
+        return False, "Customer name is required"
+    if len(v) < 2:
+        return False, "At least 2 characters"
+    return True, ""
+
+
+def v_expiry(v: str):
+    v = v.strip()
+    try:
+        d = datetime.strptime(v, "%Y-%m-%d").date()
+    except ValueError:
+        return False, "Use YYYY-MM-DD (e.g. 2027-12-31)"
+    if d < date.today():
+        return False, "Expiry is in the past"
+    if d > date(2100, 1, 1):
+        return False, "Unreasonably far in the future"
+    return True, ""
+
+
+def v_int_blank(v: str):
+    v = v.strip()
+    if not v:
+        return True, ""
+    if not v.isdigit() or int(v) < 1:
+        return False, "Whole number ≥ 1, or leave blank"
+    return True, ""
+
+
+def v_device(v: str):
+    v = v.strip().upper()
+    if not v:
+        return True, ""
+    if not _RE_DEVICE.match(v):
+        return False, "Format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX (hex, from About page)"
+    return True, ""
+
+
+def v_host(v: str):
+    v = v.strip()
+    if not v:
+        return True, ""
+    m = _RE_IPV4.match(v)
+    if m:
+        if all(0 <= int(g) <= 255 for g in m.groups()):
+            return True, ""
+        return False, "IPv4 octets must be 0–255"
+    if _RE_HOST.match(v):
+        return True, ""
+    return False, "Not a valid IP address or hostname"
+
+
+class App(ctk.CTk):
     def __init__(self):
         super().__init__()
+        ctk.set_appearance_mode("dark")
         self.title("RetailTec License Studio")
-        self.geometry("700x720")
-        self.resizable(False, False)
-        self.configure(bg="#f8fafc")
+        self.geometry("780x920")
+        self.minsize(740, 780)
+        self.configure(fg_color=BG)
         try:
             ico = Path(__file__).parent.parent.parent / "packaging" / "app.ico"
             if ico.exists():
@@ -89,96 +171,196 @@ class App(tk.Tk):
             pass
         self.priv: Ed25519PrivateKey | None = None
         self.priv_path: Path | None = None
+        self.fields: dict[str, ctk.CTkEntry] = {}
+        self.errors: dict[str, ctk.CTkLabel] = {}
         self._build()
+        self._revalidate()
 
-    # ── UI ──────────────────────────────────────────────────────────────
+    # ── UI scaffolding ──────────────────────────────────────────────────
+    def _card(self, parent, title: str, subtitle: str = ""):
+        card = ctk.CTkFrame(parent, fg_color=CARD, corner_radius=14,
+                            border_width=1, border_color=BORDER)
+        card.pack(fill="x", pady=(0, 12))
+        head = ctk.CTkFrame(card, fg_color="transparent")
+        head.pack(fill="x", padx=16, pady=(12, 0))
+        ctk.CTkLabel(head, text=title, text_color=TEXT,
+                     font=("Segoe UI", 15, "bold")).pack(side="left")
+        if subtitle:
+            ctk.CTkLabel(head, text=subtitle, text_color=TEXT_MUTED,
+                         font=("Segoe UI", 11)).pack(side="right")
+        body = ctk.CTkFrame(card, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=16, pady=(8, 14))
+        return card, body
+
     def _build(self):
-        s = ttk.Style(self)
-        try:
-            s.theme_use("vista")
-        except Exception:
-            pass
-        s.configure("TLabelframe", background="#f8fafc")
-        s.configure("TLabelframe.Label", font=("Segoe UI", 10, "bold"),
-                    foreground=ACCENT, background="#f8fafc")
-        s.configure("TFrame", background="#f8fafc")
-        s.configure("TLabel", background="#f8fafc", font=("Segoe UI", 9))
-        s.configure("TButton", font=("Segoe UI", 9))
-        s.configure("Go.TButton", font=("Segoe UI", 10, "bold"))
-
         # Brand header
-        head = tk.Frame(self, bg="#160b33", height=64)
+        head = ctk.CTkFrame(self, fg_color="#160b33", corner_radius=0, height=68)
         head.pack(fill="x")
         head.pack_propagate(False)
-        tk.Label(head, text="RetailTec  License Studio", bg="#160b33", fg="white",
-                 font=("Segoe UI", 15, "bold")).pack(side="left", padx=18, pady=14)
-        tk.Label(head, text="vendor tool — never ship to customers",
-                 bg="#160b33", fg="#a78bfa", font=("Segoe UI", 9)).pack(
-                 side="right", padx=18)
+        ctk.CTkLabel(head, text="RetailTec", text_color="white",
+                     font=("Segoe UI", 20, "bold")).pack(side="left", padx=(20, 0))
+        ctk.CTkLabel(head, text="License Studio", text_color=TEXT_DIM,
+                     font=("Segoe UI", 20)).pack(side="left", padx=(8, 0))
+        badge = ctk.CTkFrame(head, fg_color="#2c1a52", corner_radius=20)
+        badge.pack(side="right", padx=20)
+        ctk.CTkLabel(badge, text="  vendor tool — never ship to customers  ",
+                     text_color=TEXT_DIM, font=("Segoe UI", 11)).pack(padx=4, pady=3)
 
-        body = ttk.Frame(self); body.pack(fill="both", expand=True, padx=14, pady=10)
+        outer = ctk.CTkScrollableFrame(self, fg_color=BG)
+        outer.pack(fill="both", expand=True, padx=16, pady=12)
 
-        kf = ttk.Labelframe(body, text=" Vendor private key ", padding=10)
-        kf.pack(fill="x", pady=(0, 8))
-        row = ttk.Frame(kf); row.pack(fill="x")
-        self.key_var = tk.StringVar(value="(no key loaded)")
-        ttk.Label(row, textvariable=self.key_var, width=58,
-                  foreground="#475569").pack(side="left")
-        ttk.Button(row, text="Load…", command=self.load_key).pack(side="left", padx=4)
-        ttk.Button(row, text="Generate new…", command=self.gen_key).pack(side="left")
-        row2 = ttk.Frame(kf); row2.pack(fill="x", pady=(6, 0))
-        self.pub_var = tk.StringVar(value="")
-        ttk.Label(row2, text="Public key:").pack(side="left")
-        ttk.Entry(row2, textvariable=self.pub_var, width=54,
-                  state="readonly", font=("Consolas", 9)).pack(side="left", padx=6)
-        ttk.Button(row2, text="Apply to app", command=self.patch_app).pack(side="left")
+        # ── Vendor key card ─────────────────────────────────────────────
+        _, kb = self._card(outer, "Vendor private key",
+                           "keep it offline — it mints licenses")
+        row = ctk.CTkFrame(kb, fg_color="transparent"); row.pack(fill="x")
+        self.key_lbl = ctk.CTkLabel(row, text="no key loaded", text_color=WARN_AMBER,
+                                    font=("Segoe UI", 12), anchor="w")
+        self.key_lbl.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(row, text="Load…", width=90, fg_color=CARD_2,
+                      hover_color=BORDER, border_width=1, border_color=BORDER,
+                      command=self.load_key).pack(side="left", padx=(8, 4))
+        ctk.CTkButton(row, text="Generate new…", width=120, fg_color=CARD_2,
+                      hover_color=BORDER, border_width=1, border_color=BORDER,
+                      command=self.gen_key).pack(side="left")
+        row2 = ctk.CTkFrame(kb, fg_color="transparent"); row2.pack(fill="x", pady=(8, 0))
+        ctk.CTkLabel(row2, text="Public key", text_color=TEXT_MUTED,
+                     font=("Segoe UI", 12), width=80, anchor="w").pack(side="left")
+        self.pub_entry = ctk.CTkEntry(row2, font=("Consolas", 11), fg_color=CARD_2,
+                                      border_color=BORDER, text_color=TEXT)
+        self.pub_entry.pack(side="left", fill="x", expand=True, padx=8)
+        self.pub_entry.configure(state="disabled")
+        ctk.CTkButton(row2, text="Apply to app", width=110, fg_color=CARD_2,
+                      hover_color=BORDER, border_width=1, border_color=BORDER,
+                      command=self.patch_app).pack(side="left")
 
-        lf = ttk.Labelframe(body, text=" New license ", padding=10)
-        lf.pack(fill="x", pady=(0, 8))
-        form = ttk.Frame(lf); form.pack(fill="x")
-        self.f = {}
-        fields = [
-            ("Customer name",              "customer",    ""),
-            ("Expiry (YYYY-MM-DD)",        "expiry",      f"{date.today().year + 1}-12-31"),
-            ("Max subsidiaries (blank = none)", "max_subsidiaries", ""),
-            ("Max users per install (blank = none)", "max_users", ""),
-            ("Device code (blank = any device)", "device_code", ""),
-            ("Oracle host binding (blank = any)", "oracle_host", ""),
+        # ── New license card ────────────────────────────────────────────
+        _, lb = self._card(outer, "New license", "all fields validated as you type")
+        grid = ctk.CTkFrame(lb, fg_color="transparent"); grid.pack(fill="x")
+        grid.grid_columnconfigure(1, weight=1)
+        specs = [
+            ("customer",         "Customer name *",     "", v_customer,  "e.g. Aseela Trading"),
+            ("expiry",           "Expiry date *",       f"{date.today().year + 1}-12-31",
+                                                            v_expiry,    "YYYY-MM-DD"),
+            ("max_subsidiaries", "Max subsidiaries",    "", v_int_blank, "blank = unlimited"),
+            ("max_users",        "Max users / install", "", v_int_blank, "blank = unlimited"),
+            ("device_code",      "Device code",         "", v_device,    "blank = any device (About page shows it)"),
+            ("oracle_host",      "Oracle host binding", "", v_host,      "blank = any server"),
         ]
-        for i, (label, key, default) in enumerate(fields):
-            ttk.Label(form, text=label, width=30, anchor="w").grid(row=i, column=0, sticky="w", pady=3)
-            var = tk.StringVar(value=default)
-            self.f[key] = var
-            ttk.Entry(form, textvariable=var, width=42).grid(row=i, column=1, sticky="w")
+        self.validators = {k: fn for k, _, _, fn, _ in specs}
+        r = 0
+        for key, label, default, _fn, hint in specs:
+            ctk.CTkLabel(grid, text=label, text_color=TEXT, font=("Segoe UI", 12.5),
+                         width=150, anchor="w").grid(row=r, column=0, sticky="w", pady=(7, 0))
+            e = ctk.CTkEntry(grid, font=("Segoe UI", 12.5), fg_color=CARD_2,
+                             border_color=BORDER, text_color=TEXT,
+                             placeholder_text=hint, height=34)
+            e.grid(row=r, column=1, sticky="ew", pady=(7, 0), padx=(10, 0))
+            if default:
+                e.insert(0, default)
+            e.bind("<KeyRelease>", lambda _ev, k=key: self._revalidate(k))
+            e.bind("<FocusOut>",  lambda _ev, k=key: self._revalidate(k))
+            self.fields[key] = e
+            err = ctk.CTkLabel(grid, text="", text_color=ERR_RED,
+                               font=("Segoe UI", 10.5), anchor="w")
+            err.grid(row=r + 1, column=1, sticky="w", padx=(12, 0))
+            err.grid_remove()
+            self.errors[key] = err
+            r += 2
 
-        # Licensed domains — all checked = full product (field omitted from the
-        # payload, so legacy verification behaviour is unchanged).
-        ttk.Label(form, text="Licensed domains (all = full product)",
-                  width=30, anchor="w").grid(row=len(fields), column=0,
-                                             sticky="nw", pady=(6, 0))
-        domf = ttk.Frame(form)
-        domf.grid(row=len(fields), column=1, sticky="w", pady=(4, 0))
+        # Domains
+        dhead = ctk.CTkFrame(lb, fg_color="transparent"); dhead.pack(fill="x", pady=(12, 2))
+        ctk.CTkLabel(dhead, text="Licensed domains", text_color=TEXT,
+                     font=("Segoe UI", 12.5, "bold")).pack(side="left")
+        self.dom_summary = ctk.CTkLabel(dhead, text="", text_color=TEXT_MUTED,
+                                        font=("Segoe UI", 11))
+        self.dom_summary.pack(side="left", padx=10)
+        ctk.CTkButton(dhead, text="All", width=44, height=24, fg_color=CARD_2,
+                      hover_color=BORDER, border_width=1, border_color=BORDER,
+                      font=("Segoe UI", 11),
+                      command=lambda: self._set_domains(True)).pack(side="right", padx=(4, 0))
+        ctk.CTkButton(dhead, text="None", width=52, height=24, fg_color=CARD_2,
+                      hover_color=BORDER, border_width=1, border_color=BORDER,
+                      font=("Segoe UI", 11),
+                      command=lambda: self._set_domains(False)).pack(side="right")
+        domf = ctk.CTkFrame(lb, fg_color=CARD_2, corner_radius=10)
+        domf.pack(fill="x")
+        for c in range(2):
+            domf.grid_columnconfigure(c, weight=1)
         self.domain_vars: dict[str, tk.BooleanVar] = {}
         for i, (key, label) in enumerate(DOMAINS):
             var = tk.BooleanVar(value=True)
             self.domain_vars[key] = var
-            ttk.Checkbutton(domf, text=label, variable=var).grid(
-                row=i // 2, column=i % 2, sticky="w", padx=(0, 12))
+            ctk.CTkSwitch(domf, text=label, variable=var, progress_color=ACCENT,
+                          font=("Segoe UI", 12), text_color=TEXT,
+                          command=self._revalidate).grid(
+                row=i // 2, column=i % 2, sticky="w", padx=14, pady=6)
+        self.dom_err = ctk.CTkLabel(lb, text="Select at least one domain",
+                                    text_color=ERR_RED, font=("Segoe UI", 10.5))
+        self.dom_err.pack(anchor="w", padx=4)
+        self.dom_err.pack_forget()
 
-        ttk.Button(lf, text="Generate signed license.json…", style="Go.TButton",
-                   command=self.generate).pack(anchor="w", pady=(8, 0))
+        foot = ctk.CTkFrame(lb, fg_color="transparent"); foot.pack(fill="x", pady=(12, 0))
+        self.gen_btn = ctk.CTkButton(foot, text="Generate signed license.json…",
+                                     fg_color=ACCENT, hover_color=ACCENT_HOVER,
+                                     font=("Segoe UI", 13, "bold"), height=38,
+                                     command=self.generate)
+        self.gen_btn.pack(side="left")
+        self.gen_hint = ctk.CTkLabel(foot, text="", text_color=TEXT_MUTED,
+                                     font=("Segoe UI", 11))
+        self.gen_hint.pack(side="left", padx=12)
 
-        vf = ttk.Labelframe(body, text=" Verify a license file ", padding=10)
-        vf.pack(fill="x", pady=(0, 8))
-        ttk.Button(vf, text="Open license.json to verify…",
-                   command=self.verify).pack(anchor="w")
+        # ── Verify card ─────────────────────────────────────────────────
+        _, vb = self._card(outer, "Verify a license file")
+        ctk.CTkButton(vb, text="Open license.json to verify…", fg_color=CARD_2,
+                      hover_color=BORDER, border_width=1, border_color=BORDER,
+                      command=self.verify).pack(anchor="w")
 
-        of = ttk.Labelframe(body, text=" Activity ", padding=6)
-        of.pack(fill="both", expand=True)
-        self.out = tk.Text(of, height=9, font=("Consolas", 9), state="disabled",
-                           bg="#ffffff", relief="flat", fg="#334155")
+        # ── Activity card ───────────────────────────────────────────────
+        _, ob = self._card(outer, "Activity")
+        self.out = ctk.CTkTextbox(ob, height=170, font=("Consolas", 11),
+                                  fg_color=CARD_2, text_color=TEXT,
+                                  border_width=0, wrap="word")
         self.out.pack(fill="both", expand=True)
+        self.out.configure(state="disabled")
 
+    # ── Validation plumbing ─────────────────────────────────────────────
+    def _field_ok(self, key: str) -> bool:
+        ok, msg = self.validators[key](self.fields[key].get())
+        if ok:
+            self.fields[key].configure(border_color=BORDER)
+            self.errors[key].grid_remove()
+        else:
+            self.fields[key].configure(border_color=ERR_RED)
+            self.errors[key].configure(text=msg)
+            self.errors[key].grid()
+        return ok
+
+    def _revalidate(self, only: str | None = None):
+        """Validate one field (live) then refresh the overall Generate state."""
+        if only:
+            self._field_ok(only)
+        all_ok = all(self.validators[k](self.fields[k].get())[0] for k in self.fields)
+        picked = [k for k, _ in DOMAINS if self.domain_vars[k].get()]
+        if picked:
+            self.dom_err.pack_forget()
+        else:
+            self.dom_err.pack(anchor="w", padx=4)
+        self.dom_summary.configure(
+            text="full product" if len(picked) == len(DOMAINS)
+            else f"{len(picked)} of {len(DOMAINS)} selected")
+        ready = all_ok and bool(picked) and self.priv is not None
+        self.gen_btn.configure(state="normal" if ready else "disabled")
+        self.gen_hint.configure(
+            text="" if ready else
+            ("load or generate the private key first" if self.priv is None
+             else "fix the highlighted fields"))
+
+    def _set_domains(self, value: bool):
+        for var in self.domain_vars.values():
+            var.set(value)
+        self._revalidate()
+
+    # ── Logging ─────────────────────────────────────────────────────────
     def log(self, msg: str):
         self.out.configure(state="normal")
         self.out.insert("end", msg + "\n")
@@ -188,7 +370,10 @@ class App(tk.Tk):
     def _show_pub(self):
         pub = self.priv.public_key().public_bytes(
             serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
-        self.pub_var.set(pub)
+        self.pub_entry.configure(state="normal")
+        self.pub_entry.delete(0, "end")
+        self.pub_entry.insert(0, pub)
+        self.pub_entry.configure(state="disabled")
         return pub
 
     # ── Key handling ────────────────────────────────────────────────────
@@ -198,15 +383,17 @@ class App(tk.Tk):
         if not p:
             return
         try:
-            self.priv = serialization.load_pem_private_key(Path(p).read_bytes(), password=None)
-            assert isinstance(self.priv, Ed25519PrivateKey)
+            priv = serialization.load_pem_private_key(Path(p).read_bytes(), password=None)
+            assert isinstance(priv, Ed25519PrivateKey)
         except Exception as e:
             messagebox.showerror("Load failed", f"Not a valid Ed25519 PEM key:\n{e}")
             return
+        self.priv = priv
         self.priv_path = Path(p)
-        self.key_var.set(p)
+        self.key_lbl.configure(text=p, text_color=OK_GREEN)
         self.log(f"Loaded key: {p}")
         self.log(f"Public key: {self._show_pub()}")
+        self._revalidate()
 
     def gen_key(self):
         p = filedialog.asksaveasfilename(
@@ -221,16 +408,17 @@ class App(tk.Tk):
             serialization.NoEncryption())
         Path(p).write_bytes(pem)
         self.priv_path = Path(p)
-        self.key_var.set(p)
+        self.key_lbl.configure(text=p, text_color=OK_GREEN)
         pub = self._show_pub()
         self.log(f"NEW keypair generated. Private key: {p}")
         self.log(f"Public key: {pub}")
         self.log("IMPORTANT: back up the private key, then click 'Apply to app' so the")
         self.log("application accepts licenses signed with this new key.")
+        self._revalidate()
 
     def patch_app(self):
         global LICENSE_PY
-        pub = self.pub_var.get().strip()
+        pub = self.pub_entry.get().strip()
         if not pub:
             messagebox.showwarning("No key", "Load or generate a key first.")
             return
@@ -253,45 +441,29 @@ class App(tk.Tk):
 
     # ── Generate ────────────────────────────────────────────────────────
     def generate(self):
-        if self.priv is None:
-            messagebox.showwarning("No key", "Load or generate the private key first.")
+        # Belt and braces: the button is disabled until valid, but re-check
+        # everything here anyway (keyboard shortcuts, race with live check).
+        bad = [k for k in self.fields if not self._field_ok(k)]
+        picked = [k for k, _ in DOMAINS if self.domain_vars[k].get()]
+        if self.priv is None or bad or not picked:
+            self._revalidate()
             return
-        customer = self.f["customer"].get().strip()
-        expiry   = self.f["expiry"].get().strip()
-        if not customer:
-            messagebox.showwarning("Missing", "Customer name is required.")
-            return
-        try:
-            datetime.strptime(expiry, "%Y-%m-%d")
-        except ValueError:
-            messagebox.showwarning("Bad date", "Expiry must be YYYY-MM-DD.")
-            return
+        customer = self.fields["customer"].get().strip()
+        expiry   = self.fields["expiry"].get().strip()
         payload = {"customer": customer, "expiry": expiry,
                    "issued": date.today().isoformat()}
-        for key, label in (("max_subsidiaries", "Max subsidiaries"),
-                           ("max_users", "Max users")):
-            v = self.f[key].get().strip()
+        for key in ("max_subsidiaries", "max_users"):
+            v = self.fields[key].get().strip()
             if v:
-                try:
-                    payload[key] = int(v)
-                except ValueError:
-                    messagebox.showwarning("Bad number", f"{label} must be a whole number.")
-                    return
-        device = self.f["device_code"].get().strip().upper()
+                payload[key] = int(v)
+        device = self.fields["device_code"].get().strip().upper()
         if device:
             payload["device_code"] = device
-        host = self.f["oracle_host"].get().strip()
+        host = self.fields["oracle_host"].get().strip()
         if host:
             payload["oracle_host"] = host
-
-        # Licensed domains: all checked → omit the field entirely (= all
-        # domains, byte-identical payload shape to pre-domain licenses).
-        picked = [k for k, _ in DOMAINS if self.domain_vars[k].get()]
-        if not picked:
-            messagebox.showwarning(
-                "No domains", "Select at least one licensed domain "
-                "(all checked = full product).")
-            return
+        # Licensed domains: all ON → omit the field entirely (= all domains,
+        # byte-identical payload shape to pre-domain licenses).
         if len(picked) < len(DOMAINS):
             payload["domains"] = picked
 
@@ -308,9 +480,10 @@ class App(tk.Tk):
                              ("max_subsidiaries", "max_users", "device_code", "oracle_host")
                              if k in payload))
         self.log("  domains=" + (",".join(payload["domains"])
-                                 if "domains" in payload else "ALL"))
-        self.log("Send this file to the customer — it goes next to the app's settings"
-                 " (backend/ in dev, _internal in the packaged install).")
+                                 if "domains" in payload else "ALL (full product)"))
+        self.log("Send this file to the customer — it goes to "
+                 r"C:\ProgramData\RetailTec Analytics\license.json "
+                 "(or next to the app's settings; the About page shows the exact path).")
 
     # ── Verify ──────────────────────────────────────────────────────────
     def verify(self):
@@ -324,11 +497,10 @@ class App(tk.Tk):
         except Exception as e:
             messagebox.showerror("Invalid file", str(e))
             return
-        pub_hex = self.pub_var.get().strip() or self._embedded_pub()
+        pub_hex = self.pub_entry.get().strip() or self._embedded_pub()
         if not pub_hex:
             messagebox.showwarning("No key", "Load a key (or keep license.py nearby) first.")
             return
-
         try:
             pub = Ed25519PublicKey.from_public_bytes(bytes.fromhex(pub_hex))
             pub.verify(bytes.fromhex(sig), canonical(payload))
