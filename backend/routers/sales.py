@@ -21,7 +21,7 @@ from datetime import date, timedelta, datetime
 from typing import Optional
 from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query
-from db.model import get_db, ACCOUNTING_SBS_NO
+from db.model import get_db, record_audit, ACCOUNTING_SBS_NO
 from routers.auth import get_current_user, require_admin
 from routers.common import (DB_LOCK, allowed_store_set, allowed_subsidiary_set,
                             q as _q, qdf as _qdf,
@@ -1409,10 +1409,15 @@ def sync_status():
 async def sync_full_load(
     tables: Optional[str] = Query(None,
         description="Comma-separated domains: sales,transfers,adjustments,inventory. Omit for all."),
+    rebuild: bool = Query(False,
+        description="Replace everything: delete the loaded window for the selected "
+                    "domain(s) first, then reload. Destructive — admin opt-in."),
     _admin: dict = Depends(require_admin),
 ):
     tbl_set = {t.strip() for t in tables.split(",") if t.strip()} if tables else None
-    return await trigger_full_load(tables=tbl_set)
+    if rebuild:
+        record_audit(_admin["username"], "full_load_rebuild", tables or "all")
+    return await trigger_full_load(tables=tbl_set, rebuild=rebuild)
 
 @router.post("/api/sync/dimensions-load")
 async def sync_dimensions_load(_admin: dict = Depends(require_admin)):

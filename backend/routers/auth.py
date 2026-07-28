@@ -20,7 +20,8 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-from db.model import DB_LOCK, get_db, hash_password, verify_password, record_audit
+from db.model import (DB_LOCK, assert_binds, get_db, hash_password,
+                      verify_password, record_audit)
 # Note: hash_password/verify_password now use stdlib hashlib — no passlib needed
 
 router = APIRouter(tags=["auth"])
@@ -62,6 +63,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 def _qdf(sql: str, params=None) -> list[dict]:
     # Per-request cursor: auth reads (every request's token check!) must not
     # queue behind a running sync on the shared connection.
+    assert_binds(sql, params or [])
     with _db_lock:
         cur = get_db().cursor()
     try:

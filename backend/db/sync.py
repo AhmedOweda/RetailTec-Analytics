@@ -211,7 +211,10 @@ def _sql_daily(df, dt):
 # (historical backfills) an index plan means hundreds of thousands of scattered
 # ROWID lookups over the WAN — much slower than ONE sequential full scan.
 # Oracle's optimizer can't always tell (FBI stats), so we decide explicitly:
-_INDEX_WINDOW_DAYS = 21
+# 92 covers every routine incremental window (30/60/90-day overlap options,
+# _MIN_INCREMENTAL_DAYS floor) — those must stay on the fast index path; only
+# genuine historical backfills (range/full loads beyond ~3 months) full-scan.
+_INDEX_WINDOW_DAYS = 92
 
 def _use_index(df, dt) -> bool:
     try:
@@ -2232,12 +2235,19 @@ def apply_retention(retain_months=24, dry_run: bool = False, duck=None) -> dict:
     return {"retain_months": m, "dry_run": dry_run, "pruned": pruned}
 
 
-async def incremental(days: int = 7, progress_cb=None,
+_MIN_INCREMENTAL_DAYS = 30   # hard floor: rolling self-healing window — late
+                             # postings and sbs-100 DBA deletes inside the last
+                             # 30 days are absorbed by every incremental run.
+
+
+async def incremental(days: int = _MIN_INCREMENTAL_DAYS, progress_cb=None,
                       triggered_by: str = "scheduler", force_replace: bool = False,
                       tables: set | None = None):
     """Incremental - immutable facts INSERT-ONLY (append newly-closed docs),
     FACT_SALES_DAILY aggregate replaced for the window. tables=None = all domains;
-    pass a set to sync only specific ones (per-domain scheduling)."""
+    pass a set to sync only specific ones (per-domain scheduling).
+    `days` is clamped to a minimum of _MIN_INCREMENTAL_DAYS regardless of caller."""
+    days = max(int(days), _MIN_INCREMENTAL_DAYS)
     df, dt = _date_range(days)
     log.info(f"Incremental: {df}->{dt} (tables={tables or 'all'})")
     await asyncio.get_event_loop().run_in_executor(

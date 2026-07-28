@@ -72,6 +72,20 @@ def _run_with_tray(app):
     def _open(icon, item):
         webbrowser.open(f"http://127.0.0.1:{PORT}")
 
+    def _incr_days() -> int:
+        """Configured incremental overlap (Settings → Data model), clamped to
+        the same 30-day floor sync.py enforces. Read fresh on every call so
+        the tray always matches the app settings without a restart."""
+        try:
+            from services.config import load_settings
+            from services.settings_schema import migrate_data_model
+            from db.sync import _MIN_INCREMENTAL_DAYS
+            dm = migrate_data_model(load_settings())["data_model"]
+            return max(int(dm.get("default_incremental_days", _MIN_INCREMENTAL_DAYS)),
+                       _MIN_INCREMENTAL_DAYS)
+        except Exception:
+            return 30
+
     def _sync_now(icon, item):
         """Incremental refresh from the tray — same guard as the scheduler."""
         def _worker():
@@ -84,7 +98,8 @@ def _run_with_tray(app):
             scheduler._mark_start("incremental")
             try:
                 aio.run(db_sync.incremental(
-                    days=7, progress_cb=scheduler._progress, triggered_by="tray"))
+                    days=_incr_days(), progress_cb=scheduler._progress,
+                    triggered_by="tray"))
                 scheduler._sync_state.update(
                     running=False, step="Done", done=3,
                     last_sync=datetime.now().isoformat())
@@ -155,7 +170,10 @@ def _run_with_tray(app):
     menu_items = [
         pystray.MenuItem("Open dashboard", _open, default=True),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Sync now (last 7 days)", _sync_now),
+        # Callable text: pystray re-evaluates it each time the menu opens, so
+        # the label always shows the overlap currently saved in Settings.
+        pystray.MenuItem(lambda item: f"Sync now (last {_incr_days()} days)",
+                         _sync_now),
         pystray.MenuItem("Syncing…", None, enabled=False, visible=_syncing),
         pystray.MenuItem("Restart", _restart_app),
         pystray.Menu.SEPARATOR,

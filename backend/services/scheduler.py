@@ -141,10 +141,12 @@ async def on_open_sync():
 
 # ── Full load (triggered from admin panel) ─────────────────────────────────
 
-async def trigger_full_load(tables: set | None = None):
+async def trigger_full_load(tables: set | None = None, rebuild: bool = False):
     """Full reload — called from admin panel.
     tables=None loads all domains.
     Pass a set like {'sales','transfers','adjustments','inventory'} to restrict.
+    rebuild=True (owner's "Replace everything", 28 Jul 2026) clears the loaded
+    window for the selected domain(s) first, then reloads — destructive opt-in.
     """
     if _sync_state["running"]:
         return {"ok": False, "message": "Sync already running"}
@@ -156,8 +158,14 @@ async def trigger_full_load(tables: set | None = None):
             try:
                 cfg  = _load_settings()
                 dm   = migrate_data_model(cfg)["data_model"]
-                days = int(dm.get("domains", {}).get("sales", {}).get("load_days", 365))
-                await db_sync.full_load(days, progress_cb=_progress, tables=tables)
+                # Single-domain loads use THAT domain's window (an accounting
+                # replace must cover accounting's own history, not sales');
+                # multi-domain loads keep the sales window as before.
+                _dkey = next(iter(tables)) if tables and len(tables) == 1 else "sales"
+                days = int(dm.get("domains", {}).get(_dkey, {}).get("load_days",
+                           dm.get("domains", {}).get("sales", {}).get("load_days", 365)))
+                await db_sync.full_load(days, progress_cb=_progress, tables=tables,
+                                        rebuild=rebuild)
                 _sync_state.update(
                     running=False, step=f"Done ({label})", done=3,
                     last_sync=datetime.now().isoformat()

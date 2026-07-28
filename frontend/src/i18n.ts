@@ -834,6 +834,16 @@ const ar_strings: Record<string, string> = {
   'Load an explicit period (e.g. backfill older history). This appends to existing data — nothing is deleted. Respects the domain selection above.':
     'حمّل فترة محددة (مثل استكمال سجل أقدم). يُضاف هذا إلى البيانات الموجودة — لا يُحذف شيء. يراعي اختيار النطاقات أعلاه.',
   'Load Range': 'تحميل النطاق',
+  'Replace Range': 'استبدال النطاق',
+  'More load options': 'خيارات تحميل إضافية',
+  'Load now (append, nothing deleted)': 'تحميل الآن (إضافة، لا يُحذف شيء)',
+  'Replace everything (delete + reload)': 'استبدال كل شيء (حذف ثم إعادة تحميل)',
+  'Delete ALL loaded data for this data type, then reload it from Oracle over its full history window. This cannot be undone.':
+    'حذف كل البيانات المحمّلة لهذا النوع ثم إعادة تحميلها من أوراكل على كامل فترة التاريخ. لا يمكن التراجع عن هذا الإجراء.',
+  'Replace this period (delete existing rows first, then reload)':
+    'استبدال هذه الفترة (حذف الصفوف الحالية أولًا ثم إعادة التحميل)',
+  'Deletes every loaded row in this period for all enabled data types, then reloads them from Oracle. Use for corrections. This cannot be undone.':
+    'يحذف كل الصفوف المحمّلة في هذه الفترة لجميع أنواع البيانات المفعّلة ثم يعيد تحميلها من أوراكل. يُستخدم للتصحيحات. لا يمكن التراجع عن هذا الإجراء.',
   'The date span actually present in the warehouse, per domain.': 'المدى الزمني الموجود فعليًا في المستودع لكل نطاق.',
   'Domain': 'النطاق', 'snapshot': 'لقطة',
   'Last run: {{type}} · {{status}}': 'آخر تشغيل: {{type}} · {{status}}',
@@ -1426,6 +1436,10 @@ const ar_strings: Record<string, string> = {
   'Top {{n}} of {{m}}': 'أعلى {{n}} من {{m}}',
   'You have unsaved accounting changes': 'لديك تغييرات محاسبية غير محفوظة',
   'Discard': 'تجاهل',
+
+  // ── Network-exposure note in Settings → Connection (2026-07-28) ──
+  'This server listens on all network interfaces (port 7382) so the dashboard is reachable over VPN/LAN. Keep it behind a VPN or firewall — never expose the port to the public internet. Set RETAILTEC_HOST=127.0.0.1 to restrict it to this machine only.':
+    'يستمع هذا الخادم على جميع واجهات الشبكة (المنفذ 7382) بحيث تكون لوحة المعلومات متاحة عبر VPN أو الشبكة المحلية. أبقِه خلف VPN أو جدار حماية — ولا تعرّض المنفذ للإنترنت العام أبدًا. عيّن RETAILTEC_HOST=127.0.0.1 لقصره على هذا الجهاز فقط.',
 
   // ── BP Statement: control-account view vs audit view (2026-07-27) ──
   'Statement': 'كشف الحساب',

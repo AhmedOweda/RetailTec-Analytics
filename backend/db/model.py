@@ -46,6 +46,39 @@ from pathlib import Path
 # callers that forgot it (the sync thread) are now covered anyway.
 DB_LOCK = threading.RLock()
 
+
+def assert_binds(sql: str, params) -> None:
+    """Fail FAST and CLEARLY when the number of '?' placeholders doesn't match
+    the params list (P0, 28 Jul 2026). DuckDB's own error ('Values were not
+    provided for prepared statement parameters: N') surfaces as a cryptic 500
+    with no hint of which query — the Stagnant-drill bug of 27 Jul cost a
+    debugging session to trace. Counts '?' outside single-quoted literals and
+    -- comments, so literal question marks in strings don't false-positive."""
+    n = 0
+    in_str = False
+    i, ln = 0, len(sql)
+    while i < ln:
+        c = sql[i]
+        if in_str:
+            if c == "'":
+                if i + 1 < ln and sql[i + 1] == "'":   # escaped '' inside literal
+                    i += 1
+                else:
+                    in_str = False
+        elif c == "'":
+            in_str = True
+        elif c == "-" and i + 1 < ln and sql[i + 1] == "-":
+            j = sql.find("\n", i)
+            i = ln if j < 0 else j
+        elif c == "?":
+            n += 1
+        i += 1
+    got = len(params)
+    if n != got:
+        raise ValueError(
+            f"SQL bind mismatch: query has {n} '?' placeholder(s) but {got} "
+            f"parameter(s) were supplied. First 200 chars: {sql.strip()[:200]!r}")
+
 # Product + warehouse schema versions (surfaced by /api/admin/diagnostics).
 # APP_VERSION mirrors the FastAPI app version in main.py; SCHEMA_VERSION is the
 # DuckDB star-schema revision (bump when _ensure_schema changes shape).
@@ -177,22 +210,61 @@ def _col_type(con: duckdb.DuckDBPyConnection, table: str, col: str) -> str:
     return row[0] if row else ""
 
 
+def _quarantine_wal(path: str, err: Exception) -> bool:
+    """Self-heal a corrupt WAL left behind by a force-kill (P0, 28 Jul 2026).
+
+    A corrupt .wal makes duckdb.connect() raise during replay and previously
+    CRASH-LOOPED the packaged app until someone deleted the file by hand
+    (seen 27 Jul: a stale corrupt WAL restored from _appstate_backup took
+    down a fresh build). Losing the WAL only loses the last un-checkpointed
+    sync batch — the next incremental (>=30-day window) re-pulls it — so the
+    right move is: move it aside, log LOUDLY, let connect retry.
+    Returns True if a WAL file was quarantined (caller should retry once)."""
+    wal = Path(str(path) + ".wal")
+    if not wal.exists():
+        return False
+    qdir = wal.parent / "wal_quarantine"
+    try:
+        qdir.mkdir(exist_ok=True)
+        dest = qdir / (wal.name + "." + time.strftime("%Y%m%d-%H%M%S") + ".corrupt")
+        wal.replace(dest)
+    except OSError as move_err:
+        logging.getLogger(__name__).error(
+            f"WAL replay failed ({err}) and quarantine also failed ({move_err}) - giving up")
+        return False
+    logging.getLogger(__name__).error(
+        f"WAL replay failed ({err}); quarantined {wal.name} -> {dest} and retrying connect. "
+        f"Last un-checkpointed sync batch is lost; the next incremental re-pulls it.")
+    return True
+
+
 def _connect_retry(path: str, timeout_s: int = 120) -> duckdb.DuckDBPyConnection:
     """Open the warehouse, WAITING for another instance to release it.
     A tray Restart spawns the new process while the old one may still be
     finishing a sync batch — failing immediately left the app unreachable
     (seen 8 Jul 2026: new instance died with 'file is being used by another
-    process' while the old sync thread drained)."""
+    process' while the old sync thread drained).
+    Also self-heals a corrupt WAL: one quarantine-and-retry per call, and
+    never while the file is merely held by another live instance (that WAL
+    belongs to a running process — removing it would corrupt, not heal)."""
     log = logging.getLogger(__name__)
     deadline = time.time() + timeout_s
+    wal_healed = False
     while True:
         try:
             return duckdb.connect(path)
-        except duckdb.IOException as e:
-            if "used by another process" not in str(e) or time.time() >= deadline:
-                raise
-            log.warning("Warehouse held by another instance - waiting to retry...")
-            time.sleep(2)
+        except duckdb.Error as e:
+            held = isinstance(e, duckdb.IOException) and "used by another process" in str(e)
+            if held:
+                if time.time() >= deadline:
+                    raise
+                log.warning("Warehouse held by another instance - waiting to retry...")
+                time.sleep(2)
+                continue
+            if not wal_healed and _quarantine_wal(path, e):
+                wal_healed = True
+                continue
+            raise
 
 
 def get_db() -> duckdb.DuckDBPyConnection:

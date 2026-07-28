@@ -29,6 +29,20 @@ _DOMAIN_DEFAULTS = {
 
 SCHEMA_VERSION = 2
 
+# Incremental overlap window bounds. 30-day floor = rolling self-healing
+# window: late postings and sbs-100 DBA deletes inside the last 30 days are
+# absorbed by every incremental run (sync.py enforces the same floor).
+INCR_DAYS_MIN = 30
+INCR_DAYS_MAX = 90
+
+
+def _clamp_incr_days(v) -> int:
+    try:
+        v = int(v)
+    except (TypeError, ValueError):
+        v = INCR_DAYS_MIN
+    return min(max(v, INCR_DAYS_MIN), INCR_DAYS_MAX)
+
 
 def _is_migrated(dm: dict) -> bool:
     doms = dm.get("domains")
@@ -55,11 +69,16 @@ def migrate_data_model(settings: dict) -> dict:
     dm = s.get("data_model") or {}
 
     if _is_migrated(dm):
+        # Still clamp the overlap window: a settings.json saved before the
+        # 30-day floor existed (e.g. 7) must come back as 30, not error.
+        dm["default_incremental_days"] = _clamp_incr_days(
+            dm.get("default_incremental_days", INCR_DAYS_MIN))
+        s["data_model"] = dm
         return s
 
     # Legacy fields (may be absent) become the migration defaults.
     legacy_initial   = int(dm.get("initial_load_days", 365))
-    legacy_incr      = int(dm.get("incremental_window_days", 7))
+    legacy_incr      = _clamp_incr_days(dm.get("incremental_window_days", INCR_DAYS_MIN))
     legacy_bg_min    = int(dm.get("background_refresh_minutes", 30))
 
     # Preserve any domains block the user already had (partial), else start fresh.
@@ -114,8 +133,18 @@ if __name__ == "__main__":
     assert m["connection"]["password"] == "p"               # preserved
     assert m["last_sync"] == "2026-06-30T12:00:00"          # preserved
 
+    assert dm["default_incremental_days"] == 30             # legacy 7 clamped to floor
+
     # 2) idempotent — migrating again changes nothing
     assert migrate_data_model(m) == m
+
+    # 2b) already-migrated dict with a pre-floor overlap value gets clamped
+    low = deepcopy(m)
+    low["data_model"]["default_incremental_days"] = 7
+    assert migrate_data_model(low)["data_model"]["default_incremental_days"] == 30
+    high = deepcopy(m)
+    high["data_model"]["default_incremental_days"] = 365
+    assert migrate_data_model(high)["data_model"]["default_incremental_days"] == 90
 
     # 3) partial prior domains preserved (custom schedule kept)
     partial = {"data_model": {"domains": {"inventory": {
