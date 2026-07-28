@@ -160,8 +160,8 @@ class App(ctk.CTk):
         super().__init__()
         ctk.set_appearance_mode("dark")
         self.title("RetailTec License Studio")
-        self.geometry("780x920")
-        self.minsize(740, 780)
+        self.geometry("800x780")
+        self.minsize(760, 640)
         self.configure(fg_color=BG)
         try:
             ico = Path(__file__).parent.parent.parent / "packaging" / "app.ico"
@@ -300,10 +300,12 @@ class App(ctk.CTk):
         self.dom_err.pack_forget()
 
         foot = ctk.CTkFrame(lb, fg_color="transparent"); foot.pack(fill="x", pady=(12, 0))
+        # Explicit width — auto-sizing clipped the label on scaled displays
+        # (owner report 28 Jul: "rate signed license.js").
         self.gen_btn = ctk.CTkButton(foot, text="Generate signed license.json…",
                                      fg_color=ACCENT, hover_color=ACCENT_HOVER,
-                                     font=("Segoe UI", 13, "bold"), height=38,
-                                     command=self.generate)
+                                     font=("Segoe UI", 13, "bold"), height=40,
+                                     width=300, command=self.generate)
         self.gen_btn.pack(side="left")
         self.gen_hint = ctk.CTkLabel(foot, text="", text_color=TEXT_MUTED,
                                      font=("Segoe UI", 11))
@@ -311,17 +313,19 @@ class App(ctk.CTk):
 
         # ── Verify card ─────────────────────────────────────────────────
         _, vb = self._card(outer, "Verify a license file")
-        ctk.CTkButton(vb, text="Open license.json to verify…", fg_color=CARD_2,
+        vrow = ctk.CTkFrame(vb, fg_color="transparent"); vrow.pack(fill="x")
+        ctk.CTkButton(vrow, text="Open license.json to verify…", width=230,
+                      fg_color=CARD_2,
                       hover_color=BORDER, border_width=1, border_color=BORDER,
-                      command=self.verify).pack(anchor="w")
-
-        # ── Activity card ───────────────────────────────────────────────
-        _, ob = self._card(outer, "Activity")
-        self.out = ctk.CTkTextbox(ob, height=170, font=("Consolas", 11),
-                                  fg_color=CARD_2, text_color=TEXT,
-                                  border_width=0, wrap="word")
-        self.out.pack(fill="both", expand=True)
-        self.out.configure(state="disabled")
+                      command=self.verify).pack(side="left")
+        # Activity lives in a popup (owner request 28 Jul) — main window stays
+        # compact; the popup opens itself whenever an action logs something.
+        ctk.CTkButton(vrow, text="Activity log…", width=120, fg_color=CARD_2,
+                      hover_color=BORDER, border_width=1, border_color=BORDER,
+                      command=self._show_log).pack(side="left", padx=(8, 0))
+        self._log_lines: list[str] = []
+        self._log_win: ctk.CTkToplevel | None = None
+        self.out: ctk.CTkTextbox | None = None
 
     # ── Validation plumbing ─────────────────────────────────────────────
     def _field_ok(self, key: str) -> bool:
@@ -360,12 +364,41 @@ class App(ctk.CTk):
             var.set(value)
         self._revalidate()
 
-    # ── Logging ─────────────────────────────────────────────────────────
+    # ── Logging (popup window) ──────────────────────────────────────────
+    def _show_log(self):
+        if self._log_win is not None and self._log_win.winfo_exists():
+            self._log_win.lift()
+            self._log_win.focus_force()
+            return
+        w = ctk.CTkToplevel(self)
+        w.title("Activity — RetailTec License Studio")
+        w.geometry("720x420")
+        w.configure(fg_color=BG)
+        self._log_win = w
+        self.out = ctk.CTkTextbox(w, font=("Consolas", 11), fg_color=CARD_2,
+                                  text_color=TEXT, border_width=0, wrap="word")
+        self.out.pack(fill="both", expand=True, padx=12, pady=12)
+        self.out.insert("end", "\n".join(self._log_lines) + ("\n" if self._log_lines else ""))
+        self.out.see("end")
+        self.out.configure(state="disabled")
+
+        def _closed():
+            self._log_win = None
+            self.out = None
+            w.destroy()
+        w.protocol("WM_DELETE_WINDOW", _closed)
+
     def log(self, msg: str):
+        """Append to the activity buffer and surface the popup."""
+        self._log_lines.append(msg)
+        if self._log_win is None or not self._log_win.winfo_exists():
+            self._show_log()      # opens and renders the whole buffer
+            return
         self.out.configure(state="normal")
         self.out.insert("end", msg + "\n")
         self.out.see("end")
         self.out.configure(state="disabled")
+        self._log_win.lift()
 
     def _show_pub(self):
         pub = self.priv.public_key().public_bytes(
