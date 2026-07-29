@@ -1432,6 +1432,31 @@ const ar_strings: Record<string, string> = {
   'You have unsaved accounting changes': 'لديك تغييرات محاسبية غير محفوظة',
   'Discard': 'تجاهل',
 
+  // ── Hard license lock screen (2026-07-29) ──
+  'NO LICENSE': 'لا يوجد ترخيص',
+  'Expiry': 'تاريخ الانتهاء',
+  'LICENSE LIMIT EXCEEDED': 'تم تجاوز حدود الترخيص',
+  'LICENSE REQUIRED': 'الترخيص مطلوب',
+  'No license is installed on this machine.': 'لا يوجد ترخيص مثبّت على هذا الجهاز.',
+  'The license file is corrupted or its signature does not match this product.':
+    'ملف الترخيص تالف أو أن توقيعه لا يطابق هذا المنتج.',
+  'The license is bound to a different machine.': 'الترخيص مرتبط بجهاز آخر.',
+  'The license is bound to a different Oracle server.': 'الترخيص مرتبط بخادم أوراكل آخر.',
+  'This warehouse was filled from a different Oracle server — the copy is not licensed for this data.':
+    'تم تعبئة قاعدة البيانات هذه من خادم أوراكل مختلف — هذه النسخة غير مرخّصة لهذه البيانات.',
+  'This installation is not licensed.': 'هذه النسخة غير مرخّصة.',
+  'Contact RetailTec with the device code below to obtain a license.':
+    'تواصل مع ريتيل تك مع رمز الجهاز أدناه للحصول على ترخيص.',
+  'Device code': 'رمز الجهاز',
+  'License file': 'ملف الترخيص',
+  'Install license file…': 'تثبيت ملف الترخيص…',
+  'Installing…': 'جارٍ التثبيت…',
+  'Re-check': 'إعادة الفحص',
+  'License installed — unlocking…': 'تم تثبيت الترخيص — جارٍ فتح التطبيق…',
+  'License installed, but the app is still locked — check the reason above':
+    'تم تثبيت الترخيص لكن التطبيق ما زال مقفلًا — راجع السبب أعلاه',
+  'Could not install the license': 'تعذّر تثبيت الترخيص',
+
   // ── Network-exposure note in Settings → Connection (2026-07-28) ──
   'This server listens on all network interfaces (port 7382) so the dashboard is reachable over VPN/LAN. Keep it behind a VPN or firewall — never expose the port to the public internet. Set RETAILTEC_HOST=127.0.0.1 to restrict it to this machine only.':
     'يستمع هذا الخادم على جميع واجهات الشبكة (المنفذ 7382) بحيث تكون لوحة المعلومات متاحة عبر VPN أو الشبكة المحلية. أبقِه خلف VPN أو جدار حماية — ولا تعرّض المنفذ للإنترنت العام أبدًا. عيّن RETAILTEC_HOST=127.0.0.1 لقصره على هذا الجهاز فقط.',

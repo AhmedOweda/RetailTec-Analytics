@@ -1,10 +1,12 @@
 """
-License status — REPORTING ONLY (never blocks).
+License status + HARD enforcement.
 ================================================
-This module ONLY reports license status. It MUST NEVER block startup, block
-login, or disable any endpoint. Every public function is wrapped so a missing,
-malformed, or unsigned license simply reports {"present": False} instead of
-raising.
+Since 29 Jul 2026 (owner decision) an unlicensed / invalid state COMPLETELY
+BLOCKS the app: `license_lock_state()` returns the lock verdict, the HTTP
+middleware in main.py refuses every data endpoint with 403 while locked, the
+sync engine refuses to run, and the frontend replaces the app with a lock
+screen. Reporting functions themselves still never raise — a broken license
+file must produce a clean lock, not a crash.
 
 License file format (backend/license.json):
     {
@@ -335,12 +337,102 @@ def evaluate(oracle_host: str, subsidiary_count: int | None, duck=None) -> dict:
                 warnings.append(
                     f"License covers {st['max_subsidiaries']} subsidiaries — "
                     f"{subsidiary_count} found")
-        else:
-            warnings.append("No license installed — evaluation mode")
+            # Pre-expiry reminder (last 14 days) so the customer renews
+            # BEFORE the hard lock lands (policy: block + short grace).
+            dr = st.get("days_remaining")
+            if dr is not None and 0 <= dr <= 14 and not st.get("expired"):
+                warnings.append(
+                    f"License expires in {dr} day(s) — renew now to avoid "
+                    f"being locked out")
+        # NOTE: a MISSING license no longer warns here — it hard-locks the
+        # app via license_lock_state() (owner policy 29 Jul 2026).
     except Exception as e:  # pragma: no cover
         log.warning(f"License evaluation failed (ignored): {e}")
     return {"violation": violation, "reason": reason, "warnings": warnings,
             "device_code": device, "status": st}
+
+
+# ── HARD LOCK (owner policy 29 Jul 2026: complete blockage, short grace) ─────
+# Locks: no license, invalid signature, expired, wrong device, wrong server.
+# Subsidiary overage keeps its 30-day grace (banner) and locks when it runs
+# out. Copied-warehouse (db_host_mismatch) is enforced by the frontend from
+# /api/settings/status — it needs WAREHOUSE_META, which this cheap per-request
+# check deliberately avoids.
+#
+# TTL-cached: the HTTP middleware calls this on EVERY request; one real
+# evaluation per TTL window. Fail-OPEN on internal errors (a transient
+# settings/DB hiccup must not brick a licensed customer) — the states that
+# lock are all POSITIVE determinations from a readable license file.
+_lock_cache: dict = {"at": -1e18, "value": None}
+_LOCK_CACHE_TTL = 30.0   # seconds
+
+
+def reset_license_caches() -> None:
+    """Forget cached verdicts — call after a new license.json is installed."""
+    _lock_cache.update(at=-1e18, value=None)
+    _dom_cache.update(at=-1e18, value=None)
+
+
+def license_lock_state() -> dict | None:
+    """None = app may run. Else {"reason": <short>, "detail": <sentence>}."""
+    import time
+    now = time.monotonic()
+    if now - _lock_cache["at"] < _LOCK_CACHE_TTL:
+        return _lock_cache["value"]
+    value = None
+    try:
+        st = get_license_status()
+        if not st.get("present"):
+            value = {"reason": "NO LICENSE",
+                     "detail": "No license is installed on this machine."}
+        elif not st.get("valid"):
+            value = {"reason": "INVALID LICENSE",
+                     "detail": "The license file is corrupted or its signature "
+                               "does not match this product."}
+        elif st.get("expired"):
+            value = {"reason": "LICENSE EXPIRED",
+                     "detail": f"The license expired on {st.get('expiry')}."}
+        else:
+            if st.get("bound_device") and st["bound_device"] != get_device_code():
+                value = {"reason": "WRONG DEVICE",
+                         "detail": "The license is bound to a different machine."}
+            if value is None and st.get("bound_oracle_host"):
+                try:
+                    from services.config import load_settings
+                    host = (load_settings().get("connection", {}) or {}).get("host", "")
+                except Exception:
+                    host = ""
+                if host and st["bound_oracle_host"] != host:
+                    value = {"reason": "WRONG SERVER",
+                             "detail": "The license is bound to a different "
+                                       "Oracle server."}
+            if value is None and st.get("max_subsidiaries"):
+                # Subsidiary overage past its grace → lock (grace runs via
+                # sub_limit_state and is shown as a countdown banner).
+                try:
+                    from db.model import get_db, DB_LOCK, ACCOUNTING_SBS_NO
+                    with DB_LOCK:
+                        con = get_db().cursor()
+                    try:
+                        n = con.execute(
+                            "SELECT COUNT(*) FROM DIM_SUBSIDIARY "
+                            "WHERE SBS_NO IS DISTINCT FROM ?",
+                            [ACCOUNTING_SBS_NO]).fetchone()[0]
+                        g = sub_limit_state(con, st, n)
+                    finally:
+                        con.close()
+                    if g and g.get("blocked"):
+                        value = {"reason": "LICENSE LIMIT EXCEEDED",
+                                 "detail": f"The license covers {g['max']} "
+                                           f"subsidiaries but {g['found']} were "
+                                           f"found, and the grace period is over."}
+                except Exception as e:   # DB not ready → don't lock on it
+                    log.warning(f"sub-limit lock check skipped: {e}")
+    except Exception as e:  # pragma: no cover — fail OPEN
+        log.warning(f"license_lock_state failed (fail-open): {e}")
+        value = None
+    _lock_cache.update(at=now, value=value)
+    return value
 
 
 def get_license_status() -> dict:

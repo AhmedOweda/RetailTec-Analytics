@@ -61,7 +61,7 @@ log = logging.getLogger(__name__)
 
 # ── App ────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="RetailTec Analytics API", version="3.0.0")
+app = FastAPI(title="RetailTec Analytics API", version="3.1.0")
 
 # CORS: the app is always served same-origin through a proxy (Vite dev server on
 # :7383, the packaged bundled HTTP server on :7382) — only those origins are allowed
@@ -86,11 +86,36 @@ app.add_middleware(
 # stay untouched (report_grid.run_grid introspects them).
 from fastapi.responses import JSONResponse as _JSONResponse
 from services.license import licensed_domains as _licensed_domains, \
-                             domains_for_path as _domains_for_path
+                             domains_for_path as _domains_for_path, \
+                             license_lock_state as _license_lock_state
+
+# Paths that MUST keep working while the app is hard-locked, so the customer
+# can log in, see WHY it is locked, and install a new license:
+#   /api/auth/*            — login/token check (the lock screen sits behind login)
+#   /api/settings/status   — carries the lock verdict + device code to the UI
+#   /api/admin/license     — the new-license upload endpoint
+#   /health, /api/cache/status — infra probes
+_LOCK_EXEMPT_PREFIXES = ("/api/auth/", "/api/admin/license")
+_LOCK_EXEMPT_PATHS = frozenset({"/api/settings/status", "/health",
+                                "/api/cache/status"})
 
 
 @app.middleware("http")
 async def _license_domain_gate(request, call_next):
+    path = request.url.path.split("?", 1)[0].rstrip("/") or "/"
+    # HARD LOCK (owner policy 29 Jul 2026): while the license is missing /
+    # invalid / expired / wrong-bound (or sub-limit grace is spent), every
+    # data endpoint answers 403 — the app is completely blocked server-side,
+    # not just visually. Non-API paths (the SPA shell itself) still serve so
+    # the lock screen can render.
+    if path.startswith("/api") and path not in _LOCK_EXEMPT_PATHS \
+            and not any(path.startswith(p) for p in _LOCK_EXEMPT_PREFIXES):
+        lock = _license_lock_state()
+        if lock is not None:
+            return _JSONResponse(
+                status_code=403,
+                content={"detail": lock["detail"], "license_locked": True,
+                         "reason": lock["reason"]})
     doms = _licensed_domains()
     if doms is not None:
         need = _domains_for_path(request.url.path)
@@ -145,14 +170,14 @@ async def startup():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "3.0.0"}
+    return {"status": "ok", "version": "3.1.0"}
 
 
 @app.get("/api/health")
 def api_health():
     """Public liveness probe — used by the login page server indicator.
     Under /api so the Vite dev proxy forwards it too."""
-    return {"status": "ok", "version": "3.0.0"}
+    return {"status": "ok", "version": "3.1.0"}
 
 
 @app.get("/api/cache/status")

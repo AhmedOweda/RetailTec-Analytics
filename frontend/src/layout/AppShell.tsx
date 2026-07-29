@@ -11,6 +11,7 @@ import {
   Select, MenuItem, Drawer, useMediaQuery, useTheme,
 } from '@mui/material'
 import DashboardIcon        from '@mui/icons-material/Dashboard'
+import LockIcon             from '@mui/icons-material/Lock'
 import HomeIcon             from '@mui/icons-material/Home'
 import SearchIcon           from '@mui/icons-material/Search'
 import TrendingUpIcon       from '@mui/icons-material/TrendingUp'
@@ -341,6 +342,97 @@ function NavItem({ to, icon, label }: { to: string; icon: React.ReactNode; label
 }
 
 // ── AppShell ───────────────────────────────────────────────────────────────
+/** Full-screen hard-lock (owner policy 29 Jul 2026). Opaque, above everything;
+ *  the backend 403s every data endpoint while locked, so this screen is the
+ *  only thing there is to see. Admins can install a new license.json in place
+ *  and re-check without touching the filesystem. */
+function LicenseLockScreen({ st, isAdmin, logout }:
+                           { st: any; isAdmin: boolean; logout: () => void }) {
+  const qc = useQueryClient()
+  const [busy, setBusy]   = useState(false)
+  const [msg,  setMsg]    = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const recheck = () => qc.invalidateQueries({ queryKey: ['settings-status'] })
+  const upload = async (f: File | null) => {
+    if (!f) return
+    setBusy(true); setMsg(null)
+    try {
+      const content = await f.text()
+      const r = await api.post('/api/admin/license', { content })
+      setMsg(r.data?.still_locked
+        ? tr('License installed, but the app is still locked — check the reason above')
+        : tr('License installed — unlocking…'))
+      recheck()
+    } catch (e: any) {
+      setMsg(e?.response?.data?.detail ?? tr('Could not install the license'))
+    } finally { setBusy(false) }
+  }
+
+  const Row = ({ k, v }: { k: string; v?: string | null }) => !v ? null : (
+    <Box sx={{ display:'flex', gap:1.5, justifyContent:'space-between' }}>
+      <Typography sx={{ fontSize:12.5, color:'rgba(255,255,255,0.55)' }}>{k}</Typography>
+      <Typography sx={{ fontSize:12.5, color:'#ede9fe', fontFamily:'monospace',
+                        userSelect:'all', textAlign:'right', wordBreak:'break-all' }}>{v}</Typography>
+    </Box>
+  )
+
+  return (
+    <Box sx={{ position:'fixed', inset:0, zIndex:3000, display:'flex',
+               alignItems:'center', justifyContent:'center', p:2,
+               background:'linear-gradient(180deg, #1e1248 0%, #160b33 58%, #100621 100%)' }}>
+      <Box sx={{ width:520, maxWidth:'100%', bgcolor:'rgba(255,255,255,0.04)',
+                 border:'1px solid rgba(255,255,255,0.10)', borderRadius:3, p:4,
+                 textAlign:'center' }}>
+        <LockIcon sx={{ fontSize:44, color:'#f87171' }} />
+        <Typography sx={{ fontSize:22, fontWeight:800, color:'white', mt:1 }}>
+          {tr(st?.license_lock_reason || 'LICENSE REQUIRED')}
+        </Typography>
+        <Typography sx={{ fontSize:13.5, color:'rgba(255,255,255,0.75)', mt:1 }}>
+          {tr(st?.license_lock_detail || 'This installation is not licensed.')}
+        </Typography>
+        <Typography sx={{ fontSize:12.5, color:'rgba(255,255,255,0.55)', mt:0.5 }}>
+          {tr('Contact RetailTec with the device code below to obtain a license.')}
+        </Typography>
+
+        <Box sx={{ mt:2.5, p:2, borderRadius:2, bgcolor:'rgba(0,0,0,0.25)',
+                   display:'flex', flexDirection:'column', gap:0.8, textAlign:'left' }}>
+          <Row k={tr('Customer')}     v={st?.license_customer} />
+          <Row k={tr('Expiry')}       v={st?.license_expiry} />
+          <Row k={tr('Device code')}  v={st?.device_code} />
+          <Row k={tr('License file')} v={st?.license_file_path} />
+        </Box>
+
+        <Box sx={{ mt:2.5, display:'flex', gap:1.5, justifyContent:'center', flexWrap:'wrap' }}>
+          {isAdmin && (<>
+            <input ref={fileRef} type="file" accept=".json" hidden
+                   onChange={e => upload(e.target.files?.[0] ?? null)} />
+            <Button variant="contained" disabled={busy}
+              onClick={() => fileRef.current?.click()}
+              sx={{ bgcolor:ACCENT, textTransform:'none', fontWeight:700,
+                    '&:hover':{ bgcolor:'#6d28d9' } }}>
+              {busy ? tr('Installing…') : tr('Install license file…')}
+            </Button>
+          </>)}
+          <Button variant="outlined" onClick={recheck}
+            sx={{ textTransform:'none', fontWeight:600, color:'#ede9fe',
+                  borderColor:'rgba(255,255,255,0.3)',
+                  '&:hover':{ borderColor:'white' } }}>
+            {tr('Re-check')}
+          </Button>
+          <Button variant="text" onClick={logout}
+            sx={{ textTransform:'none', fontWeight:600, color:'rgba(255,255,255,0.6)' }}>
+            {tr('Log out')}
+          </Button>
+        </Box>
+        {msg && <Typography sx={{ fontSize:12.5, mt:2, fontWeight:600,
+          color: msg.startsWith(tr('License installed')) ? '#34d399' : '#f87171' }}>{msg}</Typography>}
+      </Box>
+    </Box>
+  )
+}
+
+
 export default function AppShell() {
   const { user, isAdmin, logout } = useAuth()
   const { t } = useTranslation()
@@ -681,23 +773,14 @@ export default function AppShell() {
       {/* Forced-password-change disabled by owner request (2026-07-08).
           <ForcePasswordDialog /> stays available if it's ever wanted back. */}
 
-      {/* License watermark: shown when the warehouse was filled by a different
-          Oracle server (copied database) OR the license itself is violated
-          (invalid signature, expired, wrong device, wrong server). */}
-      {(whStatus?.db_host_mismatch || whStatus?.license_violation) && (
-        <Box sx={{ position:'fixed', inset:0, zIndex:1999, pointerEvents:'none',
-                   overflow:'hidden', display:'grid',
-                   gridTemplateColumns:'repeat(3, 1fr)', alignContent:'space-around' }}>
-          {Array.from({ length: 9 }).map((_, i) => (
-            <Typography key={i} sx={{ transform:'rotate(-24deg)', textAlign:'center',
-              fontSize:26, fontWeight:800, color:'rgba(220,38,38,0.10)',
-              userSelect:'none', whiteSpace:'nowrap' }}>
-              {whStatus?.license_violation
-                ? `${tr(whStatus?.license_reason || 'UNLICENSED COPY')} · RetailTec`
-                : `${tr('UNLICENSED COPY')} · ${whStatus?.bound_host}`}
-            </Typography>
-          ))}
-        </Box>
+      {/* HARD LICENSE LOCK (owner policy 29 Jul 2026): no watermark, no soft
+          state — when the license is missing / invalid / expired / bound
+          elsewhere (or the warehouse is a copy), the app is REPLACED by this
+          opaque lock screen. The backend enforces the same lock with 403 on
+          every data endpoint, so this is presentation over a real wall, not
+          the wall itself. */}
+      {whStatus?.license_locked && (
+        <LicenseLockScreen st={whStatus} isAdmin={isAdmin} logout={logout} />
       )}
 
       {/* Soft license warnings (no license / subsidiary limit exceeded) */}

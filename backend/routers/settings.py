@@ -383,6 +383,21 @@ def get_model_status():
         lic_domains = licensed_domains()
     except Exception:
         pass
+    # Hard-lock verdict (owner policy 29 Jul 2026: complete blockage). The
+    # copied-warehouse case (db_host_mismatch) joins the lock here — the cheap
+    # middleware check can't see WAREHOUSE_META, but this endpoint can.
+    lock = None
+    try:
+        from services.license import license_lock_state, license_file_path
+        lock = license_lock_state()
+        lic_path = license_file_path()
+    except Exception:
+        lic_path = ""
+    if lock is None and mismatch:
+        lock = {"reason": "UNLICENSED COPY",
+                "detail": "This warehouse was filled from a different Oracle "
+                          "server — the copy is not licensed for this data."}
+    st = lic.get("status") or {}
     return {"model_status": s.get("model_status", "empty"),
             "last_sync": s.get("last_sync"),
             "db_alias": (c.get("alias") or "").strip() or c.get("host", ""),
@@ -392,7 +407,53 @@ def get_model_status():
             "license_reason": lic.get("reason"),
             "license_warnings": lic.get("warnings") or [],
             "licensed_domains": lic_domains,
-            "device_code": lic.get("device_code")}
+            "device_code": lic.get("device_code"),
+            "license_locked": lock is not None,
+            "license_lock_reason": (lock or {}).get("reason"),
+            "license_lock_detail": (lock or {}).get("detail"),
+            "license_file_path": lic_path,
+            "license_customer": st.get("customer"),
+            "license_expiry": st.get("expiry"),
+            "license_days_remaining": st.get("days_remaining")}
+
+
+class LicenseUpload(BaseModel):
+    """Raw license.json text pasted/uploaded from the lock screen."""
+    content: str
+
+
+@router.post("/api/admin/license")
+def install_license(req: LicenseUpload, _admin: dict = Depends(require_admin)):
+    """Install a new license.json (validated BEFORE writing). Exempt from the
+    hard-lock middleware so a locked install can be unlocked in place."""
+    import json as _json
+    from services import license as _lic
+    try:
+        doc = _json.loads(req.content)
+        payload = doc.get("payload") or {}
+        sig = doc.get("signature") or ""
+        if not isinstance(payload, dict) or not sig:
+            raise ValueError("missing payload/signature")
+    except Exception:
+        raise HTTPException(status_code=422,
+                            detail="Not a valid license file (expected JSON with "
+                                   "payload + signature)")
+    if not _lic._verify_signature(payload, sig):
+        raise HTTPException(status_code=422,
+                            detail="License signature is invalid — this file was "
+                                   "not issued for this product")
+    p = _lic._persistent_license()
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(_json.dumps(doc, indent=2))
+    except Exception as e:
+        raise HTTPException(status_code=500,
+                            detail=f"Could not write the license file: {e}")
+    _lic.reset_license_caches()
+    record_audit(_admin["username"], "license_installed",
+                 str(payload.get("customer") or "")[:200])
+    return {"ok": True, "status": _lic.get_license_status(),
+            "still_locked": _lic.license_lock_state() is not None}
 
 
 @router.post("/api/sync/cancel")

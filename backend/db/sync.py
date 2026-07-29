@@ -1929,6 +1929,17 @@ def _run_sync(mode: str, date_from: str, date_to: str,
         # subsidiary slot, and before the loaders so the dims come back clean.
         _purge_accounting_subsidiary(duck)
 
+        # HARD LICENSE LOCK (owner policy 29 Jul 2026): a missing / invalid /
+        # expired / wrong-bound license blocks the whole app — including sync.
+        try:
+            from services.license import license_lock_state
+            _lock = license_lock_state()
+        except Exception:
+            _lock = None
+        if _lock is not None:
+            raise SyncCancelled(
+                f"License blocked ({_lock['reason']}): {_lock['detail']}")
+
         # Subsidiary-limit grace period: after GRACE_DAYS over the licensed
         # count, data refresh stops (existing data stays viewable).
         try:
