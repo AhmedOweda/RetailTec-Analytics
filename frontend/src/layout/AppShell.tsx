@@ -95,7 +95,6 @@ const ACCOUNTING_NAV = [
   { to: '/accounting/profit-loss',    icon: <TrendingUpIcon     />, label: 'Profit & Loss'  },
   { to: '/accounting/balance-sheet',  icon: <AccountBalanceWalletIcon />, label: 'Balance Sheet' },
   { to: '/accounting/bp-statement',   icon: <ContactPageIcon    />, label: 'BP Statement'   },
-  { to: '/accounting/aging',          icon: <HourglassBottomIcon />, label: 'Aging'          },
   { to: '/accounting/general-ledger', icon: <AccountBalanceIcon />, label: 'General Ledger' },
   { to: '/accounting/exceptions',     icon: <ReportProblemIcon  />, label: 'GL Exceptions'  },
 ]
@@ -381,7 +380,7 @@ export default function AppShell() {
     '/dimensions/items', '/dimensions/vendors',
     '/accounting/journal', '/accounting/trial-balance',
     '/accounting/profit-loss', '/accounting/balance-sheet',
-    '/accounting/bp-statement', '/accounting/aging',
+    '/accounting/bp-statement',
     '/accounting/general-ledger', '/accounting/exceptions',
   ])
   // A nav entry exists only when the LICENSE covers its domain AND the user
@@ -515,7 +514,7 @@ export default function AppShell() {
           {/* Sales section */}
           {salesNav.length > 0 && (<>
           <Box onClick={() => toggleNavSection('sales')} sx={{
-            px:2.5, pt:2.5, pb:0.5, display:'flex', alignItems:'center',
+            px:2.5, pt:2, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
           }}>
@@ -537,7 +536,7 @@ export default function AppShell() {
           {/* Inventory section */}
           {inventoryNav.length > 0 && (<>
           <Box onClick={() => toggleNavSection('inventory')} sx={{
-            px:2.5, pb:0.5, display:'flex', alignItems:'center',
+            px:2.5, pt:2, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
           }}>
@@ -559,7 +558,7 @@ export default function AppShell() {
           {/* Purchasing section */}
           {purchasesNav.length > 0 && (<>
           <Box onClick={() => toggleNavSection('purchases')} sx={{
-            px:2.5, pb:0.5, display:'flex', alignItems:'center',
+            px:2.5, pt:2, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
           }}>
@@ -581,7 +580,7 @@ export default function AppShell() {
           {/* Dimensions section */}
           {dimensionsNav.length > 0 && (<>
           <Box onClick={() => toggleNavSection('dimensions')} sx={{
-            px:2.5, pb:0.5, display:'flex', alignItems:'center',
+            px:2.5, pt:2, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
           }}>
@@ -603,7 +602,7 @@ export default function AppShell() {
           {/* Accounting section — LAST by owner request (26 Jul 2026) */}
           {accountingNav.length > 0 && (<>
           <Box onClick={() => toggleNavSection('accounting')} sx={{
-            px:2.5, pb:0.5, display:'flex', alignItems:'center',
+            px:2.5, pt:2, pb:0.5, display:'flex', alignItems:'center',
             justifyContent:'space-between', cursor:'pointer',
             '&:hover':{ bgcolor:'rgba(255,255,255,0.04)' },
           }}>

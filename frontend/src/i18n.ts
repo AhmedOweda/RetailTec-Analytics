@@ -23,7 +23,6 @@ const nav_en = {
   'nav./accounting/profit-loss': 'Profit & Loss',
   'nav./accounting/balance-sheet': 'Balance Sheet',
   'nav./accounting/bp-statement': 'BP Statement',
-  'nav./accounting/aging': 'Aging',
   'nav./accounting/general-ledger': 'General Ledger',
   'nav./accounting/exceptions': 'GL Exceptions',
   'nav./sales/overview': 'Overview', 'nav./sales/performance': 'Performance',
@@ -53,7 +52,6 @@ const nav_ar = {
   'nav./accounting/profit-loss': 'الأرباح والخسائر',
   'nav./accounting/balance-sheet': 'الميزانية العمومية',
   'nav./accounting/bp-statement': 'كشف حساب',
-  'nav./accounting/aging': 'أعمار الديون',
   'nav./accounting/general-ledger': 'دفتر الأستاذ العام',
   'nav./accounting/exceptions': 'استثناءات دفتر الأستاذ',
   'nav./sales/overview': 'نظرة عامة', 'nav./sales/performance': 'الأداء',
@@ -979,13 +977,12 @@ const ar_strings: Record<string, string> = {
   'Asset': 'أصل',
   'Liability': 'التزام',
 
-  // ── Accounting: BP Statement + AR/AP Aging (2026-07-26) ──
+  // ── Accounting: BP Statement (2026-07-26; Aging removed 2026-07-29) ──
   // 'Opening', 'Closing', 'Current', 'Business Partner', 'Partner Code',
   // 'Customer', 'Supplier' and 'As of' already exist above — DO NOT duplicate.
   // Bucket headers ('1-30', '31-60', '61-90', '90+') stay latin numerals in
   // both languages, so they carry no entry here on purpose.
   'BP Statement': 'كشف حساب',
-  'Aging': 'أعمار الديون',
   'Receivables': 'الذمم المدينة',
   'Payables': 'الذمم الدائنة',
   'Total Outstanding': 'إجمالي المستحق',
@@ -996,8 +993,6 @@ const ar_strings: Record<string, string> = {
   'Statement Lines': 'سطور الكشف',
   'Pick a business partner to see their statement': 'اختر طرفًا تجاريًا لعرض كشف حسابه',
   'Click a partner to open their statement': 'اضغط على طرف لفتح كشف حسابه',
-  'Balance-based aging — the outstanding balance is allocated FIFO against the most recent charges':
-    'أعمار الديون على أساس الرصيد — يُوزَّع الرصيد المستحق على أحدث الحركات المدينة أولًا بأول',
 
   // ── Accounting: date basis (transaction vs posting) ──
   'Date basis': 'أساس التاريخ',
@@ -1413,8 +1408,8 @@ const ar_strings: Record<string, string> = {
   'Classification: {{t}} from the Prism tree · {{d}} built-in defaults · {{u}} unclassified':
     'التصنيف: {{t}} من شجرة بريزم · {{d}} من الافتراضات المدمجة · {{u}} غير مصنّف',
   'Receivable & Payable Accounts': 'حسابات الذمم المدينة والدائنة',
-  'Used by AR/AP Aging to identify partner balances: only lines on these accounts count as a partner’s receivable or payable balance. Clear a list to fall back to class-role matching.':
-    'تُستخدم في تقرير أعمار الديون لتحديد أرصدة الأطراف: تُحتسب فقط السطور على هذه الحسابات ضمن رصيد الطرف المدين أو الدائن. امسح القائمة للرجوع إلى المطابقة حسب دور التصنيف.',
+  'Used by the BP Statement to identify partner balances: only lines on these accounts count as a partner’s receivable or payable balance. Clear a list to fall back to class-role matching.':
+    'تُستخدم في كشف حساب الأطراف لتحديد أرصدة الأطراف: تُحتسب فقط السطور على هذه الحسابات ضمن رصيد الطرف المدين أو الدائن. امسح القائمة للرجوع إلى المطابقة حسب دور التصنيف.',
   'Receivable accounts': 'حسابات الذمم المدينة',
   'Payable accounts': 'حسابات الذمم الدائنة',
   'Report Defaults': 'الإعدادات الافتراضية للتقارير',
@@ -1424,15 +1419,15 @@ const ar_strings: Record<string, string> = {
   'Include unbalanced documents by default': 'تضمين المستندات غير المتوازنة افتراضيًا',
   'Save Accounting Settings': 'حفظ إعدادات المحاسبة',
 
-  // ── Aging method note (account-list measurement, 2026-07-26) ──
-  'Aged on the configured receivable accounts ({{codes}}) — the outstanding balance is allocated FIFO against the most recent charges':
-    'تُحتسب الأعمار على حسابات الذمم المدينة المحددة ({{codes}}) — ويُوزَّع الرصيد المستحق على أحدث الحركات أولًا بأول',
-  'Aged on the configured payable accounts ({{codes}}) — the outstanding balance is allocated FIFO against the most recent charges':
-    'تُحتسب الأعمار على حسابات الذمم الدائنة المحددة ({{codes}}) — ويُوزَّع الرصيد المستحق على أحدث الحركات أولًا بأول',
+  // ── Trial Balance 6-column layout (2026-07-29) ──
+  'Opening Debit': 'افتتاحي مدين',
+  'Opening Credit': 'افتتاحي دائن',
+  'Period Debit': 'حركة الفترة مدين',
+  'Period Credit': 'حركة الفترة دائن',
+  'Closing Debit': 'ختامي مدين',
+  'Closing Credit': 'ختامي دائن',
 
-  // ── Aging charts + accounting settings sticky save bar (2026-07-27) ──
-  'Outstanding by age': 'المستحق حسب العمر',
-  'Top partners by outstanding': 'أعلى الأطراف حسب الرصيد المستحق',
+  // ── Accounting settings sticky save bar (2026-07-27) ──
   'Top {{n}} of {{m}}': 'أعلى {{n}} من {{m}}',
   'You have unsaved accounting changes': 'لديك تغييرات محاسبية غير محفوظة',
   'Discard': 'تجاهل',

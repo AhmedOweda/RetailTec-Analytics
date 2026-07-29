@@ -72,7 +72,6 @@ export const PAGE_DOMAINS: PageDomain[] = [
       { key: '/accounting/profit-loss',    label: 'Profit & Loss' },
       { key: '/accounting/balance-sheet',  label: 'Balance Sheet' },
       { key: '/accounting/bp-statement',   label: 'BP Statement' },
-      { key: '/accounting/aging',          label: 'Aging' },
       { key: '/accounting/general-ledger', label: 'General Ledger' },
       { key: '/accounting/exceptions',     label: 'GL Exceptions' },
     ],

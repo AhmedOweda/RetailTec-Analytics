@@ -11,7 +11,6 @@ Endpoints:
   PUT /api/accounting/class-roles      — admin: override a class's role
   GET /api/accounting/general-ledger   — per-account ledger with running balance
   GET /api/accounting/bp-statement     — one partner's ledger with running balance
-  GET /api/accounting/aging            — AR / AP aging (balance-FIFO buckets)
   GET /api/accounting/exceptions       — source documents that do NOT balance
   GET /api/accounting/search/accounts  — account slicer type-ahead
   GET /api/accounting/search/doc-types — document-type slicer type-ahead
@@ -1095,7 +1094,7 @@ def gl_put_class_roles(payload: ClassRolesPut, _admin: dict = Depends(_require_a
 # ── Accounting settings (Settings → Accounting) ──────────────────────────────
 # Persisted in settings.json -> accounting, next to class_roles:
 #   receivable_accounts / payable_accounts — the account codes whose lines ARE
-#     a partner's receivable / payable balance. Used by /aging (see gl_aging):
+#     a partner's receivable / payable balance. Used by /bp-statement:
 #     on the real data payment journals stamp the customer BP on BOTH lines,
 #     so filtering by class-ROLE nets payments to zero and overstates balances;
 #     filtering by the configured ACCOUNT list is the correct measure.
@@ -1104,7 +1103,7 @@ def gl_put_class_roles(payload: ClassRolesPut, _admin: dict = Depends(_require_a
 #
 # Defaults: when the key has NEVER been stored the documented default account
 # lists apply; an EXPLICITLY saved empty list means "no account filter" and
-# /aging falls back to the legacy role-based behaviour.
+# the control-account view falls back to the legacy role-based behaviour.
 
 # Both codes per side: the AR/AP account items are being RENAMED (27-07-2026,
 # owner's convention) from ALU 1220.01/3100.01 to ALU 'AR'/'AP' — UDF5 keeps
@@ -1474,7 +1473,7 @@ def gl_bp_statement(
     view='control' (DEFAULT — the financially correct كشف حساب, 2026-07-27):
     only the partner's lines on the configured AR/AP CONTROL accounts
     (settings.json -> accounting.receivable_accounts / payable_accounts,
-    defaults 1220.01 / 3100.01 — the exact filter /aging uses). Charges are
+    defaults 1220.01 / 3100.01). Charges are
     debits, payments are credits, and the running balance IS what the partner
     owes (or is owed). Why the old all-lines default was wrong as a statement:
     every posted journal balances to zero across its own lines, so a statement
@@ -1483,7 +1482,7 @@ def gl_bp_statement(
     figure could never show the partner's true position (it also exposed
     internal COGS / inventory / revenue lines that don't belong on a partner
     statement). With the control view, the statement's closing now RECONCILES
-    with the partner's /aging balance by construction.
+    with the partner's control-account balance by construction.
 
     view='all' (the audit view): every line that carries their BP_ID,
     whatever the account — AR/AP, sales, tax, tender. Useful to trace how a
@@ -1575,238 +1574,5 @@ def gl_bp_statement(
     """, params)
 
 
-# ── AR / AP Aging (balance-based, FIFO against the most recent charges) ──────
-# OPEN-ITEM MATCHING DOES NOT EXIST IN THIS GL: the poster clears documents
-# through AR/AP without ever linking a payment line to the invoice line it
-# pays, and manual entries carry no allocation either. True open-item aging is
-# therefore impossible here — this is BALANCE-based aging, the standard
-# fallback: the partner's outstanding balance as of `as_of` is allocated FIFO
-# against their MOST RECENT charges (newest first), so the residue that lands
-# in the old buckets is the part no recent charge can explain. Any balance
-# older than every recorded charge (e.g. an opening imbalance) lands in the
-# oldest bucket — shown, never dropped.
-
-_AGING_MAX_BUCKETS = 6
-
-
-def _parse_bucket_edges(buckets: str) -> list:
-    """Comma-separated ascending day edges, e.g. '30,60,90'. Validated hard
-    (422), not silently defaulted: aging against edges the caller did not ask
-    for is a wrong report, which is worse than no report. Empty → default."""
-    vals = []
-    for tok in (buckets or "").split(","):
-        tok = tok.strip()
-        if not tok:
-            continue
-        if not tok.isdigit():
-            raise HTTPException(status_code=422,
-                                detail=f"buckets: '{tok}' is not a positive integer")
-        vals.append(int(tok))
-    if not vals:
-        return [30, 60, 90]
-    if len(vals) > _AGING_MAX_BUCKETS:
-        raise HTTPException(status_code=422,
-                            detail=f"buckets: at most {_AGING_MAX_BUCKETS} edges")
-    if vals[0] <= 0 or any(b <= a for a, b in zip(vals, vals[1:])):
-        raise HTTPException(status_code=422,
-                            detail="buckets must be strictly increasing positive day counts")
-    return vals
-
-
-def _day(v) -> date:
-    """DuckDB hands back datetime.date for a ::DATE column; be tolerant of
-    datetime / ISO strings anyway (direct calls, test seeds)."""
-    if isinstance(v, datetime):
-        return v.date()
-    if isinstance(v, date):
-        return v
-    return date.fromisoformat(str(v)[:10])
-
-
-@router.get("/api/accounting/aging")
-def gl_aging(
-    as_of: date = Query(...),
-    side: str = Query("ar", pattern="^(ar|ap)$"),
-    stores:       Optional[str] = Depends(scoped_stores),
-    subsidiaries: Optional[str] = Depends(scoped_subsidiaries),
-    date_basis: str = Query(DEFAULT_DATE_BASIS),    # 'transaction' | 'posting'
-    include_unbalanced: bool = Query(False),
-    buckets: str = Query("30,60,90"),
-):
-    """One row per partner with an outstanding balance as of `as_of`.
-
-    SIDE (whitelisted, re-checked for direct run_grid calls):
-      ar — CUSTOMER-resolving lines (NOT _BP_IS_VENDOR); the partner owes US,
-           so a DEBIT balance (+SUM(AMOUNT)) is outstanding, shown positive.
-      ap — VENDOR-resolving lines (_BP_IS_VENDOR); WE owe the partner, so a
-           CREDIT balance (−SUM(AMOUNT)) is outstanding, shown positive.
-    Partners whose balance nets to zero or the other sign are omitted — an
-    aging report is a list of what is outstanding, not a partner census (the
-    BP Statement shows any partner's full relationship, either sign).
-
-    ACCOUNT FILTER (2026-07-26 — the correctness fix): partner lines are
-    filtered to the CONFIGURED receivable / payable account codes
-    (settings.json -> accounting.receivable_accounts / payable_accounts;
-    defaults 1220.01 / 3100.01, editable in Settings → Accounting). Why not
-    the class-ROLE filter this endpoint used before: on the real data the
-    payment journals ('P_*') stamp the customer BP on BOTH lines — the tender
-    debit AND the AR credit — so as soon as the tender accounts are classified
-    as Assets, each payment nets to ZERO inside a role filter and every
-    customer balance is overstated by exactly what they already paid. Only
-    the AR/AP control accounts measure the true outstanding balance.
-
-    FALLBACK (kept, documented): when the configured list is EMPTY (an admin
-    explicitly cleared it), the legacy role-based behaviour applies — lines
-    whose class resolves to a role OTHER than the receivable role (asset for
-    ar, liability for ap) are excluded, NULL/unmapped classes are kept. The
-    same filter feeds both the balance and the charge list, so they can never
-    disagree.
-
-    BUCKET COLUMNS (grid-friendly compromise): the response always carries the
-    same five keys — current, d1_30, d31_60, d61_90, d90_plus — because AG
-    Grid / the report engine need stable field names. 'current' is age 0 (a
-    charge dated `as_of` itself); the three middle buckets are shaped by the
-    FIRST THREE edges of `buckets`; anything older than the last used edge
-    falls into d90_plus. Custom edges therefore recompute the same five
-    columns; the headers stay generic. Rounded buckets are reconciled to the
-    rounded balance (cent drift pinned on the oldest non-empty bucket) so
-    balance == current + d1_30 + d31_60 + d61_90 + d90_plus, always."""
-    if _gl_off():
-        return []
-    if side not in ("ar", "ap"):        # direct (non-HTTP) callers bypass the pattern
-        side = "ar"
-    edges = _parse_bucket_edges(buckets)
-    ar = side == "ar"
-    wanted_role = "asset" if ar else "liability"
-
-    dcol = _date_col(date_basis)
-    where = f"{dcol} <= {_dt(as_of)}"
-    where += " AND G.BP_ID IS NOT NULL AND TRIM(G.BP_ID) <> ''"
-    where += f" AND {'NOT ' if ar else ''}{_BP_IS_VENDOR}"
-    scf, params = _scope(stores, subsidiaries)
-    where += scf
-    where += _balanced(include_unbalanced)
-
-    # PRIMARY: the configured AR / AP control-account list (see docstring).
-    # FALLBACK (empty list only): the legacy role filter — classes resolved to
-    # a DIFFERENT role are excluded; NULL / unmapped classes stay in.
-    partner_accounts = _partner_account_codes(ar)
-    if partner_accounts:
-        ph = ",".join(["?"] * len(partner_accounts))
-        where += f" AND G.ACCOUNT_CODE IN ({ph})"
-        params += partner_accounts
-    else:
-        try:
-            cls_rows = _qdf("SELECT DISTINCT ACCOUNT_CLASS AS cls FROM DIM_ACCOUNT"
-                            " WHERE ACCOUNT_CLASS IS NOT NULL")
-        except Exception:
-            cls_rows = []
-        excluded = [r["cls"] for r in cls_rows
-                    if resolve_class_role(r["cls"])[0] not in (None, wanted_role)]
-        if excluded:
-            ph = ",".join(["?"] * len(excluded))
-            where += f" AND (A.ACCOUNT_CLASS IS NULL OR A.ACCOUNT_CLASS NOT IN ({ph}))"
-            params += excluded
-
-    # Side-specific fragments. `sign` flips AP balances positive-when-credit;
-    # `charge` is the side's debt-increasing movement (AR: debits, AP: credits,
-    # both expressed positive). All fixed strings — never caller text.
-    if ar:
-        dim, name_col, code_col = "DIM_CUSTOMER", "FULL_NAME", "CUST_ID::VARCHAR"
-        sign = ""
-        charge = "SUM(CASE WHEN G.AMOUNT > 0 THEN G.AMOUNT ELSE 0 END)"
-    else:
-        dim, name_col, code_col = "DIM_VENDOR", "VEND_NAME", "VEND_CODE"
-        sign = "-"
-        charge = "SUM(CASE WHEN G.AMOUNT < 0 THEN -G.AMOUNT ELSE 0 END)"
-
-    joins = f"""
-        FROM FACT_GL G
-        LEFT JOIN DIM_STORE S ON S.SID = G.STORE_SID
-        LEFT JOIN {_ACC} A ON A.ACCOUNT_CODE = G.ACCOUNT_CODE
-    """
-
-    # 1) Outstanding balance per partner (resolved to a name, LEFT join — an
-    #    unresolvable SID still ages under its raw id, never disappears).
-    bal_rows = _qdf(f"""
-        SELECT G.BP_ID                                    AS bp_id,
-               MAX(COALESCE(BP.{name_col}, G.BP_ID))      AS bp_name,
-               MAX(COALESCE(BP.{code_col}, ''))           AS bp_code,
-               {sign}SUM(G.AMOUNT)                        AS balance
-        {joins}
-        LEFT JOIN {dim} BP ON BP.SID = TRY_CAST(G.BP_ID AS BIGINT)
-        WHERE {where}
-        GROUP BY G.BP_ID
-        HAVING {sign}SUM(G.AMOUNT) > 0.005
-        ORDER BY {sign}SUM(G.AMOUNT) DESC
-    """, params)
-    if not bal_rows:
-        return []
-
-    # 2) The same partners' charges per day (newest first) for the FIFO walk.
-    #    Aggregated per (partner, day): same-day charges share a bucket, so
-    #    the per-day roll-up allocates identically and moves far fewer rows.
-    chg_rows = _qdf(f"""
-        SELECT G.BP_ID       AS bp_id,
-               {dcol}::DATE  AS post_date,
-               {charge}      AS charged
-        {joins}
-        WHERE {where}
-        GROUP BY G.BP_ID, {dcol}::DATE
-        HAVING {charge} > 0
-        ORDER BY G.BP_ID, {dcol}::DATE DESC
-    """, params)
-    charges: dict = {}
-    for r in chg_rows:
-        charges.setdefault(r["bp_id"], []).append((_day(r["post_date"]),
-                                                   float(r["charged"] or 0)))
-
-    # 3) Allocate each balance FIFO against the newest charges. Fixed keys —
-    #    only the FIRST THREE edges shape the middle buckets (see docstring).
-    e1 = edges[0]
-    e2 = edges[1] if len(edges) > 1 else None
-    e3 = edges[2] if len(edges) > 2 else None
-
-    def bucket_key(age_days: int) -> str:
-        if age_days <= 0:
-            return "current"
-        if age_days <= e1:
-            return "d1_30"
-        if e2 is not None and age_days <= e2:
-            return "d31_60"
-        if e3 is not None and age_days <= e3:
-            return "d61_90"
-        return "d90_plus"
-
-    kind = "Customer" if ar else "Supplier"
-    out = []
-    for r in bal_rows:
-        bal = float(r["balance"] or 0)
-        b = {"current": 0.0, "d1_30": 0.0, "d31_60": 0.0,
-             "d61_90": 0.0, "d90_plus": 0.0}
-        remaining = bal
-        for chg_date, amt in charges.get(r["bp_id"], []):     # newest first
-            if remaining <= 0:
-                break
-            take = min(remaining, amt)
-            b[bucket_key((as_of - chg_date).days)] += take
-            remaining -= take
-        if remaining > 0.0:
-            # Balance no recorded charge explains (opening imbalance, or a
-            # later-reversed payment): oldest bucket, shown — never dropped.
-            b["d90_plus"] += remaining
-        row = {"bp_id": r["bp_id"], "bp_name": r["bp_name"],
-               "bp_code": r["bp_code"], "bp_kind": kind,
-               "balance": round(bal, 2)}
-        rb = {k: round(v, 2) for k, v in b.items()}
-        # Reconcile rounding drift so balance == sum of buckets EXACTLY:
-        # the cent lands on the oldest non-empty bucket (else 'current').
-        resid = round(row["balance"] - sum(rb.values()), 2)
-        if abs(resid) >= 0.005:
-            for k in ("d90_plus", "d61_90", "d31_60", "d1_30", "current"):
-                if rb[k] or k == "current":
-                    rb[k] = round(rb[k] + resid, 2)
-                    break
-        row.update(rb)
-        out.append(row)
-    return out
+# ── (AR / AP Aging removed 29 Jul 2026 — owner decision: cash-only customers,
+#     no credit sales; BP Statement remains the partner-balance report.) ──────

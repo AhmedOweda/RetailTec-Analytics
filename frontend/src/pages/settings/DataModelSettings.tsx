@@ -2473,7 +2473,7 @@ function AccountingCard() {
     {/* ── Receivable / payable control accounts ── */}
     <SectionCard title="Receivable & Payable Accounts" icon={<ContactPageIcon />}>
       <Typography sx={{ fontSize:13, color:'var(--rt-text-2)', mb:2 }}>
-        {tr('Used by AR/AP Aging to identify partner balances: only lines on these accounts count as a partner’s receivable or payable balance. Clear a list to fall back to class-role matching.')}
+        {tr('Used by the BP Statement to identify partner balances: only lines on these accounts count as a partner’s receivable or payable balance. Clear a list to fall back to class-role matching.')}
       </Typography>
       <Box sx={{ display:'flex', flexDirection:'column', gap:2, maxWidth:560 }}>
         <LabeledCtl label="Receivable accounts">

@@ -1,8 +1,9 @@
 /**
  * Accounting → Trial Balance
  * ==========================
- * opening | debit | credit | movement | closing per account, for the selected
- * window / stores / subsidiaries.
+ * The classic 6-column ميزان المراجعة: opening Dr/Cr | period Dr/Cr |
+ * closing Dr/Cr per account, for the selected window / stores / subsidiaries.
+ * Opening/closing are signed balances split by sign; period is posted sums.
  *
  * The pinned TOTAL row carries the debit and credit sums and THEIR DIFFERENCE.
  * On balanced documents that difference reads 0.00 — that is the entire point
@@ -141,12 +142,32 @@ export default function TrialBalance() {
     placeholderData: p => p,
   })
 
-  // ── TOTAL row: the debit / credit sums and their difference ────────────────
+  // ── 6-column layout (owner request 29 Jul): the classic ميزان المراجعة
+  //    بالمجاميع والأرصدة — Opening, Period and Closing each split into a
+  //    Debit and a Credit column. Opening/closing are signed balances from
+  //    the API; a positive balance sits in the Debit column, a negative one
+  //    (as a positive figure) in the Credit column. Period Dr/Cr are the
+  //    posted sums verbatim.
+  const rows6 = useMemo(() => rows.map(r => {
+    const opening = +(r.opening ?? 0)
+    const closing = +(r.closing ?? 0)
+    return {
+      ...r,
+      opening_dr: opening > 0 ?  opening : 0,
+      opening_cr: opening < 0 ? -opening : 0,
+      closing_dr: closing > 0 ?  closing : 0,
+      closing_cr: closing < 0 ? -closing : 0,
+    }
+  }), [rows])
+
+  // ── TOTAL row: every pair must agree; debit − credit is the TB difference ──
   const totals = useMemo(() => {
-    const sum = (k: string) => rows.reduce((a, r) => a + +(r[k] ?? 0), 0)
+    const sum = (k: string) => rows6.reduce((a, r: any) => a + +(r[k] ?? 0), 0)
     const debit = sum('debit'), credit = sum('credit')
-    return { opening: sum('opening'), debit, credit, movement: debit - credit, closing: sum('closing') }
-  }, [rows])
+    return { opening_dr: sum('opening_dr'), opening_cr: sum('opening_cr'),
+             debit, credit, movement: debit - credit,
+             closing_dr: sum('closing_dr'), closing_cr: sum('closing_cr') }
+  }, [rows6])
 
   const outOfBalance = Math.abs(totals.movement) >= EPS
 
@@ -163,8 +184,9 @@ export default function TrialBalance() {
 
   const pinnedBottom = useMemo(() => [{
     account_code: '', account_name: tr('TOTAL'),
-    opening: totals.opening, debit: totals.debit, credit: totals.credit,
-    movement: totals.movement, closing: totals.closing,
+    opening_dr: totals.opening_dr, opening_cr: totals.opening_cr,
+    debit: totals.debit, credit: totals.credit,
+    closing_dr: totals.closing_dr, closing_cr: totals.closing_cr,
   }], [totals])
 
   // ── Drill-through → General Ledger for the clicked account ────────────────
@@ -205,16 +227,14 @@ export default function TrialBalance() {
       valueFormatter: p => (p.value ? tr(String(p.value)) : ''),
       cellStyle: p => ({ fontSize: 11, fontWeight: 600,
                          color: p.node?.rowPinned ? 'var(--rt-text)' : 'var(--rt-text-2)' }) },
-    { field: 'opening', headerName: 'Opening', width: 140, type: 'numericColumn',
+    { field: 'opening_dr', headerName: 'Opening Debit', width: 125, type: 'numericColumn',
       valueFormatter: p => fmtMoney(p.value), cellStyle: moneyCell },
-    { field: 'debit', headerName: 'Debit', width: 140, type: 'numericColumn',
+    { field: 'opening_cr', headerName: 'Opening Credit', width: 125, type: 'numericColumn',
       valueFormatter: p => fmtMoney(p.value), cellStyle: moneyCell },
-    { field: 'credit', headerName: 'Credit', width: 140, type: 'numericColumn',
-      valueFormatter: p => fmtMoney(p.value), cellStyle: moneyCell },
-    // On the TOTAL row this column IS the trial-balance difference
-    // (debit − credit). Non-zero = the books do not balance: negative token
-    // colours, never dimmed or rounded away.
-    { field: 'movement', headerName: 'Movement', width: 150, type: 'numericColumn',
+    // On the TOTAL row the Period pair carries the trial-balance check: the
+    // two sums must be EQUAL (their difference is the classic TB difference).
+    // Non-zero = the books do not balance: negative tokens, never dimmed.
+    { field: 'debit', headerName: 'Period Debit', width: 125, type: 'numericColumn',
       valueFormatter: p => fmtMoney(p.value),
       cellStyle: p => {
         if (p.node?.rowPinned) {
@@ -224,7 +244,19 @@ export default function TrialBalance() {
         }
         return moneyCell(p)
       } },
-    { field: 'closing', headerName: 'Closing', width: 150, type: 'numericColumn',
+    { field: 'credit', headerName: 'Period Credit', width: 125, type: 'numericColumn',
+      valueFormatter: p => fmtMoney(p.value),
+      cellStyle: p => {
+        if (p.node?.rowPinned) {
+          return outOfBalance
+            ? { fontWeight: 800, color: 'var(--rt-neg-fg)', backgroundColor: 'var(--rt-neg-bg)' }
+            : { fontWeight: 800, color: 'var(--rt-pos-fg)', backgroundColor: 'var(--rt-pos-bg)' }
+        }
+        return moneyCell(p)
+      } },
+    { field: 'closing_dr', headerName: 'Closing Debit', width: 125, type: 'numericColumn',
+      valueFormatter: p => fmtMoney(p.value), cellStyle: moneyCell },
+    { field: 'closing_cr', headerName: 'Closing Credit', width: 125, type: 'numericColumn',
       valueFormatter: p => fmtMoney(p.value), cellStyle: moneyCell },
   ], [outOfBalance])
 
@@ -380,7 +412,7 @@ export default function TrialBalance() {
             reportParams={filterParams} colDefs={colDefs} onResetColumns={colState.resetColumns} />
         </Stack>
         <Box className="ag-theme-alpine" sx={{ height: 520, ...GRID_SX }}>
-          <AgGridReact localeText={gridLocaleText()} ref={gridRef} rowData={rows} columnDefs={trCols(colDefs as any[])}
+          <AgGridReact localeText={gridLocaleText()} ref={gridRef} rowData={rows6} columnDefs={trCols(colDefs as any[])}
             defaultColDef={defaultColDef} overlayNoRowsTemplate={noRowsOverlay()}
             pinnedBottomRowData={pinnedBottom}
             rowSelection="single"

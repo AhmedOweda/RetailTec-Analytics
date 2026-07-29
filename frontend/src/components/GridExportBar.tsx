@@ -29,6 +29,7 @@ import autoTable from 'jspdf-autotable'
 import axios     from 'axios'
 import { tr }    from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
+import { useDomainLicensed } from '../hooks/useLicense'
 import { isArabic, hasArabic, registerArabicFont, shapeAr, ARABIC_FONT_NAME } from '../utils/pdfArabic'
 import { arabicTableToPdf } from '../utils/pdfImage'
 
@@ -67,6 +68,9 @@ export default function GridExportBar({
 
   /* A definite label that names the page AND the active grid/tab. */
   const definiteLabel = [title ?? filename, view].filter(Boolean).join(' — ')
+
+  /* Email/scheduling belongs to the 'reports' license domain. */
+  const emailLicensed = useDomainLicensed('reports')
 
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set())
   const [colAnchor,  setColAnchor ] = useState<HTMLElement | null>(null)
@@ -404,12 +408,18 @@ export default function GridExportBar({
       {/* Scheduling lives INSIDE the Email dialog ('Send now' / 'Schedule
           recurring' toggle) — the old standalone Schedule button opened the
           very same dialog, so it was pure duplication on every grid and was
-          removed (2026-07-27, owner request). */}
+          removed (2026-07-27, owner request). The whole Email feature belongs
+          to the 'reports' license domain: unlicensed installs don't show the
+          button at all (owner report 29 Jul — it leaked into an
+          accounting-only license). Excel/PDF stay: local exports, no domain. */}
+      {emailLicensed && (
       <Button size="small" variant="outlined" onClick={() => { setMode('now'); setEmailOpen(true) }}
         startIcon={<EmailIcon sx={{ fontSize: '17px !important' }} />}
         sx={btnSx(ACCENT)}>{tr('Email')}</Button>
+      )}
 
       {/* ── Email dialog ── */}
+      {emailLicensed && (
       <Dialog open={emailOpen} onClose={() => setEmailOpen(false)} maxWidth="sm" fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 800, fontSize: 17, pr: 6 }}>
@@ -552,6 +562,7 @@ export default function GridExportBar({
           )}
         </DialogActions>
       </Dialog>
+      )}
 
       <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
