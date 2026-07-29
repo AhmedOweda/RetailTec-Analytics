@@ -77,7 +77,7 @@ router = APIRouter(tags=["accounting"])
 
 # ── Optional customisation: the accounting subsidiary (100) ───────────────────
 # The virtual GL only exists where the accounting customisation is installed
-# (verified: <CUSTOMER-SERVER-B> has it, <ORACLE-SERVER> "Green" does not). Without it
+# (verified: one customer server has it, another does not). Without it
 # FACT_GL is permanently empty — and an empty Trial Balance is indistinguishable
 # from "nothing was posted this month", which is exactly the misleading result
 # we must not show. Every endpoint below therefore checks _gl_off() first and

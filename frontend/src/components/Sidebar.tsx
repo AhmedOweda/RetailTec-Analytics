@@ -120,7 +120,7 @@ export default function Sidebar(props: SidebarProps) {
                 size="small" fullWidth
                 value={localHost}
                 onChange={e => setLocalHost(e.target.value)}
-                placeholder="<ORACLE-SERVER>"
+                placeholder="192.168.1.10"
                 sx={sx_input}
               />
               <Tooltip title="Apply">

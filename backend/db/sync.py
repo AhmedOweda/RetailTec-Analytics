@@ -899,7 +899,7 @@ def _sync_inventory_snapshot(duck, ora):
 # deliberately.
 def _sql_gl(df, dt):
     # NOTE8 is the poster's source posting-date TEXT. TWO formats occur in the
-    # wild on the SAME server (verified live on <CUSTOMER-SERVER-B>): the C# poster
+    # wild on the SAME server (verified live on a customer server): the C# poster
     # writes 'DD-MM-YYYY HH24:MI:SS' (e.g. '02-01-2026 20:13:46') for the vast
     # majority, but a handful of rows carry ISO-8601 'YYYY-MM-DDThh:mi:ss.sssZ'
     # (e.g. '2026-01-15T10:30:00.000Z'). A single TO_DATE mask raises
@@ -1018,7 +1018,7 @@ def _sql_account_classes(seq_expr: str = "B.SID"):
     load. Wrapping every text read in TO_NCHAR() (national charset is always
     Unicode, so the conversion is lossless whether the column is VARCHAR2 or
     NVARCHAR2) and using the N'accounting' literal keeps the entire CTE in one
-    charset. Verified live on <CUSTOMER-SERVER-B> (all RPS text is NVARCHAR2): the
+    charset. Verified live on a customer server (all RPS text is NVARCHAR2): the
     un-wrapped query raises ORA-12704, the wrapped one returns 93 rows."""
     return f"""
         WITH WALK (BTN_SID, MENU_SID, ITEM_SID, ROOT_CLASS, ROOT_SEQ, DEPTH, GRP) AS (

@@ -193,7 +193,7 @@ function ChartCard({ title, children, defaultH = 220 }: ChartCardProps) {
 
 // ─── App ───────────────────────────────────────────────────────
 export default function App() {
-  const [host,      setHost]      = useState('<ORACLE-SERVER>')
+  const [host,      setHost]      = useState('')
   const [dateFrom,  setDateFrom]  = useState(format(startOfMonth(today), 'yyyy-MM-dd'))
   const [dateTo,    setDateTo]    = useState(format(today, 'yyyy-MM-dd'))
   const [stores,    setStores]    = useState<string[]>([])
