@@ -21,7 +21,8 @@ import SecurityIcon     from '@mui/icons-material/Security'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../api/client'
 import axios from 'axios'
-import { PAGE_DOMAINS, ALL_PAGE_KEYS } from '../../utils/pages'
+import { PAGE_DOMAINS, pathLicensed } from '../../utils/pages'
+import { useLicensedDomains } from '../../hooks/useLicense'
 
 interface User {
   id:         number
@@ -170,6 +171,16 @@ function StorePickerDialog({
 }
 
 export default function UsersManagement() {
+  // Page-access catalog RESTRICTED TO THE LICENSE (owner report 29 Jul: an
+  // accounting-only install offered Sales/Inventory/… checkboxes). Unlicensed
+  // domains don't exist for this install, so they must not be grantable —
+  // page counts use the licensed catalog too.
+  const licDomains = useLicensedDomains()
+  const pageDomains = useMemo(() => PAGE_DOMAINS
+    .map(d => ({ ...d, pages: d.pages.filter(p => pathLicensed(licDomains, p.key)) }))
+    .filter(d => d.pages.length > 0), [licDomains])
+  const allPageKeys = useMemo(() => pageDomains.flatMap(d => d.pages.map(p => p.key)),
+    [pageDomains])
   const qc = useQueryClient()
 
   const { data: users = [], isLoading, error } = useQuery<User[]>({
@@ -335,7 +346,10 @@ export default function UsersManagement() {
                       <em style={{ color: '#94a3b8', fontSize: 12 }}>{tr('All pages')}</em>
                     ) : (
                       <Chip size="small"
-                        label={trf('{{a}} of {{b}}', { a: u.pages.split(',').filter(Boolean).length, b: ALL_PAGE_KEYS.length })}
+                        label={trf('{{a}} of {{b}}', {
+                          a: u.pages.split(',').map((k: string) => k.trim()).filter(Boolean)
+                              .filter((k: string) => pathLicensed(licDomains, k)).length,
+                          b: allPageKeys.length })}
                         sx={{ fontSize: 10, height: 18, bgcolor: '#ede9fe', color: '#6366f1', fontWeight: 700 }} />
                     )}
                   </TableCell>
@@ -397,7 +411,11 @@ export default function UsersManagement() {
         <DialogTitle sx={{ fontWeight: 700 }}>
           {editId ? tr('Edit User') : tr('Add New User')}
         </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2 }}>
+        {/* pt needs !important: MUI zeroes DialogContent's padding-top after a
+            DialogTitle, which clipped the first field's floating label
+            (owner report 29 Jul). */}
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5,
+                             pt: '14px !important' }}>
 
           {formErr && <Alert severity="error">{formErr}</Alert>}
 
@@ -536,17 +554,17 @@ export default function UsersManagement() {
             const sel = new Set(form.pages.split(',').map(p => p.trim()).filter(Boolean))
             const setSel = (next: Set<string>) => {
               // selecting every page = no restriction (store empty)
-              const csv = next.size === 0 || next.size === ALL_PAGE_KEYS.length
+              const csv = next.size === 0 || next.size === allPageKeys.length
                 ? '' : [...next].join(',')
               setForm(f => ({ ...f, pages: csv }))
             }
             const togglePage = (k: string) => {
-              const base = sel.size === 0 ? new Set(ALL_PAGE_KEYS) : new Set(sel)
+              const base = sel.size === 0 ? new Set(allPageKeys) : new Set(sel)
               base.has(k) ? base.delete(k) : base.add(k)
               setSel(base)
             }
             const toggleDomain = (keys: string[], allOn: boolean) => {
-              const base = sel.size === 0 ? new Set(ALL_PAGE_KEYS) : new Set(sel)
+              const base = sel.size === 0 ? new Set(allPageKeys) : new Set(sel)
               keys.forEach(k => allOn ? base.delete(k) : base.add(k))
               setSel(base)
             }
@@ -560,12 +578,12 @@ export default function UsersManagement() {
                   </Typography>
                   <Typography fontSize={11} fontWeight={600}
                     color={sel.size === 0 ? '#10b981' : '#6366f1'}>
-                    {sel.size === 0 ? tr('All pages (no restriction)') : trf('{{n}} of {{b}} pages', { n: sel.size, b: ALL_PAGE_KEYS.length })}
+                    {sel.size === 0 ? tr('All pages (no restriction)') : trf('{{n}} of {{b}} pages', { n: sel.size, b: allPageKeys.length })}
                   </Typography>
                 </Box>
                 <Box sx={{ border:'1px solid var(--rt-border)', borderRadius:1.5, p:1.5, bgcolor: 'var(--rt-surface-2)',
                            display:'grid', gridTemplateColumns:'1fr 1fr', gap:1.5 }}>
-                  {PAGE_DOMAINS.map(dom => {
+                  {pageDomains.map(dom => {
                     const keys = dom.pages.map(p => p.key)
                     const allOn = keys.every(isOn)
                     return (
