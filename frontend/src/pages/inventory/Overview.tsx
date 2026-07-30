@@ -565,7 +565,7 @@ export default function InventoryOverview() {
           multiple disableCloseOnSelect size="small"
           options={storeList} value={stores}
           onChange={(_, v) => setStores(v)}
-          renderInput={params => <TextField {...params} placeholder={tr('All Stores')} size="small" sx={{ maxWidth: 380 }} />}
+          renderInput={params => <TextField {...params} label={tr('Stores')} placeholder={tr('All Stores')} size="small" sx={{ maxWidth: 380 }} />}
           renderTags={(value, getTagProps) =>
             value.map((opt, i) => <Chip label={opt} size="small" {...getTagProps({ index: i })} key={opt} />)
           }

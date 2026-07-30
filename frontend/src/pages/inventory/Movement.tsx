@@ -369,7 +369,7 @@ export default function InventoryMovement() {
         </Typography>
 
         {/* Period chips */}
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           {PERIODS.map(p => (
             <Chip key={p.label} label={tr(p.label)} size="small" onClick={() => applyPeriod(p.days)}
               sx={{ fontWeight: 700, cursor: 'pointer',
@@ -377,12 +377,12 @@ export default function InventoryMovement() {
                     color: period === p.days ? '#fff' : 'var(--rt-text-2)',
                     border: `1px solid ${period === p.days ? C_PURPLE : 'var(--rt-border)'}` }} />
           ))}
-          <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1 }}>
-          <TextField size="small" type="date" value={from}
+          <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'flex-end', gap:1 }}>
+          <TextField size="small" label={tr('From')} type="date" value={from}
             onChange={e => { setFrom(e.target.value); setPeriod(0) }}
             sx={{ width: 130 }} inputProps={{ max: to }} />
-          <Typography sx={{ color: C_SLATE }}>→</Typography>
-          <TextField size="small" type="date" value={to}
+          <Typography sx={{ color: C_SLATE, pb: 1 }}>→</Typography>
+          <TextField size="small" label={tr('To')} type="date" value={to}
             onChange={e => { setTo(e.target.value); setPeriod(0) }}
             sx={{ width: 130 }} inputProps={{ min: from, max: format(today, 'yyyy-MM-dd') }} />
           </Box>
@@ -392,7 +392,7 @@ export default function InventoryMovement() {
             multiple disableCloseOnSelect size="small"
             options={storeList} value={stores}
             onChange={(_, v) => setStores(v)}
-            renderInput={params => <TextField {...params} placeholder={tr('All Stores')} size="small" sx={{ minWidth: 200 }} />}
+            renderInput={params => <TextField {...params} label={tr('Stores')} placeholder={tr('All Stores')} size="small" sx={{ minWidth: 200 }} />}
             renderTags={(value, getTagProps) =>
               value.map((opt, i) => <Chip label={opt} size="small" {...getTagProps({ index: i })} key={opt} />)
             }

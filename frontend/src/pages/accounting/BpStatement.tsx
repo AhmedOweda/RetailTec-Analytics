@@ -278,7 +278,7 @@ export default function BpStatement() {
           {bpName ? `${bpName} · ` : ''}{dateFrom} — {dateTo}
         </Typography>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
           <Stack direction="row" spacing={0.5}>
             {Object.keys(PRESETS).map(p => (
               <Chip key={p} label={tr(p)} size="small" onClick={() => applyPreset(p)}
@@ -304,7 +304,7 @@ export default function BpStatement() {
           <SavedViewsBar pageKey="accounting-bp-statement" current={currentView} onApply={applyView} />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 1 }}>
           {/* Partner — SINGLE select, PICKED options only (no free text): the
               statement needs exactly one bp_id, and only a dropdown option
               carries one. minChars=0 so it opens as a populated dropdown of
@@ -314,7 +314,7 @@ export default function BpStatement() {
             multiple={false} freeSolo={false} minChars={0}
             getToken={(o: any) => (typeof o === 'string' ? o : bpLabel(o))}
             getId={(o: any) => String(o?.bp_id ?? '')}
-            placeholder="Business Partner (name / id)"
+            label="Business Partner" placeholder="Business Partner (name / id)"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
               : { code: bpLabel(o),
                   rest: [o.bp_code, o.bp_kind ? tr(String(o.bp_kind)) : '']

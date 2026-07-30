@@ -167,7 +167,7 @@ export default function InventoryStockAsOf() {
           <DataSlicer sx={{ minWidth: 240, maxWidth: 380 }} value={itemSel} onChange={setItemSel}
             searchEndpoint="/api/inventory/items-search"
             getToken={itemToken} itemField={itemId.field} searchByItemField
-            placeholder="Item (code / description)"
+            label="Item" placeholder="Item (code / description)"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
               : { code: itemFieldValue(o, itemId.field), rest: o.DESCRIPTION1 })} />
         </Stack>

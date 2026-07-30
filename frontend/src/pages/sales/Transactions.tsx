@@ -322,7 +322,7 @@ export default function Transactions() {
         </Box>
 
         {/* Quick search */}
-        <TextField size="small" placeholder={tr('Quick search...')} value={search}
+        <TextField size="small" label={tr('Quick search')} value={search}
           onChange={e => setSearch(e.target.value)}
           InputProps={{
             startAdornment:(

@@ -221,7 +221,7 @@ export default function PurchasesTransactions() {
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
           {dateFrom} — {dateTo}
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
 
           <Stack direction="row" spacing={0.5}>
             {Object.keys(PRESETS).map(p => (
@@ -233,7 +233,7 @@ export default function PurchasesTransactions() {
             ))}
           </Stack>
 
-          <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'center', gap:1 }}>
+          <Box className="rt-mobile-hide" sx={{ display:'flex', alignItems:'flex-end', gap:1 }}>
           <TextField size="small" label={tr('From')} type="date" value={dateFrom}
             onChange={e => { setDateFrom(e.target.value); setPreset('') }}
             InputLabelProps={{ shrink: true }} sx={{ width: 148 }} />

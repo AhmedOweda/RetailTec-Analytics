@@ -606,6 +606,7 @@ const ar_strings: Record<string, string> = {
   'USERNAME': 'اسم المستخدم', 'PASSWORD': 'كلمة المرور',
   'Sign In →': 'تسجيل الدخول',
   'Quick search...': 'بحث سريع...',
+  'Quick search': 'بحث سريع',
 
   // ── Dimension pages ──
   'Store Intelligence': 'ذكاء الفروع',

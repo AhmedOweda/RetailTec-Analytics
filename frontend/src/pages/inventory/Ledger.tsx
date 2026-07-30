@@ -257,7 +257,7 @@ export default function InventoryLedger() {
             searchEndpoint="/api/inventory/items-search"
             multiple={false} freeSolo={false}
             getToken={itemToken} itemField={itemId.field} searchByItemField
-            placeholder="Item (code / description)"
+            label="Item" placeholder="Item (code / description)"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
               : { code: itemFieldValue(o, itemId.field), rest: o.DESCRIPTION1 })} />
         </Box>

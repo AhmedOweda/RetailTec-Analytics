@@ -291,7 +291,7 @@ export default function Journals() {
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>{dateFrom} — {dateTo}</Typography>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
           <Stack direction="row" spacing={0.5}>
             {Object.keys(PRESETS).map(p => (
               <Chip key={p} label={tr(p)} size="small" onClick={() => applyPreset(p)}
@@ -318,28 +318,28 @@ export default function Journals() {
           <SavedViewsBar pageKey="journals" current={currentView} onApply={applyView} />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-          <TextField size="small" placeholder={tr('Document No.')} value={docNo} onChange={e => setDocNo(e.target.value)} sx={{ width: 130 }} />
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+          <TextField size="small" label={tr('Document No.')} value={docNo} onChange={e => setDocNo(e.target.value)} sx={{ width: 130 }} />
 
           {/* Customer — name | phone | id */}
           <DataSlicer sx={{ minWidth: 220, maxWidth: 340 }} value={custSel} onChange={setCustSel}
             searchEndpoint="/api/sales/journal/search/customers"
-            getToken={custToken} getId={custId} placeholder="Customer (name / phone / customer no.)"
+            getToken={custToken} getId={custId} label="Customer" placeholder="Customer (name / phone / customer no.)"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o } : { code: custLabel(o), rest: [o.phone, o.cust_id].filter(Boolean).join(' | ') })} />
 
           {/* Dept | Class | Subclass */}
           <DataSlicer sx={{ minWidth: 220, maxWidth: 360 }} value={dcsSel} onChange={setDcsSel}
             searchEndpoint="/api/sales/journal/search/dcs"
-            getToken={dcsToken} placeholder="Dept / Class / Subclass"
+            getToken={dcsToken} label="Dept / Class / Subclass"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o } : { code: o.department || '—', rest: [o.class, o.subclass].filter(Boolean).join(' | ') })} />
 
           {/* Item — configured identifier | description */}
           <DataSlicer sx={{ minWidth: 240, maxWidth: 380 }} value={itemSel} onChange={setItemSel}
             searchEndpoint="/api/inventory/items-search"
-            getToken={itemToken} itemField={productCodeField} placeholder="Item (code / description)"
+            getToken={itemToken} itemField={productCodeField} label="Item" placeholder="Item (code / description)"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o } : { code: itemFieldValue(o, productCodeField), rest: o.DESCRIPTION1 })} />
 
-          <TextField size="small" placeholder={tr('Quick search...')} value={search} onChange={e => setSearch(e.target.value)}
+          <TextField size="small" label={tr('Quick search')} value={search} onChange={e => setSearch(e.target.value)}
             sx={{ width: 200 }} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: '#94a3b8' }} /></InputAdornment> }} />
 
           {/* Criteria arriving from a Home alert — visible so they can be cleared */}

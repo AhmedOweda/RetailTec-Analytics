@@ -424,7 +424,7 @@ export default function Journal() {
         </Typography>
         <Typography sx={{ fontSize: 12, color: 'var(--rt-text-2)', mb: 1.5 }}>{dateFrom} — {dateTo}</Typography>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
           <Stack direction="row" spacing={0.5}>
             {Object.keys(PRESETS).map(p => (
               <Chip key={p} label={tr(p)} size="small" onClick={() => applyPreset(p)}
@@ -450,11 +450,11 @@ export default function Journal() {
           <SavedViewsBar pageKey="accounting-journal" current={currentView} onApply={applyView} />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 1 }}>
           {/* Account — chart-of-accounts type-ahead (code | name) */}
           <DataSlicer sx={{ minWidth: 220, maxWidth: 340 }} value={accSel} onChange={setAccSel}
             searchEndpoint="/api/accounting/search/accounts"
-            getToken={accToken} placeholder="Account (code / name)"
+            getToken={accToken} label="Account" placeholder="Account (code / name)"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
               : { code: String(o.account_code ?? ''), rest: [o.name_en, o.name_ar].filter(Boolean).join(' | ') })} />
 
@@ -467,13 +467,13 @@ export default function Journal() {
           <DataSlicer sx={{ minWidth: 190, maxWidth: 300 }} value={dtSel} onChange={setDtSel}
             searchEndpoint="/api/accounting/search/doc-types"
             minChars={0} freeSolo={false}
-            getToken={dtToken} placeholder="Document type" limitTags={1}
+            getToken={dtToken} label="Document type" limitTags={1}
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
               : { code: String(o.doc_type ?? ''),
                   rest: [o.journal_category, o.lines == null ? null : `${o.lines}`]
                     .filter(Boolean).join(' · ') })} />
           <TextField size="small" sx={{ width: 150 }} value={docNo} onChange={e => setDocNo(e.target.value)}
-            placeholder={tr('Source Doc No.')} />
+            label={tr('Source Doc No.')} />
           {/* Business partner — a REAL DROPDOWN of the partners present in
               FACT_GL, not a free-text box. minChars={0} opens it populated
               (same precedent as Document type above) and freeSolo stays off:
@@ -487,7 +487,7 @@ export default function Journal() {
             searchEndpoint="/api/accounting/search/bp"
             minChars={0} freeSolo={false} limitTags={1}
             getToken={bpToken} getId={bpIdOf}
-            placeholder="Business Partner (name / id)"
+            label="Business Partner" placeholder="Business Partner (name / id)"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o } : {
               code: bpLabel(o),
               // `rest` is the muted suffix DataSlicer renders after the name:
@@ -498,7 +498,7 @@ export default function Journal() {
                      o?.bp_code ? String(o.bp_code) : null]
                 .filter(Boolean).join(' · '),
             })} />
-          <TextField size="small" placeholder={tr('Quick search...')} value={search} onChange={e => setSearch(e.target.value)}
+          <TextField size="small" label={tr('Quick search')} value={search} onChange={e => setSearch(e.target.value)}
             sx={{ width: 200 }} InputProps={{ startAdornment: <InputAdornment position="start">
               <SearchIcon sx={{ fontSize: 18, color: 'var(--rt-text-2)' }} /></InputAdornment> }} />
 

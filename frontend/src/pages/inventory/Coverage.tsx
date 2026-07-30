@@ -279,7 +279,7 @@ export default function InventoryCoverage() {
           {/* Dept / Class / Subclass — the shared slicer, server type-ahead */}
           <DataSlicer sx={{ minWidth: 220, maxWidth: 360 }} value={dcsSel} onChange={setDcsSel}
             searchEndpoint="/api/inventory/search/dcs"
-            getToken={dcsToken} placeholder="Dept / Class / Subclass"
+            getToken={dcsToken} label="Dept / Class / Subclass"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
               : { code: o.department || '—', rest: [o.class, o.subclass].filter(Boolean).join(' | ') })} />
 
@@ -287,7 +287,7 @@ export default function InventoryCoverage() {
           <DataSlicer sx={{ minWidth: 240, maxWidth: 380 }} value={itemSel} onChange={setItemSel}
             searchEndpoint="/api/inventory/items-search"
             getToken={itemToken} itemField={itemId.field} searchByItemField
-            placeholder="Item (code / description)"
+            label="Item" placeholder="Item (code / description)"
             renderLabel={(o: any) => (typeof o === 'string' ? { code: o }
               : { code: itemFieldValue(o, itemId.field), rest: o.DESCRIPTION1 })} />
 

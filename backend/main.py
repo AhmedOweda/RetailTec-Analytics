@@ -61,7 +61,7 @@ log = logging.getLogger(__name__)
 
 # ── App ────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="RetailTec Analytics API", version="3.1.1")
+app = FastAPI(title="RetailTec Analytics API", version="3.1.2")
 
 # CORS: the app is always served same-origin through a proxy (Vite dev server on
 # :7383, the packaged bundled HTTP server on :7382) — only those origins are allowed
@@ -170,14 +170,14 @@ async def startup():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "3.1.1"}
+    return {"status": "ok", "version": "3.1.2"}
 
 
 @app.get("/api/health")
 def api_health():
     """Public liveness probe — used by the login page server indicator.
     Under /api so the Vite dev proxy forwards it too."""
-    return {"status": "ok", "version": "3.1.1"}
+    return {"status": "ok", "version": "3.1.2"}
 
 
 @app.get("/api/cache/status")
