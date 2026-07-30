@@ -82,7 +82,7 @@ def assert_binds(sql: str, params) -> None:
 # Product + warehouse schema versions (surfaced by /api/admin/diagnostics).
 # APP_VERSION mirrors the FastAPI app version in main.py; SCHEMA_VERSION is the
 # DuckDB star-schema revision (bump when _ensure_schema changes shape).
-APP_VERSION = "3.1.2"
+APP_VERSION = "3.1.3"
 SCHEMA_VERSION = 8   # v8 (2026-07-26): DIM_ACCOUNT.CLASS_SOURCE ('tree' | 'default'
                      #     | 'manual') — WHERE a classification came from, so the
                      #     Settings Accounting card can split tree-classified vs
