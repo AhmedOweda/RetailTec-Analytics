@@ -94,6 +94,11 @@ export function createAppTheme(mode: 'light' | 'dark',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
+            // ONE caption colour everywhere (owner report 30 Jul: labels had
+            // "multiple colors in multiple pages"). --rt-text-2 is the app's
+            // dark-mode-aware secondary-text token; the hand-made captions
+            // (LabeledCtl etc.) use the same token.
+            color: 'var(--rt-text-2)',
             '&.Mui-focused': { color: PURPLE_BRAND[dark ? 400 : 600] },
           },
         },

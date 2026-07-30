@@ -189,7 +189,7 @@ function LabeledCtl({ label, children }:
   { label: string; children: React.ReactNode }) {
   return (
     <Box sx={{ display:'flex', flexDirection:'column', gap:0.4 }}>
-      <Typography sx={{ fontSize:10.5, fontWeight:700, color:'#94a3b8',
+      <Typography sx={{ fontSize:10.5, fontWeight:700, color:'var(--rt-text-2)',
                         textTransform:'uppercase', letterSpacing:0.6, lineHeight:1 }}>
         {tr(label)}
       </Typography>
@@ -807,7 +807,7 @@ export default function DataModelSettings() {
                 value={brandName} onChange={e => setBrandName(e.target.value)} />
             </LabeledCtl>
             <Box sx={{ display:'flex', flexDirection:'column', gap:0.4 }}>
-              <Typography sx={{ fontSize:10.5, fontWeight:700, color:'#94a3b8',
+              <Typography sx={{ fontSize:10.5, fontWeight:700, color:'var(--rt-text-2)',
                                 textTransform:'uppercase', letterSpacing:0.6, lineHeight:1 }}>
                 {tr('Logo')}
               </Typography>
@@ -958,7 +958,7 @@ export default function DataModelSettings() {
         <Box sx={{ display:'grid', alignItems:'center', gap:1, px:1.5, pb:0.5,
                    gridTemplateColumns: DATA_GRID_COLS }}>
           {['Domain', 'Keep history', 'Auto refresh', 'Line detail'].map(h => (
-            <Typography key={h} sx={{ fontSize:10.5, fontWeight:700, color:'#94a3b8',
+            <Typography key={h} sx={{ fontSize:10.5, fontWeight:700, color:'var(--rt-text-2)',
                                       textTransform:'uppercase', letterSpacing:0.6 }}>
               {tr(h)}
             </Typography>
