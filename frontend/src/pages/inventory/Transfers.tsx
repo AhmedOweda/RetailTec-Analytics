@@ -297,7 +297,7 @@ export default function Transfers() {
             multiple disableCloseOnSelect size="small"
             options={storeNames} value={selStores}
             onChange={(_, v) => setSelStores(v)}
-            renderInput={p => <TextField {...p} placeholder={tr('All Stores')} size="small" sx={{ minWidth:200 }} />}
+            renderInput={p => <TextField {...p} label={tr('All Stores')} size="small" sx={{ minWidth:200 }} />}
             sx={{ minWidth:200 }}
           />
         </Box>

@@ -313,7 +313,7 @@ export default function Journals() {
           </ToggleButtonGroup>
           <Autocomplete multiple size="small" options={allStores} value={stores}
             onChange={(_, v) => setStores(v)} sx={{ minWidth: 200, maxWidth: 320 }}
-            renderInput={p => <TextField {...p} placeholder={tr('Store')} />} limitTags={1} />
+            renderInput={p => <TextField {...p} label={tr('Store')} />} limitTags={1} />
           <Box sx={{ flex: 1 }} />
           <SavedViewsBar pageKey="journals" current={currentView} onApply={applyView} />
         </Box>

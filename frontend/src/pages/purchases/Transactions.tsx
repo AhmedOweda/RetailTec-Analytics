@@ -247,14 +247,14 @@ export default function PurchasesTransactions() {
             multiple disableCloseOnSelect size="small"
             options={allStores} value={stores}
             onChange={(_, v) => setStores(v)}
-            renderInput={p => <TextField {...p} placeholder={tr('All Stores')} size="small" sx={{ minWidth: 190 }} />}
+            renderInput={p => <TextField {...p} label={tr('All Stores')} size="small" sx={{ minWidth: 190 }} />}
             sx={{ minWidth: 190 }}
           />
           <Autocomplete
             multiple disableCloseOnSelect size="small"
             options={allVendors} value={vendors}
             onChange={(_, v) => setVendors(v)}
-            renderInput={p => <TextField {...p} placeholder={tr('All Suppliers')} size="small" sx={{ minWidth: 190 }} />}
+            renderInput={p => <TextField {...p} label={tr('All Suppliers')} size="small" sx={{ minWidth: 190 }} />}
             sx={{ minWidth: 190 }}
           />
           <Autocomplete
@@ -263,7 +263,7 @@ export default function PurchasesTransactions() {
             value={status || null}
             onChange={(_, v) => setStatus(v ?? '')}
             getOptionLabel={o => o === 'received' ? 'Received' : o === 'pending' ? 'Pending' : ''}
-            renderInput={p => <TextField {...p} placeholder={tr('All Status')} size="small" sx={{ minWidth: 140 }} />}
+            renderInput={p => <TextField {...p} label={tr('All Status')} size="small" sx={{ minWidth: 140 }} />}
             sx={{ minWidth: 140 }}
           />
 

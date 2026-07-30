@@ -663,7 +663,7 @@ export default function Products() {
             onChange={(_, v) => setSelectedStores(v)}
             size="small" disableCloseOnSelect
             renderInput={p => (
-              <TextField {...p}
+              <TextField {...p} label={tr('Stores')}
                 placeholder={selectedStores.length ? 'Stores' : 'All stores'}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, fontSize: 13 } }} />
             )}

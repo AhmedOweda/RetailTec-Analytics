@@ -270,7 +270,7 @@ export default function InventoryCoverage() {
               onChange={(_, v) => f.set(v as string[])}
               sx={{ minWidth: 200,
                     '& .MuiOutlinedInput-root': { borderRadius: 2.5, bgcolor: 'var(--rt-surface)' } }}
-              renderInput={p => <TextField {...p} placeholder={f.label} size="small" />}
+              renderInput={p => <TextField {...p} label={f.label} size="small" />}
               renderTags={(val, gtp) => val.map((o, i) =>
                 <Chip label={o} size="small" {...gtp({ index: i })} />
               )} />

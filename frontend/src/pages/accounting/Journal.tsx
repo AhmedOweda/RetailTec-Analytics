@@ -440,12 +440,12 @@ export default function Journal() {
             value={dateTo} onChange={e => { winPinned.current = true; setPreset(''); setDateTo(e.target.value) }} />
           <Autocomplete multiple size="small" options={allStores} value={stores}
             onChange={(_, v) => setStores(v)} sx={{ minWidth: 200, maxWidth: 320 }}
-            renderInput={p => <TextField {...p} placeholder={tr('Store')} />} limitTags={1} />
+            renderInput={p => <TextField {...p} label={tr('Store')} />} limitTags={1} />
           <Autocomplete multiple size="small" options={allSubs} value={subs}
             onChange={(_, v) => setSubs(v as any[])} sx={{ minWidth: 200, maxWidth: 320 }}
             getOptionLabel={(o: any) => o?.name ?? String(o?.sid ?? '')}
             isOptionEqualToValue={(a: any, b: any) => a?.sid === b?.sid}
-            renderInput={p => <TextField {...p} placeholder={tr('Subsidiary')} />} limitTags={1} />
+            renderInput={p => <TextField {...p} label={tr('Subsidiary')} />} limitTags={1} />
           <Box sx={{ flex: 1 }} />
           <SavedViewsBar pageKey="accounting-journal" current={currentView} onApply={applyView} />
         </Box>

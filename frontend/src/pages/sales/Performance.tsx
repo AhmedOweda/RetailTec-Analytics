@@ -571,7 +571,8 @@ export default function Performance() {
             disableCloseOnSelect
             limitTags={2}
             renderInput={p => (
-              <TextField {...p} placeholder={selectedStores.length === 0 ? tr('All stores') : tr('Stores')}
+              <TextField {...p} label={tr('Stores')}
+                placeholder={selectedStores.length === 0 ? tr('All stores') : tr('Stores')}
                 sx={{ minWidth:230, '& .MuiOutlinedInput-root':{ borderRadius:2, fontSize:13 } }} />
             )}
             renderTags={(value, getTagProps) =>

@@ -186,13 +186,13 @@ export default function Exceptions() {
             value={dateTo} onChange={e => { winPinned.current = true; setPreset(''); setDateTo(e.target.value) }} />
           <Autocomplete multiple disableCloseOnSelect size="small" options={allStores} value={stores}
             onChange={(_, v) => setStores(v as string[])} sx={{ minWidth: 200, maxWidth: 320 }}
-            renderInput={p => <TextField {...p} placeholder={tr('Store')} />} limitTags={1} />
+            renderInput={p => <TextField {...p} label={tr('Store')} />} limitTags={1} />
           <Autocomplete multiple disableCloseOnSelect size="small" options={allSubs} value={subs}
             getOptionLabel={(o: any) => o?.name ?? ''}
             isOptionEqualToValue={(a: any, b: any) => a.sid === b.sid}
             onChange={(_, v) => setSubs(v as { sid: string; name: string }[])}
             sx={{ minWidth: 200, maxWidth: 320 }}
-            renderInput={p => <TextField {...p} placeholder={tr('Subsidiary')} />} limitTags={1} />
+            renderInput={p => <TextField {...p} label={tr('Subsidiary')} />} limitTags={1} />
 
           {/* Date basis — window these exceptions on the same basis as the
               statements that excluded them, or the two lists disagree. */}
