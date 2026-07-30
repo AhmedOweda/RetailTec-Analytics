@@ -369,7 +369,7 @@ export default function InventoryMovement() {
         </Typography>
 
         {/* Period chips */}
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'flex-end', '& > *:not(.MuiFormControl-root):not(.MuiAutocomplete-root)': { mb: '6px' } }}>
           {PERIODS.map(p => (
             <Chip key={p.label} label={tr(p.label)} size="small" onClick={() => applyPeriod(p.days)}
               sx={{ fontWeight: 700, cursor: 'pointer',

@@ -209,7 +209,7 @@ export default function BalanceSheet() {
           {tr('Balance Sheet')}<TitleLoader />
         </Typography>
         <Typography sx={{ fontSize: 12, color: 'var(--rt-text-2)', mb: 1.5 }}>{tr('As of')} {asOf}</Typography>
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', '& > *:not(.MuiFormControl-root):not(.MuiAutocomplete-root)': { mb: '6px' }, flexWrap: 'wrap', gap: 1 }}>
           <TextField label={tr('As of')} type="date" size="small" sx={{ width: 160 }} InputLabelProps={{ shrink: true }}
             value={asOf} onChange={e => { winPinned.current = true; setAsOf(e.target.value) }} />
           <Autocomplete multiple disableCloseOnSelect size="small" options={allStores} value={stores}

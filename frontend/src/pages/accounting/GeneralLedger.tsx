@@ -247,7 +247,7 @@ export default function GeneralLedger() {
         </Typography>
         <Typography sx={{ fontSize: 12, color: 'var(--rt-text-2)', mb: 1.5 }}>{dateFrom} — {dateTo}</Typography>
 
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', '& > *:not(.MuiFormControl-root):not(.MuiAutocomplete-root)': { mb: '6px' }, flexWrap: 'wrap', gap: 1 }}>
           <Stack direction="row" spacing={0.5}>
             {Object.keys(PRESETS).map(p => (
               <Chip key={p} label={tr(p)} size="small" onClick={() => applyPreset(p)}
@@ -273,7 +273,7 @@ export default function GeneralLedger() {
           <SavedViewsBar pageKey="accounting-general-ledger" current={currentView} onApply={applyView} />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', '& > *:not(.MuiFormControl-root):not(.MuiAutocomplete-root)': { mb: '6px' }, flexWrap: 'wrap', gap: 1, mt: 1 }}>
           {/* Account — chart-of-accounts type-ahead (code | name) */}
           <DataSlicer sx={{ minWidth: 240, maxWidth: 360 }} value={accSel} onChange={setAccSel}
             searchEndpoint="/api/accounting/search/accounts"

@@ -169,7 +169,7 @@ export default function Exceptions() {
           {tr('Source documents that do not balance across their journals')} · {dateFrom} — {dateTo}
         </Typography>
 
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', '& > *:not(.MuiFormControl-root):not(.MuiAutocomplete-root)': { mb: '6px' }, flexWrap: 'wrap', gap: 1 }}>
           <Stack direction="row" spacing={0.5}>
             {Object.keys(PRESETS).map(p => (
               <Chip key={p} label={tr(p)} size="small" onClick={() => applyPreset(p)}

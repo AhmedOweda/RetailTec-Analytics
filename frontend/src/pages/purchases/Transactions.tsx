@@ -221,7 +221,7 @@ export default function PurchasesTransactions() {
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>
           {dateFrom} — {dateTo}
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', '& > *:not(.MuiFormControl-root):not(.MuiAutocomplete-root)': { mb: '6px' }, flexWrap: 'wrap', gap: 1 }}>
 
           <Stack direction="row" spacing={0.5}>
             {Object.keys(PRESETS).map(p => (

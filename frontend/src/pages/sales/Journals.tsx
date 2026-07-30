@@ -291,7 +291,7 @@ export default function Journals() {
         </Typography>
         <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1.5 }}>{dateFrom} — {dateTo}</Typography>
 
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', '& > *:not(.MuiFormControl-root):not(.MuiAutocomplete-root)': { mb: '6px' }, flexWrap: 'wrap', gap: 1 }}>
           <Stack direction="row" spacing={0.5}>
             {Object.keys(PRESETS).map(p => (
               <Chip key={p} label={tr(p)} size="small" onClick={() => applyPreset(p)}
@@ -318,7 +318,7 @@ export default function Journals() {
           <SavedViewsBar pageKey="journals" current={currentView} onApply={applyView} />
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', '& > *:not(.MuiFormControl-root):not(.MuiAutocomplete-root)': { mb: '6px' }, flexWrap: 'wrap', gap: 1, mt: 1 }}>
           <TextField size="small" label={tr('Document No.')} value={docNo} onChange={e => setDocNo(e.target.value)} sx={{ width: 130 }} />
 
           {/* Customer — name | phone | id */}
