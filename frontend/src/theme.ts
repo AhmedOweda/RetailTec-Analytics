@@ -71,12 +71,43 @@ export function createAppTheme(mode: 'light' | 'dark',
     ] as any,
 
     components: {
-      // App-wide: never let field labels FLOAT. They sit statically on the top
-      // border (shrunk) so they can't animate up and overlap the field frame
-      // while typing — fixes the overlapping "dynamic title" boxes everywhere
-      // (slicers, dialogs, Settings) in one place. Placeholders still show.
-      MuiInputLabel:  { defaultProps: { shrink: true } },
-      MuiTextField:   { defaultProps: { InputLabelProps: { shrink: true } } },
+      // App-wide field style (owner request 30 Jul 2026): the shrunk label
+      // that sits ON the outline kept colliding with the border frame on
+      // scaled displays. Labels now render STATICALLY ABOVE the field — the
+      // same look as the Settings caption controls (e.g. INCREMENTAL
+      // OVERLAP) — and the border notch is closed so the outline is a clean
+      // unbroken box. One place, every screen: slicers, dialogs, Settings,
+      // login. Placeholders still show inside the box.
+      MuiInputLabel: {
+        defaultProps: { shrink: true },
+        styleOverrides: {
+          root: {
+            position: 'relative',
+            transform: 'none',
+            fontSize: '0.68rem',
+            fontWeight: 700,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase',
+            lineHeight: 1.4,
+            marginBottom: 3,
+            maxWidth: '100%',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            '&.Mui-focused': { color: PURPLE_BRAND[dark ? 400 : 600] },
+          },
+        },
+      },
+      MuiTextField: { defaultProps: { InputLabelProps: { shrink: true } } },
+      MuiOutlinedInput: {
+        styleOverrides: {
+          notchedOutline: {
+            // The label no longer floats into the border — collapse the
+            // notch so the top edge renders as one solid line.
+            '& legend': { width: 0 },
+          },
+        },
+      },
 
       // Single default for every Paper: drop MUI's elevation-overlay tint so
       // paper backgrounds stay consistent. Intentionally no border/shadow here
